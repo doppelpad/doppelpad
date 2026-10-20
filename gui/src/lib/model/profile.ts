@@ -102,7 +102,17 @@ export function newMapping(layer: number, combo: Combo, activator: Activator): M
   return m;
 }
 
-const STICK_DIRS: Record<string, [number, number]> = { Up: [0, 1], Down: [0, -1], Left: [-1, 0], Right: [1, 0] };
+const D = Math.SQRT1_2;
+const STICK_DIRS: Record<string, [number, number]> = {
+  Up: [0, 1],
+  Down: [0, -1],
+  Left: [-1, 0],
+  Right: [1, 0],
+  UpLeft: [-D, D],
+  UpRight: [D, D],
+  DownLeft: [-D, -D],
+  DownRight: [D, -D],
+};
 
 /**
  * The output a single control produces when it is not remapped (pad A → pad A, a key →
@@ -117,7 +127,7 @@ export function nativeAction(combo: Combo): Action | null {
   if (c.startsWith('Mouse:')) return { mouse: c.slice(6).toLowerCase() as MouseButtonName };
   if (c.startsWith('Wheel:')) return { wheel: c.slice(6).toLowerCase() as WheelDir };
   if (c.startsWith('MouseMove:')) return null;
-  const stick = /^(Left|Right)Stick(Up|Down|Left|Right)(Low|Med|High)?$/.exec(c);
+  const stick = /^(Left|Right)Stick(UpLeft|UpRight|DownLeft|DownRight|Up|Down|Left|Right)(Low|Med|High)?$/.exec(c);
   if (stick) {
     const [x, y] = STICK_DIRS[stick[2]];
     return { stick: stick[1] === 'Left' ? 'left' : 'right', x, y };
@@ -126,7 +136,8 @@ export function nativeAction(combo: Combo): Action | null {
   if (trigger) return { trigger: trigger[1] === 'LT' ? 'left' : 'right' };
   // A stick zone in any direction has no single direction to reproduce.
   if (/^(Left|Right)Stick(Low|Med|High)$/.test(c)) return null;
-  if (/^Touch(Up|Down|Left|Right|Center)$/.test(c) || /^Gyro(Up|Down|Left|Right)$/.test(c)) return null;
+  if (/^Touch[A-Z][a-zA-Z]*$/.test(c) && c !== 'Touchpad') return null;
+  if (/^Gyro(Up|Down|Left|Right)$/.test(c)) return null;
   return { pad: c as PadButtonName };
 }
 

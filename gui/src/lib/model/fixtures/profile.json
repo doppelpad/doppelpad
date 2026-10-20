@@ -14,7 +14,9 @@
       "invert_x": false,
       "invert_y": true,
       "rotation": 45,
-      "zones": { "low": [0.25, 0.375], "high": 0.75 }
+      "zones": { "low": [0.25, 0.375], "high": 0.75 },
+      "diagonals": true,
+      "direction_width": 20
     },
     "right": {
       "deadzone": 0.06,
@@ -25,7 +27,9 @@
       "invert_x": false,
       "invert_y": false,
       "rotation": 0,
-      "zones": { "low": 0.25 }
+      "zones": { "low": 0.25 },
+      "diagonals": false,
+      "direction_width": 22.5
     }
   },
   "triggers": {
@@ -70,6 +74,8 @@
     { "trigger": "GyroLeft", "actions": [{ "key": "Q" }] },
     { "trigger": "TouchCenter", "activator": "double", "actions": [{ "key": "M" }] },
     { "trigger": "RTFull", "actions": [{ "mouse": "middle" }] },
+    { "trigger": "LeftStickUpLeft", "actions": [{ "key": "Q" }] },
+    { "trigger": "TouchDownRight", "actions": [{ "key": "R" }] },
     { "trigger": "Misc", "actions": [{ "command": "screenshot" }, { "command": "gyro_off" }] },
     { "trigger": "DpadLeft", "mode": "once", "actions": [{ "key": "Digit1" }, { "break": true }, { "key": "Digit2" }, { "wheel": "up", "clicks": 3 }] },
     { "layer": 1, "trigger": "A", "mode": "once", "actions": [{ "key": "F" }] },

@@ -10,7 +10,9 @@
     "rotation": 0.0,
     "zones": {
       "low": 0.24
-    }
+    },
+    "diagonals": false,
+    "direction_width": 22.5
   },
   "trigger": {
     "deadzone": 0.0,

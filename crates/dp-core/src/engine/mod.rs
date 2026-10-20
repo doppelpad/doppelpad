@@ -157,6 +157,15 @@ impl Outputs {
     }
 }
 
+/// Whether any mapping or route condition of the profile uses a control matching `f`.
+fn uses(p: &Profile, f: impl Fn(&Control) -> bool) -> bool {
+    p.mappings.iter().any(|m| m.trigger.0.iter().any(&f))
+        || p.layers
+            .iter()
+            .any(|l| l.not_inherited.iter().any(|c| c.0.iter().any(&f)))
+        || p.analog.iter().any(|r| r.while_held.iter().any(&f))
+}
+
 /// Run an activation's program up to `until`.
 fn step(act: &mut Activation, program: &[Step], outs: &mut Outputs, until: u64) {
     let mut guard = 0;
@@ -259,6 +268,10 @@ pub struct Engine {
     mouse_counts: (f32, f32),
     mouse_vel: (f32, f32),
     gyro_enabled: bool,
+    /// The profile maps diagonal touchpad regions or mouse directions, so those sources
+    /// tell eight directions apart.
+    touch_diagonals: bool,
+    mouse_diagonals: bool,
 
     prev_controls: HashSet<Control>,
     cur_controls: HashSet<Control>,
@@ -296,6 +309,14 @@ impl Engine {
             .map(|(i, m)| (m[0], i))
             .collect();
         let route_state = vec![RouteState::default(); c.routes.len()];
+        let touch_diagonals = uses(
+            &profile,
+            |c| matches!(c, Control::Touch(r) if r.is_diagonal()),
+        );
+        let mouse_diagonals = uses(
+            &profile,
+            |c| matches!(c, Control::MouseMove(d) if d.is_diagonal()),
+        );
         Engine {
             profile,
             c,
@@ -311,6 +332,8 @@ impl Engine {
             mouse_counts: (0.0, 0.0),
             mouse_vel: (0.0, 0.0),
             gyro_enabled: true,
+            touch_diagonals,
+            mouse_diagonals,
             prev_controls: HashSet::new(),
             cur_controls: HashSet::new(),
             pending: Vec::new(),
@@ -425,8 +448,8 @@ impl Engine {
                     continue;
                 };
                 set.insert(Control::StickZone(s, None, zone));
-                let d = sectors(v, DIRECTION_SECTOR);
-                for dir in Dir::ALL {
+                let d = sectors(v, cfg.direction_ratio(), cfg.diagonals);
+                for dir in Dir::ALL8 {
                     if d[dir as usize] {
                         set.insert(Control::StickDir(s, dir));
                         set.insert(Control::StickZone(s, Some(dir), zone));
@@ -446,18 +469,17 @@ impl Engine {
             }
             if let Some(tp) = pad.touch[0] {
                 let v = ((tp.x - 0.5) * 2.0, (0.5 - tp.y) * 2.0);
-                let d = directions(v, TOUCH_CENTER_RADIUS, 1.0);
+                // Four 90° regions, or eight 45° ones when diagonals are mapped.
+                let k = if self.touch_diagonals {
+                    DIRECTION_SECTOR
+                } else {
+                    1.0
+                };
+                let d = directions(v, TOUCH_CENTER_RADIUS, k, self.touch_diagonals);
                 let mut any = false;
-                for (dir, region) in [
-                    (Dir::Up, TouchRegion::Up),
-                    (Dir::Down, TouchRegion::Down),
-                    (Dir::Left, TouchRegion::Left),
-                    (Dir::Right, TouchRegion::Right),
-                ] {
-                    if d[dir as usize] {
-                        set.insert(Control::Touch(region));
-                        any = true;
-                    }
+                for dir in Dir::ALL8.into_iter().filter(|x| d[*x as usize]) {
+                    set.insert(Control::Touch(TouchRegion::of(dir)));
+                    any = true;
                 }
                 if !any {
                     set.insert(Control::Touch(TouchRegion::Center));
@@ -512,6 +534,14 @@ impl Engine {
             );
         }
         let (vx, vy) = self.mouse_vel;
+        if self.mouse_diagonals {
+            // Screen y grows downwards; directions are y up.
+            let d = directions((vx, -vy), MOUSE_DIR_THRESHOLD, DIRECTION_SECTOR, true);
+            for dir in Dir::ALL8.into_iter().filter(|d8| d[*d8 as usize]) {
+                set.insert(Control::MouseMove(dir));
+            }
+            return set;
+        }
         if vx > MOUSE_DIR_THRESHOLD {
             set.insert(Control::MouseMove(Dir::Right));
         } else if vx < -MOUSE_DIR_THRESHOLD {

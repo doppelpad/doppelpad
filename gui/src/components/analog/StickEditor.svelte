@@ -119,10 +119,24 @@
         disabled={disabled || ellipticLow}
         onchange={(v) => set({ zones: setStickLevel(cfg.zones, 'low', 'both', v, zoneDefaults) })}
       />
+      <Slider
+        label={t('analog.stick.direction_width')}
+        value={cfg.direction_width}
+        def={def.direction_width}
+        min={5}
+        max={40}
+        step={0.5}
+        unit="°"
+        hint={t('analog.stick.direction_width_hint')}
+        {disabled}
+        onchange={(v) => set({ direction_width: v })}
+      />
       <div class="toggles">
         <Toggle checked={cfg.invert_x} {disabled} label={t('analog.stick.invert_x')} onchange={(v) => set({ invert_x: v })} />
         <Toggle checked={cfg.invert_y} {disabled} label={t('analog.stick.invert_y')} onchange={(v) => set({ invert_y: v })} />
+        <Toggle checked={cfg.diagonals} {disabled} label={t('analog.stick.diagonals')} onchange={(v) => set({ diagonals: v })} />
       </div>
+      <p class="hint">{t('analog.stick.diagonals_hint')}</p>
     </div>
 
     <div class="previews">
@@ -135,6 +149,11 @@
 {/if}
 
 <style>
+  .hint {
+    margin: -4px 0 0;
+    color: var(--text-dim);
+    font-size: 12px;
+  }
   .stick {
     display: grid;
     grid-template-columns: minmax(240px, 1fr) minmax(260px, 320px);

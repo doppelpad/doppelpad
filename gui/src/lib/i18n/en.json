@@ -341,6 +341,10 @@
       "sensitivity": "Sensitivity",
       "rotation": "Rotation",
       "rotation_hint": "Turns the stick counter-clockwise.",
+      "direction_width": "Direction width",
+      "direction_width_hint": "Degrees on each side of an axis that count as that direction alone. 22.5° gives eight equal directions.",
+      "diagonals": "Separate diagonal directions",
+      "diagonals_hint": "With separate diagonals the stick points in one of eight directions, and the diagonals can be mapped on their own. Without, a diagonal presses both of its directions.",
       "direction_threshold": "Direction threshold",
       "direction_threshold_hint": "Deflection at which the stick's directions (up, left, …) count as pressed for mappings; the low zone starts here.",
       "direction_threshold_elliptic": "Horizontal and vertical differ — change them under “Zone thresholds” of one of this stick's zones.",
@@ -525,7 +529,11 @@
     "up": "Up",
     "down": "Down",
     "left": "Left",
-    "right": "Right"
+    "right": "Right",
+    "up_left": "up-left",
+    "up_right": "up-right",
+    "down_left": "down-left",
+    "down_right": "down-right"
   },
   "controls": {
     "LeftStick": "Left stick",
@@ -540,7 +548,11 @@
       "down": "Touchpad bottom",
       "left": "Touchpad left",
       "right": "Touchpad right",
-      "center": "Touchpad centre"
+      "center": "Touchpad centre",
+      "up_left": "Touchpad top left",
+      "up_right": "Touchpad top right",
+      "down_left": "Touchpad bottom left",
+      "down_right": "Touchpad bottom right"
     },
     "gyro": "Gyro {dir}",
     "PaddleUL": "Upper left paddle",

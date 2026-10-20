@@ -25,7 +25,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use crate::keys::{Key, MouseButton, WheelDir};
 use crate::pad::{PadButton, Stick, Trigger};
 
-/// Four-way direction.
+/// Direction: the four cardinals, and the four diagonals for sources that tell them apart.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Dir {
@@ -33,10 +33,27 @@ pub enum Dir {
     Down,
     Left,
     Right,
+    UpLeft,
+    UpRight,
+    DownLeft,
+    DownRight,
 }
 
 impl Dir {
+    /// The four cardinal directions.
     pub const ALL: [Dir; 4] = [Dir::Up, Dir::Down, Dir::Left, Dir::Right];
+    pub const DIAGONALS: [Dir; 4] = [Dir::UpLeft, Dir::UpRight, Dir::DownLeft, Dir::DownRight];
+    /// Cardinals, then diagonals.
+    pub const ALL8: [Dir; 8] = [
+        Dir::Up,
+        Dir::Down,
+        Dir::Left,
+        Dir::Right,
+        Dir::UpLeft,
+        Dir::UpRight,
+        Dir::DownLeft,
+        Dir::DownRight,
+    ];
 
     pub fn name(self) -> &'static str {
         match self {
@@ -44,22 +61,45 @@ impl Dir {
             Dir::Down => "Down",
             Dir::Left => "Left",
             Dir::Right => "Right",
+            Dir::UpLeft => "UpLeft",
+            Dir::UpRight => "UpRight",
+            Dir::DownLeft => "DownLeft",
+            Dir::DownRight => "DownRight",
         }
     }
 
     fn parse(s: &str) -> Option<Dir> {
-        Dir::ALL
+        Dir::ALL8
             .into_iter()
             .find(|d| d.name().eq_ignore_ascii_case(s))
     }
 
+    pub fn is_diagonal(self) -> bool {
+        Dir::DIAGONALS.contains(&self)
+    }
+
+    /// The diagonal between a vertical and a horizontal cardinal.
+    pub fn diagonal(vertical: Dir, horizontal: Dir) -> Dir {
+        match (vertical, horizontal) {
+            (Dir::Up, Dir::Left) => Dir::UpLeft,
+            (Dir::Up, _) => Dir::UpRight,
+            (_, Dir::Left) => Dir::DownLeft,
+            _ => Dir::DownRight,
+        }
+    }
+
     /// Unit vector (x right, y up).
     pub fn vector(self) -> (f32, f32) {
+        const D: f32 = std::f32::consts::FRAC_1_SQRT_2;
         match self {
             Dir::Up => (0.0, 1.0),
             Dir::Down => (0.0, -1.0),
             Dir::Left => (-1.0, 0.0),
             Dir::Right => (1.0, 0.0),
+            Dir::UpLeft => (-D, D),
+            Dir::UpRight => (D, D),
+            Dir::DownLeft => (-D, -D),
+            Dir::DownRight => (D, -D),
         }
     }
 }
@@ -108,15 +148,23 @@ pub enum TouchRegion {
     Left,
     Right,
     Center,
+    UpLeft,
+    UpRight,
+    DownLeft,
+    DownRight,
 }
 
 impl TouchRegion {
-    pub const ALL: [TouchRegion; 5] = [
+    pub const ALL: [TouchRegion; 9] = [
         TouchRegion::Up,
         TouchRegion::Down,
         TouchRegion::Left,
         TouchRegion::Right,
         TouchRegion::Center,
+        TouchRegion::UpLeft,
+        TouchRegion::UpRight,
+        TouchRegion::DownLeft,
+        TouchRegion::DownRight,
     ];
 
     pub fn name(self) -> &'static str {
@@ -126,7 +174,35 @@ impl TouchRegion {
             TouchRegion::Left => "Left",
             TouchRegion::Right => "Right",
             TouchRegion::Center => "Center",
+            TouchRegion::UpLeft => "UpLeft",
+            TouchRegion::UpRight => "UpRight",
+            TouchRegion::DownLeft => "DownLeft",
+            TouchRegion::DownRight => "DownRight",
         }
+    }
+
+    /// The region in a direction from the centre.
+    pub fn of(dir: Dir) -> TouchRegion {
+        match dir {
+            Dir::Up => TouchRegion::Up,
+            Dir::Down => TouchRegion::Down,
+            Dir::Left => TouchRegion::Left,
+            Dir::Right => TouchRegion::Right,
+            Dir::UpLeft => TouchRegion::UpLeft,
+            Dir::UpRight => TouchRegion::UpRight,
+            Dir::DownLeft => TouchRegion::DownLeft,
+            Dir::DownRight => TouchRegion::DownRight,
+        }
+    }
+
+    pub fn is_diagonal(self) -> bool {
+        matches!(
+            self,
+            TouchRegion::UpLeft
+                | TouchRegion::UpRight
+                | TouchRegion::DownLeft
+                | TouchRegion::DownRight
+        )
     }
 }
 
@@ -163,12 +239,12 @@ impl Control {
         )
     }
 
-    /// Every digital control derived from a stick: directions and zones.
+    /// Every digital control derived from a stick: directions (with diagonals) and zones.
     pub fn of_stick(s: Stick) -> Vec<Control> {
-        let dirs = Dir::ALL.map(|d| Control::StickDir(s, d));
+        let dirs = Dir::ALL8.map(|d| Control::StickDir(s, d));
         let zones = Zone::ALL.into_iter().flat_map(move |z| {
             std::iter::once(None)
-                .chain(Dir::ALL.map(Some))
+                .chain(Dir::ALL8.map(Some))
                 .map(move |d| Control::StickZone(s, d, z))
         });
         dirs.into_iter().chain(zones).collect()
@@ -416,6 +492,10 @@ mod tests {
             Control::Button(PadButton::Misc2),
             Control::StickDir(Stick::Left, Dir::Up),
             Control::StickDir(Stick::Right, Dir::Left),
+            Control::StickDir(Stick::Left, Dir::DownRight),
+            Control::StickZone(Stick::Right, Some(Dir::UpLeft), Zone::Med),
+            Control::Touch(TouchRegion::UpLeft),
+            Control::MouseMove(Dir::DownLeft),
             Control::StickZone(Stick::Left, None, Zone::Low),
             Control::StickZone(Stick::Right, Some(Dir::Right), Zone::High),
             Control::StickZone(Stick::Left, Some(Dir::Up), Zone::Med),

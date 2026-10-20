@@ -341,6 +341,10 @@
       "sensitivity": "Empfindlichkeit",
       "rotation": "Drehung",
       "rotation_hint": "Dreht den Stick gegen den Uhrzeigersinn.",
+      "direction_width": "Richtungsbreite",
+      "direction_width_hint": "Grad zu jeder Seite einer Achse, die nur als diese Richtung zählen. 22,5° ergibt acht gleiche Richtungen.",
+      "diagonals": "Diagonalen getrennt",
+      "diagonals_hint": "Mit getrennten Diagonalen zeigt der Stick in eine von acht Richtungen, und Diagonalen lassen sich einzeln belegen. Ohne drückt eine Diagonale beide ihrer Richtungen.",
       "direction_threshold": "Richtungsschwelle",
       "direction_threshold_hint": "Auslenkung, ab der die Richtungen des Sticks (hoch, links, …) für Mappings als gedrückt gelten; hier beginnt die niedrige Zone.",
       "direction_threshold_elliptic": "Horizontal und vertikal sind verschieden – ändere sie unter „Zonenschwellen“ bei einer Zone dieses Sticks.",
@@ -525,7 +529,11 @@
     "up": "Hoch",
     "down": "Runter",
     "left": "Links",
-    "right": "Rechts"
+    "right": "Rechts",
+    "up_left": "hoch-links",
+    "up_right": "hoch-rechts",
+    "down_left": "runter-links",
+    "down_right": "runter-rechts"
   },
   "controls": {
     "LeftStick": "Linker Stick",
@@ -540,7 +548,11 @@
       "down": "Touchpad unten",
       "left": "Touchpad links",
       "right": "Touchpad rechts",
-      "center": "Touchpad Mitte"
+      "center": "Touchpad Mitte",
+      "up_left": "Touchpad oben links",
+      "up_right": "Touchpad oben rechts",
+      "down_left": "Touchpad unten links",
+      "down_right": "Touchpad unten rechts"
     },
     "gyro": "Gyro {dir}",
     "PaddleUL": "Paddle oben links",

@@ -535,6 +535,70 @@ fn touch_and_motion_pass_through_unless_remapped() {
 }
 
 #[test]
+fn stick_diagonals_are_separate_when_switched_on() {
+    let stick_profile = |diagonals: bool| {
+        let mut p = Profile::default();
+        p.sticks.left.diagonals = diagonals;
+        p.mappings.push(map(
+            Control::StickDir(Stick::Left, Dir::Up),
+            vec![key(Key::W)],
+        ));
+        p.mappings.push(map(
+            Control::StickDir(Stick::Left, Dir::Right),
+            vec![key(Key::D)],
+        ));
+        p.mappings.push(map(
+            Control::StickDir(Stick::Left, Dir::UpRight),
+            vec![key(Key::E)],
+        ));
+        p
+    };
+    let up_right = |h: &mut Harness| {
+        h.pad.set_stick(Stick::Left, (0.7, 0.7));
+        h.until(h.t + 5);
+        [Key::W, Key::D, Key::E].map(|k| h.e.is_output_down(k))
+    };
+    let mut h = Harness::new(stick_profile(true));
+    assert_eq!(
+        up_right(&mut h),
+        [false, false, true],
+        "8-way: only the diagonal"
+    );
+    let mut h = Harness::new(stick_profile(false));
+    assert_eq!(
+        up_right(&mut h),
+        [true, true, false],
+        "4-way: both cardinals"
+    );
+}
+
+#[test]
+fn diagonal_touch_and_mouse_controls_switch_their_source_to_eight_way() {
+    use crate::pad::TouchPoint;
+    let mut p = Profile::default();
+    p.mappings
+        .push(map(Control::Touch(TouchRegion::UpLeft), vec![key(Key::Q)]));
+    p.mappings
+        .push(map(Control::MouseMove(Dir::DownRight), vec![key(Key::C)]));
+    p.mappings
+        .push(map(Control::Touch(TouchRegion::Up), vec![key(Key::W)]));
+    let mut h = Harness::new(p);
+    h.pad.touch[0] = Some(TouchPoint { x: 0.05, y: 0.05 });
+    h.until(h.t + 5);
+    assert!(h.e.is_output_down(Key::Q) && !h.e.is_output_down(Key::W));
+    h.pad.touch[0] = Some(TouchPoint { x: 0.5, y: 0.0 });
+    h.until(h.t + 5);
+    assert!(h.e.is_output_down(Key::W) && !h.e.is_output_down(Key::Q));
+    // Mouse moving right and down at 3000 counts/s.
+    for _ in 0..30 {
+        h.pending_kbm.push(KbmEvent::MouseMove { dx: 3, dy: 3 });
+        h.t += 1;
+        h.tick();
+    }
+    assert!(h.e.is_output_down(Key::C));
+}
+
+#[test]
 fn gyro_commands_switch_gyro_routes() {
     use crate::pad::Motion;
     let mut p = Profile::default();

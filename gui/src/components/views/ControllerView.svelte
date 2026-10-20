@@ -6,6 +6,7 @@
   import { DEVICE_LAYOUTS, type DeviceId, type LayoutControl } from '../../assets/devices/layouts';
   import { t } from '../../lib/i18n/index.svelte';
   import {
+    DIAGONALS,
     TOUCH_REGIONS,
     ZONES,
     controlShort,
@@ -32,7 +33,17 @@
   let menu = $state<{ kind: 'stick' | 'touch' | 'gyro'; stick?: 'Left' | 'Right'; click?: ControlName; x: number; y: number } | null>(null);
 
   const DIRS = ['Up', 'Down', 'Left', 'Right'] as const;
-  const ARROW: Record<string, string> = { Up: '↑', Down: '↓', Left: '←', Right: '→', Center: '◎' };
+  const ARROW: Record<string, string> = {
+    Up: '↑',
+    Down: '↓',
+    Left: '←',
+    Right: '→',
+    Center: '◎',
+    UpLeft: '↖',
+    UpRight: '↗',
+    DownLeft: '↙',
+    DownRight: '↘',
+  };
 
   const combos = $derived(app.profile ? shortcutMembers(app.profile, app.layer) : new Set<string>());
 
@@ -62,11 +73,11 @@
     const stick = stickOf(c);
     if (stick) {
       return [
-        ...DIRS.flatMap((d) => zoneFamily(stick + d).map((x) => ({ c: x, tag: ARROW[d] + zoneSuffix(x) }))),
+        ...[...DIRS, ...DIAGONALS].flatMap((d) => zoneFamily(stick + d).map((x) => ({ c: x, tag: ARROW[d] + zoneSuffix(x) }))),
         ...zoneFamily(stick).map((x) => ({ c: x, tag: '◎' + zoneSuffix(x) })),
       ];
     }
-    if (c === 'Touchpad') return TOUCH_REGIONS.map((r) => ({ c: `Touch${r}`, tag: ARROW[r] }));
+    if (c === 'Touchpad') return [...TOUCH_REGIONS, ...DIAGONALS].map((r) => ({ c: `Touch${r}`, tag: ARROW[r] }));
     if (zoneParts(c)) {
       return [...ZONES.map((z) => ({ c: withZone(c, z), tag: zoneTag(z) })), { c: `${c}Full`, tag: fullPullTag() }];
     }
@@ -260,12 +271,16 @@
       {@const m = menu}
       {@const p = pct(m.x, m.y)}
       {@const prefix = m.kind === 'stick' ? (m.stick === 'Left' ? 'LeftStick' : 'RightStick') : m.kind === 'touch' ? 'Touch' : 'Gyro'}
+      {@const diag = m.kind === 'touch' || (m.kind === 'stick' && !!app.profile?.sticks?.[m.stick === 'Left' ? 'left' : 'right']?.diagonals)}
       <div class="stick-menu" style="left: {p.left}%; top: {p.top}%">
         <div class="sm-title">{t(`binding.${m.kind}_choose`)}</div>
+        {#snippet corner(d: string, arrow: string)}
+          {#if diag}<button onclick={() => choose(`${prefix}${d}`)}>{arrow}</button>{:else}<span></span>{/if}
+        {/snippet}
         <div class="sm-grid">
-          <span></span>
+          {@render corner('UpLeft', '↖')}
           <button onclick={() => choose(`${prefix}Up`)}>↑</button>
-          <span></span>
+          {@render corner('UpRight', '↗')}
           <button onclick={() => choose(`${prefix}Left`)}>←</button>
           {#if m.kind === 'gyro'}
             <span></span>
@@ -275,9 +290,9 @@
             <button class="click" onclick={() => choose(m.click!)}>{t('binding.click')}</button>
           {/if}
           <button onclick={() => choose(`${prefix}Right`)}>→</button>
-          <span></span>
+          {@render corner('DownLeft', '↙')}
           <button onclick={() => choose(`${prefix}Down`)}>↓</button>
-          <span></span>
+          {@render corner('DownRight', '↘')}
         </div>
         {#if m.kind === 'stick'}
           <button class="sm-any" onclick={() => choose(`${prefix}Low`)}>{t('zones.any_direction_button')}</button>

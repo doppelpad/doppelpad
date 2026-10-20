@@ -170,6 +170,12 @@ pub fn validate(p: &Profile) -> Diagnostics {
         if !(0.0..1.0).contains(&s.deadzone) {
             d.error(format!("sticks.{name}.deadzone"), "must be in [0, 1)");
         }
+        if !(1.0..=44.0).contains(&s.direction_width) {
+            d.error(
+                format!("sticks.{name}.direction_width"),
+                "must be between 1 and 44 degrees",
+            );
+        }
         if s.curve
             .iter()
             .any(|pt| !(0.0..=1.0).contains(&pt[0]) || !(0.0..=1.0).contains(&pt[1]))

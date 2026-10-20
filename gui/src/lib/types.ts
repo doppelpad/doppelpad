@@ -122,6 +122,8 @@ export interface StickConfig {
   invert_y?: boolean;
   rotation?: number;
   zones?: StickZones;
+  diagonals?: boolean;
+  direction_width?: number;
 }
 
 export interface TriggerConfig {

@@ -217,6 +217,12 @@ pub struct StickConfig {
     pub rotation: f32,
     /// Where direction controls and the zone controls activate.
     pub zones: StickZones,
+    /// Separate diagonal directions (`LeftStickUpLeft`, ...): the stick then points in
+    /// exactly one of eight directions; otherwise a diagonal presses both cardinals.
+    pub diagonals: bool,
+    /// Degrees on each side of an axis that count as that cardinal direction alone,
+    /// `(0, 45)`. 22.5 gives eight equal sectors.
+    pub direction_width: f32,
 }
 
 impl Default for StickConfig {
@@ -231,7 +237,17 @@ impl Default for StickConfig {
             invert_y: false,
             rotation: 0.0,
             zones: StickZones::default(),
+            diagonals: false,
+            direction_width: 22.5,
         }
+    }
+}
+
+impl StickConfig {
+    /// Tangent of [`direction_width`](Self::direction_width), the ratio the direction
+    /// sectors are tested with.
+    pub fn direction_ratio(&self) -> f32 {
+        self.direction_width.clamp(1.0, 44.0).to_radians().tan()
     }
 }
 
