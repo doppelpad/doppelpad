@@ -347,6 +347,7 @@ const COMMAND_LABELS: Record<string, string> = {
   log_off: 'Log off',
   screenshot: 'Screenshot',
   close_window: 'Close window',
+  toggle_crosshair: 'Crosshair on/off',
 };
 
 /** Commands that end the session or put the computer to sleep: the editor asks first. */
@@ -376,6 +377,7 @@ export function actionLabel(a: Action): string {
     const c = a.command;
     if (typeof c === 'string' && c in COMMAND_LABELS) return COMMAND_LABELS[c];
     if (typeof c === 'object' && 'launch' in c) return `Run ${c.launch.path.split(/[\\/]/).pop()}`;
+    if (typeof c === 'object' && 'crosshair' in c) return `Crosshair ${c.crosshair}`;
     if (typeof c === 'object' && 'unsupported' in c) return c.unsupported;
   }
   return '?';

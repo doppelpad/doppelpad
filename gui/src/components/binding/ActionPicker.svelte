@@ -225,6 +225,14 @@
       <button class="cmd" onclick={() => onpick({ command: 'switch_gyro_axis' })}>{t('picker.switch_gyro_axis')}</button>
       <button class="cmd" onclick={() => onpick({ command: 'screenshot' })}>{t('picker.screenshot')}</button>
       <button class="cmd" onclick={() => onpick({ command: 'close_window' })}>{t('picker.close_window')}</button>
+      {#each app.profile?.crosshairs ?? [] as x, i (i)}
+        <button class="cmd" onclick={() => onpick({ command: { crosshair: i + 1 } })}>
+          {t('picker.crosshair', { n: i + 1 })}{x.name ? ` · ${x.name}` : ''}
+        </button>
+      {/each}
+      {#if app.profile?.crosshairs?.length}
+        <button class="cmd" onclick={() => onpick({ command: 'toggle_crosshair' })}>{t('picker.toggle_crosshair')}</button>
+      {/if}
       {#each POWER_COMMANDS as c (c)}
         <button class="cmd power" onclick={() => pickPower(c)}>{t(`picker.${c}`)}…</button>
       {/each}

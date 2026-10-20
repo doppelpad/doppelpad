@@ -264,6 +264,39 @@
       "release": "Löst kurz aus, wenn die Taste losgelassen wird."
     }
   },
+  "crosshairs": {
+    "title": "Fadenkreuze",
+    "hint": "Bis zu zehn Fadenkreuze über dem Spiel, in der Mitte des Hauptmonitors. Belegungen zeigen sie mit „Fadenkreuz N zeigen“, oder sie erscheinen, solange eine ihrer Ebenen aktiv ist.",
+    "name": "Name",
+    "remove": "Fadenkreuz entfernen",
+    "add": "Fadenkreuz hinzufügen",
+    "color": "Farbe",
+    "outline_color": "Rand",
+    "offset": "Versatz X / Y",
+    "size": "Größe",
+    "thickness": "Linienstärke",
+    "opacity": "Deckkraft",
+    "outline": "Randbreite",
+    "visible": "Fadenkreuz zeichnen",
+    "magnifier": "Lupe",
+    "zoom": "Vergrößerung",
+    "mag_size": "Lupengröße",
+    "mag_size_hint": "Durchmesser im Verhältnis zur Bildschirmhöhe. Nur unter Windows.",
+    "layers": "Zeigen, solange aktiv:",
+    "shapes": {
+      "cross": "Kreuz",
+      "cross_gap": "Kreuz mit Lücke",
+      "dot": "Punkt",
+      "circle": "Kreis",
+      "circle_dot": "Kreis mit Punkt",
+      "circle_cross": "Kreis mit Kreuz",
+      "x": "Diagonalkreuz",
+      "t": "T",
+      "chevron": "Winkel",
+      "square": "Quadrat",
+      "brackets": "Ecken"
+    }
+  },
   "picker": {
     "keyboard": "Tastatur",
     "mouse": "Maus",
@@ -279,6 +312,8 @@
     "switch_gyro_axis": "Gyro-Lenkachse wechseln",
     "screenshot": "Screenshot aufnehmen",
     "close_window": "Aktives Fenster schließen",
+    "crosshair": "Fadenkreuz {n} zeigen",
+    "toggle_crosshair": "Fadenkreuz an/aus",
     "shutdown": "PC herunterfahren",
     "restart": "PC neu starten",
     "sleep": "Energie sparen",

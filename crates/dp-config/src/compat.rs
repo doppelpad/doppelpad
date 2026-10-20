@@ -11,11 +11,11 @@ use dp_core::control::{
 use dp_core::keys::{Key, MouseButton, WheelDir};
 use dp_core::pad::{PadButton, Stick, Trigger};
 use dp_core::profile::{
-    Action, Activator, AnalogMapping, AnalogSource, AnalogTarget, Combo, Command, GyroMode,
-    JitterPattern, Jump, JumpMode, KeyRepeat, Layer, LayerSticks, LayerTriggers,
-    LayerVirtualSticks, Mapping, Mode, Press, Profile, ShakeAxis, StickPatch, Sticks, TriggerPatch,
-    Triggers, Unlock, VirtualMotion, VirtualMouse, VirtualPadType, VirtualStick, VirtualStickPatch,
-    VirtualSticks, ZoneRadius,
+    Action, Activator, AnalogMapping, AnalogSource, AnalogTarget, Combo, Command, Crosshair,
+    CrosshairShape, GyroMode, JitterPattern, Jump, JumpMode, KeyRepeat, Layer, LayerSticks,
+    LayerTriggers, LayerVirtualSticks, Magnifier, Mapping, Mode, Press, Profile, ShakeAxis,
+    StickPatch, Sticks, TriggerPatch, Triggers, Unlock, VirtualMotion, VirtualMouse,
+    VirtualPadType, VirtualStick, VirtualStickPatch, VirtualSticks, ZoneRadius,
 };
 use serde_json::Value;
 
@@ -464,6 +464,9 @@ struct Importer<'a> {
     touch_click_required: bool,
     /// Speed (px/s) and acceleration of button-driven mouse motion, from the virtual mouse.
     mouse_speed: (f32, f32),
+    /// Crosshair ids in profile order, and the index of each crosshair GUID.
+    crosshair_ids: Vec<i64>,
+    crosshair_guids: HashMap<String, usize>,
 }
 
 /// Recognize the format's encoding of shift keys and fold each pair into one
@@ -537,6 +540,8 @@ pub fn import(json: &str) -> Result<(Profile, Diagnostics), ImportError> {
         split_touch: false,
         touch_click_required: false,
         mouse_speed: (1000.0, 4.0),
+        crosshair_ids: Vec::new(),
+        crosshair_guids: HashMap::new(),
     };
     let profile = imp.run();
     Ok((profile, imp.diags))
@@ -583,7 +588,8 @@ impl<'a> Importer<'a> {
         }
         self.split_touch = self.uses_second_trackpad();
         p.touchpad.split = self.split_touch;
-        self.masks();
+        self.crosshairs(&mut p);
+        self.masks(&mut p);
         self.layers(&mut p);
         let mappings = array(self.root, "mappings");
         for (i, m) in mappings.iter().enumerate() {
@@ -610,12 +616,10 @@ impl<'a> Importer<'a> {
                 }
             }
         }
-        for key in ["radialMenuCircles", "radialMenuSectors", "crosshairs"] {
+        for key in ["radialMenuCircles", "radialMenuSectors"] {
             if !array(self.root, key).is_empty() {
-                self.diags.warn(
-                    key,
-                    "radial menus and crosshair overlays are not supported yet and were ignored",
-                );
+                self.diags
+                    .warn(key, "radial menus are not supported yet and were ignored");
             }
         }
         p
@@ -1152,15 +1156,30 @@ impl<'a> Importer<'a> {
         control
     }
 
-    fn masks(&mut self) {
+    fn masks(&mut self, p: &mut Profile) {
         for (i, m) in array(self.root, "masks").iter().enumerate() {
             let path = format!("masks[{i}]");
             let Some(id) = int(m, "id") else { continue };
             let set = array(m, "set");
             if set.is_empty() {
-                if get(m, "radialMenuSet").is_some() || get(m, "crosshairSet").is_some() {
+                // A crosshair mask shows its crosshair on a layer; mappings on it are dropped.
+                for c in array(m, "crosshairSet") {
+                    let index = text(c, "crosshairGuid").and_then(|g| self.crosshair_guids.get(&g));
+                    match (index, int(c, "layer")) {
+                        (Some(&x), Some(layer @ 0..=255)) => {
+                            let layers = &mut p.crosshairs[x].layers;
+                            if !layers.contains(&(layer as u8)) {
+                                layers.push(layer as u8);
+                            }
+                        }
+                        _ => self
+                            .diags
+                            .warn(&path, "crosshair mask of an unknown crosshair"),
+                    }
+                }
+                if get(m, "radialMenuSet").is_some() {
                     self.diags
-                        .warn(&path, "radial-menu / crosshair masks are not supported");
+                        .warn(&path, "radial-menu masks are not supported");
                 }
                 continue;
             }
@@ -1177,6 +1196,63 @@ impl<'a> Importer<'a> {
             if !combo.is_empty() {
                 self.masks.insert(id, Combo(combo));
             }
+        }
+    }
+
+    fn crosshairs(&mut self, p: &mut Profile) {
+        let mut items: Vec<&Value> = array(self.root, "crosshairs").iter().collect();
+        items.sort_by_key(|c| int(c, "id").unwrap_or(i64::MAX));
+        let rgb = |c: &Value, key: &str| -> Option<String> {
+            let v: Vec<u8> = array(c, key)
+                .iter()
+                .filter_map(|x| x.as_u64().map(|n| n.min(255) as u8))
+                .collect();
+            (v.len() == 3).then(|| format!("#{:02x}{:02x}{:02x}", v[0], v[1], v[2]))
+        };
+        let num = |c: &Value, key: &str| get(c, key).and_then(Value::as_f64);
+        let mut shapes = false;
+        for (i, c) in items.into_iter().enumerate() {
+            if i == 10 {
+                self.diags
+                    .warn("crosshairs", "only the first ten crosshairs were kept");
+                break;
+            }
+            let d = Crosshair::default();
+            shapes |= get(c, "crosshairType").is_some();
+            let magnifier = boolean(c, "useMagnifier").then(|| Magnifier {
+                zoom: num(c, "magnification").unwrap_or(2.0).clamp(1.0, 16.0) as f32,
+                size: num(c, "magnificationSizePercents")
+                    .map_or(0.2, |v| v / 100.0)
+                    .clamp(0.1, 1.0) as f32,
+            });
+            let delta = |key| int(c, key).unwrap_or(0).clamp(-10_000, 10_000) as i16;
+            p.crosshairs.push(Crosshair {
+                name: text(c, "name").unwrap_or_default(),
+                shape: CrosshairShape::Cross,
+                color: rgb(c, "color").unwrap_or(d.color),
+                opacity: num(c, "opacity").map_or(1.0, |v| (v / 100.0).clamp(0.0, 1.0) as f32),
+                size: int(c, "size").map_or(d.size, |v| v.clamp(10, 200) as u16),
+                thickness: int(c, "thickness").map_or(d.thickness, |v| v.clamp(10, 100) as u8),
+                outline: num(c, "edgingThickness")
+                    .map_or(0, |v| (v / 5.0).round().clamp(0.0, 10.0) as u8),
+                outline_color: rgb(c, "edgingColor").unwrap_or(d.outline_color),
+                offset: [delta("horizontalDelta"), delta("verticalDelta")],
+                visible: get(c, "useCrosshair")
+                    .and_then(Value::as_bool)
+                    .unwrap_or(true),
+                magnifier,
+                layers: Vec::new(),
+            });
+            if let Some(g) = text(c, "guid") {
+                self.crosshair_guids.insert(g, i);
+            }
+            self.crosshair_ids.push(int(c, "id").unwrap_or(-1));
+        }
+        if shapes {
+            self.diags.info(
+                "crosshairs",
+                "crosshairs are drawn with Doppelpad's own shapes; each became a cross",
+            );
         }
     }
 
@@ -1572,6 +1648,17 @@ impl<'a> Importer<'a> {
                 15 => Command::GyroOn,
                 16 => Command::GyroOff,
                 17 => Command::Restart,
+                101..=110 => {
+                    // By crosshair id; the position counts in the profile.
+                    let id = ty - 100;
+                    let n = self
+                        .crosshair_ids
+                        .iter()
+                        .position(|&c| c == id)
+                        .map_or(id, |i| i as i64 + 1);
+                    Command::Crosshair(n as u8)
+                }
+                120 => Command::ToggleCrosshair,
                 1000..=1999 => {
                     let params = get(cmd, "params").cloned().unwrap_or(Value::Null);
                     Command::Launch {
@@ -1926,6 +2013,64 @@ mod tests {
         let (p, _) = import(doc).unwrap();
         assert_eq!(p.mappings.len(), 1);
         assert_eq!(p.mappings[0].jump.as_ref().unwrap().mode, JumpMode::Hold);
+    }
+
+    #[test]
+    fn crosshairs_masks_and_commands() {
+        let doc = r#"{ "schemaVersion": 3.0, "appVersion": "9.2.0", "config": { "appName": "x", "minTimeUnit": 1 },
+          "devices": { "hardware": [ { "id": 1, "name": "gamepad" } ] },
+          "shifts": [ { "id": 1, "type": "default" } ],
+          "crosshairs": [
+            { "id": 2, "guid": "b", "name": "Scope", "crosshairType": "whatever", "color": [255, 0, 0], "opacity": 50,
+              "size": 40, "thickness": 30, "edgingThickness": 10, "horizontalDelta": 5, "verticalDelta": -3,
+              "useMagnifier": true, "magnification": 4, "magnificationSizePercents": 30 },
+            { "id": 1, "guid": "a", "name": "Dot" } ],
+          "masks": [ { "id": 1, "set": [ { "deviceId": 1, "buttonId": 1 } ] },
+                     { "id": 2, "crosshairSet": [ { "crosshairGuid": "b", "layer": 1 } ] } ],
+          "commands": [ { "id": 1, "type": 102 }, { "id": 2, "type": 120 } ],
+          "mappings": [ { "condition": { "mask": { "id": 1, "activator": { "type": "single", "mode": "onetime" } } },
+                          "macros": [ { "command": { "id": 1 } }, { "command": { "id": 2 } } ] },
+                        { "condition": { "mask": { "id": 2, "activator": { "type": "single", "mode": "onetime" } } } } ] }"#;
+        let (p, diags) = import(doc).unwrap();
+        assert!(!diags.has_errors());
+        let names: Vec<&str> = p.crosshairs.iter().map(|c| c.name.as_str()).collect();
+        assert_eq!(names, ["Dot", "Scope"], "in id order");
+        let scope = &p.crosshairs[1];
+        assert_eq!(
+            (
+                scope.color.as_str(),
+                scope.opacity,
+                scope.size,
+                scope.thickness,
+                scope.outline
+            ),
+            ("#ff0000", 0.5, 40, 30, 2)
+        );
+        assert_eq!(scope.offset, [5, -3]);
+        assert_eq!(scope.layers, [1]);
+        assert_eq!(
+            scope.magnifier,
+            Some(Magnifier {
+                zoom: 4.0,
+                size: 0.3
+            })
+        );
+        assert_eq!(
+            p.mappings.len(),
+            1,
+            "the crosshair mask has no mapping of its own"
+        );
+        assert_eq!(
+            p.mappings[0].actions,
+            [
+                Action::Command {
+                    command: Command::Crosshair(2)
+                },
+                Action::Command {
+                    command: Command::ToggleCrosshair
+                }
+            ]
+        );
     }
 
     #[test]

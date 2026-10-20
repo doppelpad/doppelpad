@@ -264,6 +264,39 @@
       "release": "Fires briefly when the control is released."
     }
   },
+  "crosshairs": {
+    "title": "Crosshairs",
+    "hint": "Up to ten crosshairs over the game, in the middle of the primary monitor. Mappings show them with “Show crosshair N”, or they appear while one of their layers is active.",
+    "name": "Name",
+    "remove": "Remove crosshair",
+    "add": "Add crosshair",
+    "color": "Colour",
+    "outline_color": "Outline",
+    "offset": "Offset X / Y",
+    "size": "Size",
+    "thickness": "Line width",
+    "opacity": "Opacity",
+    "outline": "Outline width",
+    "visible": "Draw the crosshair",
+    "magnifier": "Magnifier",
+    "zoom": "Zoom",
+    "mag_size": "Magnifier size",
+    "mag_size_hint": "Diameter relative to the screen height. Windows only.",
+    "layers": "Show while active:",
+    "shapes": {
+      "cross": "Cross",
+      "cross_gap": "Cross with gap",
+      "dot": "Dot",
+      "circle": "Circle",
+      "circle_dot": "Circle with dot",
+      "circle_cross": "Circle with cross",
+      "x": "Diagonal cross",
+      "t": "T",
+      "chevron": "Chevron",
+      "square": "Square",
+      "brackets": "Corners"
+    }
+  },
   "picker": {
     "keyboard": "Keyboard",
     "mouse": "Mouse",
@@ -279,6 +312,8 @@
     "switch_gyro_axis": "Switch gyro steering axis",
     "screenshot": "Take a screenshot",
     "close_window": "Close the active window",
+    "crosshair": "Show crosshair {n}",
+    "toggle_crosshair": "Crosshair on/off",
     "shutdown": "Shut down the PC",
     "restart": "Restart the PC",
     "sleep": "Sleep",

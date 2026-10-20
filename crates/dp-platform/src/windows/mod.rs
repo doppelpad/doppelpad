@@ -8,6 +8,7 @@ mod foreground;
 mod hid;
 mod hidhide;
 mod hidio;
+mod magnifier;
 mod osinfo;
 pub mod overlay;
 mod process;
@@ -20,6 +21,7 @@ mod xinput;
 
 pub use devnode::physical_xusb_instances;
 pub use hidhide::HidHide;
+pub use magnifier::{Magnifier, MagnifierView};
 pub use osinfo::os_version;
 
 use crate::Platform;

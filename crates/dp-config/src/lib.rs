@@ -199,6 +199,12 @@ pub fn validate(p: &Profile) -> Diagnostics {
                 Action::MouseMove { acceleration, .. } if !(0.0..=100.0).contains(acceleration) => {
                     d.error(&path, "mouse acceleration must be 0–100")
                 }
+                Action::Command {
+                    command: Command::Crosshair(n),
+                } if *n == 0 || *n as usize > p.crosshairs.len() => d.warn(
+                    &path,
+                    format!("there is no crosshair {n}; the command does nothing"),
+                ),
                 _ => {}
             }
         }
@@ -268,6 +274,7 @@ pub fn validate(p: &Profile) -> Diagnostics {
             );
         }
     }
+    check_crosshairs(&mut d, p);
     for (i, l) in p.layers.iter().enumerate() {
         // Only the sides a layer changes are checked again.
         let changed = [
@@ -295,6 +302,46 @@ pub fn validate(p: &Profile) -> Diagnostics {
         }
     }
     d
+}
+
+/// `#rrggbb`.
+fn is_hex_color(s: &str) -> bool {
+    s.len() == 7 && s.starts_with('#') && s[1..].chars().all(|c| c.is_ascii_hexdigit())
+}
+
+fn check_crosshairs(d: &mut Diagnostics, p: &Profile) {
+    if p.crosshairs.len() > 10 {
+        d.error("crosshairs", "at most ten crosshairs");
+    }
+    for (i, c) in p.crosshairs.iter().enumerate() {
+        let path = format!("crosshairs[{i}]");
+        if !(10..=200).contains(&c.size) || !(10..=100).contains(&c.thickness) || c.outline > 10 {
+            d.error(
+                &path,
+                "size must be 10–200, thickness 10–100 and outline 0–10",
+            );
+        }
+        if !(0.0..=1.0).contains(&c.opacity) {
+            d.error(&path, "opacity must be in [0, 1]");
+        }
+        if !is_hex_color(&c.color) || !is_hex_color(&c.outline_color) {
+            d.error(&path, "colours are written #rrggbb");
+        }
+        if let Some(m) = c.magnifier
+            && (!(1.0..=16.0).contains(&m.zoom) || !(0.1..=1.0).contains(&m.size))
+        {
+            d.error(
+                &path,
+                "the magnifier zooms 1–16 times and takes 0.1–1 of the screen",
+            );
+        }
+        if !c.visible && c.magnifier.is_none() {
+            d.info(
+                &path,
+                "neither drawn nor magnifying; this crosshair shows nothing",
+            );
+        }
+    }
 }
 
 /// Range and zone-order checks for one set of stick and trigger settings; `which` picks

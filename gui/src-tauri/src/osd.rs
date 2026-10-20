@@ -12,7 +12,7 @@ use dp_config::library;
 use dp_platform::Battery;
 use dp_service::LiveState;
 use serde::Serialize;
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::{AppHandle, Manager};
 
 use crate::commands::AppState;
 use crate::overlay;
@@ -81,11 +81,8 @@ pub struct OsdState {
 
 #[derive(Default)]
 struct Inner {
-    current: Option<Message>,
     /// When the current message goes away; `None` keeps it.
     until: Option<Instant>,
-    /// The overlay page has loaded and listens.
-    ready: bool,
     next_id: u64,
 }
 
@@ -217,9 +214,6 @@ pub fn notify(app: &AppHandle, event: Event, keep: bool) {
     }
     let state = app.state::<OsdState>();
     let mut inner = state.inner.lock().unwrap();
-    if created {
-        inner.ready = false;
-    }
     inner.next_id += 1;
     let msg = Message {
         event,
@@ -229,15 +223,9 @@ pub fn notify(app: &AppHandle, event: Event, keep: bool) {
         scale: s.scale,
         corner: s.corner,
     };
-    inner.current = Some(msg.clone());
     inner.until = (!keep).then(|| Instant::now() + Duration::from_secs(s.seconds as u64));
-    let ready = inner.ready;
     drop(inner);
-    // A page that is still loading asks for the message itself (`osd_ready`).
-    if ready {
-        let _ = app.emit_to(overlay::label(KIND), "osd", &msg);
-        overlay::show(&w);
-    }
+    overlay::present(app, &w, created, KIND, &msg);
 }
 
 /// Hide the message whose time is up. Returns whether one went away.
@@ -248,11 +236,8 @@ fn expire(app: &AppHandle) -> bool {
         return false;
     }
     inner.until = None;
-    inner.current = None;
     drop(inner);
-    if let Some(w) = app.get_webview_window(&overlay::label(KIND)) {
-        overlay::hide(&w);
-    }
+    overlay::dismiss(app, KIND);
     true
 }
 
@@ -321,21 +306,6 @@ pub fn start(app: &AppHandle) -> tauri::Result<()> {
         .name("osd".into())
         .spawn(move || watch(handle, live))?;
     Ok(())
-}
-
-/// The overlay page has loaded: it gets the message waiting for it, if any.
-#[tauri::command]
-pub fn osd_ready(app: AppHandle, state: State<OsdState>) -> Option<Message> {
-    let mut inner = state.inner.lock().unwrap();
-    inner.ready = true;
-    let msg = inner.current.clone();
-    drop(inner);
-    if msg.is_some()
-        && let Some(w) = app.get_webview_window(&overlay::label(KIND))
-    {
-        overlay::show(&w);
-    }
-    msg
 }
 
 /// Show a sample notification with the current settings.

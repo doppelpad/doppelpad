@@ -4,9 +4,14 @@
 //! window label. They live apart from the main window, so they work while it is hidden
 //! in the tray.
 
+use std::collections::HashMap;
+use std::sync::Mutex;
+
+use serde::Serialize;
+use serde_json::Value;
 use tauri::{
-    AppHandle, Manager, Monitor, PhysicalPosition, PhysicalSize, WebviewUrl, WebviewWindow,
-    WebviewWindowBuilder,
+    AppHandle, Emitter, Manager, Monitor, PhysicalPosition, PhysicalSize, State, WebviewUrl,
+    WebviewWindow, WebviewWindowBuilder,
 };
 
 use crate::settings::Corner;
@@ -16,6 +21,74 @@ const MARGIN: f64 = 24.0;
 
 pub fn label(kind: &str) -> String {
     format!("overlay-{kind}")
+}
+
+/// What each overlay page shows, kept for a page that is still loading.
+#[derive(Default)]
+pub struct Overlays {
+    pages: Mutex<HashMap<String, Page>>,
+}
+
+#[derive(Default)]
+struct Page {
+    /// The page has loaded and listens for its events.
+    ready: bool,
+    content: Option<Value>,
+}
+
+/// Show `content` in `w`, the overlay window of `kind`. A page that is still loading
+/// (`created`) asks for it with `overlay_ready` and then shows.
+pub fn present(
+    app: &AppHandle,
+    w: &WebviewWindow,
+    created: bool,
+    kind: &str,
+    content: &impl Serialize,
+) {
+    let Ok(value) = serde_json::to_value(content) else {
+        return;
+    };
+    let ready = {
+        let state = app.state::<Overlays>();
+        let mut pages = state.pages.lock().unwrap();
+        let page = pages.entry(kind.to_owned()).or_default();
+        if created {
+            page.ready = false;
+        }
+        page.content = Some(value.clone());
+        page.ready
+    };
+    if ready {
+        // Named after the window: every page hears every event.
+        let _ = app.emit_to(label(kind), &label(kind), &value);
+        show(w);
+    }
+}
+
+/// Hide the overlay of `kind` and forget what it showed.
+pub fn dismiss(app: &AppHandle, kind: &str) {
+    if let Some(page) = app.state::<Overlays>().pages.lock().unwrap().get_mut(kind) {
+        page.content = None;
+    }
+    if let Some(w) = app.get_webview_window(&label(kind)) {
+        hide(&w);
+    }
+}
+
+/// An overlay page has loaded: it gets what it should show, if anything, and then shows.
+#[tauri::command]
+pub fn overlay_ready(window: WebviewWindow, state: State<Overlays>) -> Option<Value> {
+    let kind = window.label().strip_prefix("overlay-")?.to_owned();
+    let content = {
+        let mut pages = state.pages.lock().unwrap();
+        let page = pages.entry(kind).or_default();
+        page.ready = true;
+        page.content.clone()
+    };
+    if content.is_some() {
+        show(&window);
+    }
+    content
 }
 
 /// The overlay window of `kind`, created hidden on first use. Returns whether it was created

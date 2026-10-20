@@ -2,6 +2,7 @@
 //! input, the active profile and layer, slots, switches, warnings and driver status.
 
 use dp_core::pad::PadState;
+use dp_core::profile::Crosshair;
 use dp_platform::{Battery, PadFamily};
 use serde::Serialize;
 
@@ -50,6 +51,8 @@ pub struct LiveState {
     pub device_slots: Vec<LiveDeviceSlots>,
     /// Every running profile, the default session first.
     pub sessions: Vec<SessionInfo>,
+    /// The crosshair to draw over the game.
+    pub crosshair: Option<Crosshair>,
 }
 
 /// The slots of a controller that has its own.

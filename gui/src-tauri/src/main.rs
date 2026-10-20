@@ -6,6 +6,7 @@
 
 mod autostart;
 mod commands;
+mod crosshair;
 mod logging;
 mod osd;
 mod overlay;
@@ -88,9 +89,11 @@ fn main() {
                 notices: Mutex::new(notices),
                 live_generation: Arc::new(AtomicU64::new(0)),
             });
+            app.manage(overlay::Overlays::default());
             app.manage(osd::OsdState::default());
             tray::create(app.handle())?;
             osd::start(app.handle())?;
+            crosshair::start(app.handle())?;
 
             // Started with Windows: only the tray icon shows.
             let window = create_main_window(app, !autostart::started_hidden())?;
@@ -156,7 +159,7 @@ fn main() {
             commands::profiles_dir,
             commands::log_file,
             commands::take_notices,
-            osd::osd_ready,
+            overlay::overlay_ready,
             osd::osd_test,
             osd::osd_monitors,
         ])
