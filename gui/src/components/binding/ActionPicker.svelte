@@ -71,7 +71,9 @@
 
   async function pickLaunch() {
     const path = await open({ title: t('picker.launch_path'), multiple: false, directory: false });
-    if (typeof path === 'string') onpick({ command: { launch: { path } } });
+    if (typeof path !== 'string') return;
+    const args = (await app.ask(t('picker.launch_args'), '')) ?? '';
+    onpick({ command: { launch: args ? { path, args } : { path } } });
   }
 
   async function pickPause() {
@@ -173,6 +175,7 @@
       <button class="cmd" onclick={pickLaunch}>{t('picker.launch')}…</button>
       <button class="cmd" onclick={pickPause}>{t('picker.pause')}…</button>
       <button class="cmd" onclick={pickRumble}>{t('picker.rumble')}…</button>
+      <button class="cmd" onclick={() => onpick({ break: true })}>{t('picker.break')}</button>
     </div>
   {/if}
 </div>

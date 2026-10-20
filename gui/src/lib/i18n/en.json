@@ -147,6 +147,7 @@
     "inherited": "Inherited from Main — edit to override in this layer",
     "advanced": "Timing",
     "layer_mappings": "Mappings on {layer}",
+    "edit_params": "Change amount, speed or length",
     "no_layer_mappings": "Nothing mapped on this layer yet.",
     "timing": {
       "turbo_ms": "Turbo period",
@@ -217,6 +218,8 @@
     "toggle_gyro": "Toggle gyro",
     "launch": "Launch program",
     "launch_path": "Path to the program (.exe)",
+    "launch_args": "Arguments for the program (optional)",
+    "break": "Break (next press plays the next part)",
     "pause": "Pause",
     "rumble": "Rumble",
     "mouse_buttons": "Buttons",
@@ -259,7 +262,25 @@
     "step_auto": "auto",
     "total": "Total about {ms} ms",
     "empty": "Add steps with the pickers below or record them from the keyboard.",
-    "back": "Back to the controller"
+    "back": "Back to the controller",
+    "record_pad": "Record controller",
+    "recording_pad": "Recording — press buttons, sticks and triggers on the controller, then stop",
+    "add_break": "Break",
+    "break": "Break",
+    "break_hint": "the next press plays the part after this",
+    "segments": "{n} parts: each press plays the next one, then it starts over.",
+    "segments_no_repeat": " Repeating is ignored for parts."
+  },
+  "params": {
+    "amount": "Amount",
+    "clicks": "Clicks",
+    "speed": "Speed",
+    "px_s": "px/s",
+    "length": "Length",
+    "low": "Left motor",
+    "high": "Right motor",
+    "path": "Program",
+    "args": "Arguments"
   },
   "shortcuts": {
     "title": "Shortcuts on {layer}",

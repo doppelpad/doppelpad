@@ -1,14 +1,17 @@
 <script lang="ts">
   // Edit one mapping as a macro: run mode, repeat settings and an ordered list of steps.
-  // Steps can be picked or recorded from the keyboard (key down/up with the pauses between).
-  import { ArrowLeft, ArrowUp, ArrowDown, X, Circle, Square, Plus, Timer, Vibrate } from '@lucide/svelte';
+  // Steps can be picked or recorded from the keyboard or the controller (presses and
+  // releases with the pauses between), and break steps cut the sequence into segments.
+  import { ArrowLeft, ArrowUp, ArrowDown, X, Circle, Square, Plus, Timer, Vibrate, Gamepad2, SeparatorHorizontal } from '@lucide/svelte';
   import { onDestroy } from 'svelte';
   import { t } from '../../lib/i18n/index.svelte';
   import { controlLabel } from '../../lib/model/controls';
   import { keyFromEvent } from '../../lib/model/keymap';
-  import { actionLabel, comboList, modeOf } from '../../lib/model/profile';
+  import { recordedSteps } from '../../lib/model/actions';
+  import { actionLabel, comboList, modeOf, segmentCount } from '../../lib/model/profile';
   import { app } from '../../lib/state/app.svelte';
-  import type { Action, Mapping, Mode, Press } from '../../lib/types';
+  import type { Action, ControlName, Mapping, Mode, Press } from '../../lib/types';
+  import ActionParams from '../binding/ActionParams.svelte';
   import ActionPicker from '../binding/ActionPicker.svelte';
 
   const target = $derived(app.macroTarget);
@@ -94,11 +97,46 @@
 
   function toggleRecording() {
     recording = !recording;
+    padRecording = false;
     lastEventAt = 0;
     picking = false;
   }
 
-  onDestroy(() => (recording = false));
+  // Controller recording follows the live snapshots of the controller in use.
+  let padRecording = $state(false);
+  let padBefore = new Set<ControlName>();
+
+  function togglePadRecording() {
+    padRecording = !padRecording;
+    recording = false;
+    picking = false;
+    padBefore = new Set(app.pressed);
+    lastEventAt = 0;
+    // Presses must not select controls in the drawing meanwhile.
+    app.pressListener = padRecording ? () => {} : null;
+  }
+
+  $effect(() => {
+    const now = app.pressed;
+    if (!padRecording) return;
+    const at = performance.now();
+    const add = recordedSteps(padBefore, now, lastEventAt > 0 ? at - lastEventAt : null, keyDelay);
+    padBefore = new Set(now);
+    if (add.length === 0) return;
+    lastEventAt = at;
+    setSteps([...steps, ...add]);
+  });
+
+  function replace(i: number, a: Action) {
+    setSteps(steps.map((s, j) => (j === i ? a : s)));
+  }
+
+  const segments = $derived(segmentCount(steps));
+
+  onDestroy(() => {
+    recording = false;
+    if (padRecording) app.pressListener = null;
+  });
 </script>
 
 <svelte:window onkeydowncapture={(e) => record(e, 'down')} onkeyupcapture={(e) => record(e, 'up')} />
@@ -150,12 +188,16 @@
         <p class="empty">{t('macro.empty')}</p>
       {/if}
       {#each steps as s, i (i)}
-        <div class="step" class:pause={'pause' in s}>
+        <div class="step" class:pause={'pause' in s} class:brk={'break' in s}>
           <span class="idx">{i + 1}</span>
           {#if 'pause' in s}
             <Timer size={14} />
             <input class="pause-in" type="number" min="0" step="10" value={s.pause} disabled={app.readOnly} onchange={(e) => setPause(i, e.currentTarget.value)} />
             <span class="dim">{t('common.ms')}</span>
+          {:else if 'break' in s}
+            <SeparatorHorizontal size={14} />
+            <span class="label">{t('macro.break')}</span>
+            <span class="dim">{t('macro.break_hint')}</span>
           {:else}
             <span class="label">{actionLabel({ ...s, action: undefined } as Action)}</span>
             {#if hasPress(s)}
@@ -170,6 +212,7 @@
                 <option value="up">{t('macro.step_up')}</option>
               </select>
             {/if}
+            <ActionParams action={s} disabled={app.readOnly} onchange={(a) => replace(i, a)} />
           {/if}
           {#if !app.readOnly}
             <span class="tools">
@@ -184,14 +227,25 @@
 
     {#if !app.readOnly}
       <div class="add">
-        <button class="btn rec" class:on={recording} onclick={toggleRecording}>
+        <button class="btn rec" class:on={recording} onclick={toggleRecording} disabled={padRecording}>
           {#if recording}<Square size={13} /> {t('macro.stop')}{:else}<Circle size={13} /> {t('macro.record')}{/if}
         </button>
-        <button class="btn" onclick={() => (picking = !picking)} disabled={recording}><Plus size={14} /> {t('binding.add_action')}</button>
-        <button class="btn" onclick={() => setSteps([...steps, { pause: 100 }])} disabled={recording}><Timer size={14} /> {t('macro.add_pause')}</button>
-        <button class="btn" onclick={() => setSteps([...steps, { rumble: 200 }])} disabled={recording}><Vibrate size={14} /> {t('macro.add_rumble')}</button>
+        <button class="btn rec" class:on={padRecording} onclick={togglePadRecording} disabled={recording || !app.primary}>
+          {#if padRecording}<Square size={13} /> {t('macro.stop')}{:else}<Gamepad2 size={13} /> {t('macro.record_pad')}{/if}
+        </button>
+        <button class="btn" onclick={() => (picking = !picking)} disabled={recording || padRecording}><Plus size={14} /> {t('binding.add_action')}</button>
+        <button class="btn" onclick={() => setSteps([...steps, { pause: 100 }])} disabled={recording || padRecording}><Timer size={14} /> {t('macro.add_pause')}</button>
+        <button class="btn" onclick={() => setSteps([...steps, { rumble: 200 }])} disabled={recording || padRecording}><Vibrate size={14} /> {t('macro.add_rumble')}</button>
+        <button class="btn" onclick={() => setSteps([...steps, { break: true }])} disabled={recording || padRecording}><SeparatorHorizontal size={14} /> {t('macro.add_break')}</button>
       </div>
       {#if recording}<p class="hint">{t('macro.recording')}</p>{/if}
+      {#if padRecording}<p class="hint">{t('macro.recording_pad')}</p>{/if}
+      {#if segments > 1}
+        <p class="parts">
+          {t('macro.segments', { n: segments })}
+          {#if mode === 'repeat' || mode === 'while_held'}{t('macro.segments_no_repeat')}{/if}
+        </p>
+      {/if}
       {#if picking}
         <div class="picker"><ActionPicker onpick={(a) => setSteps([...steps, a])} onclose={() => (picking = false)} /></div>
       {/if}
@@ -285,6 +339,11 @@
     border-radius: var(--radius-s);
     background: var(--bg-2);
   }
+  .step.brk {
+    background: transparent;
+    border: 1px solid var(--accent);
+    color: var(--text-dim);
+  }
   .step.pause {
     background: transparent;
     border: 1px dashed var(--line);
@@ -333,6 +392,11 @@
   .rec.on {
     border-color: var(--danger);
     color: var(--danger);
+  }
+  .parts {
+    margin: 0;
+    color: var(--text-dim);
+    font-size: 12px;
   }
   .hint {
     margin: 0;
