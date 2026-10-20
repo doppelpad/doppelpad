@@ -118,10 +118,14 @@ describe('native outputs', () => {
     expect(nativeAction('Key:Space')).toEqual({ key: 'Space' });
     expect(nativeAction('Mouse:X1')).toEqual({ mouse: 'x1' });
     expect(nativeAction('Wheel:Down')).toEqual({ wheel: 'down' });
+    expect(nativeAction('RTHigh')).toEqual({ trigger: 'right' });
+    expect(nativeAction('LeftStickUpLow')).toEqual({ stick: 'left', x: 0, y: 1 });
   });
 
   it('has none for controls without a digital output', () => {
-    for (const c of ['TouchCenter', 'GyroUp', 'MouseMove:Left', ['LB', 'RB']]) expect(nativeAction(c)).toBeNull();
+    for (const c of ['TouchCenter', 'GyroUp', 'MouseMove:Left', 'RightStickMed', ['LB', 'RB']]) {
+      expect(nativeAction(c)).toBeNull();
+    }
     expect(nativeAction('Touchpad')).toEqual({ pad: 'Touchpad' });
   });
 });

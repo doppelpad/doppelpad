@@ -162,8 +162,29 @@ pub fn validate(p: &Profile) -> Diagnostics {
         {
             d.error(format!("sticks.{name}.curve"), "points must be in [0, 1]");
         }
+        let [low, med, high] = s.zone_thresholds();
+        let problem = zone_problem([low.x, med.x, high.x]).or(zone_problem([low.y, med.y, high.y]));
+        if let Some(msg) = problem {
+            d.error(format!("sticks.{name}.zones"), msg);
+        }
+    }
+    for (name, t) in [("left", &p.triggers.left), ("right", &p.triggers.right)] {
+        if let Some(msg) = zone_problem(t.zone_thresholds()) {
+            d.error(format!("triggers.{name}.zones"), msg);
+        }
     }
     d
+}
+
+/// What is wrong with a control's effective low, medium and high zone thresholds.
+fn zone_problem([low, med, high]: [f32; 3]) -> Option<&'static str> {
+    if !(low > 0.0 && high <= 1.0) {
+        Some("thresholds must be in (0, 1]")
+    } else if !(low < med && med < high) {
+        Some("low, med and high must increase")
+    } else {
+        None
+    }
 }
 
 /// Per-user configuration directory (`%APPDATA%\doppelpad` or `~/.config/doppelpad`).
@@ -267,6 +288,20 @@ mod tests {
     fn validation_flags_bad_layers() {
         let p = parse_toml("[[layers]]\nid = 0\n").unwrap();
         assert!(validate(&p).has_errors());
+    }
+
+    #[test]
+    fn validation_checks_zone_order() {
+        let ok = "[sticks.left]\nzones = { low = 0.2, med = [0.4, 0.5] }\n[triggers.left]\nzones = { low = 0.1, high = 0.9 }\n";
+        assert!(!validate(&parse_toml(ok).unwrap()).has_errors());
+        for bad in [
+            "[sticks.left]\nzones = { low = 0.5, med = 0.4 }\n",
+            "[sticks.right]\nzones = { low = 0.2, high = [0.9, 0.3] }\n",
+            "[triggers.right]\nzones = { low = 0.0 }\n",
+            "[triggers.right]\nzones = { low = 0.1, med = 0.5, high = 1.2 }\n",
+        ] {
+            assert!(validate(&parse_toml(bad).unwrap()).has_errors(), "{bad}");
+        }
     }
 
     #[test]

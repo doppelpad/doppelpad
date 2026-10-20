@@ -2,7 +2,7 @@
   // Plain list of controls with their mapping on the current layer. Used for controllers
   // without a drawing, and as an accessible alternative to the drawing.
   import { t } from '../../lib/i18n/index.svelte';
-  import { controlLabel } from '../../lib/model/controls';
+  import { controlLabel, zoneBaseLabel, zoneFamily, zoneParts, zoneTag } from '../../lib/model/controls';
   import { effectiveMappings, mappingSummary } from '../../lib/model/profile';
   import { app } from '../../lib/state/app.svelte';
   import type { ControlName } from '../../lib/types';
@@ -17,10 +17,35 @@
     if (back) return [{ id: 'back', controls: PADDLES }];
     return [
       { id: 'buttons', controls: buttons.filter((b) => !PADDLES.includes(b)) },
-      { id: 'sticks', controls: ['LeftStick', 'RightStick'].flatMap((s) => STICK_DIRS.map((d) => s + d)) },
+      {
+        id: 'sticks',
+        // Each direction, then the stick in any direction (which exists only per zone).
+        controls: ['LeftStick', 'RightStick'].flatMap((s) => [...STICK_DIRS.map((d) => s + d), `${s}Low`]),
+      },
       { id: 'triggers', controls: ['LT', 'RT', 'LTFull', 'RTFull'] },
     ];
   });
+
+  /** A tile stands for a control and its zones; it opens on `c`. */
+  function tile(c: ControlName): { label: string; members: ControlName[] } {
+    const zp = zoneParts(c);
+    if (!zp) return { label: controlLabel(c, app.family), members: [c] };
+    return { label: zoneBaseLabel(zp.base, app.family), members: zoneFamily(zp.base) };
+  }
+
+  /** Summary of a tile: the control's own mappings, then its zones' tagged with the zone. */
+  function tileSummary(members: ControlName[]): { text: string; inherited: boolean } | null {
+    const parts: string[] = [];
+    let inherited = true;
+    for (const m of members) {
+      const s = summary(m);
+      if (!s) continue;
+      const z = zoneParts(m)?.zone;
+      parts.push(z ? `${zoneTag(z)} ${s.text}` : s.text);
+      inherited &&= s.inherited;
+    }
+    return parts.length ? { text: parts.join(' · '), inherited } : null;
+  }
 
   const pressed = $derived.by(() => {
     const dev = app.primary;
@@ -44,15 +69,16 @@
     <div class="group">{t(`views.groups.${g.id}`)}</div>
     <div class="grid">
       {#each g.controls as c (c)}
-        {@const s = summary(c)}
+        {@const tl = tile(c)}
+        {@const s = tileSummary(tl.members)}
         <button
           class="tile"
-          class:selected={app.selectedKey === c}
+          class:selected={tl.members.includes(app.selectedKey)}
           class:pressed={pressed.has(c)}
           class:mapped={!!s}
           onclick={() => app.select(c)}
         >
-          <span class="name">{controlLabel(c, app.family)}</span>
+          <span class="name">{tl.label}</span>
           <span class="sum" class:inh={s?.inherited}>{s?.text ?? '—'}</span>
         </button>
       {/each}

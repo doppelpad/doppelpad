@@ -4,6 +4,20 @@
   "processes": ["game.exe"],
   "output": { "virtual_pad": "none", "hide_physical": true, "passthrough": false, "mute_mapped_inputs": true },
   "timing": { "long_press_ms": 400, "double_tap_ms": 250, "triple_tap_ms": 250, "key_delay_ms": 20, "turbo_ms": 80, "combo_window_ms": 60 },
+  "sticks": {
+    "left": {
+      "deadzone": 0, "outer": 1, "anti_deadzone": 0, "sensitivity": 1, "curve": [], "invert_x": false, "invert_y": false, "rotation": 0,
+      "zones": { "low": [0.25, 0.375], "high": 0.75 }
+    },
+    "right": {
+      "deadzone": 0, "outer": 1, "anti_deadzone": 0, "sensitivity": 1, "curve": [], "invert_x": false, "invert_y": false, "rotation": 0,
+      "zones": { "low": 0.25 }
+    }
+  },
+  "triggers": {
+    "left": { "deadzone": 0, "zones": { "low": 0.0625 }, "full_pull": 1 },
+    "right": { "deadzone": 0, "zones": { "low": 0.125, "med": 0.5 }, "full_pull": 0.875 }
+  },
   "layers": [
     { "id": 1, "name": "Aim", "inherit": true },
     { "id": 2, "inherit": false, "not_inherited": ["B", ["LB", "RB"]] }
@@ -35,6 +49,10 @@
     { "trigger": "DpadDown", "actions": [{ "wheel": "down" }, { "mouse_move": "left", "speed": 800 }] },
     { "trigger": "LeftStickUp", "actions": [{ "stick": "right", "x": 0, "y": 1 }] },
     { "trigger": "LT", "activator": "start", "actions": [{ "trigger": "right" }] },
+    { "trigger": "RTHigh", "actions": [{ "key": "LeftShift" }] },
+    { "trigger": "LeftStickUpLow", "activator": "long", "actions": [{ "key": "W" }] },
+    { "trigger": "RightStickMed", "mode": "turbo", "actions": [{ "mouse": "right" }] },
+    { "trigger": ["LB", "LTMed"], "actions": [{ "key": "G" }] },
     { "layer": 1, "trigger": "A", "mode": "once", "actions": [{ "key": "F" }] },
     { "layer": 1, "trigger": "PaddleUL" },
     { "layer": 2, "trigger": "Key:Q", "mode": "while_held", "actions": [{ "mouse": "x1" }] }

@@ -103,8 +103,8 @@ const STICK_DIRS: Record<string, [number, number]> = { Up: [0, 1], Down: [0, -1]
 
 /**
  * The output a single control produces when it is not remapped (pad A → pad A, a key →
- * that key), or null where there is none to reproduce (touch regions, gyro, mouse motion,
- * shortcuts of several controls).
+ * that key, a trigger zone → that trigger), or null where there is none to reproduce (touch
+ * regions, gyro, mouse motion, stick zones in any direction, shortcuts of several controls).
  */
 export function nativeAction(combo: Combo): Action | null {
   const list = comboList(combo);
@@ -114,13 +114,15 @@ export function nativeAction(combo: Combo): Action | null {
   if (c.startsWith('Mouse:')) return { mouse: c.slice(6).toLowerCase() as MouseButtonName };
   if (c.startsWith('Wheel:')) return { wheel: c.slice(6).toLowerCase() as WheelDir };
   if (c.startsWith('MouseMove:')) return null;
-  const stick = /^(Left|Right)Stick(Up|Down|Left|Right)$/.exec(c);
+  const stick = /^(Left|Right)Stick(Up|Down|Left|Right)(Low|Med|High)?$/.exec(c);
   if (stick) {
     const [x, y] = STICK_DIRS[stick[2]];
     return { stick: stick[1] === 'Left' ? 'left' : 'right', x, y };
   }
-  const trigger = /^(LT|RT)(Full)?$/.exec(c);
+  const trigger = /^(LT|RT)(Full|Low|Med|High)?$/.exec(c);
   if (trigger) return { trigger: trigger[1] === 'LT' ? 'left' : 'right' };
+  // A stick zone in any direction has no single direction to reproduce.
+  if (/^(Left|Right)Stick(Low|Med|High)$/.test(c)) return null;
   if (/^Touch(Up|Down|Left|Right|Center)$/.test(c) || /^Gyro(Up|Down|Left|Right)$/.test(c)) return null;
   return { pad: c as PadButtonName };
 }

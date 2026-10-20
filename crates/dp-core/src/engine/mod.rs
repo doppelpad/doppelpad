@@ -19,7 +19,10 @@ pub mod routes;
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 
-use self::analog::{DIRECTION_SECTOR, directions, orient, shape_stick, shape_trigger};
+use self::analog::{
+    DIRECTION_SECTOR, directions, orient, sectors, shape_stick, shape_trigger, stick_zone,
+    trigger_zone,
+};
 use self::compile::{
     AnalogOut, BindingId, Compiled, LayerTable, MaskId, Out, Policy, Step, StopRule, compile,
 };
@@ -421,22 +424,25 @@ impl Engine {
             }
             for s in [Stick::Left, Stick::Right] {
                 let cfg = self.profile.sticks.get(s);
-                let d = directions(
-                    orient(pad.stick(s), cfg),
-                    cfg.direction_threshold,
-                    DIRECTION_SECTOR,
-                );
+                let v = orient(pad.stick(s), cfg);
+                let Some(zone) = stick_zone(v, cfg.zone_thresholds()) else {
+                    continue;
+                };
+                set.insert(Control::StickZone(s, None, zone));
+                let d = sectors(v, DIRECTION_SECTOR);
                 for dir in Dir::ALL {
                     if d[dir as usize] {
                         set.insert(Control::StickDir(s, dir));
+                        set.insert(Control::StickZone(s, Some(dir), zone));
                     }
                 }
             }
             for t in [Trigger::Left, Trigger::Right] {
                 let cfg = self.profile.triggers.get(t);
                 let v = pad.axis(t.axis());
-                if v >= cfg.press_threshold.max(0.001) {
+                if let Some(zone) = trigger_zone(v, cfg.zone_thresholds()) {
                     set.insert(Control::TriggerPress(t));
+                    set.insert(Control::TriggerZone(t, zone));
                 }
                 if v >= cfg.full_pull {
                     set.insert(Control::TriggerFull(t));
@@ -1084,15 +1090,14 @@ impl Engine {
                 } else {
                     AnalogSource::RightStick
                 };
-                if Dir::ALL.iter().any(|d| hidden(&Control::StickDir(s, *d))) || route_consumes(src)
-                {
+                if Control::of_stick(s).iter().any(hidden) || route_consumes(src) {
                     continue;
                 }
                 let cfg = self.profile.sticks.get(s);
                 pad.set_stick(s, shape_stick(orient(phys.stick(s), cfg), cfg));
             }
             for t in [Trigger::Left, Trigger::Right] {
-                if hidden(&Control::TriggerPress(t)) || hidden(&Control::TriggerFull(t)) {
+                if Control::of_trigger(t).iter().any(hidden) {
                     continue;
                 }
                 pad.set_axis(

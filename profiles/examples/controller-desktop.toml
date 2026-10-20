@@ -61,7 +61,8 @@ actions = [{ key = "LeftAlt" }, { key = "LeftShift" }, { key = "Tab" }]   # Alt+
 trigger = "RB"
 actions = [{ key = "LeftAlt" }, { key = "Tab" }]                          # Alt+Tab
 
-# Scroll with the left stick.
+# Scroll with the left stick. Pushed all the way (its high zone), a second
+# mapping joins in and scrolling speeds up.
 [[mappings]]
 trigger = "LeftStickUp"
 mode = "while_held"
@@ -69,9 +70,21 @@ repeat_pause_ms = 60
 actions = [{ wheel = "up" }]
 
 [[mappings]]
+trigger = "LeftStickUpHigh"
+mode = "while_held"
+repeat_pause_ms = 20
+actions = [{ wheel = "up" }]
+
+[[mappings]]
 trigger = "LeftStickDown"
 mode = "while_held"
 repeat_pause_ms = 60
+actions = [{ wheel = "down" }]
+
+[[mappings]]
+trigger = "LeftStickDownHigh"
+mode = "while_held"
+repeat_pause_ms = 20
 actions = [{ wheel = "down" }]
 
 # Start: open the Start menu. Long-press Back: on-screen keyboard.

@@ -8,6 +8,7 @@
 | Keyboard/mouse → virtual controller | ✅ |
 | Combos (up to 4 inputs, 50 ms window, largest wins) | ✅ |
 | Activators: single / long / double / triple / start / release | ✅ |
+| Zone activators: stick (any direction or per direction) and trigger zones low / med / high, radial or elliptic | ✅ |
 | Modes: hold / turbo / toggle / once / repeat / while held | ✅ |
 | Macros with pauses, key delay, rumble, launch app | ✅ |
 | Shift layers (hold / toggle / switch) with inheritance | ✅ |
@@ -22,7 +23,8 @@
 | Desktop app (editor, tray, 4 slots, autodetect, English/German) | ✅ (controller drawings, stick/trigger/curve editor and gyro routes in the app ⏳) |
 | Installer | ✅ Windows setup (NSIS) that installs missing ViGEmBus/HidHide; ⏳ code signing, test on a clean Windows install |
 | Radial menu overlay, crosshair overlay | ⏳ planned |
-| Flick stick, tilt mode, zone activators (low/med/high) | ⏳ planned |
+| Flick stick, tilt mode | ⏳ planned |
+| Zones for gyro, mouse-as-stick and pressure buttons; separate diagonal directions | ⏳ planned |
 | Digital → stick ramp (initial deflection, speed, acceleration) | ⏳ planned |
 | Slots (4 profiles per controller) | ✅ in the app; ⏳ slot hotkeys |
 | Multiple controllers / multiple virtual pads | ⏳ planned (first controller only) |

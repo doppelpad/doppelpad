@@ -146,12 +146,32 @@
       {
         "actions": [
           {
+            "wheel": "up"
+          }
+        ],
+        "mode": "while_held",
+        "repeat_pause_ms": 20,
+        "trigger": "LeftStickUpHigh"
+      },
+      {
+        "actions": [
+          {
             "wheel": "down"
           }
         ],
         "mode": "while_held",
         "repeat_pause_ms": 60,
         "trigger": "LeftStickDown"
+      },
+      {
+        "actions": [
+          {
+            "wheel": "down"
+          }
+        ],
+        "mode": "while_held",
+        "repeat_pause_ms": 20,
+        "trigger": "LeftStickDownHigh"
       },
       {
         "actions": [
@@ -571,12 +591,14 @@
         "anti_deadzone": 0.15000000596046448,
         "curve": [],
         "deadzone": 0.07999999821186066,
-        "direction_threshold": 0.23999999463558197,
         "invert_x": false,
         "invert_y": false,
         "outer": 1.0,
         "rotation": 0.0,
-        "sensitivity": 1.0
+        "sensitivity": 1.0,
+        "zones": {
+          "low": 0.23999999463558197
+        }
       },
       "right": {
         "anti_deadzone": 0.0,
@@ -591,12 +613,14 @@
           ]
         ],
         "deadzone": 0.05999999865889549,
-        "direction_threshold": 0.23999999463558197,
         "invert_x": false,
         "invert_y": false,
         "outer": 1.0,
         "rotation": 0.0,
-        "sensitivity": 1.0
+        "sensitivity": 1.0,
+        "zones": {
+          "low": 0.23999999463558197
+        }
       }
     },
     "timing": {
@@ -611,12 +635,16 @@
       "left": {
         "deadzone": 0.0,
         "full_pull": 0.9900000095367432,
-        "press_threshold": 0.029999999329447746
+        "zones": {
+          "low": 0.029999999329447746
+        }
       },
       "right": {
         "deadzone": 0.0,
         "full_pull": 0.9900000095367432,
-        "press_threshold": 0.10000000149011612
+        "zones": {
+          "low": 0.10000000149011612
+        }
       }
     }
   }

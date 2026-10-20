@@ -1,6 +1,7 @@
 //! Scenario tests: a fake 1 ms clock drives the engine through button timelines.
 
 use super::*;
+use crate::control::Zone;
 use crate::profile::{
     Action, AnalogMapping, AnalogTarget, Combo, Jump, JumpMode, Layer, Mapping, Press,
 };
@@ -614,4 +615,174 @@ fn wheel_notches_trigger_mappings() {
     assert!(h.virtual_pad().pressed(PadButton::Y));
     h.until(100);
     assert!(!h.virtual_pad().pressed(PadButton::Y));
+}
+
+fn tzone(t: Trigger, z: Zone) -> Control {
+    Control::TriggerZone(t, z)
+}
+
+fn szone(s: Stick, d: Option<Dir>, z: Zone) -> Control {
+    Control::StickZone(s, d, z)
+}
+
+#[test]
+fn trigger_zones_follow_the_pull() {
+    // Default thresholds: low 0.03, medium ~0.35, high ~0.67.
+    let mut p = Profile::default();
+    p.mappings.push(map(
+        Control::TriggerPress(Trigger::Right),
+        vec![key(Key::P)],
+    ));
+    p.mappings
+        .push(map(tzone(Trigger::Right, Zone::Low), vec![key(Key::A)]));
+    p.mappings
+        .push(map(tzone(Trigger::Right, Zone::Med), vec![key(Key::B)]));
+    p.mappings
+        .push(map(tzone(Trigger::Right, Zone::High), vec![key(Key::C)]));
+    let mut h = Harness::new(p);
+    for (t, v) in [(10, 0.2), (20, 0.5), (30, 0.9), (40, 0.5), (50, 0.0)] {
+        h.pad.set_axis(Axis::RightTrigger, v);
+        h.until(t);
+    }
+    assert_eq!(h.key_events(Key::P), vec![(1, true), (41, false)]);
+    assert_eq!(h.key_events(Key::A), vec![(1, true), (11, false)]);
+    assert_eq!(
+        h.key_events(Key::B),
+        vec![(11, true), (21, false), (31, true), (41, false)]
+    );
+    assert_eq!(h.key_events(Key::C), vec![(21, true), (31, false)]);
+}
+
+#[test]
+fn stick_zones_walk_and_run() {
+    let mut p = Profile::default();
+    p.sticks.left.zones = crate::profile::StickZones {
+        low: crate::profile::ZoneRadius::round(0.2),
+        med: Some(crate::profile::ZoneRadius::round(0.5)),
+        high: Some(crate::profile::ZoneRadius::round(0.8)),
+    };
+    let up = Some(Dir::Up);
+    p.mappings
+        .push(map(szone(Stick::Left, up, Zone::Low), vec![key(Key::W)]));
+    let mut run = map(
+        szone(Stick::Left, up, Zone::High),
+        vec![key(Key::LeftShift), key(Key::W)],
+    );
+    run.key_delay_ms = Some(0);
+    p.mappings.push(run);
+    p.mappings
+        .push(map(szone(Stick::Left, None, Zone::Med), vec![key(Key::M)]));
+    let mut h = Harness::new(p);
+
+    h.pad.set_stick(Stick::Left, (0.0, 0.3)); // lightly up: walk
+    h.until(10);
+    h.pad.set_stick(Stick::Left, (0.0, 0.6)); // medium zone, any direction
+    h.until(20);
+    h.pad.set_stick(Stick::Left, (0.0, 0.9)); // pushed far: run
+    h.until(30);
+    h.pad.set_stick(Stick::Left, (0.9, 0.0)); // far right: no up zone
+    h.until(40);
+    h.pad.set_stick(Stick::Left, (0.6, 0.6)); // diagonal counts as up and right
+    h.until(50);
+    h.pad.set_stick(Stick::Left, (0.0, 0.0));
+    h.until(60);
+
+    assert_eq!(
+        h.key_events(Key::W),
+        vec![
+            (1, true),
+            (11, false),
+            (21, true),
+            (31, false),
+            (41, true),
+            (51, false)
+        ]
+    );
+    assert_eq!(
+        h.key_events(Key::LeftShift),
+        vec![(21, true), (31, false), (41, true), (51, false)]
+    );
+    assert_eq!(h.key_events(Key::M), vec![(11, true), (21, false)]);
+}
+
+#[test]
+fn zone_controls_in_combos_and_with_press_patterns() {
+    let mut p = Profile::default();
+    p.mappings.push(map(
+        Combo(vec![b(PadButton::LB), tzone(Trigger::Right, Zone::High)]),
+        vec![key(Key::X)],
+    ));
+    let mut long = map(tzone(Trigger::Left, Zone::High), vec![key(Key::L)]);
+    long.activator = Activator::Long;
+    p.mappings.push(long);
+    let mut h = Harness::new(p);
+
+    h.btn(PadButton::LB, true); // 1
+    h.until(100);
+    h.pad.set_axis(Axis::RightTrigger, 1.0);
+    h.until(110); // RTHigh at 101 completes the combo
+    h.pad.set_axis(Axis::RightTrigger, 0.0);
+    h.until(120);
+    assert_eq!(h.key_events(Key::X), vec![(101, true), (111, false)]);
+
+    h.pad.set_axis(Axis::LeftTrigger, 1.0);
+    h.until(150);
+    h.pad.set_axis(Axis::LeftTrigger, 0.5); // leaves the high zone before the long press
+    h.until(500);
+    assert!(h.key_events(Key::L).is_empty());
+    h.pad.set_axis(Axis::LeftTrigger, 1.0);
+    h.until(900);
+    assert_eq!(h.key_events(Key::L), vec![(801, true)]);
+}
+
+#[test]
+fn zone_mappings_follow_layers() {
+    let mut p = Profile::default();
+    let mut shift = map(b(PadButton::Back), vec![]);
+    shift.jump = Some(Jump {
+        layer: 1,
+        mode: JumpMode::Hold,
+        delay_ms: None,
+    });
+    p.mappings.push(shift);
+    p.mappings.push(map(
+        tzone(Trigger::Right, Zone::High),
+        vec![key(Key::Space)],
+    ));
+    let mut f5 = map(tzone(Trigger::Right, Zone::High), vec![key(Key::F5)]);
+    f5.layer = 1;
+    p.mappings.push(f5);
+    let mut h = Harness::new(p);
+
+    h.pad.set_axis(Axis::RightTrigger, 1.0);
+    h.until(10);
+    h.btn(PadButton::Back, true); // 11: the held zone is re-pressed in layer 1
+    h.until(20);
+    h.pad.set_axis(Axis::RightTrigger, 0.0);
+    h.until(30);
+    assert_eq!(h.key_events(Key::Space), vec![(1, true), (11, false)]);
+    assert_eq!(h.key_events(Key::F5), vec![(11, true), (21, false)]);
+}
+
+#[test]
+fn zone_mapping_replaces_the_mirrored_control() {
+    let mut p = Profile::default();
+    p.mappings
+        .push(map(tzone(Trigger::Right, Zone::High), vec![key(Key::C)]));
+    p.mappings
+        .push(map(szone(Stick::Left, None, Zone::Low), vec![key(Key::W)]));
+    let mut h = Harness::new(p);
+    h.pad.set_axis(Axis::RightTrigger, 0.5);
+    h.pad.set_axis(Axis::LeftTrigger, 0.5);
+    h.pad.set_stick(Stick::Left, (0.5, 0.0));
+    h.pad.set_stick(Stick::Right, (0.5, 0.0));
+    h.until(2);
+    let v = h.virtual_pad();
+    assert_eq!(v.axis(Axis::RightTrigger), 0.0);
+    assert_eq!(v.stick(Stick::Left), (0.0, 0.0));
+    assert!(
+        v.axis(Axis::LeftTrigger) > 0.4,
+        "unmapped trigger is mirrored"
+    );
+    assert_eq!(v.stick(Stick::Right), (0.5, 0.0));
 }
