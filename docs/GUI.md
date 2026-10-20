@@ -60,8 +60,14 @@ The **macro editor** opens from the binding panel. It has four modes:
 - *Repeat while held*: runs again for as long as the control is held.
 
 You can add steps with the pickers, add pauses and rumble, reorder or delete steps, and
-choose *down*, *up* or *tap* for keys and buttons. **Record** captures keyboard presses
-together with the pauses between them.
+choose *down*, *up* or *tap* for keys and buttons. Steps with parameters show them in their
+row: stick amount and trigger value in %, wheel clicks, mouse speed, rumble length and the
+strength of each motor, a program's path and arguments. In the binding panel, click such
+an action to change the same values. **Record** captures keyboard presses together with
+the pauses between them; **Record controller** does the same for the buttons, stick
+directions and triggers of the controller in use. A **Break** step cuts the macro into
+parts: each press plays the next part, then it starts over (turbo, toggle and repeating
+are not available for such macros).
 
 **Config settings** sets the output device: the virtual controller (Xbox 360, DualShock 4,
 or none for keyboard and mouse only). It also covers hiding the physical controller from games, passing

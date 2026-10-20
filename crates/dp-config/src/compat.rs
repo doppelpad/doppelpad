@@ -906,6 +906,9 @@ impl<'a> Importer<'a> {
             let ipath = format!("{path}.macros[{j}]");
             if get(item, "break").is_some() {
                 break_seen = true;
+                if !out.actions.last().is_some_and(Action::is_break) {
+                    out.actions.push(Action::BREAK);
+                }
                 continue;
             }
             if let Some(a) = self.macro_item(item, &ipath) {
@@ -920,10 +923,15 @@ impl<'a> Importer<'a> {
             }
         }
         if break_seen {
-            self.diags.info(
-                path,
-                "`break` markers are ignored; the sequence always completes",
-            );
+            // Segments play one per press: no turbo, toggle or repetition.
+            out.mode = match out.mode {
+                Mode::Turbo | Mode::Toggle => Mode::Hold,
+                Mode::Repeat => Mode::Once,
+                other => other,
+            };
+            out.turbo_ms = None;
+            out.repeat = None;
+            out.repeat_pause_ms = None;
         }
         // A one-shot "press K, maybe wait, release K" is a plain remap of K,
         // and so is a single item without an explicit action.
@@ -1324,6 +1332,33 @@ mod tests {
             p.mappings[0].actions[0],
             Action::Pause { pause: 50 },
             "minTimeUnit absent = 10 ms units"
+        );
+    }
+
+    #[test]
+    fn break_markers_become_segments() {
+        let doc = r#"{ "schemaVersion": 3, "appVersion": "1.0.0", "config": { "appName": "x", "minTimeUnit": 1 },
+          "devices": { "hardware": [ { "id": 1, "name": "gamepad" } ] },
+          "masks": [ { "id": 1, "set": [ { "deviceId": 1, "buttonId": 2 } ] } ],
+          "mappings": [ { "condition": { "mask": { "id": 1, "activator": { "type": "single", "mode": "turbo", "params": { "pause": 50 } } } },
+                          "macros": [ { "keyboard": { "buttonId": 16, "action": "down" } }, { "break": {} }, { "break": {} },
+                                      { "keyboard": { "buttonId": 18, "action": "down" } } ] } ] }"#;
+        let (p, d) = import(doc).unwrap();
+        let m = &p.mappings[0];
+        assert_eq!(m.actions.len(), 3, "{:?}", m.actions);
+        assert!(m.actions[1].is_break(), "repeated markers collapse");
+        assert_eq!(
+            (m.mode, m.turbo_ms),
+            (Mode::Hold, None),
+            "turbo is cancelled"
+        );
+        assert!(!d.iter().any(|x| x.to_string().contains("break")));
+        // The TOML form round-trips.
+        let text = crate::to_toml(&p);
+        assert!(text.contains("break = true"), "{text}");
+        assert_eq!(
+            crate::parse_toml(&text).unwrap().mappings[0].actions,
+            m.actions
         );
     }
 

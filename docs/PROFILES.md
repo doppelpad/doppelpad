@@ -182,6 +182,14 @@ Several mappings can share a trigger with different activators.
 | Pause | `{ pause = 250 }` (ms) |
 | Rumble | `{ rumble = 150, low = 0.8, high = 0.8 }` |
 | Command | `{ command = "remap_off" }`, `{ command = "toggle_gyro" }`, `{ command = { launch = { path = "osk.exe", args = "" } } }` |
+| Break | `{ break = true }` (splits the sequence into segments, see below) |
+
+**Break** cuts a sequence into segments. Each activation plays the next segment, and after
+the last one it starts over with the first (for example "1, break, 2, break, 3" cycles
+through three weapons on one button). In `hold` mode a segment is held until the trigger
+is released; in `once` mode it runs once. Sequences with breaks cannot use `turbo` or
+`toggle` (they are held instead) and do not repeat (`repeat` and `while_held` run each
+segment once). Changing layers and stopping macros start over at the first segment.
 
 `action` for key, pad, mouse, stick and trigger:
 

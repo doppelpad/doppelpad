@@ -300,6 +300,7 @@ export function actionLabel(a: Action): string {
   if ('mouse_move' in a) return `Mouse ${ARROWS[a.mouse_move] ?? a.mouse_move}`;
   if ('pause' in a) return `${a.pause} ms`;
   if ('rumble' in a) return `Rumble ${a.rumble} ms`;
+  if ('break' in a) return '⦀';
   if ('command' in a) {
     const c = a.command;
     if (c === 'remap_off') return 'Remap off';
@@ -312,6 +313,19 @@ export function actionLabel(a: Action): string {
 
 function pressSuffix(p?: string): string {
   return p === 'down' ? ' ▼' : p === 'up' ? ' ▲' : '';
+}
+
+/** Number of segments the break steps cut a sequence into (at least one). */
+export function segmentCount(actions: Action[]): number {
+  let n = 0;
+  let open = false;
+  for (const a of actions) {
+    if ('break' in a) {
+      if (open) n++;
+      open = false;
+    } else open = true;
+  }
+  return Math.max(1, n + (open ? 1 : 0));
 }
 
 /** Short summary of a mapping's outputs ("Ctrl + C", "Turbo Mouse left", "→ Shift 1"). */

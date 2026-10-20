@@ -106,10 +106,10 @@ pub struct Binding {
     pub layer: u8,
     pub activator: Activator,
     pub mode: Mode,
-    /// Program for hold-style execution (ends with a hold point).
-    pub hold_program: Vec<Step>,
-    /// Program for one sequence run (everything released at the end).
-    pub run_program: Vec<Step>,
+    /// Program for hold-style execution (ends with a hold point), per segment.
+    pub hold_programs: Vec<Vec<Step>>,
+    /// Program for one sequence run (everything released at the end), per segment.
+    pub run_programs: Vec<Vec<Step>>,
     /// Program for one turbo pulse (press everything, wait half a period, release).
     pub pulse_program: Vec<Step>,
     /// Every action is a plain holdable output, so turbo/toggle can pulse/latch it.
@@ -168,13 +168,28 @@ impl Binding {
         }
     }
 
-    pub fn program(&self) -> &[Step] {
+    /// The program of one segment (sequences without break steps have one).
+    pub fn program(&self, segment: usize) -> &[Step] {
         match (self.policy(), self.mode) {
-            (Policy::Hold, _) => &self.hold_program,
+            (Policy::Hold, _) => &self.hold_programs[segment],
             (_, Mode::Turbo) if self.holdable => &self.pulse_program,
-            _ => &self.run_program,
+            _ => &self.run_programs[segment],
         }
     }
+
+    /// Number of segments the break steps cut the sequence into.
+    pub fn segments(&self) -> usize {
+        self.run_programs.len()
+    }
+}
+
+/// The sequence cut at its break steps; empty segments are dropped, but there is always one.
+fn segments(actions: &[Action]) -> Vec<&[Action]> {
+    let segs: Vec<&[Action]> = actions
+        .split(Action::is_break)
+        .filter(|s| !s.is_empty())
+        .collect();
+    if segs.is_empty() { vec![&[]] } else { segs }
 }
 
 /// Per-layer lookup tables (after inheritance).
@@ -461,14 +476,23 @@ pub fn compile(p: &Profile) -> Compiled {
             ));
             activator = Activator::Single;
         }
+        // Segments play one per activation, so they cannot pulse, latch or repeat.
+        let segs = segments(&m.actions);
+        if segs.len() > 1 || m.actions.iter().any(Action::is_break) {
+            mode = match mode {
+                Mode::Turbo | Mode::Toggle => Mode::Hold,
+                Mode::Repeat | Mode::WhileHeld => Mode::Once,
+                other => other,
+            };
+        }
         let mask = mt.id(&m.trigger.0);
         bindings.push(Binding {
             mask,
             layer: m.layer,
             activator,
             mode,
-            hold_program: hold_program(&m.actions, key_delay),
-            run_program: run_program(&m.actions, key_delay),
+            hold_programs: segs.iter().map(|s| hold_program(s, key_delay)).collect(),
+            run_programs: segs.iter().map(|s| run_program(s, key_delay)).collect(),
             pulse_program: pulse_program(&m.actions, turbo_ms),
             holdable: is_holdable(&m.actions),
             jump,

@@ -555,6 +555,66 @@ fn mouse_to_stick_route_mutes_cursor() {
 }
 
 #[test]
+fn break_steps_cycle_through_segments() {
+    let mut p = Profile::default();
+    let mut m = map(
+        b(PadButton::A),
+        vec![key(Key::Q), Action::BREAK, key(Key::E), key(Key::R)],
+    );
+    m.mode = Mode::Turbo; // not possible with segments: held instead
+    p.mappings.push(m);
+    let mut h = Harness::new(p);
+    let press = |h: &mut Harness| {
+        h.btn(PadButton::A, true);
+        h.until(h.t + 30);
+        let down: Vec<Key> = [Key::Q, Key::E, Key::R]
+            .into_iter()
+            .filter(|k| h.e.is_output_down(*k))
+            .collect();
+        h.btn(PadButton::A, false);
+        h.until(h.t + 30);
+        down
+    };
+    assert_eq!(press(&mut h), vec![Key::Q]);
+    assert!(!h.e.is_output_down(Key::Q), "held until release");
+    assert_eq!(press(&mut h), vec![Key::E, Key::R]);
+    assert_eq!(press(&mut h), vec![Key::Q], "starts over");
+}
+
+#[test]
+fn break_cursor_resets_on_layer_change() {
+    let mut p = Profile::default();
+    let mut m = map(
+        b(PadButton::A),
+        vec![key(Key::Q), Action::BREAK, key(Key::E)],
+    );
+    m.mode = Mode::Once;
+    p.mappings.push(m);
+    let mut sw = map(b(PadButton::Y), vec![]);
+    sw.jump = Some(Jump {
+        layer: 1,
+        mode: JumpMode::Toggle,
+        delay_ms: None,
+    });
+    p.mappings.push(sw);
+    let mut h = Harness::new(p);
+    h.btn(PadButton::A, true);
+    h.btn(PadButton::A, false);
+    h.until(h.t + 50);
+    assert_eq!(h.key_events(Key::Q).len(), 2, "segment 1 tapped Q");
+    // Into layer 1 (inherits A) and back.
+    h.btn(PadButton::Y, true);
+    h.btn(PadButton::Y, false);
+    h.btn(PadButton::Y, true);
+    h.btn(PadButton::Y, false);
+    h.btn(PadButton::A, true);
+    h.btn(PadButton::A, false);
+    h.until(h.t + 50);
+    assert_eq!(h.key_events(Key::Q).len(), 4, "segment 1 again");
+    assert!(h.key_events(Key::E).is_empty());
+}
+
+#[test]
 fn stop_all_releases_latched_outputs() {
     let mut p = Profile::default();
     let mut m = map(b(PadButton::X), vec![key(Key::LeftShift)]);

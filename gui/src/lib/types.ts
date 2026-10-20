@@ -38,7 +38,8 @@ export type Action =
   | { mouse_move: Dir; speed?: number }
   | { pause: number }
   | { rumble: number; low?: number; high?: number }
-  | { command: Command };
+  | { command: Command }
+  | { break: true };
 
 export interface Jump {
   layer: number;

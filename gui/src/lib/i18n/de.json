@@ -147,6 +147,7 @@
     "inherited": "Von der Haupt-Ebene geerbt – bearbeiten, um es hier zu überschreiben",
     "advanced": "Timing",
     "layer_mappings": "Belegungen auf {layer}",
+    "edit_params": "Stärke, Tempo oder Dauer ändern",
     "no_layer_mappings": "Auf diesem Layer ist noch nichts belegt.",
     "timing": {
       "turbo_ms": "Turbo-Intervall",
@@ -217,6 +218,8 @@
     "toggle_gyro": "Gyro umschalten",
     "launch": "Programm starten",
     "launch_path": "Pfad zum Programm (.exe)",
+    "launch_args": "Argumente für das Programm (optional)",
+    "break": "Trenner (nächster Druck spielt den nächsten Teil)",
     "pause": "Pause",
     "rumble": "Vibration",
     "mouse_buttons": "Tasten",
@@ -259,7 +262,25 @@
     "step_auto": "auto",
     "total": "Insgesamt etwa {ms} ms",
     "empty": "Füge Schritte mit den Auswahlfeldern unten hinzu oder nimm sie über die Tastatur auf.",
-    "back": "Zurück zum Controller"
+    "back": "Zurück zum Controller",
+    "record_pad": "Controller aufnehmen",
+    "recording_pad": "Aufnahme läuft – Tasten, Sticks und Trigger am Controller drücken, dann stoppen",
+    "add_break": "Trenner",
+    "break": "Trenner",
+    "break_hint": "der nächste Druck spielt den Teil danach",
+    "segments": "{n} Teile: Jeder Druck spielt den nächsten, danach geht es von vorn los.",
+    "segments_no_repeat": " Wiederholen gilt für Teile nicht."
+  },
+  "params": {
+    "amount": "Stärke",
+    "clicks": "Rasten",
+    "speed": "Tempo",
+    "px_s": "px/s",
+    "length": "Dauer",
+    "low": "Linker Motor",
+    "high": "Rechter Motor",
+    "path": "Programm",
+    "args": "Argumente"
   },
   "shortcuts": {
     "title": "Tastenkombis auf {layer}",

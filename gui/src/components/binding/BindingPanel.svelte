@@ -19,15 +19,19 @@
     removeMapping,
     sameAction,
   } from '../../lib/model/profile';
+  import { hasParameters } from '../../lib/model/actions';
   import { app, type AnalogTab } from '../../lib/state/app.svelte';
   import type { Action, Activator, Combo, JumpMode, Mapping, Mode } from '../../lib/types';
   import Toggle from '../ui/Toggle.svelte';
+  import ActionParams from './ActionParams.svelte';
   import ActionPicker from './ActionPicker.svelte';
   import ActivatorIcon from './ActivatorIcon.svelte';
   import ZoneEditor from './ZoneEditor.svelte';
 
   let picking = $state(false);
   let showTiming = $state(false);
+  /** Action whose parameters are shown below the chips. */
+  let editingIdx = $state<number | null>(null);
 
   const combo = $derived(app.selected);
   const profile = $derived(app.profile);
@@ -191,6 +195,7 @@
     void app.selectedKey;
     void app.activator;
     picking = false;
+    editingIdx = null;
   });
 </script>
 
@@ -305,8 +310,14 @@
     {:else}
       <div class="chips">
         {#each shown?.actions ?? [] as a, i (i)}
-          <span class="chip">
-            {actionLabel(a)}
+          <span class="chip" class:editing={editingIdx === i}>
+            {#if hasParameters(a)}
+              <button class="chip-label" title={t('binding.edit_params')} onclick={() => (editingIdx = editingIdx === i ? null : i)}>
+                {actionLabel(a)}
+              </button>
+            {:else}
+              {actionLabel(a)}
+            {/if}
             {#if !readOnly}
               <button class="chip-x" title={t('common.remove')} onclick={() => removeAction(i)}><X size={11} /></button>
             {/if}
@@ -320,6 +331,16 @@
       </div>
       {#if (shown?.actions ?? []).length === 0 && !picking}
         <p class="muted">{t('binding.no_actions')}</p>
+      {/if}
+      {#if editingIdx !== null && shown?.actions?.[editingIdx]}
+        {@const idx = editingIdx}
+        <div class="params-box">
+          <ActionParams
+            action={shown.actions[idx]}
+            disabled={readOnly}
+            onchange={(a) => edit((m) => (m.actions = (m.actions ?? []).map((x, j) => (j === idx ? a : x))))}
+          />
+        </div>
       {/if}
       {#if picking}
         <ActionPicker onpick={addAction} onclose={() => (picking = false)} />
@@ -677,6 +698,21 @@
     background: var(--bg-3);
     border: 1px solid var(--line-strong);
     font-weight: 500;
+  }
+  .chip.editing {
+    border-color: var(--accent);
+  }
+  .chip-label {
+    color: inherit;
+    font: inherit;
+    text-decoration: underline dotted;
+    text-underline-offset: 3px;
+  }
+  .params-box {
+    padding: 8px 10px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-m);
+    background: var(--bg-1);
   }
   .chip-x {
     display: inline-grid;
