@@ -150,6 +150,8 @@ fn main() {
             commands::set_lights,
             commands::set_blocked,
             commands::set_groups,
+            commands::set_power_off_after,
+            commands::power_off,
             commands::set_preferred_device,
             commands::refresh_drivers,
             commands::hotkeys_get,

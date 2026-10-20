@@ -295,6 +295,7 @@ Commands:
 | `radial_back` | Back to the parent menu, or close the menu |
 | `pad_overlay` | Show or hide the live controller overlay (the app's *Settings → Overlays*) |
 | `mappings_overlay` | Show or hide the list of the active layer's mappings over the game |
+| `power_off` | Turn this controller off (wireless DualShock 4, DualSense, Switch controllers and Xbox controllers; wired ones stay on) |
 | `shutdown`, `restart`, `sleep`, `hibernate`, `log_off` | Power commands; applications may still ask to save their work (Linux: `systemctl`, `loginctl`) |
 | `{ launch = { path, args } }` | Start a program |
 

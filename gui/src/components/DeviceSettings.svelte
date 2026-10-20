@@ -18,6 +18,9 @@
   let name = $state('');
   let picked = $state<string[]>([]);
   const free = $derived(seen.filter((d) => !blocked.has(d.id) && !grouped.has(d.id)));
+  const powerOffAfter = $derived(live?.power_off_after_min ?? 0);
+  /** Idle timeouts offered, in minutes; 0 never turns controllers off. */
+  const IDLE_MINUTES = [0, 5, 10, 15, 20, 30, 45, 60];
 
   async function run(p: Promise<unknown>) {
     try {
@@ -77,6 +80,16 @@
   {:else if groups.length === 0}
     <p class="hint">{t('devices.settings.group_hint')}</p>
   {/if}
+
+  <label class="idle">
+    <span>{t('devices.settings.power_off_after')}</span>
+    <select value={powerOffAfter} onchange={(e) => run(api.setPowerOffAfter(Number(e.currentTarget.value)))}>
+      {#each IDLE_MINUTES.includes(powerOffAfter) ? IDLE_MINUTES : [...IDLE_MINUTES, powerOffAfter] as m (m)}
+        <option value={m}>{m === 0 ? t('devices.settings.never') : t('devices.settings.minutes', { n: m })}</option>
+      {/each}
+    </select>
+  </label>
+  <p class="hint">{t('devices.settings.power_off_hint')}</p>
 </div>
 
 <style>
@@ -138,6 +151,13 @@
     padding: 10px;
     border: 1px dashed var(--line-strong);
     border-radius: var(--radius-m);
+  }
+  .idle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-top: 4px;
   }
   .new .btn {
     align-self: flex-start;

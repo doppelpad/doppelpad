@@ -127,6 +127,10 @@ pub trait PadDriver: Send {
     fn set_leds(&mut self, _leds: Leds) {}
     /// Trigger effects to play from the next [`service`](Self::service) on.
     fn set_trigger_effects(&mut self, _effects: TriggerEffects) {}
+    /// Turn the controller off if it can be told to over its own link; `Ok(false)` if not.
+    fn power_off(&mut self, _io: &mut dyn ReportIo) -> io::Result<bool> {
+        Ok(false)
+    }
     /// When [`service`](Self::service) must run again even if no report arrives.
     fn next_deadline(&self) -> Option<Instant>;
     /// The limitation notice if it changed since [`init`](Self::init) or the last call:

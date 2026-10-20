@@ -76,6 +76,8 @@ export const api = {
   /** Ignore a device completely, or use it again. */
   setBlocked: (id: string, blocked: boolean) => invoke<string>('set_blocked', { id, blocked }),
   setGroups: (groups: DeviceGroup[]) => invoke<string>('set_groups', { groups }),
+  setPowerOffAfter: (minutes: number) => invoke<string>('set_power_off_after', { minutes }),
+  powerOff: (id: string) => invoke<string>('power_off', { id }),
   osdTest: () => invoke<void>('osd_test'),
   /** Sizes of the monitors, the primary one first. */
   osdMonitors: () => invoke<string[]>('osd_monitors'),

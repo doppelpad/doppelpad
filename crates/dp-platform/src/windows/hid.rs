@@ -86,6 +86,8 @@ struct Base {
     bluetooth: bool,
     kind: DriverKind,
     feature_len: usize,
+    /// The controller's Bluetooth address (Sony pads report it as their serial number).
+    bt_address: Option<u64>,
 }
 
 impl Base {
@@ -136,6 +138,8 @@ struct Shared {
     lightbar: Mutex<Option<Rgb>>,
     leds: Mutex<Leds>,
     triggers: Mutex<TriggerEffects>,
+    /// Turn the controller off at the next chance.
+    power_off: AtomicBool,
     waker: Arc<Waker>,
     stop: AtomicBool,
     done: AtomicBool,
@@ -144,6 +148,8 @@ struct Shared {
 struct Device {
     shared: Arc<Shared>,
     thread: Option<JoinHandle<()>>,
+    bluetooth: bool,
+    bt_address: Option<u64>,
 }
 
 impl Device {
@@ -328,6 +334,12 @@ fn identify(entry: &InterfaceEntry) -> std::io::Result<Option<(HidIo, Base)>> {
     {
         return Ok(None);
     }
+    let bt_address = (bluetooth && matches!(kind, DriverKind::Sony(_)))
+        .then(|| {
+            io.serial()
+                .and_then(|s| super::bluetooth::parse_address(&s))
+        })
+        .flatten();
     Ok(Some((
         io,
         Base {
@@ -339,11 +351,13 @@ fn identify(entry: &InterfaceEntry) -> std::io::Result<Option<(HidIo, Base)>> {
             bluetooth,
             kind,
             feature_len: caps.feature_len,
+            bt_address,
         },
     )))
 }
 
 fn spawn_device(io: HidIo, base: Base) -> Device {
+    let (bluetooth, bt_address) = (base.bluetooth, base.bt_address);
     let shared = Arc::new(Shared {
         state: Mutex::new(DevState::Starting),
         rumble: Mutex::new(Rumble::default()),
@@ -351,6 +365,7 @@ fn spawn_device(io: HidIo, base: Base) -> Device {
         leds: Mutex::new(Leds::default()),
         triggers: Mutex::new([None; 2]),
         waker: io.waker(),
+        power_off: AtomicBool::new(false),
         stop: AtomicBool::new(false),
         done: AtomicBool::new(false),
     });
@@ -365,6 +380,8 @@ fn spawn_device(io: HidIo, base: Base) -> Device {
     Device {
         shared,
         thread: Some(thread),
+        bluetooth,
+        bt_address,
     }
 }
 
@@ -435,6 +452,15 @@ fn run_device(mut io: HidIo, base: &Base, shared: &Shared) {
         driver.set_lightbar(*shared.lightbar.lock().unwrap());
         driver.set_leds(*shared.leds.lock().unwrap());
         driver.set_trigger_effects(*shared.triggers.lock().unwrap());
+        if shared.power_off.swap(false, Ordering::Relaxed) {
+            match driver.power_off(&mut io) {
+                Ok(true) => tracing::info!(path = %base.path, "controller told to turn off"),
+                Ok(false) => {}
+                Err(e) => {
+                    tracing::warn!(path = %base.path, "turning the controller off failed: {e}")
+                }
+            }
+        }
         if let Err(e) = driver.service(&mut io, rumble) {
             tracing::debug!(path = %base.path, "HID write failed: {e}");
         }
@@ -484,6 +510,32 @@ impl GamepadBackend for HidBackend {
 
     fn set_trigger_effects(&mut self, id: &DeviceId, effects: TriggerEffects) {
         self.hand_over(id, |s| &s.triggers, effects);
+    }
+
+    fn power_off(&mut self, id: &DeviceId) -> bool {
+        for d in self.devices.lock().unwrap().values() {
+            let matches = matches!(
+                &*d.shared.state.lock().unwrap(),
+                DevState::Ready { info, .. } if &info.id == id
+            );
+            if !matches || !d.bluetooth {
+                continue;
+            }
+            // Sony pads have no off command: their Bluetooth link is dropped instead.
+            if let Some(addr) = d.bt_address {
+                return match super::bluetooth::disconnect(addr) {
+                    Ok(()) => true,
+                    Err(e) => {
+                        tracing::warn!("Bluetooth disconnect failed: {e}");
+                        false
+                    }
+                };
+            }
+            d.shared.power_off.store(true, Ordering::Relaxed);
+            d.shared.waker.wake();
+            return true;
+        }
+        false
     }
 
     fn problems(&self) -> Vec<String> {

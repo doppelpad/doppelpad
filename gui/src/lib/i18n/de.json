@@ -382,6 +382,7 @@
     "toggle_crosshair": "Fadenkreuz an/aus",
     "pad_overlay": "Controller-Overlay an/aus",
     "mappings_overlay": "Belegungs-Overlay an/aus",
+    "power_off": "Controller ausschalten",
     "radial_next": "Radialmenü: nächster Sektor",
     "radial_prev": "Radialmenü: voriger Sektor",
     "radial_up": "Radialmenü: oben",
@@ -756,6 +757,7 @@
     "own_slots": "Eigene Slots für diesen Controller",
     "own_hint": "Dieser Controller hat eigene Slots: eigene Config und eigener virtueller Controller",
     "ignore": "Diesen Controller ignorieren",
+    "power_off": "Ausschalten",
     "settings": {
       "title": "Controller",
       "hint": "Abgehakte Geräte nutzt Doppelpad; die anderen ignoriert es ganz (keine Eingabe, kein Ausblenden). Gruppen spielen mehrere Controller als einen: eine Config, ein Satz Slots.",
@@ -764,7 +766,11 @@
       "group_name": "Name der Gruppe",
       "make_group": "Gruppe bilden",
       "ungroup": "Gruppe auflösen",
-      "group_hint": "Schließe zwei Controller an, um sie zu gruppieren. Tastatur und Maus gelten immer für alle."
+      "group_hint": "Schließe zwei Controller an, um sie zu gruppieren. Tastatur und Maus gelten immer für alle.",
+      "power_off_after": "Kabellose Controller ausschalten nach",
+      "never": "nie",
+      "minutes": "{n} min ohne Eingabe",
+      "power_off_hint": "Spart Akku, wenn du den Controller liegen lässt. Ein Druck auf die Home-Taste schaltet ihn wieder ein."
     },
     "battery": "Akku {level} %",
     "battery_charging": "Akku {level} %, lädt"

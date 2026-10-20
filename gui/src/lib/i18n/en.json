@@ -382,6 +382,7 @@
     "toggle_crosshair": "Crosshair on/off",
     "pad_overlay": "Controller overlay on/off",
     "mappings_overlay": "Mappings overlay on/off",
+    "power_off": "Turn the controller off",
     "radial_next": "Radial menu: next sector",
     "radial_prev": "Radial menu: previous sector",
     "radial_up": "Radial menu: up",
@@ -756,6 +757,7 @@
     "own_slots": "Own slots for this controller",
     "own_hint": "This controller has slots of its own: its own config and virtual controller",
     "ignore": "Ignore this controller",
+    "power_off": "Turn off",
     "settings": {
       "title": "Controllers",
       "hint": "Doppelpad uses the ticked devices and ignores the others completely (no input, no hiding). Groups play several controllers as one: one config, one set of slots.",
@@ -764,7 +766,11 @@
       "group_name": "Name of the group",
       "make_group": "Make a group",
       "ungroup": "Break up the group",
-      "group_hint": "Connect two controllers to group them. Keyboard and mouse always count for everyone."
+      "group_hint": "Connect two controllers to group them. Keyboard and mouse always count for everyone.",
+      "power_off_after": "Turn wireless controllers off after",
+      "never": "never",
+      "minutes": "{n} min without input",
+      "power_off_hint": "Saves battery when you put the controller down. Pressing its home button turns it back on."
     },
     "battery": "Battery {level} %",
     "battery_charging": "Battery {level} %, charging"

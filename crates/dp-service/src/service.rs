@@ -103,6 +103,10 @@ pub enum ServiceCmd {
     },
     /// Replace the device groups.
     SetGroups(Vec<DeviceGroup>),
+    /// Turn wireless controllers off after this many minutes without input; 0 never.
+    SetPowerOffAfter(u32),
+    /// Turn a wireless controller off now.
+    PowerOff(String),
     /// Re-probe ViGEmBus / HidHide now.
     RefreshDrivers,
     /// Look for controllers now, e.g. after another program released them.
@@ -678,6 +682,24 @@ impl Service {
                     ServiceReply::Ok("device groups set".into())
                 }
             },
+            ServiceCmd::SetPowerOffAfter(minutes) => {
+                self.state.power_off_after_min = minutes;
+                self.apply_device_policy();
+                self.save_state();
+                ServiceReply::Ok(match minutes {
+                    0 => "controllers stay on".into(),
+                    m => format!("controllers turn off after {m} min without input"),
+                })
+            }
+            ServiceCmd::PowerOff(id) => {
+                if self.rt.power_off(&dp_platform::DeviceId(id)) {
+                    ServiceReply::Ok("controller turned off".into())
+                } else {
+                    ServiceReply::Err(
+                        "this controller cannot be turned off (only wireless ones can)".into(),
+                    )
+                }
+            }
             ServiceCmd::SetLights { player, mic } => {
                 self.state.player_lights = player;
                 self.state.mic_led = mic;
@@ -808,6 +830,10 @@ impl Service {
             blocked: self.state.blocked.clone(),
             groups: self.state.groups.clone(),
         });
+        let minutes = self.state.power_off_after_min;
+        self.rt.set_power_off_after(
+            (minutes > 0).then(|| std::time::Duration::from_secs(u64::from(minutes) * 60)),
+        );
     }
 
     /// Player lights and microphone LED of every controller, from the slots and remapping.
@@ -961,6 +987,7 @@ impl Service {
             seen_devices: self.rt.seen_devices(),
             blocked: self.state.blocked.clone(),
             groups: self.state.groups.clone(),
+            power_off_after_min: self.state.power_off_after_min,
             auto_switch: self.state.auto_switch,
             suspended: self.rt.is_suspended(),
             foreground: self.foreground.clone(),

@@ -197,6 +197,12 @@ impl GamepadBackend for Grouping {
         self.each(id, |b, d| b.set_trigger_effects(d, effects));
     }
 
+    fn power_off(&mut self, id: &DeviceId) -> bool {
+        let mut any = false;
+        self.each(id, |b, d| any |= b.power_off(d));
+        any
+    }
+
     fn ignore_virtual(&mut self, ignored: &VirtualIgnoreList) {
         for b in &mut self.inner {
             b.ignore_virtual(ignored);

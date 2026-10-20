@@ -170,6 +170,10 @@ pub trait GamepadBackend: Send {
     fn set_leds(&mut self, _id: &DeviceId, _leds: Leds) {}
     /// Play trigger effects, left then right (DualSense); `None` leaves a trigger as it is.
     fn set_trigger_effects(&mut self, _id: &DeviceId, _effects: TriggerEffects) {}
+    /// Turn a wireless controller off. `false` when this backend cannot (wired, unknown).
+    fn power_off(&mut self, _id: &DeviceId) -> bool {
+        false
+    }
     /// Tell the backend which XInput slots / device paths belong to our own virtual pads
     /// so it does not read them back as physical input.
     fn ignore_virtual(&mut self, _ignored: &VirtualIgnoreList) {}

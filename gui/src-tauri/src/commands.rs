@@ -342,6 +342,18 @@ pub fn set_groups(state: State<AppState>, groups: Vec<DeviceGroup>) -> CmdResult
     state.call(ServiceCmd::SetGroups(groups))
 }
 
+/// Turn wireless controllers off after `minutes` without input; 0 never.
+#[tauri::command]
+pub fn set_power_off_after(state: State<AppState>, minutes: u32) -> CmdResult<String> {
+    state.call(ServiceCmd::SetPowerOffAfter(minutes))
+}
+
+/// Turn a wireless controller off now.
+#[tauri::command]
+pub fn power_off(state: State<AppState>, id: String) -> CmdResult<String> {
+    state.call(ServiceCmd::PowerOff(id))
+}
+
 /// What the controllers' player lights and microphone LED show.
 #[tauri::command]
 pub fn set_lights(state: State<AppState>, player: PlayerLights, mic: bool) -> CmdResult<String> {

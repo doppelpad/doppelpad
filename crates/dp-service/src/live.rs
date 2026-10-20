@@ -55,6 +55,8 @@ pub struct LiveState {
     /// Devices Doppelpad ignores.
     pub blocked: Vec<String>,
     pub groups: Vec<DeviceGroup>,
+    /// Wireless controllers turn off after this many minutes without input; 0 never.
+    pub power_off_after_min: u32,
     /// Remapping is paused (the editor has focus).
     pub suspended: bool,
     /// Executable of the foreground application.
