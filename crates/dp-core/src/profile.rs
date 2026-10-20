@@ -1524,6 +1524,10 @@ pub enum Command {
     RadialApply,
     /// Back to the parent menu, or close the menu.
     RadialBack,
+    /// Show or hide the live controller overlay.
+    PadOverlay,
+    /// Show or hide the overlay listing the current layer's mappings.
+    MappingsOverlay,
     /// Launch a program.
     Launch {
         path: String,

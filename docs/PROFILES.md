@@ -284,6 +284,8 @@ Commands:
 | `radial_up`, `radial_down`, `radial_left`, `radial_right` | Open radial menu: point at the sector in that direction |
 | `radial_apply` | Run the pointed sector, or open its sub-menu |
 | `radial_back` | Back to the parent menu, or close the menu |
+| `pad_overlay` | Show or hide the live controller overlay (the app's *Settings → Overlays*) |
+| `mappings_overlay` | Show or hide the list of the active layer's mappings over the game |
 | `shutdown`, `restart`, `sleep`, `hibernate`, `log_off` | Power commands; applications may still ask to save their work (Linux: `systemctl`, `loginctl`) |
 | `{ launch = { path, args } }` | Start a program |
 

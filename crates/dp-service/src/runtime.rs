@@ -198,6 +198,9 @@ pub struct Runtime {
     test_turn: Option<TestTurn>,
     /// Gyro bias per controller, taken off before anything reads the rates.
     calibration: Calibrator,
+    /// The live controller overlay and the mappings overlay are on.
+    pad_overlay: bool,
+    mappings_overlay: bool,
 }
 
 /// One full in-game turn sent as mouse motion, so the user can check `counts_per_turn`.
@@ -424,6 +427,8 @@ impl Runtime {
             test_turn: None,
             calibration: Calibrator::default(),
             hotkey_actions: Vec::new(),
+            pad_overlay: false,
+            mappings_overlay: false,
         }
     }
 
@@ -527,6 +532,11 @@ impl Runtime {
     pub fn crosshair(&self) -> Option<&Crosshair> {
         let s = self.session(None)?;
         s.engine.profile().crosshairs.get(s.crosshair_index()?)
+    }
+
+    /// Whether the live controller overlay and the mappings overlay are on.
+    pub fn overlays(&self) -> (bool, bool) {
+        (self.pad_overlay, self.mappings_overlay)
     }
 
     /// The radial menu the default session shows, and its pointed sector.
@@ -925,6 +935,8 @@ impl Runtime {
                     self.remap_off_requested = true;
                     return;
                 }
+                HotkeyAction::PadOverlay => self.pad_overlay = !self.pad_overlay,
+                HotkeyAction::MappingsOverlay => self.mappings_overlay = !self.mappings_overlay,
                 other => self.hotkey_actions.push((id, other)),
             }
         }
@@ -1028,6 +1040,8 @@ impl Runtime {
             | Command::RadialRight
             | Command::RadialApply
             | Command::RadialBack => {}
+            Command::PadOverlay => self.pad_overlay = !self.pad_overlay,
+            Command::MappingsOverlay => self.mappings_overlay = !self.mappings_overlay,
             Command::Crosshair(_) | Command::ToggleCrosshair => {
                 if let Some(s) = self.sessions.get_mut(i) {
                     s.crosshair_command(&c);
@@ -1378,6 +1392,43 @@ mod tests {
             world.lock().unwrap().system,
             ["Screenshot", "CloseWindow", "Sleep"]
         );
+    }
+
+    #[test]
+    fn overlay_commands_toggle_the_overlays() {
+        use dp_core::control::Control;
+        use dp_core::pad::PadButton;
+        use dp_core::profile::{Action, Mapping, Mode};
+        let (platform, world) = testing::platform();
+        world
+            .lock()
+            .unwrap()
+            .pads
+            .push(pad("pad1", PadFamily::Xbox));
+        let mut rt = Runtime::with_platform(platform);
+        let mut p = Profile::default();
+        let mut m = Mapping::new(
+            Control::Button(PadButton::A),
+            vec![
+                Action::Command {
+                    command: Command::PadOverlay,
+                },
+                Action::Command {
+                    command: Command::MappingsOverlay,
+                },
+            ],
+        );
+        m.mode = Mode::Once;
+        p.mappings.push(m);
+        rt.apply(p, None).unwrap();
+        rt.tick();
+        assert_eq!(rt.overlays(), (false, false));
+        world.lock().unwrap().pads[0].state.set(PadButton::A, true);
+        for _ in 0..3 {
+            rt.tick();
+            std::thread::sleep(std::time::Duration::from_millis(15));
+        }
+        assert_eq!(rt.overlays(), (true, true));
     }
 
     #[test]

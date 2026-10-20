@@ -3,7 +3,7 @@
 // vendor and product IDs pick the variant.
 
 import type { DeviceId } from '../../assets/devices/layouts';
-import type { LiveDevice } from '../types';
+import type { ControlName, LiveDevice } from '../types';
 
 export interface Drawings {
   front: DeviceId;
@@ -53,4 +53,28 @@ export function drawingsFor(dev: Pick<LiveDevice, 'family' | 'vendor_id' | 'prod
     case 'xbox':
       return { front: 'xbox', back: is(MICROSOFT, XBOX_ELITE) ? 'xboxEliteBack' : 'xboxBack' };
   }
+}
+
+/** Stick deflection / trigger pull that counts as "pressed" (highlight and press-to-select). */
+const STICK_SELECT = 0.65;
+const TRIGGER_SELECT = 0.4;
+
+/** The controls a controller's live state presses (`buttons`: the catalog's pad buttons). */
+export function controlsFromPad(dev: LiveDevice, buttons: string[]): Set<ControlName> {
+  const s = new Set<ControlName>();
+  buttons.forEach((b, i) => {
+    if ((dev.state.buttons >>> i) & 1) s.add(b);
+  });
+  const a = dev.state.axes;
+  const stick = (name: string, x: number, y: number) => {
+    if (y > STICK_SELECT) s.add(`${name}Up`);
+    if (y < -STICK_SELECT) s.add(`${name}Down`);
+    if (x < -STICK_SELECT) s.add(`${name}Left`);
+    if (x > STICK_SELECT) s.add(`${name}Right`);
+  };
+  stick('LeftStick', a[0], a[1]);
+  stick('RightStick', a[2], a[3]);
+  if (a[4] > TRIGGER_SELECT) s.add('LT');
+  if (a[5] > TRIGGER_SELECT) s.add('RT');
+  return s;
 }

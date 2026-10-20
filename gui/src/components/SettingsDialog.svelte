@@ -3,7 +3,7 @@
   import { api, errorText } from '../lib/api';
   import { LANGUAGES, t } from '../lib/i18n/index.svelte';
   import { app } from '../lib/state/app.svelte';
-  import type { Corner, OsdSettings, RewasdChoice } from '../lib/types';
+  import type { Corner, MappingsOverlaySettings, OsdSettings, PadOverlaySettings, RewasdChoice } from '../lib/types';
   import HotkeySettings from './HotkeySettings.svelte';
   import Slider from './ui/Slider.svelte';
   import Toggle from './ui/Toggle.svelte';
@@ -44,6 +44,18 @@
 
   function setOsd(patch: Partial<OsdSettings>) {
     app.setSettings({ osd: { ...osd, ...patch } });
+  }
+
+  const padOverlay = $derived(app.settings.pad_overlay);
+  const mappingsOverlay = $derived(app.settings.mappings_overlay);
+  const PAD_SIZES = [50, 70, 90] as const;
+
+  function setPadOverlay(patch: Partial<PadOverlaySettings>) {
+    app.setSettings({ pad_overlay: { ...padOverlay, ...patch } });
+  }
+
+  function setMappingsOverlay(patch: Partial<MappingsOverlaySettings>) {
+    app.setSettings({ mappings_overlay: { ...mappingsOverlay, ...patch } });
   }
 
   async function refresh() {
@@ -163,6 +175,44 @@
     </div>
 
     <div class="section">
+      <div class="section-head"><span>{t('settings.overlays.title')}</span></div>
+      <p class="hint">{t('settings.overlays.hint')}</p>
+      <div class="sub">{t('settings.overlays.pad')}</div>
+      <label class="row">
+        <span>{t('settings.osd.corner')}</span>
+        <select value={padOverlay.corner} onchange={(e) => setPadOverlay({ corner: e.currentTarget.value as Corner })}>
+          {#each CORNERS as c (c)}<option value={c}>{t(`settings.osd.corners.${c}`)}</option>{/each}
+        </select>
+      </label>
+      <label class="row">
+        <span>{t('settings.osd.scale')}</span>
+        <select value={padOverlay.size} onchange={(e) => setPadOverlay({ size: Number(e.currentTarget.value) })}>
+          {#each PAD_SIZES as s (s)}<option value={s}>{t(`settings.overlays.sizes.${s}`)}</option>{/each}
+        </select>
+      </label>
+      <Slider label={t('settings.osd.opacity')} value={padOverlay.opacity} def={90} min={20} max={100} step={5} unit="%" onchange={(v) => setPadOverlay({ opacity: v })} />
+      <Slider
+        label={t('settings.overlays.hide_after')}
+        value={padOverlay.hide_after}
+        def={5}
+        min={0}
+        max={30}
+        step={1}
+        unit="s"
+        hint={t('settings.overlays.hide_after_hint')}
+        onchange={(v) => setPadOverlay({ hide_after: v })}
+      />
+      <div class="sub">{t('settings.overlays.mappings')}</div>
+      <label class="row">
+        <span>{t('settings.osd.corner')}</span>
+        <select value={mappingsOverlay.corner} onchange={(e) => setMappingsOverlay({ corner: e.currentTarget.value as Corner })}>
+          {#each CORNERS as c (c)}<option value={c}>{t(`settings.osd.corners.${c}`)}</option>{/each}
+        </select>
+      </label>
+      <Slider label={t('settings.osd.opacity')} value={mappingsOverlay.opacity} def={90} min={20} max={100} step={5} unit="%" onchange={(v) => setMappingsOverlay({ opacity: v })} />
+    </div>
+
+    <div class="section">
       <div class="section-head">
         <span>{t('settings.drivers')}</span>
         <button class="icon-btn" title={t('settings.recheck')} onclick={refresh}><RefreshCw size={15} /></button>
@@ -260,6 +310,11 @@
   }
   .check.sub {
     margin-left: 24px;
+  }
+  .sub {
+    margin-top: 4px;
+    color: var(--text-dim);
+    font-weight: 600;
   }
   .section {
     border-top: 1px solid var(--line);

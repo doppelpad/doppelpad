@@ -351,6 +351,8 @@
     "close_window": "Close the active window",
     "crosshair": "Show crosshair {n}",
     "toggle_crosshair": "Crosshair on/off",
+    "pad_overlay": "Controller overlay on/off",
+    "mappings_overlay": "Mappings overlay on/off",
     "radial_next": "Radial menu: next sector",
     "radial_prev": "Radial menu: previous sector",
     "radial_up": "Radial menu: up",
@@ -759,6 +761,15 @@
       "scale": "Size",
       "opacity": "Opacity",
       "seconds": "Display time"
+    },
+    "overlays": {
+      "title": "Overlays",
+      "hint": "A live picture of the controller and a list of the active layer's mappings. Turn them on and off with a controller hotkey or a command in a mapping.",
+      "pad": "Controller",
+      "mappings": "Mappings",
+      "sizes": { "50": "Small", "70": "Medium", "90": "Large" },
+      "hide_after": "Hide after",
+      "hide_after_hint": "Seconds without input; 0 keeps it up."
     }
   },
   "hotkeys": {
@@ -772,6 +783,8 @@
     "remap": "Remapping on/off",
     "stop_macros": "Stop macros",
     "emergency_stop": "Emergency stop",
+    "pad_overlay": "Controller overlay",
+    "mappings_overlay": "Mappings overlay",
     "none": "Off",
     "press": "Hold the buttons, then let go…",
     "record": "Record",
@@ -959,5 +972,9 @@
     "test": "Notifications look like this.",
     "battery_low": "Battery low: {level} %",
     "battery_critical": "Battery critical: {level} %"
+  },
+  "overlays": {
+    "no_mappings": "Nothing is mapped on this layer.",
+    "more": "… and {n} more"
   }
 }
