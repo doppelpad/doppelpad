@@ -428,6 +428,22 @@
     "rewasd_ignore": "Leave it running",
     "rewasd_running": "reWASD is running right now."
   },
+  "hotkeys": {
+    "title": "Controller hotkeys",
+    "hint": "Hold the buttons together on the controller in use. They work in every config, with remapping off and without this window. While a hotkey is held, its buttons do not reach the game.",
+    "hold_ms": "Hold for",
+    "slot1": "Slot 1",
+    "slot2": "Slot 2",
+    "slot3": "Slot 3",
+    "slot4": "Slot 4",
+    "remap": "Remapping on/off",
+    "stop_macros": "Stop macros",
+    "emergency_stop": "Emergency stop",
+    "none": "Off",
+    "press": "Hold the buttons, then let go…",
+    "record": "Record",
+    "too_many": "A hotkey has at most {n} buttons."
+  },
   "rewasd": {
     "title": "reWASD is running",
     "body": "reWASD keeps your controllers to itself, so Doppelpad cannot read them while it runs. Doppelpad can quit it for you:",

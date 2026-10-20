@@ -291,3 +291,19 @@ export interface RewasdStatus {
   /** Its other running programs. */
   programs: string[];
 }
+
+// ----- controller hotkeys --------------------------------------------------------------
+
+/** Controller hotkeys (app settings): pad buttons held together; empty = off. */
+export interface Hotkeys {
+  hold_ms: number;
+  slot1: PadButtonName[];
+  slot2: PadButtonName[];
+  slot3: PadButtonName[];
+  slot4: PadButtonName[];
+  remap: PadButtonName[];
+  stop_macros: PadButtonName[];
+  emergency_stop: PadButtonName[];
+}
+
+export type HotkeyField = Exclude<keyof Hotkeys, 'hold_ms'>;

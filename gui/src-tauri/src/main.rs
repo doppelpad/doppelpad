@@ -75,6 +75,7 @@ fn main() {
             let profiles_dir = dp_config::profiles_dir();
             let mut service = ServiceOptions::new(profiles_dir.clone());
             service.state_path = Some(dp_config::config_dir().join("state.toml"));
+            service.hotkeys_path = Some(dp_config::config_dir().join("hotkeys.toml"));
             let handle = dp_service::spawn(HostOptions { service, ipc: true })?;
 
             app.manage(AppState {
@@ -131,6 +132,9 @@ fn main() {
             commands::set_auto_switch,
             commands::set_preferred_device,
             commands::refresh_drivers,
+            commands::hotkeys_get,
+            commands::hotkeys_set,
+            commands::hotkeys_pause,
             commands::rewasd_status,
             commands::rewasd_quit,
             commands::live_subscribe,

@@ -4,6 +4,7 @@
   import { LANGUAGES, t } from '../lib/i18n/index.svelte';
   import { app } from '../lib/state/app.svelte';
   import type { RewasdChoice } from '../lib/types';
+  import HotkeySettings from './HotkeySettings.svelte';
   import Toggle from './ui/Toggle.svelte';
 
   let { onclose }: { onclose: () => void } = $props();
@@ -101,6 +102,8 @@
       {/if}
     {/if}
 
+    <HotkeySettings />
+
     <div class="section">
       <div class="section-head">
         <span>{t('settings.drivers')}</span>
@@ -154,6 +157,8 @@
     border-radius: var(--radius-l);
     box-shadow: var(--shadow);
     padding: 18px 20px 22px;
+    max-height: calc(100vh - 48px);
+    overflow-y: auto;
     display: flex;
     flex-direction: column;
     gap: 14px;

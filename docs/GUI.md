@@ -157,6 +157,22 @@ mapping. The bottom bar then shows *Paused while editing*. Switch to the game (o
 the window) and the active slot takes over again. *Settings → Keep remapping active while
 this window is focused* turns this off.
 
+## Controller hotkeys
+
+*Settings → Controller hotkeys* sets button combos that work in every config, with
+remapping off, and without the window (`doppelpad daemon` reads them too): **Slot 1–4**
+(activates that slot and turns remapping on; empty slots do nothing), **Remapping on/off**,
+**Stop macros** (stops running macros, turbo and toggles and releases what they hold) and
+**Emergency stop** (the same, then remapping off). Hold all buttons of a combo for the
+*hold time* (500 ms by default, 50–2500 ms). Defaults: LB + RB + X / Y / B / A for slots
+1–4, Back + Start + LB + RB for the emergency stop; the other two are off.
+
+To record a combo, click the record button, hold the buttons on the controller and let go;
+× clears it. Hotkeys are paused while recording. As soon as all buttons of a hotkey are
+down, the game no longer sees them (each stays hidden until it is released); a combo you
+need in a game must therefore not be a hotkey. A combo inside a larger one (LB + RB inside
+LB + RB + X) waits for the larger one.
+
 ## Tray
 
 The tray icon is greyed out while remapping is off. Its tooltip names the active config
@@ -200,6 +216,7 @@ running reWASD.
 | `%APPDATA%\doppelpad\profiles\<game>\game.toml` | Game name, programs for autodetect, default config |
 | `%APPDATA%\doppelpad\profiles\<game>\<config>.toml` | One profile (the normal TOML format, see [PROFILES.md](PROFILES.md)) |
 | `%APPDATA%\doppelpad\state.toml` | The four slots, active slot, remap on/off, autodetect |
+| `%APPDATA%\doppelpad\hotkeys.toml` | Controller hotkeys and their hold time (also read by `doppelpad daemon`) |
 | `%APPDATA%\doppelpad\gui.toml` | Language, focus pause, press-to-select |
 | `%LOCALAPPDATA%\doppelpad\logs\doppelpad-gui.log` | Log of the current run; the previous run's log is kept as `doppelpad-gui.log.1` |
 

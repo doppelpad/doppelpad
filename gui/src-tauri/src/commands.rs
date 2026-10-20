@@ -9,13 +9,14 @@ use std::time::Duration;
 use dp_config::library::{self, Game, GameMeta, Library};
 use dp_config::{Diagnostics, Severity};
 use dp_core::control::{Control, mouse_button_name, pad_button_name};
+use dp_core::hotkeys::Hotkeys;
 use dp_core::keys::{Key, MouseButton};
 use dp_core::pad::PadButton;
 use dp_core::profile::{
     AnalogMapping, Mapping, Output, Profile, StickConfig, Timing, TriggerConfig,
 };
 use dp_ipc::Request;
-use dp_service::{LiveState, ServiceCmd, ServiceHandle};
+use dp_service::{LiveState, ServiceCmd, ServiceHandle, ServiceReply};
 use serde::Serialize;
 use tauri::ipc::Channel;
 use tauri::{AppHandle, Manager, State};
@@ -294,6 +295,25 @@ pub fn set_preferred_device(state: State<AppState>, id: Option<String>) -> CmdRe
 #[tauri::command]
 pub fn refresh_drivers(state: State<AppState>) -> CmdResult<String> {
     state.call(ServiceCmd::RefreshDrivers)
+}
+
+#[tauri::command]
+pub fn hotkeys_get(state: State<AppState>) -> CmdResult<Hotkeys> {
+    match state.service.lock().unwrap().call(ServiceCmd::GetHotkeys) {
+        ServiceReply::Hotkeys(h) => Ok(h),
+        other => Err(other.into_result().err().unwrap_or_default()),
+    }
+}
+
+#[tauri::command]
+pub fn hotkeys_set(state: State<AppState>, hotkeys: Hotkeys) -> CmdResult<String> {
+    state.call(ServiceCmd::SetHotkeys(hotkeys))
+}
+
+/// Pause the hotkeys while the user records a new one.
+#[tauri::command]
+pub fn hotkeys_pause(state: State<AppState>, on: bool) -> CmdResult<String> {
+    state.call(ServiceCmd::PauseHotkeys(on))
 }
 
 // ----- reWASD ------------------------------------------------------------------------
