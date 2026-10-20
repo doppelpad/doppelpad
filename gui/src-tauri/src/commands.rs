@@ -14,7 +14,7 @@ use dp_core::keys::{Key, MouseButton};
 use dp_core::pad::PadButton;
 use dp_core::profile::{
     AnalogMapping, Crosshair, GyroSettings, Light, Magnifier, Mapping, Output, Profile, RadialMenu,
-    RadialSector, StickConfig, Timing, TouchpadSettings, TriggerConfig, VirtualStick,
+    RadialSector, StickConfig, Timing, TouchpadSettings, TriggerConfig, Vibration, VirtualStick,
 };
 use dp_ipc::Request;
 use dp_service::{LiveState, PlayerLights, ServiceCmd, ServiceHandle, ServiceReply};
@@ -77,6 +77,7 @@ pub struct Defaults {
     radial_menu: RadialMenu,
     radial_sector: RadialSector,
     light: Light,
+    vibration: Vibration,
 }
 
 #[derive(Serialize)]
@@ -115,6 +116,7 @@ pub fn catalog() -> Catalog {
             radial_menu: RadialMenu::default(),
             radial_sector: RadialSector::default(),
             light: Light::default(),
+            vibration: Vibration::default(),
         },
     }
 }

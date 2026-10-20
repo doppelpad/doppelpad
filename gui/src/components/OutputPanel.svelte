@@ -7,6 +7,7 @@
   import type { KeyRepeat, Output, Profile, VirtualPadType } from '../lib/types';
   import CrosshairSettings from './crosshair/CrosshairSettings.svelte';
   import LightSettings from './LightSettings.svelte';
+  import VibrationSettings from './VibrationSettings.svelte';
   import RadialSettings from './radial/RadialSettings.svelte';
   import Toggle from './ui/Toggle.svelte';
 
@@ -304,6 +305,7 @@
   </div>
 
   <LightSettings />
+  <VibrationSettings />
   <CrosshairSettings />
   <RadialSettings />
 </div>

@@ -406,6 +406,20 @@ lights and the DualSense microphone LED are app settings (*Settings → Controll
 player lights show the active slot's number (by default only while remapping is on), and the
 microphone LED can show whether remapping is on. Light changes work over USB and Bluetooth.
 
+## Vibration
+
+```toml
+[vibration]
+left = 1.0          # left (heavy) motor strength, 0–1; 0 turns it off
+right = 0.6         # right (light) motor
+swap = false        # each motor plays the other one's rumble
+min_delay_ms = 20   # shortest gap between rumble commands, 10–200 (the latest value wins)
+```
+
+This shapes the rumble the game sends to the virtual controller on its way to the physical
+one; rumble that mappings play is not changed. DualShock 4 and DualSense rumble over USB and
+Bluetooth.
+
 ## Crosshairs
 
 Up to ten crosshairs can be drawn over the game, in the middle of the primary monitor:

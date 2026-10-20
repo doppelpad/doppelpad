@@ -135,6 +135,15 @@ export interface Layer {
 
 export type Unlock = 'all' | 'keyboard' | 'mouse';
 
+/** How the game's rumble reaches the controller (mapping rumble stays as it is). */
+export interface Vibration {
+  /** 0–1; 0 turns the motor off. */
+  left?: number;
+  right?: number;
+  swap?: boolean;
+  min_delay_ms?: number;
+}
+
 export type LightMode = 'off' | 'solid' | 'breath' | 'rainbow' | 'shimmer' | 'heartbeat' | 'strobe';
 
 /** A light-bar setting; whatever it leaves out is the default. */
@@ -405,6 +414,8 @@ export interface Profile {
   radial_menus?: RadialMenu[];
   /** The controller's light bar; without it the game sets the colour. */
   lightbar?: Light;
+  /** How the game's rumble reaches the controller. */
+  vibration?: Vibration;
   mappings: Mapping[];
   analog?: AnalogMapping[];
   virtual?: VirtualDevices;
@@ -563,6 +574,7 @@ export interface Catalog {
     radial_menu: Required<Omit<RadialMenu, 'sectors' | 'name'>>;
     radial_sector: RadialSector;
     light: Required<Light>;
+    vibration: Required<Vibration>;
   };
 }
 

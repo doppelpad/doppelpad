@@ -15,8 +15,8 @@ use dp_core::profile::{
     CrosshairShape, GyroMode, JitterPattern, Jump, JumpMode, KeyRepeat, Layer, LayerSticks,
     LayerTriggers, LayerVirtualSticks, Light, LightMode, Magnifier, Mapping, Mode, Press, Profile,
     RadialApply, RadialMenu, RadialSector, RadialSelect, ShakeAxis, StickPatch, Sticks,
-    TriggerEffect, TriggerPatch, Triggers, Unlock, VirtualMotion, VirtualMouse, VirtualPadType,
-    VirtualStick, VirtualStickPatch, VirtualSticks, ZoneRadius,
+    TriggerEffect, TriggerPatch, Triggers, Unlock, Vibration, VirtualMotion, VirtualMouse,
+    VirtualPadType, VirtualStick, VirtualStickPatch, VirtualSticks, ZoneRadius,
 };
 use serde_json::Value;
 
@@ -751,6 +751,7 @@ impl<'a> Importer<'a> {
                     let (mut sticks, mut triggers) = (p.sticks.clone(), p.triggers.clone());
                     self.analog_settings(&mut sticks, &mut triggers, d, &format!("{path}.default"));
                     (p.sticks, p.triggers) = (sticks, triggers);
+                    self.vibration(&mut p.vibration, d, &format!("{path}.default"));
                 }
                 // Per-layer blocks hold the same settings as `default`; a layer keeps only
                 // what differs from the base.
@@ -1070,6 +1071,51 @@ impl<'a> Importer<'a> {
     }
 
     /// Gamepad stick/trigger/touchpad settings.
+    /// Motor strengths, a motor swap and the command gap from a device's `default` block.
+    fn vibration(&mut self, v: &mut Vibration, d: &Value, path: &str) {
+        let mut swapped = [false; 2];
+        for item in array(d, "vibration") {
+            if get(item, "trigger").is_some() {
+                self.diags.info(
+                    format!("{path}.vibration"),
+                    "trigger rumble settings are not supported",
+                );
+                continue;
+            }
+            let Some(m) = get(item, "motor") else {
+                continue;
+            };
+            let (strength, other, i) = match enum_str(m, "name").as_deref() {
+                Some("left") => (&mut v.left, "insteadMotorRight", 0),
+                Some("right") => (&mut v.right, "insteadMotorLeft", 1),
+                _ => continue,
+            };
+            if let Some(a) = get(m, "amplitude").and_then(Value::as_f64) {
+                *strength = (a / 100.0).clamp(0.0, 1.0) as f32;
+            }
+            if boolean(m, "turnedOff") {
+                *strength = 0.0;
+            }
+            swapped[i] = boolean(m, other);
+        }
+        v.swap = swapped == [true, true];
+        if swapped[0] != swapped[1] {
+            self.diags.info(
+                format!("{path}.vibration"),
+                "one motor redirected onto the other is not supported; the motors stay apart",
+            );
+        }
+        if let Some(gap) = int(d, "vibrationRumbleDelay") {
+            v.min_delay_ms = gap.clamp(10, 200) as u32;
+        }
+        if get(d, "vibrationRumbleMode").is_some() {
+            self.diags.info(
+                format!("{path}.vibrationRumbleMode"),
+                "the rumble mode is not imported",
+            );
+        }
+    }
+
     fn analog_settings(
         &mut self,
         sticks: &mut Sticks,
@@ -2246,6 +2292,26 @@ mod tests {
         let (p, _) = import(doc).unwrap();
         assert_eq!(p.mappings.len(), 1);
         assert_eq!(p.mappings[0].jump.as_ref().unwrap().mode, JumpMode::Hold);
+    }
+
+    #[test]
+    fn vibration_strengths_swap_and_gap() {
+        let doc = r#"{ "schemaVersion": 3.0, "appVersion": "9.2.0", "config": { "appName": "x", "minTimeUnit": 1 },
+          "devices": { "hardware": [ { "id": 1, "name": "gamepad", "default": {
+            "vibration": [ { "motor": { "name": "left", "amplitude": 60, "insteadMotorRight": true } },
+                           { "motor": { "name": "right", "turnedOff": true, "insteadMotorLeft": true } } ],
+            "vibrationRumbleDelay": 40 } } ] } }"#;
+        let (p, diags) = import(doc).unwrap();
+        assert!(!diags.has_errors());
+        assert_eq!(
+            p.vibration,
+            Vibration {
+                left: 0.6,
+                right: 0.0,
+                swap: true,
+                min_delay_ms: 40
+            }
+        );
     }
 
     #[test]

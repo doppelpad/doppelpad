@@ -264,6 +264,15 @@
       "release": "Fires briefly when the control is released."
     }
   },
+  "vibration": {
+    "title": "Vibration",
+    "hint": "How the game's rumble reaches the controller. Rumble that mappings play stays as it is.",
+    "left": "Left motor (heavy)",
+    "right": "Right motor (light)",
+    "gap": "Shortest gap",
+    "gap_hint": "Least time between two rumble commands; the latest value wins.",
+    "swap": "Swap the motors"
+  },
   "light": {
     "title": "Light bar",
     "hint": "Colour and effect of the DualShock 4 and DualSense light bar, for Main and, if you like, per layer. Without a setting the game sets the colour (virtual DualShock 4).",

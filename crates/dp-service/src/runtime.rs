@@ -100,6 +100,8 @@ struct Session {
     needs_capture: bool,
     game_rumble: Rumble,
     sent_rumble: Option<(DeviceId, Rumble)>,
+    /// When the last rumble command went out.
+    rumble_at: Option<u64>,
     /// Light bar colour the game set on a virtual DualShock 4.
     game_lightbar: Option<Rgb>,
     /// What the controller was last told to show, and which controller.
@@ -374,12 +376,17 @@ fn feedback(s: &mut Session, platform: &mut Platform, mapping_rumble: Option<Rum
         s.game_lightbar = Some(c);
     }
     let Some(id) = s.device.clone() else { return };
-    let rumble = (id.clone(), mapping_rumble.unwrap_or(s.game_rumble));
-    if s.sent_rumble.as_ref() != Some(&rumble) {
+    let vibration = &s.engine.profile().vibration;
+    let game = vibration.apply(s.game_rumble);
+    let gap = vibration.min_delay_ms.clamp(10, 200) as u64;
+    let rumble = (id.clone(), mapping_rumble.unwrap_or(game));
+    // At most one command per gap; a change held back goes out with a later tick.
+    if s.sent_rumble.as_ref() != Some(&rumble) && s.rumble_at.is_none_or(|t| now >= t + gap) {
         for b in &mut platform.gamepads {
             b.set_rumble(&rumble.0, rumble.1);
         }
         s.sent_rumble = Some(rumble);
+        s.rumble_at = Some(now);
     }
     // A trigger whose effect ends is turned off rather than left playing.
     let want = s.engine.trigger_effects();
@@ -715,6 +722,7 @@ impl Runtime {
             warnings,
             game_rumble: Rumble::default(),
             sent_rumble: None,
+            rumble_at: None,
             game_lightbar: None,
             sent_lightbar: None,
             sent_triggers: None,
@@ -1663,6 +1671,8 @@ mod tests {
             w.game_lightbar = Some(red);
         }
         rt.tick();
+        // Rumble commands keep the profile's gap (20 ms by default).
+        std::thread::sleep(std::time::Duration::from_millis(25));
         rt.tick();
         {
             let w = world.lock().unwrap();
