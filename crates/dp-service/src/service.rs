@@ -51,13 +51,27 @@ impl ServiceOptions {
 pub enum ServiceCmd {
     /// A request of the IPC protocol (`doppelpad apply|stop|status|...`).
     Ipc(Request),
-    /// Put a config into a slot and make that slot active.
+    /// Put a config into a slot and make that slot active. `device`: the slots of that
+    /// controller (which gets slots of its own if it has none yet), else the shared ones.
     ApplyToSlot {
+        device: Option<String>,
         slot: usize,
         path: PathBuf,
     },
-    SelectSlot(usize),
-    ClearSlot(usize),
+    SelectSlot {
+        device: Option<String>,
+        slot: usize,
+    },
+    ClearSlot {
+        device: Option<String>,
+        slot: usize,
+    },
+    /// Give a controller slots of its own (it then runs its own profile and virtual pad),
+    /// or let it use the shared slots again.
+    OwnSlots {
+        device: String,
+        on: bool,
+    },
     SetRemap(bool),
     SetSuspended(bool),
     SetPreferredDevice(Option<String>),
@@ -110,6 +124,10 @@ pub struct Service {
     /// [`Runtime::hiding_problems`], refreshed with the driver status.
     hiding_problems: Vec<String>,
     last_error: Option<String>,
+    /// Why a controller's own profile could not be applied, by device id.
+    device_errors: std::collections::BTreeMap<String, String>,
+    /// Connected controllers when their sessions were last brought in line.
+    connected: Vec<String>,
 }
 
 fn load(path: &Path) -> Result<Profile> {
@@ -165,6 +183,8 @@ impl Service {
             drivers_checked: None,
             hiding_problems: Vec::new(),
             last_error: None,
+            device_errors: Default::default(),
+            connected: Vec::new(),
             opts,
         };
         svc.reload();
@@ -174,6 +194,60 @@ impl Service {
             svc.apply_base();
         }
         Ok(svc)
+    }
+
+    /// Start, switch or stop the sessions of controllers with slots of their own: one runs
+    /// while its controller is connected, remapping is on and its active slot has a config.
+    fn sync_devices(&mut self) {
+        let connected: Vec<String> = self
+            .rt
+            .devices()
+            .iter()
+            .map(|s| s.info.id.0.clone())
+            .collect();
+        let wanted: Vec<(String, PathBuf)> = if self.state.remap_on {
+            self.state
+                .devices
+                .iter()
+                .filter(|(id, _)| connected.contains(id))
+                .filter_map(|(id, d)| Some((id.clone(), d.active_profile()?.clone())))
+                .collect()
+        } else {
+            Vec::new()
+        };
+        for s in self.rt.sessions() {
+            if let Some(owner) = s.owner
+                && !wanted.iter().any(|(id, _)| *id == owner)
+            {
+                self.rt.stop_device(&dp_platform::DeviceId(owner.clone()));
+                self.device_errors.remove(&owner);
+            }
+        }
+        for (id, path) in wanted {
+            let device = dp_platform::DeviceId(id.clone());
+            if self.rt.device_profile_path(&device) == Some(&path) {
+                continue;
+            }
+            let result =
+                load(&path).and_then(|p| self.rt.apply_device(&device, p, Some(path.clone())));
+            match result {
+                Ok(()) => {
+                    self.device_errors.remove(&id);
+                }
+                Err(e) => {
+                    tracing::warn!(device = %id, "cannot apply {}: {e:#}", path.display());
+                    self.device_errors.insert(id, format!("{e:#}"));
+                }
+            }
+        }
+        self.connected = connected;
+    }
+
+    /// The slot set a command addresses: a controller's own, else the shared one.
+    fn has_own_slots(&self, device: Option<&str>) -> Option<String> {
+        device
+            .filter(|d| self.state.devices.contains_key(*d))
+            .map(str::to_owned)
     }
 
     pub fn runtime(&self) -> &Runtime {
@@ -250,7 +324,7 @@ impl Service {
                 }
             }
             None => {
-                self.rt.stop();
+                self.rt.stop_default();
                 self.last_error = None;
             }
         }
@@ -296,10 +370,15 @@ impl Service {
     }
 
     fn warnings(&self) -> Vec<String> {
-        let mut w = self.rt.warnings().to_vec();
+        let mut w = self.rt.warnings();
         w.extend(self.hiding_problems.iter().cloned());
         w.extend(self.rt.device_problems());
         w.extend(self.last_error.clone());
+        w.extend(
+            self.device_errors
+                .iter()
+                .map(|(id, e)| format!("{id}: {e}")),
+        );
         w
     }
 
@@ -315,6 +394,7 @@ impl Service {
                         self.auto_active = None;
                         self.state.remap_on = true;
                         self.save_state();
+                        self.sync_devices();
                         Response::Ok {
                             message: format!("applied {}", path.display()),
                         }
@@ -334,17 +414,26 @@ impl Service {
                     message: "remapping stopped".into(),
                 }
             }
-            Request::ApplyToSlot { path, slot } => {
+            Request::ApplyToSlot { path, slot, device } => {
                 self.ipc_slot(slot, |slot| ServiceCmd::ApplyToSlot {
+                    device,
                     slot,
                     path: PathBuf::from(path),
                 })
             }
-            Request::SelectSlot { slot } => self.ipc_slot(slot, ServiceCmd::SelectSlot),
-            Request::ClearSlot { slot: Some(slot) } => self.ipc_slot(slot, ServiceCmd::ClearSlot),
-            Request::ClearSlot { slot: None } => {
+            Request::SelectSlot { slot, device } => {
+                self.ipc_slot(slot, |slot| ServiceCmd::SelectSlot { device, slot })
+            }
+            Request::ClearSlot {
+                slot: Some(slot),
+                device,
+            } => self.ipc_slot(slot, |slot| ServiceCmd::ClearSlot { device, slot }),
+            Request::ClearSlot { slot: None, device } => {
                 for slot in 0..SLOTS {
-                    self.handle(ServiceCmd::ClearSlot(slot));
+                    self.handle(ServiceCmd::ClearSlot {
+                        device: device.clone(),
+                        slot,
+                    });
                 }
                 Response::Ok {
                     message: "all slots cleared".into(),
@@ -388,11 +477,21 @@ impl Service {
         (slot >= SLOTS).then(|| ServiceReply::Err(format!("slot {} does not exist", slot + 1)))
     }
 
+    /// The reply after a controller's own slots changed.
+    fn device_reply(&mut self, device: &str, ok: String) -> ServiceReply {
+        self.save_state();
+        self.sync_devices();
+        match self.device_errors.get(device) {
+            Some(e) => ServiceReply::Err(e.clone()),
+            None => ServiceReply::Ok(ok),
+        }
+    }
+
     /// Execute one command.
     pub fn handle(&mut self, cmd: ServiceCmd) -> ServiceReply {
         match cmd {
             ServiceCmd::Ipc(req) => ServiceReply::Ipc(self.handle_ipc(req)),
-            ServiceCmd::ApplyToSlot { slot, path } => {
+            ServiceCmd::ApplyToSlot { device, slot, path } => {
                 if let Some(e) = Self::bad_slot(slot) {
                     return e;
                 }
@@ -400,36 +499,58 @@ impl Service {
                 if let Err(e) = load(&path) {
                     return ServiceReply::Err(format!("{e:#}"));
                 }
+                self.state.remap_on = true;
+                if let Some(device) = device {
+                    let own = self.state.devices.entry(device.clone()).or_default();
+                    own.slots[slot] = Some(path.clone());
+                    own.active = slot;
+                    // Re-apply even if the same file is active: it may have been edited.
+                    self.rt.stop_device(&dp_platform::DeviceId(device.clone()));
+                    return self.device_reply(&device, format!("applied to slot {}", slot + 1));
+                }
                 self.state.slots[slot] = Some(path.clone());
                 self.state.active = slot;
-                self.state.remap_on = true;
                 self.oneoff = None;
                 self.auto_active = None;
                 self.save_state();
+                self.sync_devices();
                 // Re-apply even if the same file is active: it may have been edited.
                 match self.apply_path(&path) {
                     Ok(()) => ServiceReply::Ok(format!("applied to slot {}", slot + 1)),
                     Err(e) => ServiceReply::Err(format!("{e:#}")),
                 }
             }
-            ServiceCmd::SelectSlot(slot) => {
+            ServiceCmd::SelectSlot { device, slot } => {
                 if let Some(e) = Self::bad_slot(slot) {
                     return e;
                 }
-                self.state.active = slot;
                 self.state.remap_on = true;
+                if let Some(device) = self.has_own_slots(device.as_deref()) {
+                    if let Some(own) = self.state.devices.get_mut(&device) {
+                        own.active = slot;
+                    }
+                    return self.device_reply(&device, format!("slot {} selected", slot + 1));
+                }
+                self.state.active = slot;
                 self.oneoff = None;
                 self.auto_active = None;
                 self.save_state();
                 self.apply_base();
+                self.sync_devices();
                 match &self.last_error {
                     Some(e) => ServiceReply::Err(e.clone()),
                     None => ServiceReply::Ok(format!("slot {} selected", slot + 1)),
                 }
             }
-            ServiceCmd::ClearSlot(slot) => {
+            ServiceCmd::ClearSlot { device, slot } => {
                 if let Some(e) = Self::bad_slot(slot) {
                     return e;
+                }
+                if let Some(device) = self.has_own_slots(device.as_deref()) {
+                    if let Some(own) = self.state.devices.get_mut(&device) {
+                        own.slots[slot] = None;
+                    }
+                    return self.device_reply(&device, format!("slot {} cleared", slot + 1));
                 }
                 self.state.slots[slot] = None;
                 self.save_state();
@@ -437,6 +558,19 @@ impl Service {
                     self.apply_base();
                 }
                 ServiceReply::Ok(format!("slot {} cleared", slot + 1))
+            }
+            ServiceCmd::OwnSlots { device, on } => {
+                if on {
+                    self.state.devices.entry(device.clone()).or_default();
+                } else {
+                    self.state.devices.remove(&device);
+                }
+                let msg = if on {
+                    "the controller has slots of its own"
+                } else {
+                    "the controller uses the shared slots"
+                };
+                self.device_reply(&device, msg.into())
             }
             ServiceCmd::SetRemap(on) => {
                 self.state.remap_on = on;
@@ -446,6 +580,7 @@ impl Service {
                 }
                 self.save_state();
                 self.apply_base();
+                self.sync_devices();
                 match (&self.last_error, on) {
                     (Some(e), true) => ServiceReply::Err(e.clone()),
                     _ => ServiceReply::Ok(format!("remap {}", if on { "on" } else { "off" })),
@@ -495,22 +630,30 @@ impl Service {
         }
     }
 
-    /// Carry out the hotkeys the runtime reported (slots and the remap switch).
+    /// Carry out the hotkeys the runtime reported (slots and the remap switch). A slot
+    /// hotkey selects a slot of the controller it was pressed on if that has slots of its
+    /// own, else a shared slot.
     fn run_hotkeys(&mut self) {
-        for action in self.rt.take_hotkey_actions() {
+        for (id, action) in self.rt.take_hotkey_actions() {
             match action {
-                HotkeyAction::Slot(n)
-                    if self
-                        .state
-                        .slots
-                        .get(n as usize)
-                        .is_some_and(Option::is_some) =>
-                {
-                    if let ServiceReply::Err(e) = self.handle(ServiceCmd::SelectSlot(n as usize)) {
+                HotkeyAction::Slot(n) => {
+                    let device = self.has_own_slots(Some(&id.0));
+                    let slots = match &device {
+                        Some(d) => &self.state.devices[d].slots,
+                        None => &self.state.slots,
+                    };
+                    if slots.get(n as usize).is_none_or(Option::is_none) {
+                        tracing::info!("slot {} is empty", n + 1);
+                        continue;
+                    }
+                    let cmd = ServiceCmd::SelectSlot {
+                        device,
+                        slot: n as usize,
+                    };
+                    if let ServiceReply::Err(e) = self.handle(cmd) {
                         tracing::warn!("slot hotkey: {e}");
                     }
                 }
-                HotkeyAction::Slot(n) => tracing::info!("slot {} is empty", n + 1),
                 HotkeyAction::ToggleRemap => {
                     let on = !self.state.remap_on;
                     if let ServiceReply::Err(e) = self.handle(ServiceCmd::SetRemap(on)) {
@@ -532,6 +675,17 @@ impl Service {
             self.oneoff = None;
             self.auto_active = None;
             self.save_state();
+        }
+        // Controllers with slots of their own start or stop as they come and go.
+        if self.rt.devices().len() != self.connected.len()
+            || self
+                .rt
+                .devices()
+                .iter()
+                .zip(&self.connected)
+                .any(|(s, id)| s.info.id.0 != *id)
+        {
+            self.sync_devices();
         }
         let now = self.rt.now_ms();
         self.auto_switch_tick(now);
@@ -636,6 +790,21 @@ impl Service {
             hidden_devices: self.rt.hidden_devices(),
             warnings: self.warnings(),
             drivers: self.drivers.clone(),
+            device_slots: self
+                .state
+                .devices
+                .iter()
+                .map(|(id, d)| crate::live::LiveDeviceSlots {
+                    id: id.clone(),
+                    slots: d
+                        .slots
+                        .iter()
+                        .map(|s| s.as_ref().map(|p| p.display().to_string()))
+                        .collect(),
+                    active_slot: d.active,
+                })
+                .collect(),
+            sessions: self.rt.sessions(),
         }
     }
 
@@ -703,6 +872,7 @@ mod tests {
 
         assert!(
             s.handle(ServiceCmd::ApplyToSlot {
+                device: None,
                 slot: 0,
                 path: a.clone()
             })
@@ -711,6 +881,7 @@ mod tests {
         );
         assert!(
             s.handle(ServiceCmd::ApplyToSlot {
+                device: None,
                 slot: 2,
                 path: b.clone()
             })
@@ -719,7 +890,10 @@ mod tests {
         );
         assert_eq!(active_name(&s).as_deref(), Some("B"));
 
-        s.handle(ServiceCmd::SelectSlot(0));
+        s.handle(ServiceCmd::SelectSlot {
+            device: None,
+            slot: 0,
+        });
         assert_eq!(active_name(&s).as_deref(), Some("A"));
 
         s.handle(ServiceCmd::SetRemap(false));
@@ -729,18 +903,34 @@ mod tests {
         assert_eq!(active_name(&s).as_deref(), Some("A"));
 
         s.handle(ServiceCmd::SetRemap(false));
-        s.handle(ServiceCmd::SelectSlot(2));
+        s.handle(ServiceCmd::SelectSlot {
+            device: None,
+            slot: 2,
+        });
         assert_eq!(
             active_name(&s).as_deref(),
             Some("B"),
             "selecting a slot turns remapping on"
         );
         assert!(s.live().remap_on);
-        s.handle(ServiceCmd::SelectSlot(0));
+        s.handle(ServiceCmd::SelectSlot {
+            device: None,
+            slot: 0,
+        });
 
-        s.handle(ServiceCmd::ClearSlot(0));
+        s.handle(ServiceCmd::ClearSlot {
+            device: None,
+            slot: 0,
+        });
         assert_eq!(active_name(&s), None, "clearing the active slot unloads it");
-        assert!(s.handle(ServiceCmd::SelectSlot(9)).into_result().is_err());
+        assert!(
+            s.handle(ServiceCmd::SelectSlot {
+                device: None,
+                slot: 9
+            })
+            .into_result()
+            .is_err()
+        );
 
         // A new service picks the persisted state up again.
         drop(s);
@@ -756,9 +946,13 @@ mod tests {
         std::fs::write(&bad, "[[mappings]]\ntrigger = \"NoSuchButton\"\n").unwrap();
         let (mut s, _) = service(dir.path(), None);
         assert!(
-            s.handle(ServiceCmd::ApplyToSlot { slot: 1, path: bad })
-                .into_result()
-                .is_err()
+            s.handle(ServiceCmd::ApplyToSlot {
+                device: None,
+                slot: 1,
+                path: bad
+            })
+            .into_result()
+            .is_err()
         );
         assert_eq!(s.slots().slots[1], None, "slot untouched");
     }
@@ -768,7 +962,11 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let a = write_profile(dir.path(), "a.toml", "A", &[]);
         let (mut s, _) = service(dir.path(), None);
-        s.handle(ServiceCmd::ApplyToSlot { slot: 0, path: a });
+        s.handle(ServiceCmd::ApplyToSlot {
+            device: None,
+            slot: 0,
+            path: a,
+        });
         s.handle(ServiceCmd::SetSuspended(true));
         s.tick();
         assert!(s.live().suspended);
@@ -790,6 +988,7 @@ mod tests {
         let base = write_profile(dir.path(), "base.toml", "Base", &[]);
         let (mut s, fg) = service(dir.path(), None);
         s.handle(ServiceCmd::ApplyToSlot {
+            device: None,
             slot: 0,
             path: base,
         });
@@ -867,8 +1066,16 @@ mod tests {
         let mut opts = ServiceOptions::new(dir.path().join("profiles"));
         opts.hotkeys_path = Some(dir.path().join("hotkeys.toml"));
         let mut s = Service::new(Runtime::with_platform(platform), opts).unwrap();
-        s.handle(ServiceCmd::ApplyToSlot { slot: 0, path: a });
-        s.handle(ServiceCmd::ApplyToSlot { slot: 1, path: b });
+        s.handle(ServiceCmd::ApplyToSlot {
+            device: None,
+            slot: 0,
+            path: a,
+        });
+        s.handle(ServiceCmd::ApplyToSlot {
+            device: None,
+            slot: 1,
+            path: b,
+        });
         assert_eq!(active_name(&s).as_deref(), Some("B"));
         let hk = Hotkeys {
             hold_ms: 50,
@@ -927,14 +1134,19 @@ mod tests {
         let ok = |r: Response| matches!(r, Response::Ok { .. });
         assert!(ok(s.handle_ipc(Request::ApplyToSlot {
             path: a.display().to_string(),
-            slot: 1
+            slot: 1,
+            device: None
         })));
         assert!(ok(s.handle_ipc(Request::ApplyToSlot {
             path: b.display().to_string(),
-            slot: 3
+            slot: 3,
+            device: None
         })));
         assert_eq!(active_name(&s).as_deref(), Some("B"));
-        assert!(ok(s.handle_ipc(Request::SelectSlot { slot: 1 })));
+        assert!(ok(s.handle_ipc(Request::SelectSlot {
+            slot: 1,
+            device: None
+        })));
         assert_eq!(active_name(&s).as_deref(), Some("A"));
         let Response::Status(st) = s.handle_ipc(Request::Status) else {
             panic!()
@@ -950,15 +1162,130 @@ mod tests {
         assert!(ok(s.handle_ipc(Request::Remap { on: true })));
         assert_eq!(active_name(&s).as_deref(), Some("A"));
         assert!(
-            !ok(s.handle_ipc(Request::SelectSlot { slot: 0 })),
+            !ok(s.handle_ipc(Request::SelectSlot {
+                slot: 0,
+                device: None
+            })),
             "slots are 1–4"
         );
-        assert!(!ok(s.handle_ipc(Request::SelectSlot { slot: 5 })));
-        assert!(ok(s.handle_ipc(Request::ClearSlot { slot: Some(3) })));
+        assert!(!ok(s.handle_ipc(Request::SelectSlot {
+            slot: 5,
+            device: None
+        })));
+        assert!(ok(s.handle_ipc(Request::ClearSlot {
+            slot: Some(3),
+            device: None
+        })));
         assert_eq!(s.slots().slots[2], None);
-        assert!(ok(s.handle_ipc(Request::ClearSlot { slot: None })));
+        assert!(ok(s.handle_ipc(Request::ClearSlot {
+            slot: None,
+            device: None
+        })));
         assert!(s.slots().slots.iter().all(Option::is_none));
         assert_eq!(active_name(&s), None);
+    }
+
+    #[test]
+    fn two_controllers_with_their_own_profiles() {
+        use dp_core::keys::Key;
+        use dp_core::pad::PadButton;
+        use dp_platform::PadFamily;
+
+        let dir = tempfile::tempdir().unwrap();
+        let profile = |name: &str, key: &str| {
+            let path = dir.path().join(format!("{name}.toml"));
+            std::fs::write(
+                &path,
+                format!("name = \"{name}\"\n[[mappings]]\ntrigger = \"A\"\nactions = [{{ key = \"{key}\" }}]\n"),
+            )
+            .unwrap();
+            path
+        };
+        let one = profile("One", "Q");
+        let two = profile("Two", "E");
+        let (platform, world) = crate::runtime::testing::platform();
+        {
+            let mut w = world.lock().unwrap();
+            w.pads
+                .push(crate::runtime::testing::pad("p1", PadFamily::Xbox));
+            w.pads
+                .push(crate::runtime::testing::pad("p2", PadFamily::DualSense));
+        }
+        let opts = ServiceOptions::new(dir.path().join("profiles"));
+        let mut s = Service::new(Runtime::with_platform(platform), opts).unwrap();
+        s.tick();
+        let ok = |r: ServiceReply| r.into_result().unwrap();
+        ok(s.handle(ServiceCmd::ApplyToSlot {
+            device: None,
+            slot: 0,
+            path: one,
+        }));
+        ok(s.handle(ServiceCmd::ApplyToSlot {
+            device: Some("p2".into()),
+            slot: 1,
+            path: two,
+        }));
+        let sessions = s.runtime().sessions();
+        assert_eq!(sessions.len(), 2);
+        assert_eq!(
+            (sessions[0].owner.as_deref(), sessions[0].device.as_deref()),
+            (None, Some("p1")),
+            "the shared slots run on the controller without its own"
+        );
+        assert_eq!(
+            (sessions[1].owner.as_deref(), sessions[1].device.as_deref()),
+            (Some("p2"), Some("p2"))
+        );
+        assert_eq!(
+            world.lock().unwrap().virtual_pads.len(),
+            2,
+            "one virtual pad each"
+        );
+        assert_eq!(s.live().device_slots[0].active_slot, 1);
+        s.tick(); // the engines start (inputs held at start are no presses)
+
+        let press = |s: &mut Service, pad: usize| {
+            world.lock().unwrap().pads[pad]
+                .state
+                .set(PadButton::A, true);
+            s.tick();
+            world.lock().unwrap().pads[pad]
+                .state
+                .set(PadButton::A, false);
+            s.tick();
+        };
+        press(&mut s, 1);
+        press(&mut s, 0);
+        let downs: Vec<Key> = world
+            .lock()
+            .unwrap()
+            .keys
+            .iter()
+            .filter(|k| k.1)
+            .map(|k| k.0)
+            .collect();
+        assert_eq!(
+            downs,
+            [Key::E, Key::Q],
+            "each controller drives its own profile"
+        );
+
+        // Its session ends when the controller goes away, and comes back with it.
+        let p2 = world.lock().unwrap().pads.remove(1);
+        s.tick();
+        assert_eq!(s.runtime().sessions().len(), 1);
+        world.lock().unwrap().pads.push(p2);
+        s.tick();
+        assert_eq!(s.runtime().sessions().len(), 2);
+
+        ok(s.handle(ServiceCmd::OwnSlots {
+            device: "p2".into(),
+            on: false,
+        }));
+        assert_eq!(s.runtime().sessions().len(), 1);
+        assert!(s.live().device_slots.is_empty());
+        ok(s.handle(ServiceCmd::SetRemap(false)));
+        assert!(s.runtime().sessions().is_empty());
     }
 
     #[test]

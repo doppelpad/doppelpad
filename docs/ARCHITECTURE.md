@@ -74,18 +74,21 @@ Pipeline per tick:
 
 ## Runtime (`doppelpad`)
 
-`Runtime` owns the `Platform` and the active `Engine`. Each tick it:
+`Runtime` owns the `Platform` and one *session* per running profile: an `Engine`, its
+virtual pad and its feedback state. The default session plays the shared slots on the
+controller in use; a controller with slots of its own gets a session of its own. Each tick
+the runtime:
 
-1. polls the gamepad backends,
-2. picks the primary controller,
-3. drains captured keyboard/mouse events,
-4. ticks the engine,
-5. feeds the output to the virtual pad (ViGEm / uinput), keyboard/mouse output (`SendInput`
-   / uinput) and rumble.
+1. polls the gamepad backends and binds each session to its controller,
+2. runs the controller hotkeys on every controller (withholding complete combos),
+3. drains captured keyboard/mouse events (they go to the default session),
+4. ticks every session's engine,
+5. feeds each session's output to its virtual pad (ViGEm / uinput), the shared
+   keyboard/mouse output (`SendInput` / uinput) and its controller's rumble and light bar.
 
 When the layer changes, it updates the capture filter, which decides which keys or buttons
-are swallowed. It hides physical pads (HidHide on Windows, `EVIOCGRAB` on Linux) while a
-profile with a virtual pad runs. Everything is undone on `stop` and on drop.
+are swallowed. It hides each session's physical pad (HidHide on Windows, `EVIOCGRAB` on
+Linux) while its profile has a virtual pad. Everything is undone on `stop` and on drop.
 
 Joy-Cons are reported one by one and combined by `dp_platform::joycon::JoyConCombiner`, which
 wraps the HID backend on Windows and the evdev backend on Linux: a left and a right Joy-Con

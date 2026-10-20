@@ -98,6 +98,8 @@ class AppState {
   macroTarget = $state<{ layer: number; trigger: Combo; activator: Activator } | null>(null);
   analogTab = $state<AnalogTab>('left');
   applySlot = $state(0);
+  /** The controller whose own slots the bottom bar shows; `null` for the shared slots. */
+  slotDevice = $state<string | null>(null);
   toasts = $state<Toast[]>([]);
   prompt = $state<PromptRequest | null>(null);
   copiedLayer: LayerCopy | null = null;
@@ -114,6 +116,17 @@ class AppState {
     this.live?.devices.find((d) => d.id === this.live?.primary) ?? this.live?.devices[0] ?? null,
   );
   family = $derived<PadFamily | null>(this.primary?.family ?? null);
+  /** The slot set the bottom bar shows and "Apply to slot" fills: a controller's own or the shared one. */
+  slotSet = $derived.by(() => {
+    const own = this.live?.device_slots.find((d) => d.id === this.slotDevice);
+    const owner = own?.id ?? null;
+    return {
+      device: owner,
+      slots: own?.slots ?? this.live?.slots ?? [null, null, null, null],
+      active: own?.active_slot ?? this.live?.active_slot ?? 0,
+      session: this.live?.sessions.find((s) => s.owner === owner) ?? null,
+    };
+  });
   rewasdRunning = $derived(!!this.rewasd && (this.rewasd.service !== null || this.rewasd.programs.length > 0));
 
   layerLabel = (id: number) =>
@@ -281,7 +294,7 @@ class AppState {
     }
     if (this.dirty && !(await this.save())) return;
     try {
-      await api.applyToSlot(this.applySlot, this.configPath);
+      await api.applyToSlot(this.applySlot, this.configPath, this.slotSet.device);
       this.toast(t('remap.applied', { n: this.applySlot + 1 }), 'ok');
     } catch (e) {
       this.toast(errorText(e), 'error');

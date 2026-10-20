@@ -1,22 +1,26 @@
 <script lang="ts">
-  import { Gamepad2, TriangleAlert, Power, Pause, X, ChevronDown } from '@lucide/svelte';
+  import { Gamepad2, TriangleAlert, Power, Pause, X, ChevronDown, Layers } from '@lucide/svelte';
   import { api, errorText } from '../lib/api';
   import { t } from '../lib/i18n/index.svelte';
   import { app } from '../lib/state/app.svelte';
+  import type { LiveDevice } from '../lib/types';
   import Menu from './ui/Menu.svelte';
   import Toggle from './ui/Toggle.svelte';
 
   const live = $derived(app.live);
+  const set = $derived(app.slotSet);
   const slotNames = $derived(
-    (live?.slots ?? [null, null, null, null]).map((p) => {
+    set.slots.map((p) => {
       if (!p) return null;
       for (const g of app.library.games) {
         const c = g.configs.find((c) => c.path === p);
         if (c) return `${g.meta.name} › ${c.name}`;
       }
-      return p.split(/[\\/]/).pop() ?? p;
+      return p.split(/[\/]/).pop() ?? p;
     }),
   );
+  const ownIds = $derived(new Set((live?.device_slots ?? []).map((d) => d.id)));
+  const ownName = $derived(live?.devices.find((d) => d.id === set.device)?.name ?? set.device);
 
   async function run(p: Promise<unknown>) {
     try {
@@ -24,6 +28,30 @@
     } catch (e) {
       app.toast(errorText(e), 'error');
     }
+  }
+
+  /** A controller with its own slots shows them; any other one uses (and drives) the shared ones. */
+  function pick(d: LiveDevice) {
+    if (ownIds.has(d.id)) {
+      app.slotDevice = d.id;
+    } else {
+      app.slotDevice = null;
+      run(api.setPreferredDevice(d.id));
+    }
+  }
+
+  function deviceMenu(d: LiveDevice) {
+    const own = ownIds.has(d.id);
+    return [
+      {
+        label: t('devices.own_slots'),
+        checked: own,
+        onclick: async () => {
+          await run(api.ownSlots(d.id, !own));
+          app.slotDevice = own ? null : d.id;
+        },
+      },
+    ];
   }
 
   const slotMenu = $derived(
@@ -51,15 +79,22 @@
         <span class="none">{t('devices.none')}</span>
       {:else}
         {#each live.devices as d (d.id)}
-          <button
-            class="device"
-            class:primary={d.id === live.primary}
-            title={d.id === live.primary ? t('devices.in_use') : t('devices.use')}
-            onclick={() => run(api.setPreferredDevice(d.id))}
-          >
-            <Gamepad2 size={15} />
-            {d.name}
-          </button>
+          {@const own = ownIds.has(d.id)}
+          <span class="device-wrap" class:selected={own ? set.device === d.id : set.device === null && d.id === live.primary}>
+            <button
+              class="device"
+              class:primary={d.id === live.primary}
+              class:own
+              title={own ? t('devices.own_hint') : d.id === live.primary ? t('devices.in_use') : t('devices.use')}
+              onclick={() => pick(d)}
+            >
+              {#if own}<Layers size={15} />{:else}<Gamepad2 size={15} />{/if}
+              {d.name}
+            </button>
+            <Menu items={deviceMenu(d)}>
+              {#snippet trigger()}<span class="device-more"><ChevronDown size={13} /></span>{/snippet}
+            </Menu>
+          </span>
         {/each}
       {/if}
       {#if live && !live.drivers.virtual_pads.available}
@@ -98,21 +133,26 @@
       label={t('remap.autodetect')}
       onchange={(v) => run(api.setAutoSwitch(v))}
     />
+    {#if ownIds.size > 0}
+      <span class="slot-owner" title={set.session?.profile ?? ''}>
+        {set.device ? t('slots.of_device', { name: ownName ?? '' }) : t('slots.shared')}
+      </span>
+    {/if}
     <div class="slots">
       {#each [0, 1, 2, 3] as i (i)}
         <div class="slot-wrap">
           <button
             class="slot"
             class:filled={!!slotNames[i]}
-            class:active={live?.active_slot === i && live?.remap_on && !!slotNames[i]}
-            class:failed={live?.active_slot === i && live?.remap_on && !!slotNames[i] && !live?.profile}
+            class:active={set.active === i && live?.remap_on && !!slotNames[i]}
+            class:failed={set.active === i && live?.remap_on && !!slotNames[i] && !set.session && (set.device === null || !!live?.devices.some((d) => d.id === set.device))}
             title={slotNames[i] ?? t('slots.empty')}
-            onclick={() => run(api.selectSlot(i))}
+            onclick={() => run(api.selectSlot(i, set.device))}
           >
             {i + 1}
           </button>
           {#if slotNames[i]}
-            <button class="unload" title={t('slots.unload')} onclick={() => run(api.clearSlot(i))}><X size={10} /></button>
+            <button class="unload" title={t('slots.unload')} onclick={() => run(api.clearSlot(i, set.device))}><X size={10} /></button>
           {/if}
         </div>
       {/each}
@@ -184,6 +224,29 @@
   .device.primary {
     color: var(--text);
     background: var(--bg-2);
+  }
+  .device-wrap {
+    display: inline-flex;
+    align-items: center;
+    border-radius: var(--radius-s);
+    border: 1px solid transparent;
+  }
+  .device-wrap.selected {
+    border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  }
+  .device.own {
+    color: var(--text);
+  }
+  .device-more {
+    display: inline-flex;
+    align-items: center;
+    padding: 5px 4px;
+    color: var(--text-faint);
+  }
+  .slot-owner {
+    font-size: 12px;
+    color: var(--text-dim);
+    white-space: nowrap;
   }
   .device.primary :global(svg) {
     color: var(--accent);

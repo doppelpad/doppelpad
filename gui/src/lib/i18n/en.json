@@ -439,7 +439,9 @@
     "title": "Devices",
     "none": "No controller connected",
     "in_use": "In use",
-    "use": "Use this controller"
+    "use": "Use this controller",
+    "own_slots": "Own slots for this controller",
+    "own_hint": "This controller has slots of its own: its own config and virtual controller"
   },
   "remap": {
     "on": "Remap ON",
@@ -455,7 +457,9 @@
   "slots": {
     "slot": "Slot {n}",
     "empty": "Empty slot",
-    "unload": "Unload"
+    "unload": "Unload",
+    "shared": "Shared slots",
+    "of_device": "Slots of {name}"
   },
   "settings": {
     "title": "Settings",

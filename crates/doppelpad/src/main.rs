@@ -60,16 +60,25 @@ enum Cmd {
         /// Put it into this slot (1–4) and make the slot active, like the app's "Apply to slot".
         #[arg(long, value_parser = clap::value_parser!(u8).range(1..=4))]
         slot: Option<u8>,
+        /// With --slot: that controller's own slots (an id from `doppelpad devices`).
+        #[arg(long, requires = "slot")]
+        device: Option<String>,
     },
     /// Make a slot (1–4) active and turn remapping on.
     SelectSlot {
         #[arg(value_parser = clap::value_parser!(u8).range(1..=4))]
         slot: u8,
+        /// A controller's own slots (an id from `doppelpad devices`).
+        #[arg(long)]
+        device: Option<String>,
     },
     /// Empty a slot (1–4), or all of them.
     ClearSlot {
         /// A slot number or `all`.
         slot: String,
+        /// A controller's own slots (an id from `doppelpad devices`).
+        #[arg(long)]
+        device: Option<String>,
     },
     /// Turn remapping on (the active slot) or off.
     Remap {
@@ -131,7 +140,11 @@ fn run(cli: Cli) -> Result<()> {
             profile,
             !no_auto_switch,
         ),
-        Cmd::Apply { profile, slot } => {
+        Cmd::Apply {
+            profile,
+            slot,
+            device,
+        } => {
             let path = std::fs::canonicalize(&profile)
                 .with_context(|| format!("{}", profile.display()))?
                 .display()
@@ -140,15 +153,17 @@ fn run(cli: Cli) -> Result<()> {
                 Some(slot) => Request::ApplyToSlot {
                     path,
                     slot: slot as usize,
+                    device,
                 },
                 None => Request::Apply { path },
             };
             print_response(dp_ipc::call(&req)?)
         }
-        Cmd::SelectSlot { slot } => print_response(dp_ipc::call(&Request::SelectSlot {
+        Cmd::SelectSlot { slot, device } => print_response(dp_ipc::call(&Request::SelectSlot {
             slot: slot as usize,
+            device,
         })?),
-        Cmd::ClearSlot { slot } => {
+        Cmd::ClearSlot { slot, device } => {
             let slot = match slot.as_str() {
                 "all" => None,
                 n => Some(
@@ -158,7 +173,7 @@ fn run(cli: Cli) -> Result<()> {
                         .with_context(|| format!("`{n}` is not a slot (1–4 or `all`)"))?,
                 ),
             };
-            print_response(dp_ipc::call(&Request::ClearSlot { slot })?)
+            print_response(dp_ipc::call(&Request::ClearSlot { slot, device })?)
         }
         Cmd::Remap { state } => {
             print_response(dp_ipc::call(&Request::Remap { on: state == "on" })?)

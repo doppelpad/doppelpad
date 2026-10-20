@@ -27,7 +27,7 @@
 | Zones for gyro, mouse-as-stick and pressure buttons; separate diagonal directions | ⏳ planned |
 | Digital → stick ramp (initial deflection, speed, acceleration) | ⏳ planned |
 | Slots (4 profiles per controller) | ✅ in the app and by controller hotkey |
-| Multiple controllers / multiple virtual pads | ⏳ planned (first controller only) |
+| Multiple controllers / multiple virtual pads | ✅ each controller can have its own slots, config and virtual pad (⏳ hardware testing) |
 | Keyboard repeat modes (typematic): native, fast, slow, off, custom interval | ✅ |
 | Nintendo Switch controllers as input (Pro Controller, Joy-Con paired or sideways, NSO and Switch-style wired pads; gyro, rumble) | ✅ Windows via raw HID (⏳ hardware testing); Linux through hid-nintendo |
 | Switch 2 controllers as input (Pro Controller, GameCube controller) | ✅ Windows over USB (⏳ hardware testing); ⏳ Bluetooth; ⏳ Linux |

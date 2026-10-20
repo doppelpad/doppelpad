@@ -200,6 +200,7 @@ mod tests {
         let mut h = spawn_with(opts, NullPlatform::platform).unwrap();
         assert!(h.is_running());
         let r = h.call(ServiceCmd::ApplyToSlot {
+            device: None,
             slot: 1,
             path: profile,
         });

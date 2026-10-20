@@ -33,9 +33,13 @@ export const api = {
     invoke<{ path: string; diagnostics: DiagMsg[] }>('config_import', { gameDir, source }),
   reveal: (path: string) => invoke<void>('reveal', { path }),
 
-  applyToSlot: (slot: number, path: string) => invoke<string>('apply_to_slot', { slot, path }),
-  selectSlot: (slot: number) => invoke<string>('select_slot', { slot }),
-  clearSlot: (slot: number) => invoke<string>('clear_slot', { slot }),
+  /** `device`: that controller's own slots instead of the shared ones. */
+  applyToSlot: (slot: number, path: string, device: string | null = null) =>
+    invoke<string>('apply_to_slot', { slot, path, device }),
+  selectSlot: (slot: number, device: string | null = null) => invoke<string>('select_slot', { slot, device }),
+  clearSlot: (slot: number, device: string | null = null) => invoke<string>('clear_slot', { slot, device }),
+  /** Give a controller slots of its own, or let it use the shared ones again. */
+  ownSlots: (device: string, on: boolean) => invoke<string>('own_slots', { device, on }),
   setRemap: (on: boolean) => invoke<string>('set_remap', { on }),
   setAutoSwitch: (on: boolean) => invoke<string>('set_auto_switch', { on }),
   setPreferredDevice: (id: string | null) => invoke<string>('set_preferred_device', { id }),

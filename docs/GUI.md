@@ -18,7 +18,7 @@ only edits profiles and sends commands.
 | **Toolbar** | Views: *Controller*, *Back side* (the shoulder buttons and the back buttons the connected model has, e.g. GL / GR on the Switch 2 Pro Controller, none on the first one), *Keyboard*, *Mouse*. Layer chips: *Main* plus shift layers, which you can add, rename, copy, paste, clear and remove (together with their analog routes), and whose *Layer settings* say what they inherit from *Main*. On the right: *Analog* (see [Sticks, triggers and analog routes](#sticks-triggers-and-analog-routes)), *Shortcuts* and *Config settings*. |
 | **Centre** | The selected view. Click a control to edit it. On the controller views, pressing a button on the controller selects it. On the keyboard view, pressing a key does the same. |
 | **Binding panel** (right) | See below. With nothing selected, it lists the mappings of the current layer. |
-| **Bottom bar** | Connected controllers (click one to use it), driver warnings, **Remap ON/OFF**, *Apply to slot n* (saves, puts the config in that slot and activates it), *Autodetect* (switch configs by the game in the foreground; only while remapping is on), and the four slots (click to activate, which also turns remapping on; × to unload). |
+| **Bottom bar** | Connected controllers (click one to use it; its menu gives it *own slots*, see [Several controllers](#several-controllers)), driver warnings, **Remap ON/OFF**, *Apply to slot n* (saves, puts the config in that slot and activates it), *Autodetect* (switch configs by the game in the foreground; only while remapping is on), and the four slots (click to activate, which also turns remapping on; × to unload). |
 
 ## Editing a control
 
@@ -168,6 +168,17 @@ don't land in the editor, and pressing a button selects it instead of triggering
 mapping. The bottom bar then shows *Paused while editing*. Switch to the game (or hide
 the window) and the active slot takes over again. *Settings → Keep remapping active while
 this window is focused* turns this off.
+
+## Several controllers
+
+Normally the four slots are shared: they run on the controller in use (the one you clicked
+in the bottom bar, else the first one). To play with two controllers at once, open the
+second controller's menu (the arrow next to its name) and choose **Own slots for this
+controller**. It then shows its own four slots: *Apply to slot* and the slot buttons work on
+them while that controller is selected, and it runs its own config with its own virtual
+controller while it is connected. The shared slots keep running on the other controller.
+Keyboard and mouse belong to the shared slots' config. Remap ON/OFF switches all of them;
+*Autodetect* changes the shared slots only. Each config hides only its own controller.
 
 ## Controller hotkeys
 

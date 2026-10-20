@@ -1,6 +1,13 @@
-//! The runtime loop: polls devices, drives the engine, and applies its output to the
+//! The runtime loop: polls devices, drives the engines, and applies their output to the
 //! platform backends.
+//!
+//! Several profiles can run at once, one per *session*. The default session runs on the
+//! controller in use (the preferred one, else the first one without a session of its
+//! own); a controller can also have its own session with its own profile and virtual pad.
+//! Keyboard and mouse are shared: their input goes to the default session (or the first
+//! session if there is none), and every session's keyboard and mouse output goes out.
 
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
@@ -12,7 +19,7 @@ use dp_core::control::{Control, mouse_button_name, pad_button_name};
 use dp_core::engine::{Engine, Input, Output};
 use dp_core::hotkeys::{HotkeyAction, HotkeyDetector, Hotkeys};
 use dp_core::pad::{PadButton, PadState, Rgb, Rumble, Trigger};
-use dp_core::profile::{AnalogSource, Command, KeyRepeat, Profile, VirtualPadType};
+use dp_core::profile::{AnalogSource, Command, Profile, VirtualPadType};
 use dp_core::repeat::KeyRepeater;
 use dp_platform::{
     CaptureFilter, DeviceId, KbmEvent, PadSnapshot, Platform, PowerAction, VirtualIgnoreList,
@@ -60,36 +67,74 @@ pub struct DriverStatus {
     pub device_hiding: DriverState,
 }
 
-/// Everything needed to run one profile against the real devices.
+/// What user interfaces show about one running profile.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct SessionInfo {
+    /// The controller the session belongs to; `None` for the default session.
+    pub owner: Option<String>,
+    /// The controller it reads right now.
+    pub device: Option<String>,
+    pub profile: String,
+    pub profile_path: Option<String>,
+    pub layer: u8,
+    pub virtual_pad: Option<VirtualPadKind>,
+}
+
+/// One profile running against one controller.
+struct Session {
+    /// `None` for the default session.
+    owner: Option<DeviceId>,
+    engine: Engine,
+    path: Option<PathBuf>,
+    vpad: Option<Box<dyn VirtualPad>>,
+    /// The controller the session reads this tick.
+    device: Option<DeviceId>,
+    warnings: Vec<String>,
+    hide_wanted: bool,
+    needs_capture: bool,
+    game_rumble: Rumble,
+    sent_rumble: Option<(DeviceId, Rumble)>,
+    /// Light bar colour the game set on a virtual DualShock 4.
+    game_lightbar: Option<Rgb>,
+    /// What the controller was last told to show, and which controller.
+    sent_lightbar: Option<(DeviceId, Option<Rgb>)>,
+    key_repeat: KeyRepeater,
+}
+
+impl Session {
+    fn info(&self) -> SessionInfo {
+        SessionInfo {
+            owner: self.owner.as_ref().map(|d| d.0.clone()),
+            device: self.device.as_ref().map(|d| d.0.clone()),
+            profile: self.engine.profile().name.clone(),
+            profile_path: self.path.as_ref().map(|p| p.display().to_string()),
+            layer: self.engine.layer(),
+            virtual_pad: self.vpad.as_ref().map(|v| v.kind()),
+        }
+    }
+}
+
+/// Everything needed to run profiles against the real devices.
 pub struct Runtime {
     platform: Platform,
-    engine: Option<Engine>,
-    profile_path: Option<PathBuf>,
-    vpad: Option<Box<dyn VirtualPad>>,
+    /// The default session (if any) comes first.
+    sessions: Vec<Session>,
     filter: Arc<CaptureFilter>,
     kbm_rx: Option<Receiver<KbmEvent>>,
     kbm_buf: Vec<KbmEvent>,
     epoch: Instant,
     snapshots: Vec<PadSnapshot>,
+    /// The controller of the default session.
     primary: Option<DeviceId>,
     preferred: Option<DeviceId>,
     hidden: Vec<String>,
-    hide_wanted: bool,
-    game_rumble: Rumble,
-    sent_rumble: Option<Rumble>,
-    /// Light bar colour the game set on a virtual DualShock 4.
-    game_lightbar: Option<Rgb>,
-    /// What the controller was last told to show, and which controller.
-    sent_lightbar: Option<(DeviceId, Option<Rgb>)>,
-    warnings: Vec<String>,
     echo: Option<Echo>,
     suspended: bool,
     remap_off_requested: bool,
     hotkeys: Hotkeys,
-    hotkey_detector: HotkeyDetector,
+    detectors: HashMap<DeviceId, HotkeyDetector>,
     hotkeys_paused: bool,
-    hotkey_actions: Vec<HotkeyAction>,
-    key_repeat: KeyRepeater,
+    hotkey_actions: Vec<(DeviceId, HotkeyAction)>,
 }
 
 /// Human-readable log of inputs and the actions they caused (for `doppelpad run`).
@@ -189,6 +234,82 @@ fn needs_capture(p: &Profile) -> bool {
             .any(|r| r.source == AnalogSource::Mouse || r.while_held.iter().any(kbm))
 }
 
+/// Send a session's keyboard/mouse and virtual pad output.
+fn emit(s: &mut Session, platform: &mut Platform, out: &Output, now: u64) {
+    if let (Some(vpad), Some(pad)) = (&mut s.vpad, &out.pad)
+        && let Err(e) = vpad.update(pad)
+    {
+        tracing::warn!("virtual pad update failed: {e}");
+    }
+    let kbm = &mut platform.kbm_out;
+    for &(k, down) in &out.keys {
+        kbm.key(k, down);
+    }
+    s.key_repeat.observe(&out.keys, now);
+    if let Some(k) = s.key_repeat.due(now) {
+        kbm.key(k, true);
+    }
+    for &(b, down) in &out.mouse_buttons {
+        kbm.mouse_button(b, down);
+    }
+    if out.mouse_move != (0.0, 0.0) {
+        kbm.mouse_move(out.mouse_move.0, out.mouse_move.1);
+    }
+    for &(w, n) in &out.wheel {
+        kbm.wheel(w, n);
+    }
+}
+
+/// Rumble for the session's controller: mapping rumble overrides what the game asks the
+/// virtual pad for. Also forwards the light bar colour the game set.
+fn feedback(s: &mut Session, platform: &mut Platform, mapping_rumble: Option<Rumble>) {
+    if let Some(r) = s.vpad.as_mut().and_then(|v| v.take_rumble()) {
+        s.game_rumble = r;
+    }
+    if let Some(c) = s.vpad.as_mut().and_then(|v| v.take_lightbar()) {
+        s.game_lightbar = Some(c);
+    }
+    let Some(id) = s.device.clone() else { return };
+    let rumble = (id.clone(), mapping_rumble.unwrap_or(s.game_rumble));
+    if s.sent_rumble.as_ref() != Some(&rumble) {
+        for b in &mut platform.gamepads {
+            b.set_rumble(&rumble.0, rumble.1);
+        }
+        s.sent_rumble = Some(rumble);
+    }
+    let light = (id, s.game_lightbar);
+    if s.sent_lightbar.as_ref() == Some(&light) {
+        return;
+    }
+    if let Some((old, Some(_))) = &s.sent_lightbar
+        && *old != light.0
+    {
+        for b in &mut platform.gamepads {
+            b.set_lightbar(old, None);
+        }
+    }
+    for b in &mut platform.gamepads {
+        b.set_lightbar(&light.0, light.1);
+    }
+    s.sent_lightbar = Some(light);
+}
+
+/// Stop a session's feedback on its controller.
+fn quiet(s: &mut Session, platform: &mut Platform) {
+    if let Some((id, r)) = s.sent_rumble.take()
+        && r != Rumble::default()
+    {
+        for b in &mut platform.gamepads {
+            b.set_rumble(&id, Rumble::default());
+        }
+    }
+    if let Some((id, Some(_))) = s.sent_lightbar.take() {
+        for b in &mut platform.gamepads {
+            b.set_lightbar(&id, None);
+        }
+    }
+}
+
 impl Default for Runtime {
     fn default() -> Self {
         Self::new()
@@ -205,9 +326,7 @@ impl Runtime {
     pub fn with_platform(platform: Platform) -> Self {
         Runtime {
             platform,
-            engine: None,
-            profile_path: None,
-            vpad: None,
+            sessions: Vec::new(),
             filter: CaptureFilter::new(),
             kbm_rx: None,
             kbm_buf: Vec::new(),
@@ -216,29 +335,23 @@ impl Runtime {
             primary: None,
             preferred: None,
             hidden: Vec::new(),
-            hide_wanted: false,
-            game_rumble: Rumble::default(),
-            sent_rumble: None,
-            game_lightbar: None,
-            sent_lightbar: None,
-            warnings: Vec::new(),
             echo: None,
             suspended: false,
             remap_off_requested: false,
             hotkeys: Hotkeys::default(),
-            hotkey_detector: HotkeyDetector::new(),
+            detectors: HashMap::new(),
             hotkeys_paused: false,
             hotkey_actions: Vec::new(),
-            key_repeat: KeyRepeater::new(KeyRepeat::Off),
         }
     }
 
-    /// True once after a profile turned remapping off with its `remap_off` command.
+    /// True once after a profile turned remapping off with its `remap_off` command or the
+    /// emergency-stop hotkey.
     pub fn take_remap_off_request(&mut self) -> bool {
         std::mem::take(&mut self.remap_off_requested)
     }
 
-    /// Pause remapping without unloading the profile: devices keep being polled, every
+    /// Pause remapping without unloading the profiles: devices keep being polled, every
     /// output is released and nothing is injected until resumed. Used while the GUI
     /// window has focus, so mapped keys do not land in the editor.
     pub fn set_suspended(&mut self, on: bool) {
@@ -247,16 +360,17 @@ impl Runtime {
         }
         self.suspended = on;
         if on {
-            if let Some(engine) = &mut self.engine {
-                let out = engine.release_all();
-                self.emit(&out);
+            let now = self.now_ms();
+            for s in &mut self.sessions {
+                let out = s.engine.release_all();
+                emit(s, &mut self.platform, &out, now);
+                quiet(s, &mut self.platform);
             }
             self.filter.enabled.store(false, Ordering::Relaxed);
-            self.set_physical_rumble(Rumble::default());
         } else {
             self.filter
                 .enabled
-                .store(self.engine.is_some(), Ordering::Relaxed);
+                .store(!self.sessions.is_empty(), Ordering::Relaxed);
         }
     }
 
@@ -264,13 +378,13 @@ impl Runtime {
         self.suspended
     }
 
-    /// Prefer this controller as the input device when it is connected.
+    /// Prefer this controller for the default session when it is connected.
     pub fn set_preferred_device(&mut self, id: Option<DeviceId>) {
         self.preferred = id;
         self.primary = None; // re-pick on the next poll
     }
 
-    /// Controller currently used as input.
+    /// Controller of the default session.
     pub fn primary_device(&self) -> Option<&DeviceId> {
         self.primary.as_ref()
     }
@@ -283,16 +397,8 @@ impl Runtime {
         }
     }
 
-    fn set_physical_rumble(&mut self, r: Rumble) {
-        if let Some(id) = self.primary.clone() {
-            for b in &mut self.platform.gamepads {
-                b.set_rumble(&id, r);
-            }
-        }
-        self.sent_rumble = Some(r);
-    }
-
-    /// Record readable input/action events, drained with [`Runtime::take_events`].
+    /// Record readable input/action events of the default session, drained with
+    /// [`Runtime::take_events`].
     pub fn set_echo(&mut self, on: bool) {
         self.echo = on.then(Echo::default);
     }
@@ -308,20 +414,48 @@ impl Runtime {
         self.epoch.elapsed().as_millis() as u64
     }
 
+    fn session(&self, owner: Option<&DeviceId>) -> Option<&Session> {
+        self.sessions.iter().find(|s| s.owner.as_ref() == owner)
+    }
+
+    /// Profile of the default session.
     pub fn profile(&self) -> Option<&Profile> {
-        self.engine.as_ref().map(Engine::profile)
+        self.session(None).map(|s| s.engine.profile())
     }
 
     pub fn profile_path(&self) -> Option<&PathBuf> {
-        self.profile_path.as_ref()
+        self.session(None).and_then(|s| s.path.as_ref())
+    }
+
+    /// File of the profile a controller's own session runs.
+    pub fn device_profile_path(&self, id: &DeviceId) -> Option<&PathBuf> {
+        self.session(Some(id)).and_then(|s| s.path.as_ref())
+    }
+
+    /// Whether a controller has a session of its own.
+    pub fn has_device_session(&self, id: &DeviceId) -> bool {
+        self.session(Some(id)).is_some()
     }
 
     pub fn layer(&self) -> u8 {
-        self.engine.as_ref().map_or(0, Engine::layer)
+        self.session(None).map_or(0, |s| s.engine.layer())
     }
 
-    pub fn warnings(&self) -> &[String] {
-        &self.warnings
+    /// Problems of every session; those of a controller's own session name the controller.
+    pub fn warnings(&self) -> Vec<String> {
+        let mut out = Vec::new();
+        for s in &self.sessions {
+            match &s.owner {
+                None => out.extend(s.warnings.iter().cloned()),
+                Some(id) => out.extend(s.warnings.iter().map(|w| format!("{id}: {w}"))),
+            }
+        }
+        out
+    }
+
+    /// Every running session, the default one first.
+    pub fn sessions(&self) -> Vec<SessionInfo> {
+        self.sessions.iter().map(Session::info).collect()
     }
 
     /// Controllers the backends found but cannot use, explained for the user.
@@ -346,8 +480,11 @@ impl Runtime {
         self.platform.hider.problems()
     }
 
+    /// Virtual pad of the default session.
     pub fn virtual_pad(&self) -> Option<VirtualPadKind> {
-        self.vpad.as_ref().map(|v| v.kind())
+        self.session(None)
+            .and_then(|s| s.vpad.as_ref())
+            .map(|v| v.kind())
     }
 
     pub fn hidden_devices(&self) -> usize {
@@ -362,102 +499,152 @@ impl Runtime {
         &mut self.platform
     }
 
-    /// Activate a profile (replacing the current one).
+    /// Activate a profile in the default session (replacing its current one).
     pub fn apply(&mut self, profile: Profile, path: Option<PathBuf>) -> Result<()> {
-        self.stop();
-        self.warnings.clear();
+        self.start(None, profile, path)
+    }
 
+    /// Activate a profile in a controller's own session (replacing its current one).
+    pub fn apply_device(
+        &mut self,
+        id: &DeviceId,
+        profile: Profile,
+        path: Option<PathBuf>,
+    ) -> Result<()> {
+        self.start(Some(id.clone()), profile, path)
+    }
+
+    fn start(
+        &mut self,
+        owner: Option<DeviceId>,
+        profile: Profile,
+        path: Option<PathBuf>,
+    ) -> Result<()> {
+        self.stop_session(owner.as_ref());
+        let mut warnings = Vec::new();
         let kind = match profile.output.virtual_pad {
             VirtualPadType::Xbox360 => Some(VirtualPadKind::Xbox360),
             VirtualPadType::DualShock4 => Some(VirtualPadKind::DualShock4),
             VirtualPadType::None => None,
         };
-        if let Some(kind) = kind {
-            let pad = self
-                .platform
-                .virtual_pads
-                .create(kind)
-                .context("cannot create the virtual controller")?;
-            let ignore = VirtualIgnoreList {
-                xinput_slots: pad.xinput_slot().into_iter().collect(),
-            };
-            for b in &mut self.platform.gamepads {
-                b.ignore_virtual(&ignore);
-            }
-            self.vpad = Some(pad);
-        }
-
-        if needs_capture(&profile) {
-            match self.platform.kbm_capture.start(self.filter.clone()) {
-                Ok(rx) => self.kbm_rx = Some(rx),
-                Err(e) => self
-                    .warnings
-                    .push(format!("keyboard/mouse capture unavailable: {e}")),
-            }
-        }
-
-        self.key_repeat = KeyRepeater::new(profile.virtual_devices.keyboard.repeat);
+        let vpad = match kind {
+            Some(kind) => Some(
+                self.platform
+                    .virtual_pads
+                    .create(kind)
+                    .context("cannot create the virtual controller")?,
+            ),
+            None => None,
+        };
+        let key_repeat = KeyRepeater::new(profile.virtual_devices.keyboard.repeat);
+        let capture = needs_capture(&profile);
         let engine = Engine::new(profile);
-        self.warnings.extend(engine.warnings().iter().cloned());
-        self.hide_wanted = engine.profile().output.hide_physical && self.vpad.is_some();
-        self.engine = Some(engine);
-        self.update_filter();
-        self.filter
-            .enabled
-            .store(!self.suspended, Ordering::Relaxed);
-        self.profile_path = path;
-        self.sync_hiding();
-        for w in &self.warnings {
+        warnings.extend(engine.warnings().iter().cloned());
+        let session = Session {
+            owner,
+            hide_wanted: engine.profile().output.hide_physical && vpad.is_some(),
+            needs_capture: capture,
+            engine,
+            path,
+            vpad,
+            device: None,
+            warnings,
+            game_rumble: Rumble::default(),
+            sent_rumble: None,
+            game_lightbar: None,
+            sent_lightbar: None,
+            key_repeat,
+        };
+        for w in &session.warnings {
             tracing::warn!("{w}");
         }
-        tracing::info!(profile = %self.profile().map(|p| p.name.as_str()).unwrap_or(""), "profile applied");
+        tracing::info!(profile = %session.engine.profile().name, device = ?session.owner, "profile applied");
+        if session.owner.is_none() {
+            self.sessions.insert(0, session);
+        } else {
+            self.sessions.push(session);
+        }
+        self.sessions_changed();
         Ok(())
     }
 
-    /// Deactivate the current profile and restore everything.
+    /// Deactivate every profile and restore everything.
     pub fn stop(&mut self) {
-        if let Some(mut engine) = self.engine.take() {
-            let out = engine.release_all();
-            self.emit(&out);
-            tracing::info!(profile = %engine.profile().name, "profile stopped");
+        let owners: Vec<Option<DeviceId>> = self.sessions.iter().map(|s| s.owner.clone()).collect();
+        for o in owners {
+            self.stop_session(o.as_ref());
         }
-        self.vpad = None;
+    }
+
+    /// Deactivate the default session's profile.
+    pub fn stop_default(&mut self) {
+        self.stop_session(None);
+    }
+
+    /// Deactivate a controller's own session.
+    pub fn stop_device(&mut self, id: &DeviceId) {
+        self.stop_session(Some(id));
+    }
+
+    fn stop_session(&mut self, owner: Option<&DeviceId>) {
+        let Some(i) = self.sessions.iter().position(|s| s.owner.as_ref() == owner) else {
+            return;
+        };
+        let mut s = self.sessions.remove(i);
+        let out = s.engine.release_all();
+        let now = self.now_ms();
+        emit(&mut s, &mut self.platform, &out, now);
+        quiet(&mut s, &mut self.platform);
+        tracing::info!(profile = %s.engine.profile().name, device = ?s.owner, "profile stopped");
+        drop(s); // unplugs the virtual pad
+        self.sessions_changed();
+    }
+
+    /// Bring capture, the ignore list, the capture filter and hiding in line with the sessions.
+    fn sessions_changed(&mut self) {
+        let ignore = VirtualIgnoreList {
+            xinput_slots: self
+                .sessions
+                .iter()
+                .filter_map(|s| s.vpad.as_ref()?.xinput_slot())
+                .collect(),
+        };
         for b in &mut self.platform.gamepads {
-            b.ignore_virtual(&VirtualIgnoreList::default());
+            b.ignore_virtual(&ignore);
         }
-        self.platform.kbm_capture.stop();
-        self.kbm_rx = None;
-        self.filter.enabled.store(false, Ordering::Relaxed);
-        self.filter.clear();
-        self.hide_wanted = false;
-        self.key_repeat.clear();
-        if !self.hidden.is_empty() {
-            if let Err(e) = self.platform.hider.restore() {
-                tracing::warn!("could not unhide devices: {e}");
+        let capture = self.sessions.iter().any(|s| s.needs_capture);
+        if capture && self.kbm_rx.is_none() {
+            match self.platform.kbm_capture.start(self.filter.clone()) {
+                Ok(rx) => self.kbm_rx = Some(rx),
+                Err(e) => {
+                    if let Some(s) = self.sessions.iter_mut().find(|s| s.needs_capture) {
+                        s.warnings
+                            .push(format!("keyboard/mouse capture unavailable: {e}"));
+                    }
+                }
             }
-            self.hidden.clear();
+        } else if !capture && self.kbm_rx.is_some() {
+            self.platform.kbm_capture.stop();
+            self.kbm_rx = None;
         }
-        if self.sent_rumble.take().is_some()
-            && let Some(id) = self.primary.clone()
-        {
-            for b in &mut self.platform.gamepads {
-                b.set_rumble(&id, Rumble::default());
-            }
-        }
-        self.game_rumble = Rumble::default();
-        self.game_lightbar = None;
-        if let Some((id, Some(_))) = self.sent_lightbar.take() {
-            for b in &mut self.platform.gamepads {
-                b.set_lightbar(&id, None);
-            }
-        }
-        self.profile_path = None;
+        self.update_filter();
+        self.filter.enabled.store(
+            !self.sessions.is_empty() && !self.suspended,
+            Ordering::Relaxed,
+        );
+        self.bind_sessions();
+        self.sync_hiding();
+    }
+
+    /// The session that gets keyboard and mouse input: the default one, else the first.
+    fn kbm_session(&self) -> Option<usize> {
+        (!self.sessions.is_empty()).then_some(0)
     }
 
     fn update_filter(&self) {
-        let Some(engine) = &self.engine else { return };
-        let m = engine.mutes();
         self.filter.clear();
+        let Some(i) = self.kbm_session() else { return };
+        let m = self.sessions[i].engine.mutes();
         for k in m.keys {
             self.filter.set_key(k, true);
         }
@@ -472,36 +659,77 @@ impl Runtime {
             .store(m.mouse_move, Ordering::Relaxed);
     }
 
-    /// Hide all connected physical pads (and physical XInput devices) while a profile with
-    /// `hide_physical` drives a virtual pad.
+    /// Hide the controllers of sessions whose profile hides the physical controller behind
+    /// a virtual one (with every physical XInput device if one of them is an XInput pad).
     fn sync_hiding(&mut self) {
-        if !self.hide_wanted {
-            return;
+        let mut want: Vec<String> = Vec::new();
+        let mut xinput = false;
+        for s in self.sessions.iter().filter(|s| s.hide_wanted) {
+            let Some(snap) = s
+                .device
+                .as_ref()
+                .and_then(|id| self.snapshots.iter().find(|x| &x.info.id == id))
+            else {
+                continue;
+            };
+            want.extend(snap.info.instance_paths.iter().cloned());
+            xinput |= snap.info.backend == "xinput";
         }
-        let mut want: Vec<String> = self
-            .snapshots
-            .iter()
-            .flat_map(|s| s.info.instance_paths.iter().cloned())
-            .collect();
         #[cfg(windows)]
-        if self.snapshots.iter().any(|s| s.info.backend == "xinput") {
+        if xinput {
             want.extend(dp_platform::windows::physical_xusb_instances());
         }
+        #[cfg(not(windows))]
+        let _ = xinput;
         want.sort();
         want.dedup();
         if want == self.hidden {
             return;
         }
-        match self.platform.hider.hide(&want) {
+        let result = if want.is_empty() {
+            self.platform.hider.restore()
+        } else {
+            self.platform.hider.hide(&want)
+        };
+        match result {
             Ok(()) => self.hidden = want,
             Err(e) => {
                 let msg = format!(
                     "cannot hide the physical controller (games may see double input): {e}"
                 );
                 tracing::warn!("{msg}");
-                self.warnings.push(msg);
-                self.hide_wanted = false;
+                for s in self.sessions.iter_mut().filter(|s| s.hide_wanted) {
+                    s.warnings.push(msg.clone());
+                    s.hide_wanted = false;
+                }
             }
+        }
+    }
+
+    /// Which controller each session reads: its own, or for the default session the
+    /// preferred (else first) controller that has no session of its own.
+    fn bind_sessions(&mut self) {
+        let ids: Vec<DeviceId> = self.snapshots.iter().map(|s| s.info.id.clone()).collect();
+        let owned: Vec<DeviceId> = self
+            .sessions
+            .iter()
+            .filter_map(|s| s.owner.clone())
+            .collect();
+        let free: Vec<&DeviceId> = ids.iter().filter(|id| !owned.contains(id)).collect();
+        let preferred = self.preferred.as_ref().filter(|p| free.contains(p));
+        let current = self.primary.as_ref().filter(|p| free.contains(p));
+        let primary = preferred.or(current).or(free.first().copied()).cloned();
+        if primary != self.primary {
+            if let Some(p) = &primary {
+                tracing::info!(device = %p, "using controller");
+            }
+            self.primary = primary;
+        }
+        for s in &mut self.sessions {
+            s.device = match &s.owner {
+                Some(id) => ids.contains(id).then(|| id.clone()),
+                None => self.primary.clone(),
+            };
         }
     }
 
@@ -512,20 +740,19 @@ impl Runtime {
             b.poll(&mut self.snapshots);
         }
         let ids: Vec<DeviceId> = self.snapshots.iter().map(|s| s.info.id.clone()).collect();
-        let preferred = self.preferred.as_ref().filter(|p| ids.contains(p));
-        let stale = self.primary.as_ref().is_none_or(|p| !ids.contains(p));
-        if stale || (preferred.is_some() && preferred != self.primary.as_ref()) {
-            self.primary = preferred.cloned().or_else(|| ids.first().cloned());
-            if let Some(p) = &self.primary {
-                tracing::info!(device = %p, "using controller");
-            }
+        let devices_changed = ids != before;
+        let primary_lost = self.primary.as_ref().is_some_and(|p| !ids.contains(p));
+        let preferred_back = self.preferred.is_some() && self.preferred != self.primary;
+        if devices_changed || primary_lost || preferred_back || self.primary.is_none() {
+            self.bind_sessions();
         }
-        if ids != before {
+        if devices_changed {
+            self.detectors.retain(|id, _| ids.contains(id));
             self.sync_hiding();
         }
     }
 
-    /// Run one engine step. Call about once per millisecond.
+    /// Run one engine step for every session. Call about once per millisecond.
     pub fn tick(&mut self) {
         let now = self.now_ms();
         self.poll_devices();
@@ -533,20 +760,24 @@ impl Runtime {
         if let Some(rx) = &self.kbm_rx {
             self.kbm_buf.extend(rx.try_iter());
         }
-        let mut pad = self
-            .primary
-            .as_ref()
-            .and_then(|id| self.snapshots.iter().find(|s| &s.info.id == id))
-            .map(|s| s.state);
-        if let Some(action) = self.detect_hotkey(pad.as_mut(), now) {
-            tracing::info!(?action, "hotkey");
+        let mut pads: HashMap<DeviceId, PadState> = self
+            .snapshots
+            .iter()
+            .map(|s| (s.info.id.clone(), s.state))
+            .collect();
+        for (id, action) in self.detect_hotkeys(&mut pads, now) {
+            tracing::info!(device = %id, ?action, "hotkey");
             if let Some(echo) = &mut self.echo {
                 echo.events.push(format!("hotkey      {action:?}"));
             }
             match action {
                 HotkeyAction::StopMacros => {
-                    if let Some(engine) = &mut self.engine {
-                        engine.stop_all();
+                    for s in self
+                        .sessions
+                        .iter_mut()
+                        .filter(|s| s.device.as_ref() == Some(&id))
+                    {
+                        s.engine.stop_all();
                     }
                 }
                 HotkeyAction::EmergencyStop => {
@@ -554,109 +785,121 @@ impl Runtime {
                     self.remap_off_requested = true;
                     return;
                 }
-                other => self.hotkey_actions.push(other),
+                other => self.hotkey_actions.push((id, other)),
             }
         }
         if self.suspended {
             return;
         }
-        let Some(engine) = &mut self.engine else {
-            return;
-        };
-        let out = engine.tick(Input {
-            now_ms: now,
-            pad: pad.as_ref(),
-            kbm: &self.kbm_buf,
-        });
-        self.emit(&out);
-        if out.layer_changed {
-            self.update_filter();
-        }
-        if let Some(echo) = &mut self.echo {
-            echo.record(pad.as_ref(), &out, now);
-        }
-
-        // Rumble: mapping rumble overrides what the game asks the virtual pad for.
-        if let Some(r) = self.vpad.as_mut().and_then(|v| v.take_rumble()) {
-            self.game_rumble = r;
-        }
-        let want = out.rumble.unwrap_or(self.game_rumble);
-        if self.sent_rumble != Some(want)
-            && let Some(id) = self.primary.clone()
-        {
-            for b in &mut self.platform.gamepads {
-                b.set_rumble(&id, want);
+        let kbm_session = self.kbm_session();
+        let mut commands = Vec::new();
+        for i in 0..self.sessions.len() {
+            let s = &mut self.sessions[i];
+            let pad = s.device.as_ref().and_then(|id| pads.get(id)).copied();
+            let kbm: &[KbmEvent] = if Some(i) == kbm_session {
+                &self.kbm_buf
+            } else {
+                &[]
+            };
+            let out = s.engine.tick(Input {
+                now_ms: now,
+                pad: pad.as_ref(),
+                kbm,
+            });
+            emit(s, &mut self.platform, &out, now);
+            feedback(s, &mut self.platform, out.rumble);
+            if s.owner.is_none()
+                && let Some(echo) = &mut self.echo
+            {
+                echo.record(pad.as_ref(), &out, now);
             }
-            self.sent_rumble = Some(want);
+            if out.layer_changed && Some(i) == kbm_session {
+                self.update_filter();
+            }
+            commands.extend(out.commands.into_iter().map(|c| (i, c)));
         }
-        self.forward_lightbar();
-
-        for c in out.commands {
-            match c {
-                Command::RemapOff => {
-                    tracing::info!("remap-off command");
-                    self.stop();
-                    self.remap_off_requested = true;
-                    return;
-                }
-                Command::Launch { path, args } => {
-                    let args: Vec<&str> = args.split_whitespace().collect();
-                    if let Err(e) = std::process::Command::new(&path).args(&args).spawn() {
-                        tracing::warn!("cannot launch {path}: {e}");
-                    }
-                }
-                Command::ToggleGyro | Command::GyroOn | Command::GyroOff => {
-                    tracing::info!(command = ?c, "gyro switched")
-                }
-                Command::Shutdown
-                | Command::Restart
-                | Command::Sleep
-                | Command::Hibernate
-                | Command::LogOff => {
-                    let action = match c {
-                        Command::Shutdown => PowerAction::Shutdown,
-                        Command::Restart => PowerAction::Restart,
-                        Command::Sleep => PowerAction::Sleep,
-                        Command::Hibernate => PowerAction::Hibernate,
-                        _ => PowerAction::LogOff,
-                    };
-                    tracing::info!(?action, "power command");
-                    // Let go of everything before the session ends or the PC sleeps.
-                    if let Some(engine) = &mut self.engine {
-                        let out = engine.release_all();
-                        self.emit(&out);
-                    }
-                    if let Err(e) = self.platform.system.power(action) {
-                        tracing::warn!("{action:?} failed: {e}");
-                    }
-                }
-                Command::Screenshot => match self.platform.system.screenshot() {
-                    Ok(path) => tracing::info!(path = %path.display(), "screenshot saved"),
-                    Err(e) => tracing::warn!("screenshot failed: {e}"),
-                },
-                Command::CloseWindow => {
-                    if let Err(e) = self.platform.system.close_foreground_window() {
-                        tracing::warn!("cannot close the window: {e}");
-                    }
-                }
-                Command::Unsupported(name) => {
-                    tracing::debug!("ignoring unsupported command {name}")
-                }
+        for (i, c) in commands {
+            if !self.run_command(i, c) {
+                return;
             }
         }
     }
 
-    /// Run the hotkey detector on the controller in use and withhold the buttons of a
-    /// complete hotkey from the engine.
-    fn detect_hotkey(&mut self, pad: Option<&mut PadState>, now: u64) -> Option<HotkeyAction> {
-        if self.hotkeys_paused || self.suspended {
-            self.hotkey_detector.reset();
-            return None;
+    /// Carry out a host command of session `i`; `false` once remapping was turned off.
+    fn run_command(&mut self, i: usize, c: Command) -> bool {
+        match c {
+            Command::RemapOff => {
+                tracing::info!("remap-off command");
+                self.stop();
+                self.remap_off_requested = true;
+                return false;
+            }
+            Command::Launch { path, args } => {
+                let args: Vec<&str> = args.split_whitespace().collect();
+                if let Err(e) = std::process::Command::new(&path).args(&args).spawn() {
+                    tracing::warn!("cannot launch {path}: {e}");
+                }
+            }
+            Command::ToggleGyro | Command::GyroOn | Command::GyroOff => {
+                tracing::info!(command = ?c, "gyro switched")
+            }
+            Command::Shutdown
+            | Command::Restart
+            | Command::Sleep
+            | Command::Hibernate
+            | Command::LogOff => {
+                let action = match c {
+                    Command::Shutdown => PowerAction::Shutdown,
+                    Command::Restart => PowerAction::Restart,
+                    Command::Sleep => PowerAction::Sleep,
+                    Command::Hibernate => PowerAction::Hibernate,
+                    _ => PowerAction::LogOff,
+                };
+                tracing::info!(?action, "power command");
+                // Let go of everything before the session ends or the PC sleeps.
+                let now = self.now_ms();
+                for s in &mut self.sessions {
+                    let out = s.engine.release_all();
+                    emit(s, &mut self.platform, &out, now);
+                }
+                if let Err(e) = self.platform.system.power(action) {
+                    tracing::warn!("{action:?} failed: {e}");
+                }
+            }
+            Command::Screenshot => match self.platform.system.screenshot() {
+                Ok(path) => tracing::info!(path = %path.display(), "screenshot saved"),
+                Err(e) => tracing::warn!("screenshot failed: {e}"),
+            },
+            Command::CloseWindow => {
+                if let Err(e) = self.platform.system.close_foreground_window() {
+                    tracing::warn!("cannot close the window: {e}");
+                }
+            }
+            Command::Unsupported(name) => {
+                tracing::debug!(session = i, "ignoring unsupported command {name}")
+            }
         }
-        let buttons = pad.as_ref().map_or(0, |p| p.buttons);
-        let fired = self.hotkey_detector.update(&self.hotkeys, buttons, now);
-        if let Some(p) = pad {
-            p.buttons &= !self.hotkey_detector.withheld();
+        true
+    }
+
+    /// Run the hotkey detectors on every controller and withhold the buttons of complete
+    /// hotkeys from the engines.
+    fn detect_hotkeys(
+        &mut self,
+        pads: &mut HashMap<DeviceId, PadState>,
+        now: u64,
+    ) -> Vec<(DeviceId, HotkeyAction)> {
+        if self.hotkeys_paused || self.suspended {
+            self.detectors.clear();
+            return Vec::new();
+        }
+        let mut fired = Vec::new();
+        for (id, pad) in pads.iter_mut() {
+            let d = self.detectors.entry(id.clone()).or_default();
+            if let Some(a) = d.update(&self.hotkeys, pad.buttons, now) {
+                fired.push((id.clone(), a));
+            }
+            pad.buttons &= !d.withheld();
         }
         fired
     }
@@ -668,7 +911,7 @@ impl Runtime {
 
     pub fn set_hotkeys(&mut self, hotkeys: Hotkeys) {
         self.hotkeys = hotkeys;
-        self.hotkey_detector.reset();
+        self.detectors.clear();
     }
 
     /// Ignore hotkeys for a while (the app is recording a new one).
@@ -676,60 +919,10 @@ impl Runtime {
         self.hotkeys_paused = on;
     }
 
-    /// Hotkeys that fired and that the service has to carry out (slots, remap toggle).
-    pub fn take_hotkey_actions(&mut self) -> Vec<HotkeyAction> {
+    /// Hotkeys that fired, with the controller they fired on, that the service has to carry
+    /// out (slots, remap toggle).
+    pub fn take_hotkey_actions(&mut self) -> Vec<(DeviceId, HotkeyAction)> {
         std::mem::take(&mut self.hotkey_actions)
-    }
-
-    /// Show the light bar colour the game set on the virtual pad on the controller in use.
-    fn forward_lightbar(&mut self) {
-        if let Some(c) = self.vpad.as_mut().and_then(|v| v.take_lightbar()) {
-            self.game_lightbar = Some(c);
-        }
-        let Some(id) = self.primary.clone() else {
-            return;
-        };
-        let want = (id, self.game_lightbar);
-        if self.sent_lightbar.as_ref() == Some(&want) {
-            return;
-        }
-        if let Some((old, Some(_))) = &self.sent_lightbar
-            && *old != want.0
-        {
-            for b in &mut self.platform.gamepads {
-                b.set_lightbar(old, None);
-            }
-        }
-        for b in &mut self.platform.gamepads {
-            b.set_lightbar(&want.0, want.1);
-        }
-        self.sent_lightbar = Some(want);
-    }
-
-    fn emit(&mut self, out: &Output) {
-        if let (Some(vpad), Some(pad)) = (&mut self.vpad, &out.pad)
-            && let Err(e) = vpad.update(pad)
-        {
-            tracing::warn!("virtual pad update failed: {e}");
-        }
-        let now = self.now_ms();
-        let kbm = &mut self.platform.kbm_out;
-        for &(k, down) in &out.keys {
-            kbm.key(k, down);
-        }
-        self.key_repeat.observe(&out.keys, now);
-        if let Some(k) = self.key_repeat.due(now) {
-            kbm.key(k, true);
-        }
-        for &(b, down) in &out.mouse_buttons {
-            kbm.mouse_button(b, down);
-        }
-        if out.mouse_move != (0.0, 0.0) {
-            kbm.mouse_move(out.mouse_move.0, out.mouse_move.1);
-        }
-        for &(w, n) in &out.wheel {
-            kbm.wheel(w, n);
-        }
     }
 }
 
