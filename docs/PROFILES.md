@@ -32,6 +32,8 @@ invert_x = false
 invert_y = false
 rotation = 0.0               # degrees, counter-clockwise
 zones = { low = 0.24 }       # where LeftStickUp etc. and the zones start (see Zones)
+diagonals = false            # separate diagonal directions (LeftStickUpLeft, ...)
+direction_width = 22.5       # degrees each side of an axis that count as that direction alone
 
 [triggers.left]              # same for [triggers.right]
 deadzone = 0.0
@@ -58,17 +60,19 @@ is held. `native` waits 500 ms, then repeats about every 30 ms with a little jit
 | `DpadUp` … `DpadRight` | D-pad |
 | `Touchpad` `Misc` | Touchpad click, Share/Mute/Capture |
 | `PaddleUL` `PaddleUR` `PaddleLL` `PaddleLR` | Back paddles (Elite, DualSense Edge) |
-| `LeftStickUp` … `RightStickRight` | Stick pushed past its low zone threshold (diagonals press two) |
-| `LeftStickUpLow` … `RightStickRightHigh` | Stick pushed in a direction and within a zone (see Zones) |
+| `LeftStickUp` … `RightStickRight` | Stick pushed past its low zone threshold (a diagonal presses two, unless the stick has `diagonals = true`) |
+| `LeftStickUpLeft` `LeftStickUpRight` `LeftStickDownLeft` `LeftStickDownRight` (same for `RightStick…`) | Diagonals of a stick with `diagonals = true` |
+| `LeftStickUpLow` … `RightStickDownRightHigh` | Stick pushed in a direction (diagonals too) and within a zone (see Zones) |
 | `LeftStickLow` `LeftStickMed` `LeftStickHigh` (same for `RightStick…`) | Stick within a zone, in any direction |
 | `LT` `RT` / `LTFull` `RTFull` | Trigger past its low zone threshold / past `full_pull` |
 | `LTLow` `LTMed` `LTHigh` (same for `RT…`) | Trigger pulled within a zone |
-| `TouchUp` `TouchDown` `TouchLeft` `TouchRight` `TouchCenter` | Finger resting in a touchpad region |
+| `TouchUp` `TouchDown` `TouchLeft` `TouchRight` `TouchCenter` | Finger resting in a touchpad region (four 90° regions around the centre) |
+| `TouchUpLeft` `TouchUpRight` `TouchDownLeft` `TouchDownRight` | Corner regions; mapping any of them splits the touchpad into eight 45° regions |
 | `GyroUp` `GyroDown` `GyroLeft` `GyroRight` | Controller turned quickly (> 60 °/s) |
 | `Key:Space` | Keyboard key (names below) |
 | `Mouse:Left` `Mouse:Right` `Mouse:Middle` `Mouse:X1` `Mouse:X2` | Mouse buttons |
 | `Wheel:Up` `Wheel:Down` `Wheel:Left` `Wheel:Right` | One wheel notch (50 ms pulse) |
-| `MouseMove:Up` … | Physical mouse moving in a direction |
+| `MouseMove:Up` … `MouseMove:DownRight` | Physical mouse moving in a direction; mapping a diagonal makes the mouse tell eight directions apart (otherwise a diagonal movement triggers two) |
 
 `trigger` is one control (`"A"`) or a combo (`["LB", "RB"]`, up to 4). A combo may mix devices,
 such as `["Key:LeftAlt", "Key:W"]`.

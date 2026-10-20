@@ -10,7 +10,11 @@
 
   const groups = [
     { id: 'mouse_wheel', controls: ['Wheel:Left', 'Wheel:Right'] },
-    { id: 'mouse_move', controls: ['Up', 'Down', 'Left', 'Right'].map((d) => `MouseMove:${d}`) },
+    {
+      id: 'mouse_move',
+      // Mapping a diagonal makes mouse motion tell eight directions apart.
+      controls: ['Up', 'Down', 'Left', 'Right', 'UpLeft', 'UpRight', 'DownLeft', 'DownRight'].map((d) => `MouseMove:${d}`),
+    },
   ];
 
   function summary(c: ControlName): { text: string; inherited: boolean } | null {

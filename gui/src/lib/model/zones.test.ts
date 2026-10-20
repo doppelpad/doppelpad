@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { setLanguage } from '../i18n/index.svelte';
 import type { Profile } from '../types';
 import { controlLabel, withZone, zoneFamily, zoneParts } from './controls';
+import { nativeAction } from './profile';
 import {
   isElliptic,
   setElliptic,
@@ -101,5 +102,22 @@ describe('zone thresholds', () => {
     expect(zoneProblem([0.5, 0.4, 0.8])).toBe('zones.err_order');
     expect(zoneProblem([0, 0.4, 0.8])).toBe('zones.err_range');
     expect(zoneProblem([0.2, 0.4, 1.2])).toBe('zones.err_range');
+  });
+});
+
+describe('diagonal directions', () => {
+  it('have zones like the cardinals', () => {
+    expect(zoneParts('LeftStickUpLeftHigh')).toEqual({
+      base: 'LeftStickUpLeft',
+      zone: 'High',
+      source: { kind: 'stick', side: 'left' },
+    });
+    expect(zoneParts('RightStickDownRight')?.zone).toBeNull();
+  });
+
+  it('reproduce a diagonal stick push', () => {
+    const a = nativeAction('LeftStickUpLeft');
+    expect(a && 'stick' in a && [Math.round(a.x * 100), Math.round(a.y * 100)]).toEqual([-71, 71]);
+    expect(nativeAction('TouchDownRight')).toBeNull();
   });
 });

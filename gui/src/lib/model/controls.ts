@@ -4,13 +4,21 @@ import { has, t } from '../i18n/index.svelte';
 import type { ControlName, PadFamily } from '../types';
 
 const DIRS = ['Up', 'Down', 'Left', 'Right'] as const;
+/** Diagonals; sticks with separate diagonals, the touchpad and mouse motion have them. */
+export const DIAGONALS = ['UpLeft', 'UpRight', 'DownLeft', 'DownRight'] as const;
+const DIRS8 = [...DIRS, ...DIAGONALS] as const;
+
+/** Key of a direction in the `dirs` catalog (`UpLeft` → `up_left`). */
+export function dirKey(d: string): string {
+  return d.replace(/([a-z])([A-Z])/g, '$1_$2').toLowerCase();
+}
 
 /** Touchpad regions; the controls are `TouchUp` … `TouchCenter`. */
 export const TOUCH_REGIONS = ['Up', 'Down', 'Left', 'Right', 'Center'] as const;
 /** Gyro directions; the controls are `GyroUp` … `GyroRight`. */
 export const GYRO_DIRS = DIRS;
 
-export const touchControls = (): ControlName[] => TOUCH_REGIONS.map((r) => `Touch${r}`);
+export const touchControls = (): ControlName[] => [...TOUCH_REGIONS, ...DIAGONALS].map((r) => `Touch${r}`);
 export const gyroControls = (): ControlName[] => GYRO_DIRS.map((d) => `Gyro${d}`);
 
 /** Zones of a stick's deflection or a trigger's pull, in profile syntax. */
@@ -20,7 +28,7 @@ export type ZoneName = (typeof ZONES)[number];
 /** "LeftStickUp" → ["LeftStick", "Up"], else null. */
 export function splitStickDir(c: ControlName): [string, string] | null {
   for (const stick of ['LeftStick', 'RightStick']) {
-    for (const d of DIRS) if (c === `${stick}${d}`) return [stick, d];
+    for (const d of DIRS8) if (c === `${stick}${d}`) return [stick, d];
   }
   return null;
 }
@@ -34,7 +42,7 @@ export interface ZoneParts {
   source: { kind: 'stick' | 'trigger'; side: 'left' | 'right' };
 }
 
-const ZONED = /^(?:(Left|Right)Stick(Up|Down|Left|Right)?|(LT|RT))(Low|Med|High)?$/;
+const ZONED = /^(?:(Left|Right)Stick(UpLeft|UpRight|DownLeft|DownRight|Up|Down|Left|Right)?|(LT|RT))(Low|Med|High)?$/;
 
 /**
  * Zone parts of a stick direction, a trigger or one of their zone controls (`LeftStickUpHigh`,
@@ -113,13 +121,13 @@ export function controlLabel(c: ControlName, family: PadFamily | null): string {
   if (c.startsWith('Key:')) return c.slice(4);
   if (c.startsWith('Mouse:')) return t(`controls.mouse.${c.slice(6).toLowerCase()}`);
   if (c.startsWith('Wheel:')) return `${t('picker.mouse_wheel')} ${t(`dirs.${c.slice(6).toLowerCase()}`)}`;
-  if (c.startsWith('MouseMove:')) return `${t('picker.mouse_move')} ${t(`dirs.${c.slice(10).toLowerCase()}`)}`;
+  if (c.startsWith('MouseMove:')) return `${t('picker.mouse_move')} ${t(`dirs.${dirKey(c.slice(10))}`)}`;
   const zp = zoneParts(c);
   if (zp?.zone) return `${zoneBaseLabel(zp.base, family)} · ${t(`zones.in.${zp.zone.toLowerCase()}`)}`;
   const sd = splitStickDir(c);
-  if (sd) return `${t(`controls.${sd[0]}`)} ${t(`dirs.${sd[1].toLowerCase()}`)}`;
-  const touch = /^Touch(Up|Down|Left|Right|Center)$/.exec(c);
-  if (touch) return t(`controls.touch.${touch[1].toLowerCase()}`);
+  if (sd) return `${t(`controls.${sd[0]}`)} ${t(`dirs.${dirKey(sd[1])}`)}`;
+  const touch = /^Touch(UpLeft|UpRight|DownLeft|DownRight|Up|Down|Left|Right|Center)$/.exec(c);
+  if (touch) return t(`controls.touch.${dirKey(touch[1])}`);
   const gyro = /^Gyro(Up|Down|Left|Right)$/.exec(c);
   if (gyro) return t('controls.gyro', { dir: t(`dirs.${gyro[1].toLowerCase()}`) });
   const named = familyName(c, family);

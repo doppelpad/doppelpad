@@ -138,6 +138,10 @@ fn gamepad_control(id: i64) -> Option<Control> {
         92 => Touch(TouchRegion::Down),
         93 => Touch(TouchRegion::Left),
         94 => Touch(TouchRegion::Right),
+        95 => Touch(TouchRegion::UpLeft),
+        96 => Touch(TouchRegion::UpRight),
+        97 => Touch(TouchRegion::DownLeft),
+        98 => Touch(TouchRegion::DownRight),
         99 => Button(P::Touchpad),
         169 => TriggerFull(Trigger::Left),
         170 => TriggerFull(Trigger::Right),
@@ -145,6 +149,14 @@ fn gamepad_control(id: i64) -> Option<Control> {
         172 => Wheel(WheelDir::Down),
         173 => Wheel(WheelDir::Left),
         174 => Wheel(WheelDir::Right),
+        175 => StickDir(Stick::Left, Dir::UpLeft),
+        176 => StickDir(Stick::Left, Dir::UpRight),
+        177 => StickDir(Stick::Left, Dir::DownLeft),
+        178 => StickDir(Stick::Left, Dir::DownRight),
+        179 => StickDir(Stick::Right, Dir::UpLeft),
+        180 => StickDir(Stick::Right, Dir::UpRight),
+        181 => StickDir(Stick::Right, Dir::DownLeft),
+        182 => StickDir(Stick::Right, Dir::DownRight),
         _ => return None,
     })
 }
@@ -617,11 +629,19 @@ impl<'a> Importer<'a> {
                 cfg.zones.med = None;
                 cfg.zones.high = None;
             }
-            if boolean(s, "diagonalZones") {
-                self.diags.info(
-                    format!("{path}.sticks"),
-                    "separate diagonal directions are not supported; a diagonal presses both of its directions",
-                );
+            cfg.diagonals = boolean(s, "diagonalZones");
+            // The direction sensitivity is the tangent of the cardinal sector's half width,
+            // in 1/32768 units.
+            if let Some(sens) = get(s, "sensitivity") {
+                let parts: Vec<f32> = [int(sens, "x"), int(sens, "y")]
+                    .into_iter()
+                    .flatten()
+                    .map(|v| v.clamp(1, 32768) as f32 / AXIS_MAX)
+                    .collect();
+                if !parts.is_empty() {
+                    let ratio = parts.iter().sum::<f32>() / parts.len() as f32;
+                    cfg.direction_width = ratio.atan().to_degrees().clamp(1.0, 44.0);
+                }
             }
             if let Some(r) = int(s, "rotation") {
                 cfg.rotation = r.clamp(-90, 90) as f32;

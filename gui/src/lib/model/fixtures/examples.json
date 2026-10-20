@@ -450,7 +450,9 @@
         "rotation": 0.0,
         "zones": {
           "low": 0.24
-        }
+        },
+        "diagonals": false,
+        "direction_width": 22.5
       },
       "right": {
         "deadzone": 0.06,
@@ -472,7 +474,9 @@
         "rotation": 0.0,
         "zones": {
           "low": 0.24
-        }
+        },
+        "diagonals": false,
+        "direction_width": 22.5
       }
     },
     "triggers": {

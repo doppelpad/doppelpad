@@ -4,6 +4,7 @@
   import { DEVICE_LAYOUTS, type DeviceId } from '../../assets/devices/layouts';
   import { t } from '../../lib/i18n/index.svelte';
   import {
+    DIAGONALS,
     controlLabel,
     gyroControls,
     touchControls,
@@ -34,7 +35,11 @@
       {
         id: 'sticks',
         // Each direction, then the stick in any direction (which exists only per zone).
-        controls: ['LeftStick', 'RightStick'].flatMap((s) => [...STICK_DIRS.map((d) => s + d), `${s}Low`]),
+        controls: ['LeftStick', 'RightStick'].flatMap((s) => {
+          const side = s === 'LeftStick' ? 'left' : 'right';
+          const diag = app.profile?.sticks?.[side]?.diagonals ? DIAGONALS : [];
+          return [...STICK_DIRS, ...diag].map((d) => s + d).concat(`${s}Low`);
+        }),
       },
       { id: 'triggers', controls: ['LT', 'RT', 'LTFull', 'RTFull'] },
       ...(drawn.has('Touchpad') ? [{ id: 'touchpad', controls: touchControls() }] : []),

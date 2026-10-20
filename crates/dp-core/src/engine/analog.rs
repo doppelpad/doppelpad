@@ -94,21 +94,21 @@ pub fn shape_stick((x, y): (f32, f32), cfg: &StickConfig) -> (f32, f32) {
     (ux * out, uy * out)
 }
 
-/// Which of the four direction controls are active for a vector, or none while it
-/// is shorter than `threshold`.
-pub fn directions((x, y): (f32, f32), threshold: f32, k: f32) -> [bool; 4] {
+/// Which direction controls are active for a vector (indexed by [`Dir`]), or none while
+/// it is shorter than `threshold`.
+pub fn directions((x, y): (f32, f32), threshold: f32, k: f32, diagonals: bool) -> [bool; 8] {
     if (x * x + y * y).sqrt() < threshold.max(1e-4) {
-        return [false; 4];
+        return [false; 8];
     }
-    sectors((x, y), k)
+    sectors((x, y), k, diagonals)
 }
 
-/// Which of the four directions a deflected stick points to.
+/// Which directions a deflected stick points to (indexed by [`Dir`]).
 ///
-/// Within `atan(k)` of an axis only that cardinal is active; in between, both
-/// cardinals are (4-way behaviour).
-pub fn sectors((x, y): (f32, f32), k: f32) -> [bool; 4] {
-    let mut d = [false; 4];
+/// Within `atan(k)` of an axis only that cardinal is active. In between, both cardinals
+/// are (4-way), or with `diagonals` only the diagonal (8-way).
+pub fn sectors((x, y): (f32, f32), k: f32, diagonals: bool) -> [bool; 8] {
+    let mut d = [false; 8];
     if x == 0.0 && y == 0.0 {
         return d;
     }
@@ -120,6 +120,8 @@ pub fn sectors((x, y): (f32, f32), k: f32) -> [bool; 4] {
         d[h as usize] = true;
     } else if pure_v {
         d[v as usize] = true;
+    } else if diagonals {
+        d[Dir::diagonal(v, h) as usize] = true;
     } else {
         d[h as usize] = true;
         d[v as usize] = true;
@@ -143,8 +145,32 @@ mod tests {
     const K: f32 = DIRECTION_SECTOR;
 
     fn dirs(v: (f32, f32)) -> Vec<Dir> {
-        let d = directions(v, 7849.0 / 32768.0, K);
-        Dir::ALL.into_iter().filter(|x| d[*x as usize]).collect()
+        dirs_with(v, false)
+    }
+
+    fn dirs_with(v: (f32, f32), diagonals: bool) -> Vec<Dir> {
+        let d = directions(v, 7849.0 / 32768.0, K, diagonals);
+        Dir::ALL8.into_iter().filter(|x| d[*x as usize]).collect()
+    }
+
+    #[test]
+    fn spec_eight_way_vectors() {
+        let n = |v: f32| v / 32768.0;
+        assert_eq!(dirs_with((n(30000.0), n(10000.0)), true), vec![Dir::Right]);
+        assert_eq!(
+            dirs_with((n(20000.0), n(20000.0)), true),
+            vec![Dir::UpRight]
+        );
+        assert_eq!(dirs_with((-0.7, -0.6), true), vec![Dir::DownLeft]);
+        assert_eq!(dirs_with((0.0, -1.0), true), vec![Dir::Down]);
+        // A narrower cardinal sector (10° each side) leaves more room for diagonals.
+        let k10 = 10f32.to_radians().tan();
+        let d = sectors((1.0, 0.25), k10, true);
+        assert!(
+            d[Dir::UpRight as usize],
+            "14° off the axis is diagonal at 10°"
+        );
+        assert!(sectors((1.0, 0.25), K, true)[Dir::Right as usize]);
     }
 
     #[test]
