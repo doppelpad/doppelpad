@@ -167,6 +167,19 @@ pub fn validate(p: &Profile) -> Diagnostics {
                 Action::Touch { ms: Some(ms), .. } if !(10..=10_000).contains(ms) => {
                     d.error(&path, "a touch gesture takes 10–10000 ms")
                 }
+                Action::MouseTo { mouse_to }
+                    if mouse_to.iter().any(|v| !(0.0..=1.0).contains(v)) =>
+                {
+                    d.error(&path, "mouse_to coordinates must be in [0, 1]")
+                }
+                Action::MouseClip { mouse_clip }
+                    if mouse_clip.iter().any(|v| !(0.0..=1.0).contains(v)) =>
+                {
+                    d.error(&path, "mouse_clip coordinates must be in [0, 1]")
+                }
+                Action::MouseMove { acceleration, .. } if !(0.0..=100.0).contains(acceleration) => {
+                    d.error(&path, "mouse acceleration must be 0–100")
+                }
                 _ => {}
             }
         }
@@ -214,7 +227,20 @@ pub fn validate(p: &Profile) -> Diagnostics {
     if mouse.turn_ms > 5000 {
         d.error("virtual.mouse.turn_ms", "must be at most 5000 ms");
     }
+    let [low, med, high] = p.mouse.zones;
+    if !(low > 0.0 && low < med && med < high) {
+        d.error(
+            "mouse.zones",
+            "low, med and high must be positive and increase",
+        );
+    }
     for (i, r) in p.analog.iter().enumerate() {
+        if !(0.0..1.0).contains(&r.snap) || r.noise_filter < 0.0 || r.acceleration < 0.0 {
+            d.error(
+                format!("analog[{i}]"),
+                "snap must be in [0, 1); noise_filter and acceleration not negative",
+            );
+        }
         let stick = matches!(r.source, AnalogSource::LeftStick | AnalogSource::RightStick);
         if r.target == AnalogTarget::Flick && !stick {
             d.warn(

@@ -831,6 +831,91 @@ fn touch_actions_play_on_the_virtual_touchpad() {
 }
 
 #[test]
+fn mouse_speed_zones() {
+    let mut p = Profile::default();
+    p.mappings.push(map(
+        Control::MouseZone(Some(Dir::Right), Zone::Med),
+        vec![key(Key::M)],
+    ));
+    p.mappings
+        .push(map(Control::MouseZone(None, Zone::High), vec![key(Key::H)]));
+    let mut h = Harness::new(p);
+    // 2 counts per ms = 2000 counts/s to the right: medium.
+    for _ in 0..100 {
+        h.pending_kbm.push(KbmEvent::MouseMove { dx: 2, dy: 0 });
+        h.t += 1;
+        h.tick();
+    }
+    assert!(h.e.is_output_down(Key::M) && !h.e.is_output_down(Key::H));
+    for _ in 0..100 {
+        h.pending_kbm.push(KbmEvent::MouseMove { dx: 4, dy: 0 });
+        h.t += 1;
+        h.tick();
+    }
+    assert!(h.e.is_output_down(Key::H), "4000 counts/s is high");
+}
+
+#[test]
+fn mouse_acceleration_wheel_repeat_and_absolute() {
+    let mut p = Profile::default();
+    p.virtual_devices.mouse.wheel_repeat_ms = 50;
+    p.mappings.push(map(
+        Control::Key(Key::A),
+        vec![Action::MouseMove {
+            mouse_move: Dir::Right,
+            speed: 100.0,
+            acceleration: 1.0,
+        }],
+    ));
+    p.mappings.push(map(
+        Control::Key(Key::W),
+        vec![Action::Wheel {
+            wheel: WheelDir::Up,
+            clicks: 1.0,
+        }],
+    ));
+    p.mappings.push(map(
+        Control::Key(Key::C),
+        vec![
+            Action::MouseTo {
+                mouse_to: [0.5, 0.5],
+            },
+            Action::MouseClip {
+                mouse_clip: [0.25, 0.25, 0.75, 0.75],
+            },
+        ],
+    ));
+    let mut h = Harness::new(p);
+    h.key(Key::A, true);
+    h.until(1001);
+    // 100 px/s growing to 200 px/s over the second: about 150 px.
+    assert!((h.mouse_moved.0 - 150.0).abs() < 3.0, "{}", h.mouse_moved.0);
+    h.key(Key::A, false);
+
+    let mut notches = 0;
+    h.key(Key::W, true);
+    let start = h.t;
+    while h.t < start + 199 {
+        h.t += 1;
+        h.tick();
+        notches += h.last.wheel.len();
+    }
+    h.key(Key::W, false);
+    assert_eq!(
+        notches, 3,
+        "repeats at 50, 100 and 150 ms after the first notch"
+    );
+
+    h.key(Key::C, true);
+    assert_eq!(h.last.mouse_to, Some((0.5, 0.5)));
+    h.until(h.t + 5);
+    assert_eq!(h.last.mouse_to, None, "the move is sent once");
+    assert_eq!(h.last.mouse_clip, Some([0.25, 0.25, 0.75, 0.75]));
+    h.key(Key::C, false);
+    assert_eq!(h.last.mouse_clip, None, "released with the mapping");
+}
+
+#[test]
 fn quick_key_tap_within_one_tick_is_not_lost() {
     let mut p = Profile::default();
     p.mappings.push(map(

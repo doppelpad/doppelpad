@@ -349,6 +349,8 @@ export function actionLabel(a: Action): string {
   if ('shake' in a) return `Shake ${a.shake.toUpperCase()}`;
   if ('turn' in a) return `Turn ${a.turn > 0 ? '+' : ''}${a.turn}°`;
   if ('touch' in a) return `Touch ${a.touch.replace(/_/g, ' ')}`;
+  if ('mouse_to' in a) return `Cursor to ${Math.round(a.mouse_to[0] * 100)}%, ${Math.round(a.mouse_to[1] * 100)}%`;
+  if ('mouse_clip' in a) return 'Keep cursor in area';
   if ('break' in a) return '⦀';
   if ('command' in a) {
     const c = a.command;

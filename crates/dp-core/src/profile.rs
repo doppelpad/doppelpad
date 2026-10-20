@@ -33,6 +33,9 @@ pub struct Profile {
     /// How the touchpad becomes region and gesture controls (`[touchpad]`).
     #[serde(skip_serializing_if = "is_default")]
     pub touchpad: TouchpadSettings,
+    /// The physical mouse as a source (`[mouse]`).
+    #[serde(skip_serializing_if = "is_default")]
+    pub mouse: MouseInput,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub layers: Vec<Layer>,
     pub mappings: Vec<Mapping>,
@@ -71,6 +74,23 @@ impl VirtualSticks {
         match s {
             Stick::Left => &self.left,
             Stick::Right => &self.right,
+        }
+    }
+}
+
+/// The physical mouse as a source of controls.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct MouseInput {
+    /// Speeds (counts per second) where the low, medium and high `MouseMove:*` zones start;
+    /// the low one is also where `MouseMove:Up` and the other directions start.
+    pub zones: [f32; 3],
+}
+
+impl Default for MouseInput {
+    fn default() -> Self {
+        MouseInput {
+            zones: [200.0, 1000.0, 3000.0],
         }
     }
 }
@@ -169,7 +189,8 @@ pub enum GyroSpace {
     Player,
 }
 
-/// How the game turns with mouse motion, for flick-stick routes and turn actions.
+/// The virtual mouse: how the game turns with it (flick-stick routes, turn actions) and how
+/// held wheel actions repeat.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct VirtualMouse {
@@ -177,6 +198,8 @@ pub struct VirtualMouse {
     pub counts_per_turn: f32,
     /// How long a flick or turn action takes.
     pub turn_ms: u32,
+    /// While a mapping holds a wheel action, repeat it this often (0 = once per press).
+    pub wheel_repeat_ms: u32,
 }
 
 impl Default for VirtualMouse {
@@ -184,6 +207,7 @@ impl Default for VirtualMouse {
         VirtualMouse {
             counts_per_turn: 18000.0,
             turn_ms: 100,
+            wheel_repeat_ms: 0,
         }
     }
 }
@@ -1122,6 +1146,9 @@ pub enum Action {
         mouse_move: Dir,
         #[serde(default = "default_mouse_speed")]
         speed: f32,
+        /// The speed grows by this much of itself per second held (up to 20 ×).
+        #[serde(default, skip_serializing_if = "is_default")]
+        acceleration: f32,
     },
     /// Wait inside a sequence.
     Pause { pause: u32 },
@@ -1139,6 +1166,11 @@ pub enum Action {
     /// Turn in the game by this many degrees (positive = right) with mouse motion, over
     /// `[virtual.mouse] turn_ms`.
     Turn { turn: f32 },
+    /// Move the cursor to a point of the primary screen (`[x, y]` in 0–1).
+    MouseTo { mouse_to: [f32; 2] },
+    /// Keep the cursor inside a rectangle of the primary screen (`[x1, y1, x2, y2]` in 0–1)
+    /// while the mapping is held.
+    MouseClip { mouse_clip: [f32; 4] },
     /// Play a gesture on the virtual controller's touchpad (DualShock 4), over `ms`
     /// (default 250, taps 60).
     Touch {
@@ -1404,6 +1436,16 @@ pub struct AnalogMapping {
     pub while_held: Vec<Control>,
     /// Consume the source (e.g. stop the stick from also reaching the virtual pad).
     pub consume: bool,
+    /// Mouse → stick: the stick returns to the centre when the mouse stops (spring); off, it
+    /// keeps its position like a joystick the mouse pushes around.
+    pub spring: bool,
+    /// Mouse → stick: motion under this many counts per tick is ignored.
+    pub noise_filter: f32,
+    /// Stick targets: deflections under this read as 0.
+    pub snap: f32,
+    /// Stick → mouse: at 90 % deflection or more the speed grows by this much of itself per
+    /// second, up to 4 ×.
+    pub acceleration: f32,
 }
 
 impl Default for AnalogMapping {
@@ -1424,6 +1466,10 @@ impl Default for AnalogMapping {
             trackball_friction: 0.0,
             while_held: Vec::new(),
             consume: true,
+            spring: true,
+            noise_filter: 0.0,
+            snap: 0.0,
+            acceleration: 0.0,
         }
     }
 }

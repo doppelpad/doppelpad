@@ -67,7 +67,9 @@ export type Action =
   | { wheel: WheelDir; clicks?: number }
   | { stick: StickName; x: number; y: number; absolute?: boolean; action?: Press }
   | { trigger: TriggerName; value?: number; action?: Press }
-  | { mouse_move: Dir; speed?: number }
+  | { mouse_move: Dir; speed?: number; acceleration?: number }
+  | { mouse_to: [number, number] }
+  | { mouse_clip: [number, number, number, number] }
   | { pause: number }
   | { rumble: number; low?: number; high?: number }
   | { shake: ShakeAxis }
@@ -193,6 +195,10 @@ export interface AnalogMapping {
   trackball_friction?: number;
   while_held?: ControlName[];
   consume?: boolean;
+  spring?: boolean;
+  noise_filter?: number;
+  snap?: number;
+  acceleration?: number;
 }
 
 /** Auto-repeat of keys that mappings hold: a mode or an interval in ms. */
@@ -230,7 +236,7 @@ export interface VirtualDevices {
   sticks?: VirtualSticks;
   motion?: { shake_g?: number; shake_ms?: number };
   /** How the game turns with mouse motion: counts for 360° and how long a turn takes. */
-  mouse?: { counts_per_turn?: number; turn_ms?: number };
+  mouse?: { counts_per_turn?: number; turn_ms?: number; wheel_repeat_ms?: number };
 }
 
 /** How the motion sensors become gyro controls and feed gyro routes. */
@@ -264,6 +270,8 @@ export interface Profile {
   triggers?: Triggers;
   gyro?: GyroSettings;
   touchpad?: TouchpadSettings;
+  /** The physical mouse as a source: speeds (counts/s) where its zones start. */
+  mouse?: { zones?: [number, number, number] };
   layers?: Layer[];
   mappings: Mapping[];
   analog?: AnalogMapping[];

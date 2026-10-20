@@ -7,12 +7,19 @@ use crate::profile::{
     AnalogMapping, AnalogSource, AnalogTarget, StickConfig, Sticks, VirtualMouse,
 };
 
+/// Stick → mouse acceleration starts at this deflection ...
+const ACCEL_FROM: f32 = 0.9;
+/// ... and makes the cursor at most this many times faster.
+const ACCEL_MAX: f32 = 4.0;
+
 /// Calibration constants: what `sensitivity = 1.0` means for each route.
 pub mod scale {
     /// Stick → mouse: cursor speed at full deflection, pixels per second.
     pub const STICK_MOUSE_PX_PER_S: f32 = 1000.0;
     /// Mouse → stick: mouse speed (counts per second) that gives full deflection.
     pub const MOUSE_STICK_COUNTS_PER_S: f32 = 2000.0;
+    /// Mouse → stick without spring: mouse counts from the centre to full deflection.
+    pub const MOUSE_STICK_COUNTS_FULL: f32 = 500.0;
     /// Gyro → mouse: pixels per degree of rotation.
     pub const GYRO_MOUSE_PX_PER_DEG: f32 = 10.0;
     /// Gyro → stick: rotation rate (degrees per second) that gives full deflection.
@@ -38,6 +45,10 @@ pub struct RouteState {
     flick_angle: f32,
     flick_left: f32,
     flick_rate: f32,
+    /// Stick → mouse: held at the edge since then (acceleration).
+    accel_since: Option<u64>,
+    /// Mouse → stick without spring: where the mouse has pushed the stick.
+    pos: (f32, f32),
 }
 
 pub struct RouteInput<'a> {
@@ -106,6 +117,9 @@ fn to_stick(r: &AnalogMapping, (x, y): (f32, f32)) -> RouteOutput {
         y /= mag;
     }
     let mag = mag.min(1.0);
+    if mag < r.snap {
+        return RouteOutput::Stick(stick, 0.0, 0.0);
+    }
     if mag > 0.0 && r.anti_deadzone > 0.0 {
         let lifted = r.anti_deadzone + (1.0 - r.anti_deadzone) * mag;
         x *= lifted / mag;
@@ -189,7 +203,16 @@ pub fn run(r: &AnalogMapping, st: &mut RouteState, input: &RouteInput) -> RouteO
                 AnalogTarget::Flick => flick(r, st, raw, input),
                 AnalogTarget::Mouse => {
                     let (x, y) = shape_vector(raw, r.deadzone, r.curve);
-                    let speed = scale::STICK_MOUSE_PX_PER_S * r.sensitivity;
+                    // Held at the edge, the speed grows (acceleration).
+                    let boost = if r.acceleration > 0.0 && x.hypot(y) >= ACCEL_FROM {
+                        let since = *st.accel_since.get_or_insert(input.now);
+                        let held = input.now.saturating_sub(since) as f32 / 1000.0;
+                        (1.0 + r.acceleration * held).min(ACCEL_MAX)
+                    } else {
+                        st.accel_since = None;
+                        1.0
+                    };
+                    let speed = scale::STICK_MOUSE_PX_PER_S * r.sensitivity * boost;
                     // Stick y is up-positive; the screen is y-down.
                     let v = smooth(
                         st,
@@ -213,7 +236,22 @@ pub fn run(r: &AnalogMapping, st: &mut RouteState, input: &RouteInput) -> RouteO
             if matches!(r.target, AnalogTarget::Mouse | AnalogTarget::Flick) || input.dt <= 0.0 {
                 return RouteOutput::None;
             }
-            let (dx, dy) = input.mouse;
+            let quiet = |v: f32| if v.abs() < r.noise_filter { 0.0 } else { v };
+            let (dx, dy) = (quiet(input.mouse.0), quiet(input.mouse.1));
+            if !r.spring {
+                // The mouse pushes the stick around and it stays where it was left.
+                let k = r.sensitivity / scale::MOUSE_STICK_COUNTS_FULL;
+                st.pos = (
+                    (st.pos.0 + dx * k * sx).clamp(-1.0, 1.0),
+                    (st.pos.1 - dy * k * sy).clamp(-1.0, 1.0),
+                );
+                let v = if r.curve != 1.0 {
+                    shape_vector(st.pos, 0.0, r.curve)
+                } else {
+                    st.pos
+                };
+                return to_stick(r, v);
+            }
             if dx != 0.0 || dy != 0.0 {
                 st.last_motion = input.now;
             } else if input.now.saturating_sub(st.last_motion) >= r.decay_ms as u64 {
@@ -376,6 +414,7 @@ mod tests {
     const TURN: VirtualMouse = VirtualMouse {
         counts_per_turn: 3600.0,
         turn_ms: 100,
+        wheel_repeat_ms: 0,
     };
 
     #[test]
@@ -438,6 +477,52 @@ mod tests {
         assert_eq!(turn(&pad, 1, &mut st), 0.0, "released: re-armed");
         pad.set_stick(Stick::Right, (-0.7, 0.0));
         assert!((turn(&pad, 20, &mut st) + 900.0).abs() < 0.01, "flick left");
+    }
+
+    #[test]
+    fn mouse_stick_without_spring_noise_and_snap() {
+        let sticks = Sticks::default();
+        let r = AnalogMapping {
+            source: AnalogSource::Mouse,
+            target: AnalogTarget::RightStick,
+            spring: false,
+            noise_filter: 2.0,
+            snap: 0.1,
+            ..Default::default()
+        };
+        let mut st = RouteState::default();
+        let mut step = |dx: f32| run(&r, &mut st, &input(None, &sticks, (dx, 0.0), 0));
+        // Under the noise filter: nothing moves.
+        assert_eq!(step(1.0), RouteOutput::Stick(Stick::Right, 0.0, 0.0));
+        // 25 counts = 5 % of full: below the snap.
+        assert_eq!(step(25.0), RouteOutput::Stick(Stick::Right, 0.0, 0.0));
+        // Another 225 counts: half way, and it stays there without motion.
+        assert_eq!(step(225.0), RouteOutput::Stick(Stick::Right, 0.5, 0.0));
+        assert_eq!(step(0.0), RouteOutput::Stick(Stick::Right, 0.5, 0.0));
+    }
+
+    #[test]
+    fn stick_mouse_accelerates_at_the_edge() {
+        let sticks = Sticks::default();
+        let mut pad = PadState::default();
+        pad.set_axis(Axis::RightX, 1.0);
+        let r = AnalogMapping {
+            deadzone: 0.0,
+            acceleration: 1.0,
+            ..Default::default()
+        };
+        let mut st = RouteState::default();
+        let at = |st: &mut RouteState, now| match run(
+            &r,
+            st,
+            &input(Some(&pad), &sticks, (0.0, 0.0), now),
+        ) {
+            RouteOutput::Mouse(x, _) => x,
+            other => panic!("{other:?}"),
+        };
+        assert_eq!(at(&mut st, 0), 10.0);
+        assert_eq!(at(&mut st, 1000), 20.0, "twice as fast after a second");
+        assert_eq!(at(&mut st, 5000), 40.0, "at most 4 ×");
     }
 
     #[test]

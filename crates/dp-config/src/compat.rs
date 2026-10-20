@@ -141,6 +141,12 @@ fn gamepad_control(id: i64) -> Option<Control> {
         50 => StickDir(Stick::Right, Dir::Right),
         51 => TriggerPress(Trigger::Left),
         55 => TriggerPress(Trigger::Right),
+        61..=63 => MouseZone(None, zone(61)),
+        // Mouse zone × direction: low up/down/left/right, then med, then high.
+        133..=144 => {
+            let i = (id - 133) as usize;
+            MouseZone(Some(Dir::ALL[i % 4]), ZONES[i / 4])
+        }
         64 => MouseMove(Dir::Up),
         65 => MouseMove(Dir::Down),
         66 => MouseMove(Dir::Left),
@@ -456,6 +462,8 @@ struct Importer<'a> {
     split_touch: bool,
     /// Touchpad regions only while the pad is clicked.
     touch_click_required: bool,
+    /// Speed (px/s) and acceleration of button-driven mouse motion, from the virtual mouse.
+    mouse_speed: (f32, f32),
 }
 
 /// Recognize the format's encoding of shift keys and fold each pair into one
@@ -528,6 +536,7 @@ pub fn import(json: &str) -> Result<(Profile, Diagnostics), ImportError> {
         gyro_tilt: false,
         split_touch: false,
         touch_click_required: false,
+        mouse_speed: (1000.0, 4.0),
     };
     let profile = imp.run();
     Ok((profile, imp.diags))
@@ -586,7 +595,8 @@ impl<'a> Importer<'a> {
         fold_jump_pairs(&mut p.mappings);
         self.virtual_sticks(&mut p);
         if let Some(turn) = self.turn.take() {
-            p.virtual_devices.mouse = turn;
+            p.virtual_devices.mouse.counts_per_turn = turn.counts_per_turn;
+            p.virtual_devices.mouse.turn_ms = turn.turn_ms;
         }
         if self.gyro_tilt {
             p.gyro.mode = GyroMode::Tilt;
@@ -679,6 +689,14 @@ impl<'a> Importer<'a> {
                 if let Some(s) = int(stick, "smoothing") {
                     route.smoothing_ms = (s.clamp(0, 100) * 4) as u32;
                 }
+                // Spring mode is the format's default; the noise filter defaults to 3.
+                route.spring = get(stick, "springMode")
+                    .and_then(Value::as_bool)
+                    .unwrap_or(true);
+                route.noise_filter = int(stick, "noiseFilter").unwrap_or(3).clamp(1, 20) as f32;
+                if let Some(z) = int(stick, "snapZone") {
+                    route.snap = (z as f32 / AXIS_MAX).clamp(0.0, 0.9);
+                }
                 self.diags.info(
                     format!("{path}.default.stick"),
                     "mouse-as-stick imported as a mouse → right stick route; tune its sensitivity",
@@ -713,6 +731,26 @@ impl<'a> Importer<'a> {
                 "only the first virtual gamepad is used; gamepad outputs in this format do not say which one they mean. To drive a second virtual controller, give that physical controller slots of its own",
             );
         }
+        // Virtual mouse: button-driven speed starts at deflection · 125 · sensitivity / 4 px/s
+        // and grows by acceleration / 2 of itself per second; the wheel repeats every
+        // (17 − wheelDeflection) · 20 ms while held. Absent values are the format's defaults.
+        let mouse = virt
+            .and_then(|v| get(v, "mouse"))
+            .and_then(|m| get(m, "config"))
+            .cloned()
+            .unwrap_or(Value::Null);
+        let in_range = |key: &str, max: i64| int(&mouse, key).filter(|v| (1..=max).contains(v));
+        let sensitivity = in_range("sensitivity", 100).unwrap_or(4) as f32;
+        let deflection = in_range("deflection", 16).unwrap_or(8) as f32;
+        let acceleration = int(&mouse, "acceleration")
+            .filter(|v| (0..=16).contains(v))
+            .unwrap_or(8);
+        self.mouse_speed = (
+            deflection * 125.0 * sensitivity / 4.0,
+            acceleration as f32 / 2.0,
+        );
+        let wheel = in_range("wheelDeflection", 16).unwrap_or(13);
+        p.virtual_devices.mouse.wheel_repeat_ms = ((17 - wheel) * 20) as u32;
         // Only the four combinations the editor offers mean something; others stay native.
         if let Some(cfg) = virt
             .and_then(|v| get(v, "keyboard"))
@@ -1098,7 +1136,9 @@ impl<'a> Importer<'a> {
                 (Some(DeviceKind::Mouse), Some(id)) => mouse_button(id)
                     .map(Control::Mouse)
                     .or_else(|| match gamepad_control(id) {
-                        c @ Some(Control::MouseMove(_) | Control::Wheel(_)) => c,
+                        c @ Some(
+                            Control::MouseMove(_) | Control::MouseZone(..) | Control::Wheel(_),
+                        ) => c,
                         _ => None,
                     }),
             };
@@ -1472,9 +1512,11 @@ impl<'a> Importer<'a> {
                     let turn = if d == Dir::Left { -90.0 } else { 90.0 };
                     return Some(Action::Turn { turn });
                 }
+                let (speed, acceleration) = self.mouse_speed;
                 return Some(Action::MouseMove {
                     mouse_move: screen,
-                    speed: 800.0,
+                    speed,
+                    acceleration,
                 });
             }
             if let Some(w) = enum_str(ms, "wheel").as_deref().and_then(wheel_of) {
@@ -1754,8 +1796,10 @@ mod tests {
             p.mappings[2].actions[0],
             Action::MouseMove {
                 mouse_move: Dir::Up,
-                speed: 800.0
-            }
+                speed: 1000.0,
+                acceleration: 4.0
+            },
+            "the format's default speed and acceleration"
         );
         assert_eq!(
             p.mappings[3].trigger.0[0],
@@ -2291,6 +2335,34 @@ mod tests {
         let toml = crate::to_toml(&p);
         assert!(toml.contains("touch = \"swipe2_left\""), "{toml}");
         assert_eq!(crate::parse_toml(&toml).unwrap(), p);
+    }
+
+    #[test]
+    fn mouse_extras() {
+        let doc = r#"{ "schemaVersion": 3.0, "config": { "appName": "x" },
+          "devices": { "hardware": [ { "id": 1, "name": "gamepad" },
+              { "id": 2, "name": "mouse", "default": { "stick": { "springMode": false, "noiseFilter": 5, "snapZone": 3277 } } } ],
+            "virtual": { "mouse": { "config": { "sensitivity": 8, "deflection": 4, "acceleration": 0, "wheelDeflection": 7 } } } },
+          "masks": [ { "id": 1, "set": [ { "deviceId": 2, "buttonId": 62 } ] }, { "id": 2, "set": [ { "deviceId": 2, "buttonId": 141 } ] } ],
+          "mappings": [
+            { "condition": { "mask": { "id": 1, "activator": { "type": "single", "mode": "hold_until_release" } } }, "macros": [ { "mouse": { "direction": "left" } } ] },
+            { "condition": { "mask": { "id": 2, "activator": { "type": "single", "mode": "hold_until_release" } } }, "macros": [ { "keyboard": { "buttonId": 30, "description": "DIK_A" } } ] }
+          ] }"#;
+        let (p, diags) = import(doc).unwrap();
+        assert!(!diags.has_errors(), "{diags:?}");
+        let r = &p.analog[0];
+        assert!(!r.spring && r.noise_filter == 5.0 && (r.snap - 0.1).abs() < 0.001);
+        assert_eq!(p.virtual_devices.mouse.wheel_repeat_ms, 200);
+        assert_eq!(
+            p.mappings[0].actions,
+            vec![Action::MouseMove {
+                mouse_move: Dir::Left,
+                speed: 1000.0,
+                acceleration: 0.0
+            }]
+        );
+        let triggers: Vec<String> = p.mappings.iter().map(|m| m.trigger.to_string()).collect();
+        assert_eq!(triggers, ["MouseMove:Med", "MouseMove:UpHigh"]);
     }
 
     #[test]

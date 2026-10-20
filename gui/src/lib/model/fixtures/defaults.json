@@ -36,7 +36,11 @@
     "decay_ms": 40,
     "trackball_friction": 0.0,
     "while_held": [],
-    "consume": true
+    "consume": true,
+    "spring": true,
+    "noise_filter": 0.0,
+    "snap": 0.0,
+    "acceleration": 0.0
   },
   "virtual_stick": {
     "initial": 1.0,

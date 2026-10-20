@@ -341,17 +341,21 @@ export type RouteField =
   | 'smoothing_ms'
   | 'decay_ms'
   | 'trackball_friction'
+  | 'snap'
+  | 'noise_filter'
+  | 'acceleration'
+  | 'spring'
   | 'consume';
 
 /** What the engine reads per route; `consume` only acts on stick and mouse sources. */
 const ROUTE_FIELDS: Record<string, RouteField[]> = {
-  'stick>mouse': ['curve', 'deadzone', 'smoothing_ms', 'consume'],
-  'stick>stick': ['deadzone', 'anti_deadzone', 'consume'],
-  'mouse>stick': ['curve', 'anti_deadzone', 'smoothing_ms', 'decay_ms', 'consume'],
+  'stick>mouse': ['curve', 'deadzone', 'smoothing_ms', 'acceleration', 'consume'],
+  'stick>stick': ['deadzone', 'anti_deadzone', 'snap', 'consume'],
+  'mouse>stick': ['curve', 'anti_deadzone', 'snap', 'smoothing_ms', 'decay_ms', 'noise_filter', 'spring', 'consume'],
   'gyro>mouse': ['smoothing_ms'],
-  'gyro>stick': ['anti_deadzone', 'smoothing_ms'],
+  'gyro>stick': ['anti_deadzone', 'snap', 'smoothing_ms'],
   'touchpad>mouse': ['trackball_friction'],
-  'touchpad>stick': ['curve', 'deadzone', 'anti_deadzone'],
+  'touchpad>stick': ['curve', 'deadzone', 'anti_deadzone', 'snap'],
   'stick>flick': ['deadzone', 'smoothing_ms', 'consume'],
 };
 

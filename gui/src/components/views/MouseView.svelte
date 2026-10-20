@@ -13,7 +13,10 @@
     {
       id: 'mouse_move',
       // Mapping a diagonal makes mouse motion tell eight directions apart.
-      controls: ['Up', 'Down', 'Left', 'Right', 'UpLeft', 'UpRight', 'DownLeft', 'DownRight'].map((d) => `MouseMove:${d}`),
+      controls: [
+        ...['Up', 'Down', 'Left', 'Right', 'UpLeft', 'UpRight', 'DownLeft', 'DownRight'].map((d) => `MouseMove:${d}`),
+        ...['Low', 'Med', 'High'].map((z) => `MouseMove:${z}`),
+      ],
     },
   ];
 

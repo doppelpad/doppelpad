@@ -40,6 +40,9 @@ deadzone = 0.0
 zones = { low = 0.03 }       # where LT / RT and the zones start (see Zones)
 full_pull = 0.99             # LTFull / RTFull controls
 
+[mouse]
+zones = [200.0, 1000.0, 3000.0]   # counts/s where MouseMove:Low/Med/High start (Low also starts the directions)
+
 [touchpad]
 split = false                # left and right halves are two trackpads (Trackpad* controls)
 zones = "radial"             # "radial" (sectors around the centre) | "grid" (3 × 3 cells)
@@ -135,6 +138,7 @@ every 25 ms; only a virtual DualShock 4 has motion sensors.
 | `Mouse:Left` `Mouse:Right` `Mouse:Middle` `Mouse:X1` `Mouse:X2` | Mouse buttons |
 | `Wheel:Up` `Wheel:Down` `Wheel:Left` `Wheel:Right` | One wheel notch (50 ms pulse) |
 | `MouseMove:Up` … `MouseMove:DownRight` | Physical mouse moving in a direction; mapping a diagonal makes the mouse tell eight directions apart (otherwise a diagonal movement triggers two) |
+| `MouseMove:Low` `MouseMove:Med` `MouseMove:High`, `MouseMove:UpHigh` … | Mouse moving at a zone's speed (`[mouse] zones`, counts/s), any direction or one |
 
 `trigger` is one control (`"A"`) or a combo (`["LB", "RB"]`, up to 4). A combo may mix devices,
 such as `["Key:LeftAlt", "Key:W"]`.
@@ -254,7 +258,8 @@ Several mappings can share a trigger with different activators.
 | Wheel | `{ wheel = "up", clicks = 1 }` |
 | Stick deflection | `{ stick = "left", x = 0.0, y = 1.0 }` (up is +y); added to the physical stick. `absolute = true` sets the axes it names (both when centred) instead, so the physical stick and routes do not reach them. Held in a hold mapping, a small relative pull such as `{ stick = "right", x = 0.0, y = -0.15 }` on `RT` works as anti-recoil |
 | Trigger pull | `{ trigger = "right", value = 0.5 }` |
-| Mouse movement | `{ mouse_move = "right", speed = 800 }` (pixels/s while active) |
+| Mouse movement | `{ mouse_move = "right", speed = 800, acceleration = 1.0 }` (pixels/s while active; `acceleration` adds that much of the speed per second held, up to 20 ×) |
+| Cursor position | `{ mouse_to = [0.5, 0.5] }` moves the cursor to a point of the primary screen (fractions); `{ mouse_clip = [0.25, 0.25, 0.75, 0.75] }` keeps it inside a rectangle while held. Windows only |
 | Pause | `{ pause = 250 }` (ms) |
 | Rumble | `{ rumble = 150, low = 0.8, high = 0.8 }` |
 | Turn | `{ turn = -90.0 }`: turns in the game by that many degrees with mouse motion (positive = right), see `[virtual.mouse]` |
@@ -353,6 +358,10 @@ decay_ms = 40            # mouse → stick: recentre after this long without mot
 trackball_friction = 0.0 # touchpad → mouse: glide after lift-off (1 = no glide)
 while_held = ["LT"]      # only while these controls are held
 consume = true           # stop the source from also reaching the virtual pad / cursor
+spring = true            # mouse → stick: return to the centre when the mouse stops
+noise_filter = 0.0       # mouse → stick: ignore motion of fewer counts per tick
+snap = 0.0               # stick targets: smaller deflections read as centred
+acceleration = 0.0       # stick → mouse: at 90 % or more, speed up by this much per second (≤ 4 ×)
 invert_x = false
 invert_y = false
 ```
@@ -379,6 +388,7 @@ below:
 [virtual.mouse]
 counts_per_turn = 18000.0   # mouse counts for one full 360° turn in this game
 turn_ms = 100               # how long a flick or turn action takes
+wheel_repeat_ms = 0         # held wheel actions repeat this often (0 = once per press)
 ```
 
 The GUI's *Test a full turn* sends `counts_per_turn` after 3 seconds; tune it until the game

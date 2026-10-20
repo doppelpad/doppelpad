@@ -90,6 +90,9 @@ them), and the game's rumble and light bar colour come back to the physical cont
 (after half a second, about 30 times per second), *Fast*, *Slow*, *Never* or a custom
 interval. Only the last pressed key repeats.
 
+**Mouse** sets how often held wheel actions repeat (0: once per press) and the speeds where
+the physical mouse's zones (`MouseMove:Low`, `…Med`, `…High`) start.
+
 **Turns** sets how the game turns with mouse motion, for flick stick routes and turn actions
 (*Turn left 90°*, *Turn right 90°*, *Turn around 180°* in the mouse tab of the action picker):
 *Counts per 360°* and *Turn time*. *Test a full turn* turns once around after 3 seconds, so you
@@ -203,6 +206,9 @@ A route shows only the settings it uses:
 | *Deadzone* | stick → mouse, stick → stick, touchpad → stick |
 | *Anti-deadzone* | routes to a stick |
 | *Smoothing* | stick → mouse, mouse → stick, gyro → mouse or stick |
+| *Acceleration at the edge* | stick → mouse: held at 90 % or more, the cursor speeds up (up to 4 ×) |
+| *Snap to centre below* | routes to a stick |
+| *Noise filter*, *Spring back to centre* | mouse → stick (without the spring the stick stays where the mouse left it) |
 | *Recentre after* | mouse → stick |
 | *Trackball friction* (100 % = no glide after lift-off) | touchpad → mouse |
 | *Keep the stick from also reaching the virtual controller* / *Keep the mouse from also moving the cursor* | stick and mouse sources |

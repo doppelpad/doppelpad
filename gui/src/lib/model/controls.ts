@@ -138,7 +138,12 @@ export function controlLabel(c: ControlName, family: PadFamily | null): string {
   if (c.startsWith('Key:')) return c.slice(4);
   if (c.startsWith('Mouse:')) return t(`controls.mouse.${c.slice(6).toLowerCase()}`);
   if (c.startsWith('Wheel:')) return `${t('picker.mouse_wheel')} ${t(`dirs.${c.slice(6).toLowerCase()}`)}`;
-  if (c.startsWith('MouseMove:')) return `${t('picker.mouse_move')} ${t(`dirs.${dirKey(c.slice(10))}`)}`;
+  if (c.startsWith('MouseMove:')) {
+    const m = /^MouseMove:(UpLeft|UpRight|DownLeft|DownRight|Up|Down|Left|Right)?(Low|Med|High)?$/.exec(c);
+    const dir = m?.[1] ? ` ${t(`dirs.${dirKey(m[1])}`)}` : '';
+    const zone = m?.[2] ? ` · ${t(`zones.in.${m[2].toLowerCase()}`)}` : '';
+    return `${t('picker.mouse_move')}${dir}${zone}`;
+  }
   const zp = zoneParts(c);
   if (zp?.zone) return `${zoneBaseLabel(zp.base, family)} · ${t(`zones.in.${zp.zone.toLowerCase()}`)}`;
   const sd = splitStickDir(c);

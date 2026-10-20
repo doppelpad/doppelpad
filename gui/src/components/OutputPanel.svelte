@@ -4,7 +4,7 @@
   import { t } from '../lib/i18n/index.svelte';
   import { setProfileTiming, setVirtualDevice, type TimingField } from '../lib/model/profile';
   import { app } from '../lib/state/app.svelte';
-  import type { KeyRepeat, Output, VirtualPadType } from '../lib/types';
+  import type { KeyRepeat, Output, Profile, VirtualPadType } from '../lib/types';
   import Toggle from './ui/Toggle.svelte';
 
   /** Profile-wide timing; mappings can override all but the shortcut window. */
@@ -19,16 +19,33 @@
   }
 
   /** How the game turns with mouse motion: flick stick and turn actions. */
-  const TURN = { counts_per_turn: 18000, turn_ms: 100 };
+  const TURN = { counts_per_turn: 18000, turn_ms: 100, wheel_repeat_ms: 0 };
   const turn = $derived({ ...TURN, ...app.profile?.virtual?.mouse });
 
   function setTurn(field: keyof typeof TURN, raw: string) {
     if (!app.profile) return;
     const n = Math.round(Number(raw.replace(',', '.')));
-    const ok = field === 'turn_ms' ? n >= 0 && n <= 5000 : n > 0;
+    const ok = field === 'counts_per_turn' ? n > 0 : n >= 0 && n <= 5000;
     const next = { ...turn, [field]: Number.isFinite(n) && ok ? n : TURN[field] };
-    const isDefault = next.counts_per_turn === TURN.counts_per_turn && next.turn_ms === TURN.turn_ms;
+    const isDefault = (Object.keys(TURN) as (keyof typeof TURN)[]).every((k) => next[k] === TURN[k]);
     app.update(setVirtualDevice(app.profile, 'mouse', isDefault ? undefined : next));
+  }
+
+  /** Speeds (counts/s) where the physical mouse's zones start. */
+  const MOUSE_ZONES: [number, number, number] = [200, 1000, 3000];
+  const mouseZones = $derived(app.profile?.mouse?.zones ?? MOUSE_ZONES);
+
+  function setMouseZone(i: number, raw: string) {
+    if (!app.profile) return;
+    const n = Math.round(Number(raw));
+    if (!Number.isFinite(n) || n <= 0) return;
+    const z = [...mouseZones] as [number, number, number];
+    z[i] = n;
+    for (let j = i + 1; j < 3; j++) z[j] = Math.max(z[j], z[j - 1] + 1);
+    for (let j = i - 1; j >= 0; j--) z[j] = Math.min(z[j], z[j + 1] - 1);
+    const p: Profile = { ...app.profile, mouse: { zones: z } };
+    if (z.every((v, j) => v === MOUSE_ZONES[j])) delete p.mouse;
+    app.update(p);
   }
 
   async function testTurn() {
@@ -159,6 +176,38 @@
     {/if}
   </label>
   <p class="hint">{t(`output.repeat_hint.${typeof repeat === 'number' ? 'custom' : repeat}`)}</p>
+
+  <div class="label timing-label">{t('output.mouse')}</div>
+  <p class="hint">{t('output.mouse_hint')}</p>
+  <div class="timing">
+    <label class="field">
+      <span class="fl">{t('output.wheel_repeat')}</span>
+      <input
+        type="number"
+        min="0"
+        max="1000"
+        step="10"
+        value={turn.wheel_repeat_ms}
+        disabled={app.readOnly}
+        onchange={(e) => setTurn('wheel_repeat_ms', e.currentTarget.value)}
+      />
+      <span class="unit">{t('common.ms')}</span>
+    </label>
+    {#each ['low', 'med', 'high'] as level, i (level)}
+      <label class="field">
+        <span class="fl">{t(`output.mouse_zone_${level}`)}</span>
+        <input
+          type="number"
+          min="1"
+          step="50"
+          value={mouseZones[i]}
+          disabled={app.readOnly}
+          onchange={(e) => setMouseZone(i, e.currentTarget.value)}
+        />
+        <span class="unit">/s</span>
+      </label>
+    {/each}
+  </div>
 
   <div class="label timing-label">{t('output.turns')}</div>
   <p class="hint">{t('output.turns_hint')}</p>
