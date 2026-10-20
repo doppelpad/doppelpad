@@ -58,13 +58,15 @@
     "keyboard": "Keyboard",
     "mouse": "Mouse",
     "shortcuts": "Shortcuts",
-    "output": "Output device",
+    "output": "Config settings",
     "analog": "Analog",
     "groups": {
       "buttons": "Buttons",
       "sticks": "Sticks",
       "triggers": "Triggers",
-      "back": "Shoulder and back buttons"
+      "back": "Shoulder and back buttons",
+      "touchpad": "Touchpad",
+      "gyro": "Motion (gyro)"
     },
     "as_list": "Show as list",
     "as_drawing": "Show the drawing"
@@ -80,7 +82,13 @@
     "remove": "Remove layer",
     "name_prompt": "Name of the layer",
     "inherit": "Unmapped controls use Main",
-    "more": "More layers ({n})"
+    "more": "More layers ({n})",
+    "settings": "Layer settings",
+    "settings_title": "Settings of {layer}",
+    "inherit_hint_on": "Controls this layer does not map do what they do on Main.",
+    "inherit_hint_off": "Controls this layer does not map do nothing while it is active.",
+    "inherited_list": "Taken over from Main",
+    "inherit_none": "Main has no mappings yet."
   },
   "output": {
     "title": "Output device",
@@ -92,7 +100,17 @@
     "passthrough": "Pass unmapped controls through",
     "mute_mapped": "Block the original keys and buttons that are remapped",
     "driver_missing": "{driver} is not installed — this config cannot be applied yet.",
-    "hide_missing": "HidHide is not installed — games will still see the physical controller."
+    "hide_missing": "HidHide is not installed — games will still see the physical controller.",
+    "timing": "Timing",
+    "timing_hint": "Defaults for every mapping of this config; a mapping's own timing wins. Empty fields use the built-in default.",
+    "timing_fields": {
+      "combo_window_ms": "Shortcut window",
+      "long_press_ms": "Long-press time",
+      "double_tap_ms": "Double-press window",
+      "triple_tap_ms": "Triple-press window",
+      "turbo_ms": "Turbo period",
+      "key_delay_ms": "Delay between keys"
+    }
   },
   "binding": {
     "choose": "Click a control on the controller or press it to map it",
@@ -116,6 +134,11 @@
     "macro": "Macro editor",
     "delete": "Delete mapping",
     "stick_choose": "Which direction of the stick?",
+    "touch_choose": "Which part of the touchpad?",
+    "gyro_choose": "Which way of tilting or turning?",
+    "gyro": "Gyro",
+    "touch_settings": "Touchpad as mouse",
+    "gyro_settings": "Gyro aiming",
     "click": "Click",
     "stick_settings": "Stick settings",
     "stick_settings_hint": "Deadzone, curve, sensitivity, routes",
@@ -139,6 +162,7 @@
     "low": "Low",
     "med": "Medium",
     "high": "High",
+    "full": "Full pull",
     "in": {
       "low": "low zone",
       "med": "medium zone",
@@ -150,7 +174,8 @@
       "whole": "Active as soon as the control leaves its deadzone, however far it is moved.",
       "low": "Active while the control is moved only a little, up to where the medium zone starts.",
       "med": "Active in the middle of the range, between the medium and the high threshold.",
-      "high": "Active while the control is moved far, from the high threshold to the end."
+      "high": "Active while the control is moved far, from the high threshold to the end.",
+      "full": "Active only while the trigger is pulled all the way, past its full-pull point."
     },
     "thresholds": "Zone thresholds",
     "thresholds_hint": "Where each zone starts, in % of the full range. Empty fields use the default or split the rest evenly.",
@@ -444,6 +469,14 @@
     "LTFull": "Left trigger (full pull)",
     "RTFull": "Right trigger (full pull)",
     "Touchpad": "Touchpad click",
+    "touch": {
+      "up": "Touchpad top",
+      "down": "Touchpad bottom",
+      "left": "Touchpad left",
+      "right": "Touchpad right",
+      "center": "Touchpad centre"
+    },
+    "gyro": "Gyro {dir}",
     "PaddleUL": "Upper left paddle",
     "PaddleUR": "Upper right paddle",
     "PaddleLL": "Lower left paddle",

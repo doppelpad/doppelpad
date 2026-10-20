@@ -7,12 +7,17 @@ import {
   copyLayer,
   effectiveMappings,
   findMapping,
+  inheritableTriggers,
+  layerInheritance,
   layerIds,
   mappingSummary,
   nativeAction,
   pasteLayer,
   removeLayer,
   removeMapping,
+  setLayerInherit,
+  setProfileTiming,
+  setTriggerInherited,
   shortcutMembers,
   shortcuts,
   tidyMapping,
@@ -145,5 +150,40 @@ describe('native outputs', () => {
       expect(nativeAction(c)).toBeNull();
     }
     expect(nativeAction('Touchpad')).toEqual({ pad: 'Touchpad' });
+  });
+});
+
+describe('layer inheritance', () => {
+  it('declares a layer when its inheritance changes', () => {
+    const p = setLayerInherit(base(), 1, false);
+    expect(p.layers).toEqual([{ id: 1, inherit: false }]);
+    expect(layerInheritance(p, 1).inherit).toBe(false);
+    expect(effectiveMappings(p, 1, 'B').mappings).toEqual([]);
+    expect(layerInheritance(base(), 2)).toEqual({ inherit: true, notInherited: [] });
+  });
+
+  it('keeps single triggers of Main out of a layer and lets them back in', () => {
+    let p = setTriggerInherited(base(), 1, ['RB', 'LB'], false);
+    expect(p.layers).toEqual([{ id: 1, inherit: true, not_inherited: [['LB', 'RB']] }]);
+    expect(effectiveMappings(p, 1, ['LB', 'RB']).mappings).toEqual([]);
+    expect(effectiveMappings(p, 1, 'B').inherited).toBe(true);
+    p = setTriggerInherited(p, 1, ['LB', 'RB'], true);
+    expect(p.layers).toEqual([{ id: 1, inherit: true }]);
+  });
+
+  it('lists what Main maps, each trigger once', () => {
+    const p = upsertMapping(base(), { trigger: 'A', activator: 'long', actions: [{ key: 'Q' }] });
+    expect(inheritableTriggers(p).map(comboKey)).toEqual(['A', 'B', 'LB', 'LB+RB']);
+  });
+});
+
+describe('profile timing', () => {
+  it('sets and resets single values', () => {
+    let p = setProfileTiming(base(), 'combo_window_ms', 80);
+    expect(p.timing).toEqual({ combo_window_ms: 80 });
+    p = setProfileTiming(p, 'turbo_ms', 100);
+    p = setProfileTiming(p, 'combo_window_ms', undefined);
+    expect(p.timing).toEqual({ turbo_ms: 100 });
+    expect(setProfileTiming(p, 'turbo_ms', undefined).timing).toBeUndefined();
   });
 });

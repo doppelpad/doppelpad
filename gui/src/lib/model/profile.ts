@@ -14,6 +14,7 @@ import type {
   MouseButtonName,
   PadButtonName,
   Profile,
+  Timing,
   WheelDir,
 } from '../types';
 
@@ -176,6 +177,57 @@ export function renameLayer(p: Profile, id: number, name: string): Profile {
   if (i >= 0) layers[i] = { ...layers[i], name };
   else layers.push({ id, name, inherit: true });
   return { ...p, layers };
+}
+
+/** How a layer inherits from Main (layers that are not declared inherit everything). */
+export function layerInheritance(p: Profile, id: number): { inherit: boolean; notInherited: Combo[] } {
+  const decl = declaredLayer(p, id);
+  return { inherit: decl?.inherit ?? true, notInherited: decl?.not_inherited ?? [] };
+}
+
+/** Change a layer's declaration, declaring it first if needed. */
+function patchLayer(p: Profile, id: number, patch: (l: Layer) => Layer): Profile {
+  const layers = [...(p.layers ?? [])];
+  const i = layers.findIndex((l) => l.id === id);
+  const next = patch(i >= 0 ? { ...layers[i] } : { id, inherit: true });
+  if (next.not_inherited && next.not_inherited.length === 0) delete next.not_inherited;
+  if (i >= 0) layers[i] = next;
+  else layers.push(next);
+  return { ...p, layers };
+}
+
+/** Whether a layer takes over Main's mappings for the controls it does not map itself. */
+export function setLayerInherit(p: Profile, id: number, inherit: boolean): Profile {
+  return patchLayer(p, id, (l) => ({ ...l, inherit }));
+}
+
+/** Let one trigger of Main reach a layer (or keep it out). */
+export function setTriggerInherited(p: Profile, id: number, combo: Combo, inherited: boolean): Profile {
+  return patchLayer(p, id, (l) => {
+    const rest = (l.not_inherited ?? []).filter((c) => !sameCombo(c, combo));
+    return { ...l, not_inherited: inherited ? rest : [...rest, toCombo(comboList(combo))] };
+  });
+}
+
+/** Triggers mapped on Main, each once, in a stable order: what a layer can inherit. */
+export function inheritableTriggers(p: Profile): Combo[] {
+  const seen = new Map<string, Combo>();
+  for (const m of p.mappings) {
+    if (layerOf(m) === 0 && !seen.has(comboKey(m.trigger))) seen.set(comboKey(m.trigger), m.trigger);
+  }
+  return [...seen.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([, c]) => c);
+}
+
+export type TimingField = keyof Timing;
+
+/** Set (or with `undefined` reset to the default) one profile-wide timing value. */
+export function setProfileTiming(p: Profile, field: TimingField, value: number | undefined): Profile {
+  const timing: Timing = { ...(p.timing ?? {}) };
+  if (value === undefined) delete timing[field];
+  else timing[field] = value;
+  const out: Profile = { ...p, timing };
+  if (Object.keys(timing).length === 0) delete out.timing;
+  return out;
 }
 
 /** Remove a layer, its mappings and routes, and jumps that lead to it. */

@@ -3,7 +3,16 @@
   // without a drawing, and as an accessible alternative to the drawing.
   import { DEVICE_LAYOUTS, type DeviceId } from '../../assets/devices/layouts';
   import { t } from '../../lib/i18n/index.svelte';
-  import { controlLabel, zoneBaseLabel, zoneFamily, zoneParts, zoneTag } from '../../lib/model/controls';
+  import {
+    controlLabel,
+    gyroControls,
+    touchControls,
+    zoneBaseLabel,
+    zoneFamily,
+    zoneParts,
+    zoneTag,
+  } from '../../lib/model/controls';
+  import { hasMotion } from '../../lib/model/devices';
   import { effectiveMappings, mappingSummary } from '../../lib/model/profile';
   import { app } from '../../lib/state/app.svelte';
   import type { ControlName } from '../../lib/types';
@@ -28,6 +37,8 @@
         controls: ['LeftStick', 'RightStick'].flatMap((s) => [...STICK_DIRS.map((d) => s + d), `${s}Low`]),
       },
       { id: 'triggers', controls: ['LT', 'RT', 'LTFull', 'RTFull'] },
+      ...(drawn.has('Touchpad') ? [{ id: 'touchpad', controls: touchControls() }] : []),
+      ...(hasMotion(device) ? [{ id: 'gyro', controls: gyroControls() }] : []),
     ];
   });
 

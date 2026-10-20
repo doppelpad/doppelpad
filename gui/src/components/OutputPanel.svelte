@@ -1,9 +1,19 @@
 <script lang="ts">
   import { Gamepad2, Keyboard, TriangleAlert } from '@lucide/svelte';
   import { t } from '../lib/i18n/index.svelte';
+  import { setProfileTiming, type TimingField } from '../lib/model/profile';
   import { app } from '../lib/state/app.svelte';
   import type { Output, VirtualPadType } from '../lib/types';
   import Toggle from './ui/Toggle.svelte';
+
+  /** Profile-wide timing; mappings can override all but the shortcut window. */
+  const TIMING: TimingField[] = ['combo_window_ms', 'long_press_ms', 'double_tap_ms', 'triple_tap_ms', 'turbo_ms', 'key_delay_ms'];
+
+  function setTiming(field: TimingField, raw: string) {
+    if (!app.profile) return;
+    const n = parseInt(raw, 10);
+    app.update(setProfileTiming(app.profile, field, Number.isFinite(n) && n >= 0 ? n : undefined));
+  }
 
   const out = $derived<Required<Output>>({
     ...(app.catalog?.defaults.output ?? { virtual_pad: 'xbox360', hide_physical: false, passthrough: true, mute_mapped_inputs: false }),
@@ -25,7 +35,7 @@
 </script>
 
 <div class="output">
-  <h2>{t('output.title')}</h2>
+  <h2>{t('views.output')}</h2>
 
   <div class="label">{t('output.virtual_pad')}</div>
   <div class="cards">
@@ -73,6 +83,26 @@
       label={t('output.mute_mapped')}
       onchange={(v) => set({ mute_mapped_inputs: v })}
     />
+  </div>
+
+  <div class="label timing-label">{t('output.timing')}</div>
+  <p class="hint">{t('output.timing_hint')}</p>
+  <div class="timing">
+    {#each TIMING as f (f)}
+      <label class="field">
+        <span class="fl">{t(`output.timing_fields.${f}`)}</span>
+        <input
+          type="number"
+          min="0"
+          step="10"
+          value={app.profile?.timing?.[f] ?? ''}
+          placeholder={String(app.catalog?.defaults.timing[f] ?? '')}
+          disabled={app.readOnly}
+          onchange={(e) => setTiming(f, e.currentTarget.value)}
+        />
+        <span class="unit">{t('common.ms')}</span>
+      </label>
+    {/each}
   </div>
 </div>
 
@@ -143,5 +173,34 @@
     margin-top: 10px;
     padding-top: 16px;
     border-top: 1px solid var(--line);
+  }
+  .timing-label {
+    margin-top: 10px;
+    padding-top: 16px;
+    border-top: 1px solid var(--line);
+  }
+  .hint {
+    margin: -6px 0 0;
+    color: var(--text-dim);
+    font-size: 12px;
+  }
+  .timing {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 8px 20px;
+  }
+  .field {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .fl {
+    flex: 1;
+  }
+  .field input {
+    width: 80px;
+  }
+  .unit {
+    color: var(--text-dim);
   }
 </style>
