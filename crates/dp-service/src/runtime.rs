@@ -12,7 +12,8 @@ use dp_core::control::{Control, mouse_button_name, pad_button_name};
 use dp_core::engine::{Engine, Input, Output};
 use dp_core::hotkeys::{HotkeyAction, HotkeyDetector, Hotkeys};
 use dp_core::pad::{PadButton, PadState, Rgb, Rumble, Trigger};
-use dp_core::profile::{AnalogSource, Command, Profile, VirtualPadType};
+use dp_core::profile::{AnalogSource, Command, KeyRepeat, Profile, VirtualPadType};
+use dp_core::repeat::KeyRepeater;
 use dp_platform::{
     CaptureFilter, DeviceId, KbmEvent, PadSnapshot, Platform, VirtualIgnoreList, VirtualPad,
     VirtualPadKind,
@@ -88,6 +89,7 @@ pub struct Runtime {
     hotkey_detector: HotkeyDetector,
     hotkeys_paused: bool,
     hotkey_actions: Vec<HotkeyAction>,
+    key_repeat: KeyRepeater,
 }
 
 /// Human-readable log of inputs and the actions they caused (for `doppelpad run`).
@@ -227,6 +229,7 @@ impl Runtime {
             hotkey_detector: HotkeyDetector::new(),
             hotkeys_paused: false,
             hotkey_actions: Vec::new(),
+            key_repeat: KeyRepeater::new(KeyRepeat::Off),
         }
     }
 
@@ -393,6 +396,7 @@ impl Runtime {
             }
         }
 
+        self.key_repeat = KeyRepeater::new(profile.virtual_devices.keyboard.repeat);
         let engine = Engine::new(profile);
         self.warnings.extend(engine.warnings().iter().cloned());
         self.hide_wanted = engine.profile().output.hide_physical && self.vpad.is_some();
@@ -426,6 +430,7 @@ impl Runtime {
         self.filter.enabled.store(false, Ordering::Relaxed);
         self.filter.clear();
         self.hide_wanted = false;
+        self.key_repeat.clear();
         if !self.hidden.is_empty() {
             if let Err(e) = self.platform.hider.restore() {
                 tracing::warn!("could not unhide devices: {e}");
@@ -674,9 +679,14 @@ impl Runtime {
         {
             tracing::warn!("virtual pad update failed: {e}");
         }
+        let now = self.now_ms();
         let kbm = &mut self.platform.kbm_out;
         for &(k, down) in &out.keys {
             kbm.key(k, down);
+        }
+        self.key_repeat.observe(&out.keys, now);
+        if let Some(k) = self.key_repeat.due(now) {
+            kbm.key(k, true);
         }
         for &(b, down) in &out.mouse_buttons {
             kbm.mouse_button(b, down);
@@ -743,6 +753,8 @@ pub(crate) mod testing {
         /// What the game "sends" to the next virtual pad poll.
         pub game_rumble: Option<Rumble>,
         pub game_lightbar: Option<Rgb>,
+        /// Keys sent to the virtual keyboard, in order.
+        pub keys: Vec<(dp_core::keys::Key, bool)>,
     }
 
     pub type Shared = Arc<Mutex<World>>;
@@ -822,12 +834,24 @@ pub(crate) mod testing {
         }
     }
 
-    /// Null backends plus one fake controller backend and fake virtual pads.
+    struct FakeKbm(Shared);
+
+    impl dp_platform::KbmOutput for FakeKbm {
+        fn key(&mut self, key: dp_core::keys::Key, down: bool) {
+            self.0.lock().unwrap().keys.push((key, down));
+        }
+        fn mouse_button(&mut self, _: dp_core::keys::MouseButton, _: bool) {}
+        fn mouse_move(&mut self, _: f32, _: f32) {}
+        fn wheel(&mut self, _: dp_core::keys::WheelDir, _: f32) {}
+    }
+
+    /// Null backends plus fake controller, virtual pad and keyboard backends.
     pub fn platform() -> (Platform, Shared) {
         let world = Shared::default();
         let mut p = NullPlatform::platform();
         p.gamepads.push(Box::new(FakeBackend(world.clone())));
         p.virtual_pads = Box::new(FakeFactory(world.clone()));
+        p.kbm_out = Box::new(FakeKbm(world.clone()));
         (p, world)
     }
 }
@@ -873,6 +897,47 @@ mod tests {
         assert_eq!(press(LB.bit() | RB.bit()), 0, "until released");
         assert_eq!(press(0), 0);
         assert_eq!(press(X.bit()), X.bit(), "free again");
+    }
+
+    #[test]
+    fn held_keys_repeat_on_the_virtual_keyboard() {
+        use dp_core::keys::Key;
+        use dp_core::pad::PadButton;
+        use dp_core::profile::{Action, KeyRepeat, Mapping, Press};
+        let (platform, world) = testing::platform();
+        world
+            .lock()
+            .unwrap()
+            .pads
+            .push(pad("pad1", PadFamily::Xbox));
+        let mut rt = Runtime::with_platform(platform);
+        let mut p = Profile::default();
+        p.output.virtual_pad = VirtualPadType::None;
+        p.virtual_devices.keyboard.repeat = KeyRepeat::Every(5);
+        p.mappings.push(Mapping::new(
+            dp_core::control::Control::Button(PadButton::A),
+            vec![Action::Key {
+                key: Key::Space,
+                action: Press::Auto,
+            }],
+        ));
+        rt.apply(p, None).unwrap();
+        rt.tick();
+        world.lock().unwrap().pads[0].state.set(PadButton::A, true);
+        rt.tick();
+        std::thread::sleep(std::time::Duration::from_millis(30));
+        rt.tick();
+        world.lock().unwrap().pads[0].state.set(PadButton::A, false);
+        rt.tick();
+        std::thread::sleep(std::time::Duration::from_millis(30));
+        rt.tick();
+        let keys = world.lock().unwrap().keys.clone();
+        assert_eq!(keys.first(), Some(&(Key::Space, true)));
+        assert_eq!(keys.last(), Some(&(Key::Space, false)), "{keys:?}");
+        assert!(
+            keys.iter().filter(|k| k.1).count() >= 2,
+            "the held key repeated: {keys:?}"
+        );
     }
 
     #[test]

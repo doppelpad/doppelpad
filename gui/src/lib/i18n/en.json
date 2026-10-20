@@ -110,6 +110,21 @@
       "triple_tap_ms": "Triple-press window",
       "turbo_ms": "Turbo period",
       "key_delay_ms": "Delay between keys"
+    },
+    "key_repeat": "Held keys repeat",
+    "repeat": {
+      "native": "Like a keyboard",
+      "fast": "Fast (every 10 ms)",
+      "slow": "Slow (every 50 ms)",
+      "off": "Never",
+      "custom": "Custom interval"
+    },
+    "repeat_hint": {
+      "native": "A key that a mapping holds repeats after half a second, about 30 times per second, like a physical keyboard. Only the last pressed key repeats.",
+      "fast": "The last held key repeats every 10 ms right away. Some games and text fields fill up quickly.",
+      "slow": "The last held key repeats every 50 ms right away.",
+      "off": "Each press sends one key-down, however long it is held.",
+      "custom": "The last held key repeats at this interval right away."
     }
   },
   "binding": {

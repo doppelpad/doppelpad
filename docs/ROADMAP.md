@@ -28,7 +28,7 @@
 | Digital → stick ramp (initial deflection, speed, acceleration) | ⏳ planned |
 | Slots (4 profiles per controller) | ✅ in the app and by controller hotkey |
 | Multiple controllers / multiple virtual pads | ⏳ planned (first controller only) |
-| Keyboard repeat modes (typematic) | ⏳ planned |
+| Keyboard repeat modes (typematic): native, fast, slow, off, custom interval | ✅ |
 | Nintendo Switch controllers as input (Pro Controller, Joy-Con paired or sideways, NSO and Switch-style wired pads; gyro, rumble) | ✅ Windows via raw HID (⏳ hardware testing); Linux through hid-nintendo |
 | Switch 2 controllers as input (Pro Controller, GameCube controller) | ✅ Windows over USB (⏳ hardware testing); ⏳ Bluetooth; ⏳ Linux |
 | Generic DirectInput controllers as input | ⏳ planned on Windows; Linux reads them through evdev |

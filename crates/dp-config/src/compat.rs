@@ -10,7 +10,7 @@ use dp_core::keys::{Key, MouseButton, WheelDir};
 use dp_core::pad::{PadButton, Stick, Trigger};
 use dp_core::profile::{
     Action, Activator, AnalogMapping, AnalogSource, AnalogTarget, Combo, Command, Jump, JumpMode,
-    Layer, Mapping, Mode, Press, Profile, VirtualPadType, ZoneRadius,
+    KeyRepeat, Layer, Mapping, Mode, Press, Profile, VirtualPadType, ZoneRadius,
 };
 use serde_json::Value;
 
@@ -561,6 +561,21 @@ impl<'a> Importer<'a> {
                 "devices.virtual.gamepads",
                 "only the first virtual gamepad is used",
             );
+        }
+        // Only the four combinations the editor offers mean something; others stay native.
+        if let Some(cfg) = virt
+            .and_then(|v| get(v, "keyboard"))
+            .and_then(|k| get(k, "config"))
+        {
+            p.virtual_devices.keyboard.repeat = match (
+                enum_str(cfg, "repeatMode").as_deref(),
+                int(cfg, "repeatValue"),
+            ) {
+                (Some("fixed"), Some(10)) => KeyRepeat::Fast,
+                (Some("fixed"), Some(50)) => KeyRepeat::Slow,
+                (Some("fixed"), Some(0)) => KeyRepeat::Off,
+                _ => KeyRepeat::Native,
+            };
         }
     }
 
@@ -1234,7 +1249,7 @@ mod tests {
       "config": { "appName": "Lizard", "minTimeUnit": 1, "processNames": ["game.exe", ""] },
       "devices": {
         "hardware": [ { "id": 1, "name": "gamepad", "default": { "triggers": [ { "name": "left", "zones": [ { "name": "low", "x": 3277 } ], "highZoneMax": 32000 } ] } } ],
-        "virtual": { "gamepads": [ { "id": 1, "type": "ds4" } ] }
+        "virtual": { "gamepads": [ { "id": 1, "type": "ds4" } ], "keyboard": { "config": { "repeatMode": "fixed", "repeatValue": 50 } } }
       },
       "masks": [
         { "id": 1, "set": [ { "deviceId": 1, "buttonId": 1, "description": "A" } ] },
@@ -1263,6 +1278,7 @@ mod tests {
         assert_eq!(p.name, "Lizard");
         assert_eq!(p.processes, vec!["game.exe"]);
         assert_eq!(p.output.virtual_pad, VirtualPadType::DualShock4);
+        assert_eq!(p.virtual_devices.keyboard.repeat, KeyRepeat::Slow);
         assert!((p.triggers.left.zones.low - 0.1).abs() < 0.01);
         assert_eq!(
             p.triggers.left.deadzone, 0.0,

@@ -144,5 +144,6 @@
       "while_held": [],
       "consume": true
     }
-  ]
+  ],
+  "virtual": { "keyboard": { "repeat": 40 } }
 }

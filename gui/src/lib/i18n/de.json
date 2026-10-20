@@ -110,6 +110,21 @@
       "triple_tap_ms": "Zeitfenster dreifaches Drücken",
       "turbo_ms": "Turbo-Intervall",
       "key_delay_ms": "Verzögerung zwischen Tasten"
+    },
+    "key_repeat": "Gehaltene Tasten wiederholen",
+    "repeat": {
+      "native": "Wie eine Tastatur",
+      "fast": "Schnell (alle 10 ms)",
+      "slow": "Langsam (alle 50 ms)",
+      "off": "Nie",
+      "custom": "Eigenes Intervall"
+    },
+    "repeat_hint": {
+      "native": "Eine Taste, die eine Belegung hält, wiederholt sich nach einer halben Sekunde etwa 30-mal pro Sekunde – wie bei einer echten Tastatur. Nur die zuletzt gedrückte Taste wiederholt sich.",
+      "fast": "Die zuletzt gehaltene Taste wiederholt sich sofort alle 10 ms. Manche Spiele und Textfelder laufen schnell voll.",
+      "slow": "Die zuletzt gehaltene Taste wiederholt sich sofort alle 50 ms.",
+      "off": "Jeder Druck sendet ein einziges Tastendrücken, egal wie lange gehalten wird.",
+      "custom": "Die zuletzt gehaltene Taste wiederholt sich sofort in diesem Intervall."
     }
   },
   "binding": {
