@@ -30,6 +30,12 @@
     autostart = await api.autostartGet();
   }
 
+  /** Close the settings and start the welcome guide again. */
+  function showWelcome() {
+    app.setSettings({ welcome_done: false });
+    onclose();
+  }
+
   const drivers = $derived(
     app.live
       ? [
@@ -185,6 +191,11 @@
         <Slider label={t('settings.osd.opacity')} value={osd.opacity} def={80} min={20} max={100} step={5} unit="%" onchange={(v) => setOsd({ opacity: v })} />
         <Slider label={t('settings.osd.seconds')} value={osd.seconds} def={5} min={1} max={30} step={1} unit="s" onchange={(v) => setOsd({ seconds: v })} />
       {/if}
+    </div>
+
+    <div class="section">
+      <div class="section-head"><span>{t('welcome.settings_title')}</span></div>
+      <button class="btn" onclick={showWelcome}>{t('welcome.again')}</button>
     </div>
 
     <DeviceSettings />

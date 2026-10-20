@@ -1,4 +1,49 @@
 {
+  "welcome": {
+    "skip": "Überspringen",
+    "next": "Weiter",
+    "default_game": "Mein erstes Spiel",
+    "created": "{name} angelegt",
+    "settings_title": "Willkommen",
+    "again": "Einführung erneut zeigen",
+    "welcome": {
+      "title": "Willkommen bei Doppelpad",
+      "text": "Doppelpad belegt Controller, Tastatur und Maus neu – für jedes Spiel eigene Configs. Diese kurze Einführung prüft die Treiber, sucht deinen Controller und legt eine erste Config an."
+    },
+    "drivers": {
+      "title": "Treiber",
+      "text": "Für virtuelle Controller braucht Doppelpad ViGEmBus, zum Ausblenden des echten Controllers vor Spielen HidHide. Beide sind offen und kostenlos.",
+      "after": "Nach der Installation neu prüfen: Einstellungen → Treiber. Ohne die Treiber funktionieren Tastatur- und Maus-Belegungen trotzdem."
+    },
+    "controller": {
+      "title": "Controller",
+      "text": "Diese Controller sind verbunden:",
+      "none": "Kein Controller gefunden. Schließ ihn per USB oder Bluetooth an – oder spiele ohne, mit Tastatur und Maus als Controller."
+    },
+    "output": {
+      "title": "Was soll es werden?",
+      "text": "Wähle einen Start; alles lässt sich später ändern."
+    },
+    "finish": {
+      "title": "Erste Config",
+      "name": "Name des Spiels",
+      "use_now": "Gleich verwenden (Slot 1, Remapping an)",
+      "no_pad": "Noch kein Controller verbunden; die Config wirkt, sobald einer da ist.",
+      "create": "Anlegen"
+    },
+    "templates": {
+      "virtual_xbox": "Virtueller Xbox-Controller",
+      "virtual_ds4": "Virtueller DualShock 4",
+      "desktop": "Desktop mit dem Controller",
+      "keyboard_mouse": "Tastatur und Maus als Controller"
+    },
+    "template_hints": {
+      "virtual_xbox": "Spiele sehen einen Xbox-360-Controller; dein Controller wird vor ihnen versteckt. Der beste Start für die meisten Spiele.",
+      "virtual_ds4": "Wie oben als PlayStation-Controller, mit Touchpad und Bewegungssensor im Spiel.",
+      "desktop": "Rechter Stick als Maus, Trigger klicken, Steuerkreuz für Pfeiltasten; kein virtueller Controller.",
+      "keyboard_mouse": "WASD und Maus steuern einen virtuellen Xbox-Controller, für Spiele, die nur Controller kennen."
+    }
+  },
   "sheet": {
     "menu": "Belegungsübersicht speichern",
     "save_title": "Belegungsübersicht als HTML speichern",
@@ -50,6 +95,7 @@
     "close": "Schließen"
   },
   "header": {
+    "from_template": "Neu aus Vorlage: {template}",
     "new_config": "Neue Config",
     "new_config_name": "Name der Config",
     "import": "JSON-Profil importieren…",

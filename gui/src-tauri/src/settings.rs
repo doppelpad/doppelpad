@@ -22,6 +22,8 @@ pub struct GuiSettings {
     pub pad_overlay: PadOverlaySettings,
     /// The overlay listing the current layer's mappings.
     pub mappings_overlay: MappingsOverlaySettings,
+    /// The welcome guide was finished or skipped.
+    pub welcome_done: bool,
 }
 
 /// On-screen notifications: which events show one, and where and how.
@@ -155,6 +157,7 @@ impl Default for GuiSettings {
             osd: OsdSettings::default(),
             pad_overlay: PadOverlaySettings::default(),
             mappings_overlay: MappingsOverlaySettings::default(),
+            welcome_done: false,
         }
     }
 }

@@ -5,6 +5,7 @@ pub mod bundle;
 pub mod compat;
 pub mod diag;
 pub mod library;
+pub mod templates;
 
 use std::path::{Path, PathBuf};
 

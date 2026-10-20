@@ -20,6 +20,7 @@ import type {
   Profile,
   RewasdStatus,
   RuntimeOptions,
+  Template,
 } from './types';
 
 export const api = {
@@ -29,6 +30,11 @@ export const api = {
   gameCreate: (name: string) => invoke<Game>('game_create', { name }),
   gameUpdate: (dir: string, meta: GameMeta) => invoke<void>('game_update', { dir, meta }),
   gameDelete: (dir: string) => invoke<void>('game_delete', { dir }),
+  gameCreateTemplate: (name: string, config: string, template: Template) =>
+    invoke<Game>('game_create_template', { name, config, template }),
+  configFromTemplate: (gameDir: string, name: string, template: Template) =>
+    invoke<string>('config_from_template', { gameDir, name, template }),
+  openDriverPage: (driver: string) => invoke<void>('open_driver_page', { driver }),
   gameExport: (dir: string, out: string) => invoke<void>('game_export', { dir, out }),
   gameImport: (file: string) => invoke<Game>('game_import', { file }),
   presetList: () => invoke<PresetEntry[]>('preset_list'),

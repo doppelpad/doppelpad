@@ -76,6 +76,8 @@ class AppState {
     },
     pad_overlay: { corner: 'top_left', size: 70, opacity: 90, hide_after: 5 },
     mappings_overlay: { corner: 'top_right', opacity: 90 },
+    // Not shown before the real settings say so.
+    welcome_done: true,
   });
   /** `null` when reWASD is not installed. */
   rewasd = $state<RewasdStatus | null>(null);

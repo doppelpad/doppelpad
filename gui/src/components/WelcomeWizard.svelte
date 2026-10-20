@@ -1,0 +1,211 @@
+<script lang="ts">
+  // The welcome guide on first start: drivers, the controller, what it should become, and a
+  // first config made from a template (applied right away if wanted).
+  import { CircleAlert, CircleCheck, X } from '@lucide/svelte';
+  import { api, errorText } from '../lib/api';
+  import { t } from '../lib/i18n/index.svelte';
+  import { app } from '../lib/state/app.svelte';
+  import type { Template } from '../lib/types';
+  import IdentifyWizard from './IdentifyWizard.svelte';
+  import Toggle from './ui/Toggle.svelte';
+
+  const STEPS = ['welcome', 'drivers', 'controller', 'output', 'finish'] as const;
+  const TEMPLATES: Template[] = ['virtual_xbox', 'virtual_ds4', 'desktop', 'keyboard_mouse'];
+
+  let step = $state(0);
+  let template = $state<Template>('virtual_xbox');
+  let name = $state(t('welcome.default_game'));
+  let useNow = $state(true);
+  let busy = $state(false);
+  let identify = $state<string | null>(null);
+
+  const live = $derived(app.live);
+  const drivers = $derived(
+    live
+      ? [
+          { key: 'virtual_pads', state: live.drivers.virtual_pads },
+          { key: 'device_hiding', state: live.drivers.device_hiding },
+        ]
+      : [],
+  );
+  const devices = $derived(live?.devices ?? []);
+  const needsPad = $derived(template !== 'desktop');
+
+  function done() {
+    app.setSettings({ welcome_done: true });
+  }
+
+  async function create() {
+    busy = true;
+    try {
+      const g = await api.gameCreateTemplate(name.trim(), t(`welcome.templates.${template}`), template);
+      await app.refreshLibrary();
+      await app.selectGame(g.dir);
+      const path = g.configs[0]?.path;
+      if (path) {
+        await app.openConfig(path, true);
+        if (useNow) {
+          await api.applyToSlot(0, path);
+          await api.setRemap(true);
+        }
+      }
+      app.toast(t('welcome.created', { name: g.meta.name }), 'ok');
+      done();
+    } catch (e) {
+      app.toast(errorText(e), 'error');
+    } finally {
+      busy = false;
+    }
+  }
+</script>
+
+<div class="backdrop" role="presentation">
+  <div class="dialog" role="dialog" aria-modal="true" tabindex="-1">
+    <div class="head">
+      <h3>{t(`welcome.${STEPS[step]}.title`)}</h3>
+      <button class="icon-btn" onclick={done} title={t('welcome.skip')}><X size={17} /></button>
+    </div>
+
+    {#if STEPS[step] === 'welcome'}
+      <p>{t('welcome.welcome.text')}</p>
+    {:else if STEPS[step] === 'drivers'}
+      <p class="hint">{t('welcome.drivers.text')}</p>
+      {#each drivers as d (d.key)}
+        <div class="row" class:missing={!d.state.available}>
+          {#if d.state.available}<CircleCheck size={15} />{:else}<CircleAlert size={15} />{/if}
+          <span class="grow">{t(`drivers.${d.key}`)}</span>
+          {#if !d.state.available}
+            <button class="btn" onclick={() => api.openDriverPage(d.key).catch((e) => app.toast(errorText(e), 'error'))}>
+              {t('drivers.download')}
+            </button>
+          {/if}
+        </div>
+      {/each}
+      {#if drivers.some((d) => !d.state.available)}<p class="hint">{t('welcome.drivers.after')}</p>{/if}
+    {:else if STEPS[step] === 'controller'}
+      {#if devices.length === 0}
+        <p>{t('welcome.controller.none')}</p>
+      {:else}
+        <p class="hint">{t('welcome.controller.text')}</p>
+        {#each devices as d (d.id)}
+          <div class="row">
+            <CircleCheck size={15} />
+            <span class="grow">{d.name}</span>
+            {#if d.family === 'generic' && d.raw}
+              <button class="btn" onclick={() => (identify = d.id)}>{t('identify.menu')}</button>
+            {/if}
+          </div>
+        {/each}
+      {/if}
+    {:else if STEPS[step] === 'output'}
+      <p class="hint">{t('welcome.output.text')}</p>
+      {#each TEMPLATES as tpl (tpl)}
+        <label class="choice">
+          <input type="radio" name="template" value={tpl} checked={template === tpl} onchange={() => (template = tpl)} />
+          <span>
+            <strong>{t(`welcome.templates.${tpl}`)}</strong>
+            <span class="hint">{t(`welcome.template_hints.${tpl}`)}</span>
+          </span>
+        </label>
+      {/each}
+    {:else}
+      <label class="field">
+        <span>{t('welcome.finish.name')}</span>
+        <input bind:value={name} />
+      </label>
+      <Toggle checked={useNow} label={t('welcome.finish.use_now')} onchange={(v) => (useNow = v)} />
+      {#if needsPad && devices.length === 0 && template !== 'keyboard_mouse'}
+        <p class="hint">{t('welcome.finish.no_pad')}</p>
+      {/if}
+    {/if}
+
+    <div class="actions">
+      <button class="btn" onclick={done}>{t('welcome.skip')}</button>
+      <span class="grow"></span>
+      {#if step > 0}<button class="btn" onclick={() => (step -= 1)}>{t('identify.back')}</button>{/if}
+      {#if step < STEPS.length - 1}
+        <button class="btn primary" onclick={() => (step += 1)}>{t('welcome.next')}</button>
+      {:else}
+        <button class="btn primary" disabled={busy || !name.trim()} onclick={create}>{t('welcome.finish.create')}</button>
+      {/if}
+    </div>
+  </div>
+</div>
+
+{#if identify}<IdentifyWizard deviceId={identify} onclose={() => (identify = null)} />{/if}
+
+<style>
+  .backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(5, 7, 10, 0.6);
+    display: grid;
+    place-items: center;
+    z-index: 90;
+  }
+  .dialog {
+    width: 500px;
+    max-width: calc(100vw - 32px);
+    background: var(--bg-1);
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-l);
+    box-shadow: var(--shadow);
+    padding: 18px 20px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+  }
+  p {
+    margin: 0;
+  }
+  .hint {
+    color: var(--text-dim);
+    font-size: 12px;
+  }
+  .row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .row.missing {
+    color: var(--warning);
+  }
+  .grow {
+    flex: 1;
+  }
+  .choice {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    padding: 8px 10px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-m);
+    cursor: pointer;
+  }
+  .choice span {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-top: 4px;
+  }
+</style>
