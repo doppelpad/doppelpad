@@ -404,6 +404,8 @@ export interface Profile {
   name?: string;
   description?: string;
   processes?: string[];
+  /** Which keyboard and mouse input the mappings react to (default all). */
+  kbm_source?: KbmSource;
   output?: Output;
   timing?: Timing;
   sticks?: Sticks;
@@ -473,6 +475,9 @@ export interface LiveDevice {
   /** Unmapped input of a generic pad, for identifying its buttons. */
   raw?: RawInput | null;
 }
+
+/** All keyboard/mouse input, physical devices only, or only what scripts inject. */
+export type KbmSource = 'all' | 'physical' | 'scripts';
 
 export interface DsuSettings {
   enabled: boolean;

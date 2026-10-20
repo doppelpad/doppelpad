@@ -12,10 +12,10 @@ use dp_core::keys::{Key, MouseButton, WheelDir};
 use dp_core::pad::{PadButton, Stick, Trigger};
 use dp_core::profile::{
     Action, Activator, AnalogMapping, AnalogSource, AnalogTarget, Combo, Command, Crosshair,
-    CrosshairShape, GyroMode, JitterPattern, Jump, JumpMode, KeyRepeat, Layer, LayerSticks,
-    LayerTriggers, LayerVirtualSticks, Light, LightMode, Magnifier, Mapping, Mode, Press, Profile,
-    RadialApply, RadialMenu, RadialSector, RadialSelect, ShakeAxis, StickPatch, Sticks,
-    TriggerEffect, TriggerPatch, Triggers, Unlock, Vibration, VirtualMotion, VirtualMouse,
+    CrosshairShape, GyroMode, JitterPattern, Jump, JumpMode, KbmSource, KeyRepeat, Layer,
+    LayerSticks, LayerTriggers, LayerVirtualSticks, Light, LightMode, Magnifier, Mapping, Mode,
+    Press, Profile, RadialApply, RadialMenu, RadialSector, RadialSelect, ShakeAxis, StickPatch,
+    Sticks, TriggerEffect, TriggerPatch, Triggers, Unlock, Vibration, VirtualMotion, VirtualMouse,
     VirtualPadType, VirtualStick, VirtualStickPatch, VirtualSticks, ZoneRadius,
 };
 use serde_json::Value;
@@ -726,6 +726,8 @@ impl<'a> Importer<'a> {
             self.diags.error("devices", "missing");
             return;
         };
+        // Keyboard and mouse groups of injected input, and of the physical devices.
+        let (mut scripts, mut physical) = (false, false);
         for (i, hw) in array(devices, "hardware").iter().enumerate() {
             let path = format!("devices.hardware[{i}]");
             let Some(id) = int(hw, "id") else {
@@ -734,8 +736,22 @@ impl<'a> Importer<'a> {
             };
             let kind = match enum_str(hw, "name").as_deref() {
                 Some("gamepad") => DeviceKind::Gamepad,
-                Some("keyboard") => DeviceKind::Keyboard,
-                Some("mouse") => DeviceKind::Mouse,
+                Some("keyboard") => {
+                    physical = true;
+                    DeviceKind::Keyboard
+                }
+                Some("mouse") => {
+                    physical = true;
+                    DeviceKind::Mouse
+                }
+                Some("sendinputkeyboard") => {
+                    scripts = true;
+                    DeviceKind::Keyboard
+                }
+                Some("sendinputmouse") => {
+                    scripts = true;
+                    DeviceKind::Mouse
+                }
                 other => {
                     self.diags
                         .warn(&path, format!("unknown device kind {other:?}"));
@@ -804,6 +820,15 @@ impl<'a> Importer<'a> {
                 );
                 p.analog.push(route);
             }
+        }
+
+        match (scripts, physical) {
+            (true, false) => p.kbm_source = KbmSource::Scripts,
+            (true, true) => self.diags.info(
+                "devices.hardware",
+                "keyboard and mouse mappings react to both the physical devices and injected input",
+            ),
+            _ => {}
         }
 
         let virt = get(devices, "virtual");
@@ -2193,6 +2218,34 @@ mod tests {
             p.mappings[0].actions[0],
             Action::Pause { pause: 50 },
             "minTimeUnit absent = 10 ms units"
+        );
+    }
+
+    #[test]
+    fn send_input_devices_select_script_input() {
+        let doc = |devices: &str| {
+            format!(
+                r#"{{ "schemaVersion": 3, "appVersion": "1.0.0", "config": {{ "appName": "x" }},
+                  "devices": {{ "hardware": [ {devices} ] }} }}"#
+            )
+        };
+        let (p, _) = import(&doc(
+            r#"{ "id": 1, "name": "gamepad" }, { "id": 2, "name": "sendInputKeyboard" }"#,
+        ))
+        .unwrap();
+        assert_eq!(p.kbm_source, KbmSource::Scripts);
+        let text = crate::to_toml(&p);
+        assert!(text.contains(r#"kbm_source = "scripts""#), "{text}");
+        let (p, d) = import(&doc(
+            r#"{ "id": 1, "name": "keyboard" }, { "id": 2, "name": "sendInputMouse" }"#,
+        ))
+        .unwrap();
+        assert_eq!(p.kbm_source, KbmSource::All, "both: everything counts");
+        assert!(d.iter().any(|x| x.to_string().contains("injected input")));
+        let (p, _) = import(&doc(r#"{ "id": 1, "name": "keyboard" }"#)).unwrap();
+        assert!(
+            !crate::to_toml(&p).contains("kbm_source"),
+            "the default is not written"
         );
     }
 

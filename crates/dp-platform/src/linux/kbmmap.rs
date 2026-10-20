@@ -119,6 +119,16 @@ impl Passthrough {
         events: &mut Vec<KbmEvent>,
         forward: &mut Vec<(u16, u16, i32)>,
     ) {
+        // Grabbed devices are physical; a profile that reacts only to injected input lets
+        // them through untouched.
+        if !filter.accepts(false) {
+            if ty != EV_SYN {
+                self.frame.push((ty, code, value));
+            } else if code == SYN_REPORT {
+                forward.append(&mut self.frame);
+            }
+            return;
+        }
         match ty {
             EV_SYN => {
                 if code != SYN_REPORT {

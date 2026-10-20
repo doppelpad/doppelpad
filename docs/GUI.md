@@ -295,6 +295,13 @@ you choose another. It is off by default and answers only this PC unless *Reacha
 network too* is on. The first four controllers take slots 1–4 and keep them while connected;
 the emulator sees the physical controller, not the remapped output.
 
+*Keyboard and mouse input* in the config's output settings says which keyboard and mouse
+events its mappings react to: *all* (the default), *physical devices only* (input that other
+programs inject passes unchanged), or *from scripts only*: then a tool such as AutoHotkey
+drives the mappings, for example the virtual controller for a game that ignores injected
+input, while the real keyboard and mouse keep working as usual. Doppelpad's own output never
+counts as input.
+
 Wireless controllers can be turned off from their menu in the bottom bar (**Turn off**), with
 the `power_off` command in a mapping, or by themselves: *Turn wireless controllers off after*
 switches off a controller that had no input for that many minutes (resting sticks with a

@@ -4,7 +4,7 @@
   import { t } from '../lib/i18n/index.svelte';
   import { setProfileTiming, setVirtualDevice, type TimingField } from '../lib/model/profile';
   import { app } from '../lib/state/app.svelte';
-  import type { KeyRepeat, Output, Profile, VirtualPadType } from '../lib/types';
+  import type { KbmSource, KeyRepeat, Output, Profile, VirtualPadType } from '../lib/types';
   import CrosshairSettings from './crosshair/CrosshairSettings.svelte';
   import LightSettings from './LightSettings.svelte';
   import VibrationSettings from './VibrationSettings.svelte';
@@ -34,6 +34,8 @@
     const isDefault = (Object.keys(TURN) as (keyof typeof TURN)[]).every((k) => next[k] === TURN[k]);
     app.update(setVirtualDevice(app.profile, 'mouse', isDefault ? undefined : next));
   }
+
+  const KBM_SOURCES: KbmSource[] = ['all', 'physical', 'scripts'];
 
   /** Speeds (counts/s) where the physical mouse's zones start. */
   const MOUSE_ZONES: [number, number, number] = [200, 1000, 3000];
@@ -156,6 +158,21 @@
     />
     <p class="hint">{t('output.repress_hint')}</p>
   </div>
+
+  <label class="field repeat">
+    <span class="fl">{t('output.kbm_source')}</span>
+    <select
+      value={app.profile?.kbm_source ?? 'all'}
+      disabled={app.readOnly}
+      onchange={(e) => {
+        const v = e.currentTarget.value as KbmSource;
+        if (app.profile) app.update({ ...app.profile, kbm_source: v === 'all' ? undefined : v });
+      }}
+    >
+      {#each KBM_SOURCES as s (s)}<option value={s}>{t(`output.kbm_sources.${s}`)}</option>{/each}
+    </select>
+  </label>
+  <p class="hint">{t('output.kbm_source_hint')}</p>
 
   <label class="field repeat">
     <span class="fl">{t('output.key_repeat')}</span>

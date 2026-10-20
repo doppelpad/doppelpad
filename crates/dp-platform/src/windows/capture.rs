@@ -76,7 +76,8 @@ unsafe extern "system" fn keyboard_proc(code: i32, wparam: WPARAM, lparam: LPARA
     if code == HC_ACTION as i32 {
         // SAFETY: for HC_ACTION, lparam points to a KBDLLHOOKSTRUCT.
         let k = unsafe { &*(lparam as *const KBDLLHOOKSTRUCT) };
-        let ours = k.flags & LLKHF_INJECTED != 0 && k.dwExtraInfo == INJECTED_TAG;
+        let injected = k.flags & LLKHF_INJECTED != 0;
+        let ours = injected && k.dwExtraInfo == INJECTED_TAG;
         if !ours && let Some(key) = key_from_hook(k) {
             let down = match wparam as u32 {
                 WM_KEYDOWN | WM_SYSKEYDOWN => Some(true),
@@ -85,6 +86,7 @@ unsafe extern "system" fn keyboard_proc(code: i32, wparam: WPARAM, lparam: LPARA
             };
             if let (Some(down), Ok(guard)) = (down, CTX.read())
                 && let Some(ctx) = guard.as_ref()
+                && ctx.filter.accepts(injected)
             {
                 let _ = ctx.tx.try_send(KbmEvent::Key { key, down });
                 if ctx.filter.key(key) {
@@ -101,10 +103,12 @@ unsafe extern "system" fn mouse_proc(code: i32, wparam: WPARAM, lparam: LPARAM) 
     if code == HC_ACTION as i32 {
         // SAFETY: for HC_ACTION, lparam points to an MSLLHOOKSTRUCT.
         let m = unsafe { &*(lparam as *const MSLLHOOKSTRUCT) };
-        let ours = m.flags & LLMHF_INJECTED != 0 && m.dwExtraInfo == INJECTED_TAG;
+        let injected = m.flags & LLMHF_INJECTED != 0;
+        let ours = injected && m.dwExtraInfo == INJECTED_TAG;
         if !ours
             && let Ok(guard) = CTX.read()
             && let Some(ctx) = guard.as_ref()
+            && ctx.filter.accepts(injected)
         {
             let hi = (m.mouseData >> 16) as u16;
             let event = match wparam as u32 {

@@ -7,6 +7,7 @@ Unknown keys are rejected, so typos are caught by `doppelpad check`.
 name = "My game"
 description = "..."
 processes = ["MyGame.exe"]   # auto-apply while one of these is in the foreground (daemon)
+kbm_source = "all"            # all | physical | scripts: which keyboard/mouse input the mappings see
 
 [output]
 virtual_pad = "xbox360"      # "xbox360" | "dual_shock4" | "none"
