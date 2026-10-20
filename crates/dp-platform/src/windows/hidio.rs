@@ -12,7 +12,7 @@ use std::time::Duration;
 
 use windows_sys::Win32::Devices::HumanInterfaceDevice::{
     HIDD_ATTRIBUTES, HIDP_CAPS, HidD_FreePreparsedData, HidD_GetAttributes, HidD_GetPreparsedData,
-    HidD_GetSerialNumberString, HidP_GetCaps,
+    HidD_GetSerialNumberString, HidD_SetFeature, HidP_GetCaps,
 };
 use windows_sys::Win32::Foundation::{
     ERROR_IO_PENDING, GENERIC_READ, GENERIC_WRITE, GetLastError, HANDLE, WAIT_OBJECT_0,
@@ -287,6 +287,20 @@ impl HidIo {
     }
 }
 
+impl HidIo {
+    /// Send a feature report, padded to the device's feature length.
+    pub fn set_feature(&self, report: &[u8]) -> io::Result<()> {
+        let mut buf = report.to_vec();
+        buf.resize(buf.len().max(self.caps().feature_len), 0);
+        // SAFETY: `buf` is valid for its length during the call.
+        if unsafe { HidD_SetFeature(self.handle.0, buf.as_mut_ptr().cast(), buf.len() as u32) } {
+            Ok(())
+        } else {
+            Err(io::Error::last_os_error())
+        }
+    }
+}
+
 impl ReportIo for HidIo {
     fn write(&mut self, report: &[u8]) -> io::Result<()> {
         self.write_report(report)
@@ -311,6 +325,10 @@ impl ReportIo for HidIo {
 
     fn get_feature(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.feature(buf)
+    }
+
+    fn set_feature(&mut self, buf: &[u8]) -> io::Result<()> {
+        HidIo::set_feature(self, buf)
     }
 }
 

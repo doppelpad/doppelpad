@@ -23,6 +23,7 @@ use crate::nintendo::wired::WiredDriver;
 use crate::nintendo::{self, Model};
 use crate::padio::{InitError, PadDriver};
 use crate::sony::{self, SonyDriver, SonyModel};
+use crate::steam::{self, SteamDriver, SteamModel};
 use crate::{
     Battery, DeviceId, DeviceInfo, GamepadBackend, JoyConSide, Leds, PadSnapshot, TriggerEffects,
 };
@@ -39,10 +40,15 @@ const IDLE_WAIT: Duration = Duration::from_millis(250);
 enum DriverKind {
     Sony(SonyModel),
     Nintendo(Model),
+    Steam(SteamModel),
 }
 
 /// Which driver handles a HID top-level collection, if any.
 fn driver_kind(vid: u16, pid: u16, usage_page: u16, usage: u16) -> Option<DriverKind> {
+    // Valve pads: the vendor collection; the others are their keyboard and mouse.
+    if let Some(m) = steam::model_for(vid, pid) {
+        return (usage_page >= 0xFF00).then_some(DriverKind::Steam(m));
+    }
     if usage_page != 0x01 {
         return None;
     }
@@ -94,6 +100,8 @@ impl Base {
     fn transport(&self) -> &'static str {
         match self.kind {
             _ if self.bluetooth => "Bluetooth",
+            DriverKind::Steam(SteamModel::Receiver) => "wireless",
+            DriverKind::Steam(SteamModel::Deck) => "built in",
             DriverKind::Nintendo(Model::Switch1) if self.pid == 0x200E => "USB grip",
             _ => "USB",
         }
@@ -114,6 +122,7 @@ impl Base {
             })),
             DriverKind::Nintendo(Model::Wired) => Box::new(WiredDriver::new(self.vid)),
             DriverKind::Nintendo(Model::Switch2(m)) => super::switch2::driver(m, self.devinst),
+            DriverKind::Steam(m) => Box::new(SteamDriver::new(m)),
         }
     }
 }
@@ -433,7 +442,16 @@ fn run_device(mut io: HidIo, base: &Base, shared: &Shared) {
         match io.wait(timeout) {
             Ok(Wait::Report(_)) => {
                 tracing::trace!(report = ?io.report(), "HID report");
-                if let Some(pad) = driver.parse(io.report(), Instant::now())
+                let parsed = driver.parse(io.report(), Instant::now());
+                let connected = driver.connected();
+                if let DevState::Ready { pad, battery, .. } = &mut *shared.state.lock().unwrap()
+                    && !connected
+                {
+                    // An empty receiver slot: nothing to report.
+                    *pad = None;
+                    *battery = None;
+                }
+                if let Some(pad) = parsed.filter(|_| connected)
                     && let DevState::Ready {
                         pad: p, battery, ..
                     } = &mut *shared.state.lock().unwrap()
@@ -587,6 +605,11 @@ mod tests {
             "consumer collection"
         );
         assert_eq!(driver_kind(0x046D, 0xC52B, 1, 6), None);
+        assert_eq!(
+            driver_kind(0x28DE, 0x1102, 0xFF00, 1),
+            Some(DriverKind::Steam(SteamModel::Controller))
+        );
+        assert_eq!(driver_kind(0x28DE, 0x1102, 1, 2), None, "lizard-mode mouse");
     }
 
     #[test]

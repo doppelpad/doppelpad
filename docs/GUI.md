@@ -271,6 +271,13 @@ and rumble, lights and trigger effects go to all of them. A group appears as one
 with its own name and can have slots of its own. Keyboard and mouse cannot join a group;
 they always count for everyone.
 
+The Steam Controller and the Steam Deck stop acting as keyboard and mouse while Doppelpad
+reads them and do so again when it stops (the Deck after a second by itself). Their two
+trackpads are the two halves of the touchpad: choose *Two trackpads* in the config's touchpad
+settings to map each pad on its own. The Steam Controller's right pad also works as its right
+stick. When Steam runs, it adds a virtual Xbox controller of its own for these pads; ignore
+one of the two in *Settings → Controllers*.
+
 Wireless controllers can be turned off from their menu in the bottom bar (**Turn off**), with
 the `power_off` command in a mapping, or by themselves: *Turn wireless controllers off after*
 switches off a controller that had no input for that many minutes (resting sticks with a
