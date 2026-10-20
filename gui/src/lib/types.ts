@@ -274,10 +274,20 @@ export interface StickConfig {
   direction_width?: number;
 }
 
+/** A DualSense trigger effect; positions are tenths of the trigger's travel. */
+export type TriggerEffect =
+  | { kind: 'off' }
+  | { kind: 'resistance'; start: number; strength: number }
+  | { kind: 'weapon'; start: number; end: number; strength: number }
+  | { kind: 'vibration'; start: number; amplitude: number; frequency: number }
+  | { kind: 'raw'; bytes: number[] };
+
 export interface TriggerConfig {
   deadzone?: number;
   zones?: TriggerZones;
   full_pull?: number;
+  /** Resistance or vibration against the finger (DualSense). */
+  effect?: TriggerEffect;
 }
 
 export interface Sticks {

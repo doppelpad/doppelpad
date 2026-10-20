@@ -39,6 +39,15 @@ direction_width = 22.5       # degrees each side of an axis that count as that d
 deadzone = 0.0
 zones = { low = 0.03 }       # where LT / RT and the zones start (see Zones)
 full_pull = 0.99             # LTFull / RTFull controls
+effect = { kind = "resistance", start = 3, strength = 5 }   # DualSense; see below
+
+# DualSense adaptive triggers (positions are tenths of the travel, 0 = released):
+#   { kind = "off" }
+#   { kind = "resistance", start = 0-9, strength = 1-8 }
+#   { kind = "weapon", start = 2-7, end = start+1 to 8, strength = 1-8 }   # gives way at end
+#   { kind = "vibration", start = 0-9, amplitude = 1-8, frequency = 1-255 }  # Hz
+#   { kind = "raw", bytes = [11 numbers] }   # sent as they are
+# A layer can set its own (`[layers.triggers.right] effect = ...`; `off` stops Main's).
 
 [mouse]
 zones = [200.0, 1000.0, 3000.0]   # counts/s where MouseMove:Low/Med/High start (Low also starts the directions)

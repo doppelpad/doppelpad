@@ -13,7 +13,7 @@ use dp_core::pad::{Axis, Motion, PadButton, PadState, Rgb, Rumble, Stick};
 use crate::nintendo::NINTENDO_VID;
 use crate::{
     Battery, DeviceId, DeviceInfo, GamepadBackend, JoyConSide, Leds, PadFamily, PadSnapshot,
-    VirtualIgnoreList,
+    TriggerEffects, VirtualIgnoreList,
 };
 
 /// Product ID of joycond's combined Joy-Con device (Linux).
@@ -260,6 +260,12 @@ impl<B: GamepadBackend> GamepadBackend for JoyConCombiner<B> {
         // Joy-Cons have no light bar; everything else the inner backend reads may.
         if !self.pairs.iter().any(|p| &p.info.id == id) {
             self.inner.set_lightbar(id, color);
+        }
+    }
+
+    fn set_trigger_effects(&mut self, id: &DeviceId, effects: TriggerEffects) {
+        if !self.pairs.iter().any(|p| &p.info.id == id) {
+            self.inner.set_trigger_effects(id, effects);
         }
     }
 

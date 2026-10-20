@@ -23,7 +23,9 @@ use crate::nintendo::wired::WiredDriver;
 use crate::nintendo::{self, Model};
 use crate::padio::{InitError, PadDriver};
 use crate::sony::{self, SonyDriver, SonyModel};
-use crate::{Battery, DeviceId, DeviceInfo, GamepadBackend, JoyConSide, Leds, PadSnapshot};
+use crate::{
+    Battery, DeviceId, DeviceInfo, GamepadBackend, JoyConSide, Leds, PadSnapshot, TriggerEffects,
+};
 
 const RESCAN: Duration = Duration::from_secs(2);
 /// Interfaces that are not controllers we handle are not reopened for this long.
@@ -133,6 +135,7 @@ struct Shared {
     rumble: Mutex<Rumble>,
     lightbar: Mutex<Option<Rgb>>,
     leds: Mutex<Leds>,
+    triggers: Mutex<TriggerEffects>,
     waker: Arc<Waker>,
     stop: AtomicBool,
     done: AtomicBool,
@@ -346,6 +349,7 @@ fn spawn_device(io: HidIo, base: Base) -> Device {
         rumble: Mutex::new(Rumble::default()),
         lightbar: Mutex::new(None),
         leds: Mutex::new(Leds::default()),
+        triggers: Mutex::new([None; 2]),
         waker: io.waker(),
         stop: AtomicBool::new(false),
         done: AtomicBool::new(false),
@@ -430,6 +434,7 @@ fn run_device(mut io: HidIo, base: &Base, shared: &Shared) {
         let rumble = *shared.rumble.lock().unwrap();
         driver.set_lightbar(*shared.lightbar.lock().unwrap());
         driver.set_leds(*shared.leds.lock().unwrap());
+        driver.set_trigger_effects(*shared.triggers.lock().unwrap());
         if let Err(e) = driver.service(&mut io, rumble) {
             tracing::debug!(path = %base.path, "HID write failed: {e}");
         }
@@ -475,6 +480,10 @@ impl GamepadBackend for HidBackend {
 
     fn set_leds(&mut self, id: &DeviceId, leds: Leds) {
         self.hand_over(id, |s| &s.leds, leds);
+    }
+
+    fn set_trigger_effects(&mut self, id: &DeviceId, effects: TriggerEffects) {
+        self.hand_over(id, |s| &s.triggers, effects);
     }
 
     fn problems(&self) -> Vec<String> {

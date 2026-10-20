@@ -39,7 +39,7 @@ use crate::keys::{Key, MouseButton, WheelDir};
 use crate::pad::{Axis, Motion, PadButton, PadState, Rumble, Stick, Trigger};
 use crate::profile::{
     Activator, AnalogSource, Command, GyroMode, Mode, Profile, RadialSelect, ShakeAxis, Sticks,
-    Triggers, VirtualPadType, VirtualStick, VirtualSticks,
+    TriggerEffect, Triggers, VirtualPadType, VirtualStick, VirtualSticks,
 };
 
 /// Button-driven mouse motion speeds up to at most this many times its speed.
@@ -507,6 +507,12 @@ impl Engine {
         self.layer_analog
             .get(&self.layer)
             .map_or(&self.profile.triggers, |(_, t)| t)
+    }
+
+    /// The trigger effects of the active layer, left then right.
+    pub fn trigger_effects(&self) -> [Option<TriggerEffect>; 2] {
+        let t = self.triggers();
+        [t.left.effect, t.right.effect]
     }
 
     pub fn profile(&self) -> &Profile {

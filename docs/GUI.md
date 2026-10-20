@@ -162,7 +162,9 @@ rescaled), the *Press point* at which `LT` / `RT` mappings fire (where the low z
 and the *Full pull*, which reads as fully pressed and fires `LTFull` / `RTFull` mappings.
 The bars show the live pull with the press point (blue line), the medium and high zone
 thresholds (faint lines; set in the zone editor) and the output; *Pressed* and *Full pull*
-light up when mappings would fire.
+light up when mappings would fire. On a DualSense, *Adaptive trigger* adds resistance from a point,
+a gun-like click point or a vibration against the finger, with presets (soft, medium, hard,
+half way, rifle, pulse, rumble); a layer can set its own or turn Main's off.
 
 **Touchpad** sets how the touchpad becomes region controls, for the whole config: *Two
 trackpads* makes its left and right halves separate trackpads with their own regions, tap and

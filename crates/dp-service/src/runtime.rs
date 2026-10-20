@@ -21,11 +21,13 @@ use dp_core::engine::{Engine, Input, Output};
 use dp_core::hotkeys::{HotkeyAction, HotkeyDetector, Hotkeys};
 use dp_core::led;
 use dp_core::pad::{PadButton, PadState, Rgb, Rumble, Trigger};
-use dp_core::profile::{AnalogSource, Command, Crosshair, Profile, RadialMenu, VirtualPadType};
+use dp_core::profile::{
+    AnalogSource, Command, Crosshair, Profile, RadialMenu, TriggerEffect, VirtualPadType,
+};
 use dp_core::repeat::KeyRepeater;
 use dp_platform::{
-    CaptureFilter, DeviceId, KbmEvent, Leds, PadSnapshot, Platform, PowerAction, VirtualIgnoreList,
-    VirtualPad, VirtualPadKind,
+    CaptureFilter, DeviceId, KbmEvent, Leds, PadSnapshot, Platform, PowerAction, TriggerEffects,
+    VirtualIgnoreList, VirtualPad, VirtualPadKind,
 };
 use serde::Serialize;
 
@@ -102,6 +104,8 @@ struct Session {
     game_lightbar: Option<Rgb>,
     /// What the controller was last told to show, and which controller.
     sent_lightbar: Option<(DeviceId, Option<Rgb>)>,
+    /// Trigger effects last sent, and to which controller.
+    sent_triggers: Option<(DeviceId, TriggerEffects)>,
     key_repeat: KeyRepeater,
     /// The cursor clip this session last set.
     clip: Option<[f32; 4]>,
@@ -377,6 +381,21 @@ fn feedback(s: &mut Session, platform: &mut Platform, mapping_rumble: Option<Rum
         }
         s.sent_rumble = Some(rumble);
     }
+    // A trigger whose effect ends is turned off rather than left playing.
+    let want = s.engine.trigger_effects();
+    let before = s
+        .sent_triggers
+        .as_ref()
+        .filter(|(d, _)| *d == id)
+        .map_or([None; 2], |(_, t)| *t);
+    let effects = [0, 1].map(|i| want[i].or(before[i].map(|_| TriggerEffect::Off)));
+    let triggers = (id.clone(), effects);
+    if s.sent_triggers.as_ref() != Some(&triggers) {
+        for b in &mut platform.gamepads {
+            b.set_trigger_effects(&triggers.0, triggers.1);
+        }
+        s.sent_triggers = Some(triggers);
+    }
     let light = (id, profile_light(s, now).or(s.game_lightbar));
     if s.sent_lightbar.as_ref() == Some(&light) {
         return;
@@ -406,6 +425,13 @@ fn quiet(s: &mut Session, platform: &mut Platform) {
     if let Some((id, Some(_))) = s.sent_lightbar.take() {
         for b in &mut platform.gamepads {
             b.set_lightbar(&id, None);
+        }
+    }
+    if let Some((id, t)) = s.sent_triggers.take()
+        && t.iter().any(Option::is_some)
+    {
+        for b in &mut platform.gamepads {
+            b.set_trigger_effects(&id, [Some(TriggerEffect::Off); 2]);
         }
     }
 }
@@ -691,6 +717,7 @@ impl Runtime {
             sent_rumble: None,
             game_lightbar: None,
             sent_lightbar: None,
+            sent_triggers: None,
             key_repeat,
             clip: None,
             crosshair: CrosshairChoice::default(),
@@ -1170,7 +1197,7 @@ pub(crate) mod testing {
     use dp_core::pad::{PadState, Rgb, Rumble};
     use dp_platform::{
         DeviceId, DeviceInfo, GamepadBackend, Leds, NullPlatform, PadFamily, PadSnapshot, Platform,
-        VirtualPad, VirtualPadFactory, VirtualPadKind,
+        TriggerEffects, VirtualPad, VirtualPadFactory, VirtualPadKind,
     };
 
     /// Everything the fakes saw, shared with the test.
@@ -1180,6 +1207,7 @@ pub(crate) mod testing {
         pub rumble: Vec<(DeviceId, Rumble)>,
         pub lightbar: Vec<(DeviceId, Option<Rgb>)>,
         pub leds: Vec<(DeviceId, Leds)>,
+        pub triggers: Vec<(DeviceId, TriggerEffects)>,
         /// Virtual pads created so far, with the last state each was sent.
         pub virtual_pads: Vec<(VirtualPadKind, Option<PadState>)>,
         /// What the game "sends" to the next virtual pad poll.
@@ -1231,6 +1259,10 @@ pub(crate) mod testing {
 
         fn set_leds(&mut self, id: &DeviceId, leds: Leds) {
             self.0.lock().unwrap().leds.push((id.clone(), leds));
+        }
+
+        fn set_trigger_effects(&mut self, id: &DeviceId, effects: TriggerEffects) {
+            self.0.lock().unwrap().triggers.push((id.clone(), effects));
         }
     }
 
@@ -1574,6 +1606,37 @@ mod tests {
         assert_eq!(
             world.lock().unwrap().leds,
             [(DeviceId("pad1".into()), leds)]
+        );
+    }
+
+    #[test]
+    fn trigger_effects_follow_the_profile_and_end_with_it() {
+        let (platform, world) = testing::platform();
+        world
+            .lock()
+            .unwrap()
+            .pads
+            .push(pad("pad1", PadFamily::DualSense));
+        let mut rt = Runtime::with_platform(platform);
+        let mut p = ds4_profile();
+        let rigid = TriggerEffect::Resistance {
+            start: 2,
+            strength: 6,
+        };
+        p.triggers.right.effect = Some(rigid);
+        rt.apply(p, None).unwrap();
+        rt.tick();
+        rt.tick();
+        let id = DeviceId("pad1".into());
+        assert_eq!(
+            world.lock().unwrap().triggers,
+            [(id.clone(), [None, Some(rigid)])],
+            "sent once"
+        );
+        rt.stop();
+        assert_eq!(
+            world.lock().unwrap().triggers.last(),
+            Some(&(id, [Some(TriggerEffect::Off); 2]))
         );
     }
 
