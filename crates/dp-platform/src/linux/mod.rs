@@ -25,6 +25,8 @@ mod foreground;
 #[cfg(target_os = "linux")]
 mod gamepad;
 #[cfg(target_os = "linux")]
+mod system;
+#[cfg(target_os = "linux")]
 mod uinput;
 
 #[cfg(target_os = "linux")]
@@ -38,5 +40,6 @@ pub fn platform() -> crate::Platform {
         kbm_capture: Box::new(capture::GrabCapture::default()),
         hider: Box::new(hider),
         foreground: Box::new(foreground::X11Foreground::default()),
+        system: Box::new(system::LinuxSystem),
     }
 }

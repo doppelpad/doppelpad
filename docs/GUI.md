@@ -31,7 +31,9 @@ only edits profiles and sends commands.
    triple press, start press and release. A dot under an icon means it is already mapped.
 3. **Add** actions: keyboard (from the list, or *Press a key…* and press it), mouse
    buttons, wheel and movement, controller buttons, sticks and triggers, or commands
-   (turn remapping off, toggle gyro, launch a program, pause, rumble). Several actions
+   (turn remapping off, gyro on/off/toggle, screenshot, close the active window, shut
+   down, restart, sleep, hibernate, sign out, launch a program, pause, rumble; power
+   commands ask once before they are added). Several actions
    fire together, as a chord.
 4. Optional:
    - **Turbo** repeats the actions while the control is held, at the given period.

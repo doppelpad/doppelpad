@@ -300,6 +300,26 @@ pub trait ForegroundWatcher: Send {
     fn foreground_process(&mut self) -> Option<String>;
 }
 
+/// Ending the session or putting the computer to sleep.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub enum PowerAction {
+    Shutdown,
+    Restart,
+    Sleep,
+    Hibernate,
+    LogOff,
+}
+
+/// Desktop actions that mappings can trigger.
+pub trait SystemControl: Send {
+    /// Applications are asked to close as usual; nothing is forced.
+    fn power(&mut self, action: PowerAction) -> Result<()>;
+    /// Save a picture of the monitor showing the focused window; returns the file.
+    fn screenshot(&mut self) -> Result<std::path::PathBuf>;
+    /// Ask the focused window to close, as its close button does.
+    fn close_foreground_window(&mut self) -> Result<()>;
+}
+
 /// All backends for the current OS.
 pub struct Platform {
     pub gamepads: Vec<Box<dyn GamepadBackend>>,
@@ -308,6 +328,7 @@ pub struct Platform {
     pub kbm_capture: Box<dyn KbmCapture>,
     pub hider: Box<dyn DeviceHider>,
     pub foreground: Box<dyn ForegroundWatcher>,
+    pub system: Box<dyn SystemControl>,
 }
 
 impl Platform {

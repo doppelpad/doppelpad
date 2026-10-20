@@ -13,6 +13,7 @@ mod process;
 pub mod rewasd;
 mod sendinput;
 mod switch2;
+mod system;
 mod vigem;
 mod xinput;
 
@@ -36,6 +37,7 @@ pub fn platform() -> Platform {
         kbm_capture: Box::new(capture::HookCapture::default()),
         hider: Box::new(hidhide::HidHide::new()),
         foreground: Box::new(foreground::Foreground),
+        system: Box::new(system::WinSystem),
     }
 }
 

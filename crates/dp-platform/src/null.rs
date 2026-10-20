@@ -19,6 +19,7 @@ impl NullPlatform {
             kbm_capture: Box::new(NullPlatform),
             hider: Box::new(NullPlatform),
             foreground: Box::new(NullPlatform),
+            system: Box::new(NullPlatform),
         }
     }
 }
@@ -78,5 +79,17 @@ impl DeviceHider for NullPlatform {
 impl ForegroundWatcher for NullPlatform {
     fn foreground_process(&mut self) -> Option<String> {
         None
+    }
+}
+
+impl SystemControl for NullPlatform {
+    fn power(&mut self, _action: PowerAction) -> Result<()> {
+        Err(PlatformError::Unsupported("power commands"))
+    }
+    fn screenshot(&mut self) -> Result<std::path::PathBuf> {
+        Err(PlatformError::Unsupported("screenshots"))
+    }
+    fn close_foreground_window(&mut self) -> Result<()> {
+        Err(PlatformError::Unsupported("closing windows"))
     }
 }

@@ -1040,8 +1040,11 @@ impl Engine {
         self.poll_recognizers(now);
         self.advance(now);
         for c in std::mem::take(&mut self.outs.commands) {
-            if c == Command::ToggleGyro {
-                self.gyro_enabled = !self.gyro_enabled;
+            match c {
+                Command::ToggleGyro => self.gyro_enabled = !self.gyro_enabled,
+                Command::GyroOn => self.gyro_enabled = true,
+                Command::GyroOff => self.gyro_enabled = false,
+                _ => {}
             }
             self.outs.commands.push(c);
         }

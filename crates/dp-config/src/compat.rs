@@ -1109,6 +1109,15 @@ impl<'a> Importer<'a> {
             let command = match ty {
                 1 => Command::RemapOff,
                 6 => Command::ToggleGyro,
+                7 => Command::LogOff,
+                8 => Command::Shutdown,
+                9 => Command::Sleep,
+                11 => Command::Screenshot,
+                12 => Command::CloseWindow,
+                13 => Command::Hibernate,
+                15 => Command::GyroOn,
+                16 => Command::GyroOff,
+                17 => Command::Restart,
                 1000..=1999 => {
                     let params = get(cmd, "params").cloned().unwrap_or(Value::Null);
                     Command::Launch {
@@ -1375,6 +1384,33 @@ mod tests {
         assert_eq!(
             crate::parse_toml(&text).unwrap().mappings[0].actions,
             m.actions
+        );
+    }
+
+    #[test]
+    fn system_commands_map_to_ours() {
+        let doc = r#"{ "schemaVersion": 3, "appVersion": "1.0.0", "config": { "appName": "x", "minTimeUnit": 1 },
+          "devices": { "hardware": [ { "id": 1, "name": "gamepad" } ] },
+          "commands": [ { "id": 1, "type": 11 }, { "id": 2, "type": 16 }, { "id": 3, "type": 10, "name": "COMMAND_TURN_ANTIBOSS_MODE" } ],
+          "masks": [ { "id": 1, "set": [ { "deviceId": 1, "buttonId": 2 } ] } ],
+          "mappings": [ { "condition": { "mask": { "id": 1, "activator": { "type": "single", "mode": "onetime" } } },
+                          "macros": [ { "command": { "id": 1 } }, { "command": { "id": 2 } }, { "command": { "id": 3 } } ] } ] }"#;
+        let (p, _) = import(doc).unwrap();
+        let commands: Vec<&Command> = p.mappings[0]
+            .actions
+            .iter()
+            .filter_map(|a| match a {
+                Action::Command { command } => Some(command),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            commands,
+            [
+                &Command::Screenshot,
+                &Command::GyroOff,
+                &Command::Unsupported("COMMAND_TURN_ANTIBOSS_MODE".into())
+            ]
         );
     }
 

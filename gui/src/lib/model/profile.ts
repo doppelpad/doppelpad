@@ -286,6 +286,23 @@ export function shortcutMembers(p: Profile, layer: number): Set<ControlName> {
 
 const ARROWS: Record<string, string> = { up: '↑', down: '↓', left: '←', right: '→' };
 
+const COMMAND_LABELS: Record<string, string> = {
+  remap_off: 'Remap off',
+  toggle_gyro: 'Gyro on/off',
+  gyro_on: 'Gyro on',
+  gyro_off: 'Gyro off',
+  shutdown: 'Shut down',
+  restart: 'Restart',
+  sleep: 'Sleep',
+  hibernate: 'Hibernate',
+  log_off: 'Log off',
+  screenshot: 'Screenshot',
+  close_window: 'Close window',
+};
+
+/** Commands that end the session or put the computer to sleep: the editor asks first. */
+export const POWER_COMMANDS = ['shutdown', 'restart', 'sleep', 'hibernate', 'log_off'] as const;
+
 /** Short text for one action, e.g. "Space", "Mouse L", "Pad A", "L-stick ↑", "Pause 50 ms". */
 export function actionLabel(a: Action): string {
   if ('key' in a) return a.key + pressSuffix(a.action);
@@ -303,8 +320,7 @@ export function actionLabel(a: Action): string {
   if ('break' in a) return '⦀';
   if ('command' in a) {
     const c = a.command;
-    if (c === 'remap_off') return 'Remap off';
-    if (c === 'toggle_gyro') return 'Gyro on/off';
+    if (typeof c === 'string' && c in COMMAND_LABELS) return COMMAND_LABELS[c];
     if (typeof c === 'object' && 'launch' in c) return `Run ${c.launch.path.split(/[\\/]/).pop()}`;
     if (typeof c === 'object' && 'unsupported' in c) return c.unsupported;
   }
