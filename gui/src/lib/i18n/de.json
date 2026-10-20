@@ -109,6 +109,13 @@
     "mute_mapped": "Original-Tasten und -Buttons blockieren, die umbelegt sind",
     "repress": "Gehaltene Tasten beim Ebenenwechsel neu drücken",
     "repress_hint": "An: gehaltene Tasten machen sofort, was sie in der neuen Ebene tun. Aus: sie behalten ihre bisherige Aktion bis zum Loslassen.",
+    "kbm_source": "Tastatur- und Mauseingabe",
+    "kbm_sources": {
+      "all": "alle",
+      "physical": "nur echte Geräte",
+      "scripts": "nur von Skripten (AutoHotkey …)"
+    },
+    "kbm_source_hint": "Mit \"nur von Skripten\" steuern Programme wie AutoHotkey die Belegung, etwa den virtuellen Controller, und deine echte Tastatur und Maus bleiben unberührt. \"Nur echte Geräte\" lässt eingespeiste Eingaben unverändert durch.",
     "driver_missing": "{driver} ist nicht installiert – diese Config lässt sich noch nicht anwenden.",
     "hide_missing": "HidHide ist nicht installiert — Spiele sehen den echten Controller weiterhin.",
     "mouse": "Maus",

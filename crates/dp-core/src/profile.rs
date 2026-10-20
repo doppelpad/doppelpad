@@ -19,6 +19,10 @@ pub struct Profile {
     /// Executable names (e.g. `game.exe`) that activate this profile automatically.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub processes: Vec<String>,
+    /// Which keyboard and mouse input the mappings react to: all of it, only the physical
+    /// devices, or only what scripts and macro tools inject.
+    #[serde(skip_serializing_if = "is_default")]
+    pub kbm_source: KbmSource,
     #[serde(skip_serializing_if = "is_default")]
     pub output: Output,
     #[serde(skip_serializing_if = "is_default")]
@@ -349,6 +353,20 @@ impl VirtualSticks {
             Stick::Right => &self.right,
         }
     }
+}
+
+/// Which keyboard and mouse events a profile's mappings see.
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum KbmSource {
+    /// Physical devices and injected input alike.
+    #[default]
+    All,
+    /// Physical devices only; what scripts inject passes through untouched.
+    Physical,
+    /// Only input that other programs inject (AutoHotkey, macro tools); the physical
+    /// keyboard and mouse keep working as usual.
+    Scripts,
 }
 
 /// The physical mouse as a source of controls.

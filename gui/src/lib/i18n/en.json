@@ -109,6 +109,13 @@
     "mute_mapped": "Block the original keys and buttons that are remapped",
     "repress": "Re-press held buttons when the layer changes",
     "repress_hint": "On: held buttons do what they do in the new layer at once. Off: they keep their old action until released.",
+    "kbm_source": "Keyboard and mouse input",
+    "kbm_sources": {
+      "all": "all",
+      "physical": "physical devices only",
+      "scripts": "from scripts only (AutoHotkey …)"
+    },
+    "kbm_source_hint": "With \"from scripts only\", programs such as AutoHotkey drive the mappings, for example the virtual controller, while your real keyboard and mouse stay untouched. \"Physical devices only\" lets injected input pass unchanged.",
     "driver_missing": "{driver} is not installed — this config cannot be applied yet.",
     "hide_missing": "HidHide is not installed — games will still see the physical controller.",
     "mouse": "Mouse",

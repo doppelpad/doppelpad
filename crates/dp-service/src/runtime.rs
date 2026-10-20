@@ -22,7 +22,7 @@ use dp_core::hotkeys::{HotkeyAction, HotkeyDetector, Hotkeys};
 use dp_core::led;
 use dp_core::pad::{PadButton, PadState, Rgb, Rumble, Trigger};
 use dp_core::profile::{
-    AnalogSource, Command, Crosshair, Profile, RadialMenu, TriggerEffect, VirtualPadType,
+    AnalogSource, Command, Crosshair, KbmSource, Profile, RadialMenu, TriggerEffect, VirtualPadType,
 };
 use dp_core::repeat::KeyRepeater;
 use dp_platform::generic::GenericLayout;
@@ -931,7 +931,10 @@ impl Runtime {
 
     fn update_filter(&self) {
         self.filter.clear();
+        self.filter.set_source(KbmSource::All);
         let Some(i) = self.kbm_session() else { return };
+        self.filter
+            .set_source(self.sessions[i].engine.profile().kbm_source);
         let m = self.sessions[i].engine.mutes();
         for k in m.keys {
             self.filter.set_key(k, true);

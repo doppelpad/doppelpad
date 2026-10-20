@@ -13,12 +13,12 @@
 //! | foreground application    | `GetForegroundWindow`        | X11 / XWayland `_NET_ACTIVE_WINDOW` | `NSWorkspace` |
 
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU8, AtomicU64, Ordering};
 
 pub use dp_core::event::KbmEvent;
 use dp_core::keys::{Key, MouseButton, WheelDir};
 use dp_core::pad::{PadState, Rgb, Rumble};
-use dp_core::profile::TriggerEffect;
+use dp_core::profile::{KbmSource, TriggerEffect};
 use serde::{Deserialize, Serialize};
 
 #[cfg(windows)]
@@ -259,6 +259,8 @@ pub struct CaptureFilter {
     pub mouse_move: AtomicBool,
     /// Master switch; when false nothing is suppressed.
     pub enabled: AtomicBool,
+    /// Which events are input at all: [`KbmSource`] as a number.
+    source: AtomicU8,
 }
 
 impl CaptureFilter {
@@ -268,6 +270,21 @@ impl CaptureFilter {
 
     fn bit(i: usize) -> (usize, u64) {
         (i / 64, 1u64 << (i % 64))
+    }
+
+    /// Which keyboard and mouse events count as input.
+    pub fn set_source(&self, source: KbmSource) {
+        self.source.store(source as u8, Ordering::Relaxed);
+    }
+
+    /// Whether an event goes to the mappings (and may be suppressed); `injected` when another
+    /// program sent it.
+    pub fn accepts(&self, injected: bool) -> bool {
+        match self.source.load(Ordering::Relaxed) {
+            s if s == KbmSource::Physical as u8 => !injected,
+            s if s == KbmSource::Scripts as u8 => injected,
+            _ => true,
+        }
     }
 
     pub fn clear(&self) {
@@ -442,5 +459,15 @@ mod tests {
             serde_json::to_string(&JoyConSide::Left).unwrap(),
             r#""left""#
         );
+    }
+
+    #[test]
+    fn input_source_decides_what_counts() {
+        let f = CaptureFilter::new();
+        assert!(f.accepts(false) && f.accepts(true), "all by default");
+        f.set_source(KbmSource::Scripts);
+        assert!(f.accepts(true) && !f.accepts(false));
+        f.set_source(KbmSource::Physical);
+        assert!(!f.accepts(true) && f.accepts(false));
     }
 }
