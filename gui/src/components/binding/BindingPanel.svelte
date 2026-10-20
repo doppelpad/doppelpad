@@ -15,7 +15,9 @@
     layerOf,
     mappingSummary,
     modeOf,
+    nativeAction,
     removeMapping,
+    sameAction,
   } from '../../lib/model/profile';
   import { app } from '../../lib/state/app.svelte';
   import type { Action, Activator, Combo, JumpMode, Mapping, Mode } from '../../lib/types';
@@ -41,6 +43,10 @@
   const mode = $derived<Mode>(shown ? modeOf(shown) : 'hold');
   const blocked = $derived(!!shown && (shown.actions ?? []).length === 0 && !shown.jump);
   const isMacro = $derived(mode === 'once' || mode === 'repeat' || mode === 'while_held');
+  /** The control's own output, which turbo/toggle fall back to when nothing is assigned. */
+  const native = $derived(combo ? nativeAction(combo) : null);
+  /** Turbo/toggle can always be switched off; on needs outputs: assigned ones or the control's own. */
+  const canEnableMode = $derived(!blocked && ((shown?.actions ?? []).length > 0 || !!native));
 
   /** Activators that have a mapping (own or inherited) for the selected control. */
   const usedActivators = $derived(new Set(effective.mappings.map(activatorOf)));
@@ -68,8 +74,18 @@
     edit((m) => (m.actions = (m.actions ?? []).filter((_, j) => j !== i)));
   }
 
+  /**
+   * Turbo and toggle act on the outputs, so a control without any starts from its own output
+   * (turbo on A pulses A). Back in hold mode a mapping that is just that output goes away.
+   */
   function setMode(next: Mode) {
-    edit((m) => (m.mode = next));
+    edit((m) => {
+      m.mode = next;
+      const acts = m.actions ?? [];
+      if (next !== 'hold' && acts.length === 0 && native) m.actions = [{ ...native }];
+      const onlyNative = acts.length === 1 && !!native && sameAction(acts[0], native) && !m.jump && !m.description;
+      if (next === 'hold' && onlyNative) m.actions = [];
+    });
   }
 
   function setBlocked(on: boolean) {
@@ -225,7 +241,7 @@
       <div class="mode-row">
         <Toggle
           checked={mode === 'turbo'}
-          disabled={readOnly || blocked}
+          disabled={readOnly || (mode !== 'turbo' && !canEnableMode)}
           label={t('binding.turbo')}
           onchange={(v) => setMode(v ? 'turbo' : 'hold')}
         />
@@ -248,7 +264,7 @@
       <div class="mode-row">
         <Toggle
           checked={mode === 'toggle'}
-          disabled={readOnly || blocked}
+          disabled={readOnly || (mode !== 'toggle' && !canEnableMode)}
           label={t('binding.toggle')}
           onchange={(v) => setMode(v ? 'toggle' : 'hold')}
         />
