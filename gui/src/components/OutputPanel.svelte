@@ -1,7 +1,7 @@
 <script lang="ts">
   import { Gamepad2, Keyboard, TriangleAlert } from '@lucide/svelte';
   import { t } from '../lib/i18n/index.svelte';
-  import { setProfileTiming, type TimingField } from '../lib/model/profile';
+  import { setProfileTiming, setVirtualDevice, type TimingField } from '../lib/model/profile';
   import { app } from '../lib/state/app.svelte';
   import type { KeyRepeat, Output, VirtualPadType } from '../lib/types';
   import Toggle from './ui/Toggle.svelte';
@@ -14,10 +14,20 @@
 
   function setRepeat(r: KeyRepeat) {
     if (!app.profile) return;
-    const p = { ...app.profile };
-    if (r === 'native') delete p.virtual;
-    else p.virtual = { ...(p.virtual ?? {}), keyboard: { repeat: r } };
-    app.update(p);
+    app.update(setVirtualDevice(app.profile, 'keyboard', r === 'native' ? undefined : { repeat: r }));
+  }
+
+  /** Shake actions: strength and length (the virtual controller's accelerometer). */
+  const SHAKE = { shake_g: 2, shake_ms: 150 };
+  const shake = $derived({ ...SHAKE, ...app.profile?.virtual?.motion });
+
+  function setShake(field: keyof typeof SHAKE, raw: string) {
+    if (!app.profile) return;
+    const n = Number(raw.replace(',', '.'));
+    const v = field === 'shake_ms' ? Math.round(n) : n;
+    const next = { ...shake, [field]: Number.isFinite(v) && v > 0 ? v : SHAKE[field] };
+    const isDefault = next.shake_g === SHAKE.shake_g && next.shake_ms === SHAKE.shake_ms;
+    app.update(setVirtualDevice(app.profile, 'motion', isDefault ? undefined : next));
   }
 
   function setTiming(field: TimingField, raw: string) {
@@ -126,6 +136,37 @@
     {/if}
   </label>
   <p class="hint">{t(`output.repeat_hint.${typeof repeat === 'number' ? 'custom' : repeat}`)}</p>
+
+  <div class="label timing-label">{t('output.shake')}</div>
+  <p class="hint">{t('output.shake_hint')}</p>
+  <div class="timing">
+    <label class="field">
+      <span class="fl">{t('output.shake_g')}</span>
+      <input
+        type="number"
+        min="0.5"
+        max="8"
+        step="0.5"
+        value={shake.shake_g}
+        disabled={app.readOnly}
+        onchange={(e) => setShake('shake_g', e.currentTarget.value)}
+      />
+      <span class="unit">g</span>
+    </label>
+    <label class="field">
+      <span class="fl">{t('output.shake_ms')}</span>
+      <input
+        type="number"
+        min="10"
+        max="2000"
+        step="10"
+        value={shake.shake_ms}
+        disabled={app.readOnly}
+        onchange={(e) => setShake('shake_ms', e.currentTarget.value)}
+      />
+      <span class="unit">{t('common.ms')}</span>
+    </label>
+  </div>
 
   <div class="label timing-label">{t('output.timing')}</div>
   <p class="hint">{t('output.timing_hint')}</p>

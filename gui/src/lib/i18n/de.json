@@ -101,6 +101,10 @@
     "mute_mapped": "Original-Tasten und -Buttons blockieren, die umbelegt sind",
     "driver_missing": "{driver} ist nicht installiert – diese Config lässt sich noch nicht anwenden.",
     "hide_missing": "HidHide ist nicht installiert — Spiele sehen den echten Controller weiterhin.",
+    "shake": "Schütteln",
+    "shake_hint": "Was eine Schüttel-Aktion mit dem Beschleunigungssensor des virtuellen Controllers macht. Nur Controller mit Bewegungssensoren (DualShock 4) geben es weiter.",
+    "shake_g": "Stärke",
+    "shake_ms": "Dauer",
     "timing": "Timing",
     "timing_hint": "Standardwerte für alle Belegungen dieser Config; eigene Werte einer Belegung haben Vorrang. Leere Felder nutzen den eingebauten Standard.",
     "timing_fields": {
@@ -255,6 +259,9 @@
     "pad_buttons": "Tasten",
     "pad_sticks": "Sticks",
     "pad_triggers": "Trigger",
+    "pad_shake": "Schütteln (Bewegungssensor)",
+    "pad_shake_hint": "Schüttelt den Beschleunigungssensor des virtuellen Controllers (DualShock 4); Stärke und Dauer stehen in den Config-Einstellungen.",
+    "shake_axis": "Schütteln {axis}",
     "press_now": "Jetzt eine Taste drücken…",
     "pause_ms": "Pausenlänge in Millisekunden",
     "rumble_ms": "Vibrationsdauer in Millisekunden",
@@ -344,7 +351,15 @@
       "multiplier_hint": "Skaliert Tempo und Beschleunigung je Achse.",
       "preview": "Auslenkung in den ersten zwei Sekunden, in denen eine Taste gehalten wird.",
       "curve": "Ausgabekurve",
-      "curve_hint": "Formt alles, was der virtuelle Stick sendet, auch den durchgereichten Stick."
+      "curve_hint": "Formt alles, was der virtuelle Stick sendet, auch den durchgereichten Stick.",
+      "jitter": "Zittern",
+      "jitter_hint": "Ein kleiner Versatz, der um den Stick herumwandert, solange diese Ebene aktiv ist, auch bei losgelassenem Stick. Mit einer Halte-Ebene lässt er sich begrenzen, z. B. aufs Zielen.",
+      "pattern": { "circle": "Kreis", "square": "Quadrat", "cross": "Kreuz" },
+      "jitter_min": "Kleinster Versatz",
+      "jitter_max": "Größter Versatz",
+      "delay_min": "Kürzester Schritt",
+      "delay_max": "Längster Schritt",
+      "delay_hint": "Jeder Schritt setzt den Versatz nach einer zufälligen Zeit in diesem Bereich auf den nächsten Punkt des Musters."
     },
     "layer": {
       "own": "{layer} hat hier eigene Einstellungen.",

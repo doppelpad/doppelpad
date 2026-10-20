@@ -51,6 +51,18 @@ acceleration = 0.0           # growth of that speed per second
 multiplier_x = 1.0           # scales speed and acceleration horizontally
 multiplier_y = 1.0           # ... and vertically
 curve = []                   # output curve of the whole virtual stick; empty = linear
+
+[virtual.sticks.left.jitter]  # a small offset that keeps moving around the stick
+enabled = false
+pattern = "circle"           # "circle" (8 points) | "square" (corners) | "cross"
+min = 0.03                   # smallest and largest offset (fraction of full deflection)
+max = 0.04
+delay_min_ms = 30            # the offset moves on after a random time in this range
+delay_max_ms = 40
+
+[virtual.motion]
+shake_g = 2.0                # strength of a shake action, in g
+shake_ms = 150               # its length
 ```
 
 `[virtual.keyboard] repeat` sets how keys that mappings hold repeat, the way a physical
@@ -67,6 +79,12 @@ directions cancel out; actions on different axes add up without being normalised
 then shapes everything the virtual stick sends, including the passed-through physical stick
 and analog routes. A layer can change these fields like the stick settings, under
 `[layers.virtual.sticks.left]`.
+
+With `jitter` enabled, the stick gets a small offset that steps through the pattern after
+random delays, all the time the layer is active, also with the stick at rest. Put it on a
+hold layer to use it only while, say, aiming. A shake action rocks the virtual controller's
+accelerometer along one axis for `shake_ms`, starting in the given direction and flipping
+every 25 ms; only a virtual DualShock 4 has motion sensors.
 
 ## Controls (what can trigger a mapping)
 
@@ -212,6 +230,7 @@ Several mappings can share a trigger with different activators.
 | Mouse movement | `{ mouse_move = "right", speed = 800 }` (pixels/s while active) |
 | Pause | `{ pause = 250 }` (ms) |
 | Rumble | `{ rumble = 150, low = 0.8, high = 0.8 }` |
+| Motion shake | `{ shake = "+y" }` (`+x` `-x` `+y` `-y` `+z` `-z`): shakes the virtual DualShock 4's accelerometer, see `[virtual.motion]` |
 | Command | `{ command = "remap_off" }`, `{ command = "toggle_gyro" }`, `{ command = { launch = { path = "osk.exe", args = "" } } }` (all commands below) |
 | Break | `{ break = true }` (splits the sequence into segments, see below) |
 

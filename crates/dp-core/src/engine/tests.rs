@@ -585,6 +585,55 @@ fn virtual_stick_curve_and_layer_settings() {
 }
 
 #[test]
+fn jitter_walks_its_pattern() {
+    use crate::profile::{Jitter, JitterPattern};
+    let mut p = Profile::default();
+    p.virtual_devices.sticks.right.jitter = Jitter {
+        enabled: true,
+        pattern: JitterPattern::Cross,
+        min: 0.05,
+        max: 0.05,
+        delay_min_ms: 30,
+        delay_max_ms: 30,
+    };
+    let mut h = Harness::new(p);
+    let at = |h: &mut Harness, t| {
+        h.until(t);
+        h.virtual_pad().stick(Stick::Right)
+    };
+    assert!(near(at(&mut h, 29), (0.05, 0.0)), "right");
+    assert!(near(at(&mut h, 30), (-0.05, 0.0)), "left");
+    assert!(near(at(&mut h, 60), (0.0, 0.05)), "up");
+    assert!(near(at(&mut h, 90), (0.0, -0.05)), "down");
+    assert!(near(at(&mut h, 120), (0.05, 0.0)), "and around");
+    assert_eq!(h.virtual_pad().stick(Stick::Left), (0.0, 0.0));
+}
+
+#[test]
+fn shake_rocks_the_accelerometer() {
+    use crate::profile::ShakeAxis;
+    let mut p = Profile::default();
+    p.virtual_devices.motion.shake_ms = 100;
+    p.mappings.push(map(
+        Control::Key(Key::Q),
+        vec![Action::Shake {
+            shake: ShakeAxis::PlusY,
+        }],
+    ));
+    let mut h = Harness::new(p);
+    h.key(Key::Q, true); // 1
+    h.key(Key::Q, false);
+    let accel = |h: &Harness| h.virtual_pad().motion.map(|m| m.accel);
+    assert_eq!(accel(&h), Some([0.0, 3.0, 0.0]), "rest (1 g up) plus 2 g");
+    h.until(26);
+    assert_eq!(accel(&h), Some([0.0, -1.0, 0.0]), "flips after 25 ms");
+    h.until(51);
+    assert_eq!(accel(&h), Some([0.0, 3.0, 0.0]));
+    h.until(101);
+    assert_eq!(accel(&h), None, "over after shake_ms");
+}
+
+#[test]
 fn quick_key_tap_within_one_tick_is_not_lost() {
     let mut p = Profile::default();
     p.mappings.push(map(

@@ -168,6 +168,13 @@ pub fn validate(p: &Profile) -> Diagnostics {
     }
     check_analog(&mut d, "", &p.sticks, &p.triggers, [true; 4]);
     check_virtual(&mut d, "", &p.virtual_devices.sticks, [true; 2]);
+    let motion = &p.virtual_devices.motion;
+    if !(motion.shake_g > 0.0 && motion.shake_g <= 8.0) {
+        d.error("virtual.motion.shake_g", "must be in (0, 8]");
+    }
+    if !(10..=2000).contains(&motion.shake_ms) {
+        d.error("virtual.motion.shake_ms", "must be 10–2000 ms");
+    }
     for (i, l) in p.layers.iter().enumerate() {
         // Only the sides a layer changes are checked again.
         let changed = [
@@ -271,6 +278,22 @@ fn check_virtual(d: &mut Diagnostics, prefix: &str, sticks: &VirtualSticks, whic
             .any(|pt| !(0.0..=1.0).contains(&pt[0]) || !(0.0..=1.0).contains(&pt[1]))
         {
             d.error(path("curve"), "points must be in [0, 1]");
+        }
+        let j = &s.jitter;
+        if !(0.0..=0.5).contains(&j.min) || !(0.0..=0.5).contains(&j.max) || j.min > j.max {
+            d.error(
+                path("jitter"),
+                "min and max must be in [0, 0.5], min not above max",
+            );
+        }
+        if !(1..=1000).contains(&j.delay_min_ms)
+            || !(1..=1000).contains(&j.delay_max_ms)
+            || j.delay_min_ms > j.delay_max_ms
+        {
+            d.error(
+                path("jitter"),
+                "delays must be 1–1000 ms, the shortest not above the longest",
+            );
         }
     }
 }
@@ -496,6 +519,18 @@ while_held = ["LT", "Mouse:Right"]
                 .any(|x| x.path == "layers[0].virtual.sticks.left.multiplier_x"),
             "{d:?}"
         );
+    }
+
+    #[test]
+    fn jitter_and_shake_settings_round_trip() {
+        let text = "[virtual.motion]\nshake_g = 3.0\nshake_ms = 200\n\n[virtual.sticks.right.jitter]\nenabled = true\npattern = \"cross\"\n\n[[mappings]]\ntrigger = \"Y\"\nactions = [{ shake = \"+z\" }]\n";
+        let p = parse_toml(text).unwrap();
+        assert_eq!(p.virtual_devices.motion.shake_g, 3.0);
+        assert!(p.virtual_devices.sticks.right.jitter.enabled);
+        assert!(!validate(&p).has_errors());
+        assert_eq!(parse_toml(&to_toml(&p)).unwrap(), p);
+        let bad = parse_toml("[virtual.sticks.left.jitter]\nmin = 0.2\nmax = 0.1\n").unwrap();
+        assert!(validate(&bad).has_errors());
     }
 
     #[test]

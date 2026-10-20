@@ -8,7 +8,7 @@ use crate::keys::{Key, MouseButton, WheelDir};
 use crate::pad::{PadButton, Stick, Trigger};
 use crate::profile::{
     Action, Activator, AnalogMapping, AnalogSource, Command, JumpMode, Mapping, Mode, Press,
-    Profile,
+    Profile, ShakeAxis,
 };
 
 pub type MaskId = usize;
@@ -65,6 +65,8 @@ pub enum Step {
         high: f32,
     },
     Command(Command),
+    /// Shake the virtual accelerometer.
+    Shake(ShakeAxis),
 }
 
 impl Step {
@@ -280,6 +282,7 @@ fn other_steps(a: &Action) -> Option<Step> {
             high: *high,
         },
         Action::Command { command } => Step::Command(command.clone()),
+        Action::Shake { shake } => Step::Shake(*shake),
         _ => return None,
     })
 }

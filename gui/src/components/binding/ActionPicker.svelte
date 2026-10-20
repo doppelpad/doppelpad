@@ -8,7 +8,7 @@
   import { controlLabel } from '../../lib/model/controls';
   import { POWER_COMMANDS } from '../../lib/model/profile';
   import { app } from '../../lib/state/app.svelte';
-  import type { Action, Dir, MouseButtonName, PadButtonName, StickName, TriggerName } from '../../lib/types';
+  import type { Action, Dir, MouseButtonName, PadButtonName, ShakeAxis, StickName, TriggerName } from '../../lib/types';
 
   let { onpick, onclose }: { onpick: (a: Action) => void; onclose: () => void } = $props();
 
@@ -52,6 +52,7 @@
 
   const MOUSE_BUTTONS: MouseButtonName[] = ['left', 'right', 'middle', 'x1', 'x2'];
   const DIRS: Dir[] = ['up', 'down', 'left', 'right'];
+  const SHAKES: ShakeAxis[] = ['+x', '-x', '+y', '-y', '+z', '-z'];
   const PAD_BUTTONS = $derived((app.catalog?.pad_buttons ?? []) as PadButtonName[]);
 
   function stickAction(stick: StickName, d: Dir): Action {
@@ -170,6 +171,14 @@
         {#each ['left', 'right'] as const as tr (tr)}
           <button class="chip" onclick={() => onpick({ trigger: tr as TriggerName })}>
             {t(tr === 'left' ? 'controls.LT' : 'controls.RT')}
+          </button>
+        {/each}
+      </div>
+      <div class="group">{t('picker.pad_shake')}</div>
+      <div class="grid">
+        {#each SHAKES as s (s)}
+          <button class="chip" title={t('picker.pad_shake_hint')} onclick={() => onpick({ shake: s })}>
+            {t('picker.shake_axis', { axis: s.toUpperCase() })}
           </button>
         {/each}
       </div>
