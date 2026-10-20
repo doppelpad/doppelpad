@@ -166,6 +166,11 @@
           {/each}
         </div>
       {/each}
+      <div class="grid">
+        <button class="chip" title={t('picker.anti_recoil_hint')} onclick={() => onpick({ stick: 'right', x: 0, y: -0.15 })}>
+          {t('picker.anti_recoil')}
+        </button>
+      </div>
       <div class="group">{t('picker.pad_triggers')}</div>
       <div class="grid">
         {#each ['left', 'right'] as const as tr (tr)}

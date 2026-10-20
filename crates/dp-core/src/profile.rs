@@ -976,11 +976,15 @@ pub enum Action {
         #[serde(default = "one", skip_serializing_if = "is_one")]
         clicks: f32,
     },
-    /// Deflect a virtual stick (`x`, `y` in `[-1, 1]`, up positive).
+    /// Deflect a virtual stick (`x`, `y` in `[-1, 1]`, up positive). Added to the physical
+    /// stick, or with `absolute` replacing the axes it names (its non-zero ones; both for a
+    /// centred action).
     Stick {
         stick: Stick,
         x: f32,
         y: f32,
+        #[serde(default, skip_serializing_if = "is_default")]
+        absolute: bool,
         #[serde(default, skip_serializing_if = "is_default")]
         action: Press,
     },
@@ -1164,6 +1168,10 @@ pub struct Mapping {
     /// Pause between runs for `repeat` / `while_held`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub repeat_pause_ms: Option<u32>,
+    /// Extra random wait of up to this many ms before each turbo or repeat cycle, so
+    /// repeats are less regular.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub random_ms: Option<u32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub long_press_ms: Option<u32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1188,6 +1196,7 @@ impl Mapping {
             turbo_ms: None,
             repeat: None,
             repeat_pause_ms: None,
+            random_ms: None,
             long_press_ms: None,
             double_tap_ms: None,
             triple_tap_ms: None,

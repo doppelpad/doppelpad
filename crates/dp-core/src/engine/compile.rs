@@ -25,7 +25,8 @@ pub enum Out {
 /// Analog output contribution while held.
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum AnalogOut {
-    Stick(Stick, f32, f32),
+    /// Stick deflection; `true` replaces the axes it names instead of adding.
+    Stick(Stick, f32, f32, bool),
     Trigger(Trigger, f32),
     /// Mouse velocity in pixels per second (screen coordinates, y down).
     MouseVelocity(f32, f32),
@@ -89,6 +90,8 @@ pub enum Policy {
         stop: StopRule,
         gap_ms: u32,
         period_ms: Option<u32>,
+        /// Extra random wait of up to this many ms before each next run.
+        random_ms: u32,
     },
 }
 
@@ -120,6 +123,7 @@ pub struct Binding {
     pub turbo_ms: u32,
     pub repeat: u32,
     pub repeat_pause_ms: u32,
+    pub random_ms: u32,
     pub has_pad_output: bool,
     /// No actions and no jump: the trigger is consumed ("unmapped"/muted).
     pub is_unmap: bool,
@@ -136,36 +140,42 @@ impl Binding {
                 stop: StopRule::FinishRun,
                 gap_ms: self.repeat_pause_ms,
                 period_ms: None,
+                random_ms: self.random_ms,
             },
             Mode::Turbo if self.holdable => Policy::Loop {
                 max_runs: None,
                 stop: StopRule::Immediate,
                 gap_ms: 0,
                 period_ms: Some(self.turbo_ms),
+                random_ms: self.random_ms,
             },
             Mode::Turbo => Policy::Loop {
                 max_runs: None,
                 stop: StopRule::FinishRun,
                 gap_ms: 0,
                 period_ms: Some(self.turbo_ms),
+                random_ms: self.random_ms,
             },
             Mode::Once => Policy::Loop {
                 max_runs: Some(1),
                 stop: StopRule::Never,
                 gap_ms: 0,
                 period_ms: None,
+                random_ms: self.random_ms,
             },
             Mode::Repeat => Policy::Loop {
                 max_runs: Some(self.repeat.max(1)),
                 stop: StopRule::Never,
                 gap_ms: self.repeat_pause_ms,
                 period_ms: None,
+                random_ms: self.random_ms,
             },
             Mode::WhileHeld => Policy::Loop {
                 max_runs: None,
                 stop: StopRule::FinishRun,
                 gap_ms: self.repeat_pause_ms,
                 period_ms: None,
+                random_ms: self.random_ms,
             },
         }
     }
@@ -241,8 +251,9 @@ fn press_outputs(a: &Action) -> Option<(Option<Out>, Option<AnalogOut>, Press)> 
             stick,
             x,
             y,
+            absolute,
             action,
-        } => (None, Some(AnalogOut::Stick(stick, x, y)), action),
+        } => (None, Some(AnalogOut::Stick(stick, x, y, absolute)), action),
         Action::Trigger {
             trigger,
             value,
@@ -502,6 +513,7 @@ pub fn compile(p: &Profile) -> Compiled {
             turbo_ms,
             repeat: m.repeat.unwrap_or(1).clamp(1, 9999),
             repeat_pause_ms: m.repeat_pause_ms.unwrap_or(0),
+            random_ms: m.random_ms.unwrap_or(0),
             has_pad_output: has_pad_output(&m.actions),
             is_unmap: m.actions.is_empty() && jump.is_none(),
             description: m.description.clone(),
@@ -759,6 +771,7 @@ mod tests {
                 stick: Stick::Left,
                 x: 0.0,
                 y: 1.0,
+                absolute: false,
                 action: Press::Auto,
             }],
         ));

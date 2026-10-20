@@ -53,6 +53,12 @@ struct JitterState {
 #[derive(Debug)]
 struct Rng(u64);
 
+impl Default for Rng {
+    fn default() -> Self {
+        Rng(0x9e37_79b9_7f4a_7c15)
+    }
+}
+
 impl Rng {
     fn next(&mut self) -> u64 {
         let mut x = self.0;
@@ -158,6 +164,8 @@ struct Outputs {
     wheel: Vec<(WheelDir, f32)>,
     commands: Vec<Command>,
     rumble: Option<(Rumble, u64)>,
+    /// Random numbers for jitter and random repeat waits.
+    rng: Rng,
     /// Accelerometer shakes and when each started.
     shakes: Vec<(ShakeAxis, u64)>,
 }
@@ -231,6 +239,7 @@ fn step(act: &mut Activation, program: &[Step], outs: &mut Outputs, until: u64) 
                     stop,
                     gap_ms,
                     period_ms,
+                    random_ms,
                 } => {
                     act.runs_done += 1;
                     let more = !act.stopping
@@ -240,9 +249,14 @@ fn step(act: &mut Activation, program: &[Step], outs: &mut Outputs, until: u64) 
                         act.finished = true;
                         break;
                     }
+                    let extra = if random_ms > 0 {
+                        outs.rng.upto(random_ms as u64)
+                    } else {
+                        0
+                    };
                     let next = match period_ms {
-                        Some(p) => (act.run_start + p as u64).max(t),
-                        None => t + gap_ms as u64,
+                        Some(p) => (act.run_start + p as u64 + extra).max(t),
+                        None => t + gap_ms as u64 + extra,
                     };
                     act.run_start = next;
                     act.pc = 0;
@@ -325,7 +339,6 @@ pub struct Engine {
     layer_virtual: HashMap<u8, VirtualSticks>,
     /// Jitter offset of each virtual stick.
     jitter: [JitterState; 2],
-    rng: Rng,
 
     prev_controls: HashSet<Control>,
     cur_controls: HashSet<Control>,
@@ -413,7 +426,6 @@ impl Engine {
             layer_analog,
             layer_virtual,
             jitter: Default::default(),
-            rng: Rng(0x9e37_79b9_7f4a_7c15),
             prev_controls: HashSet::new(),
             cur_controls: HashSet::new(),
             pending: Vec::new(),
@@ -1303,10 +1315,17 @@ impl Engine {
         let mut mouse_v = (0.0f32, 0.0f32);
         // Per stick and axis, the largest push in each direction (opposite pushes cancel).
         let mut pushes = [[[0.0f32; 2]; 2]; 2];
+        // Axes that an absolute push sets: neither the physical stick nor routes reach them.
+        let mut absolute = [[false; 2]; 2];
         for act in &self.acts {
             for &(a, since) in &act.analog {
                 match a {
-                    AnalogOut::Stick(s, x, y) => {
+                    AnalogOut::Stick(s, x, y, abs) => {
+                        if abs {
+                            let centre = x == 0.0 && y == 0.0;
+                            absolute[s as usize][0] |= centre || x != 0.0;
+                            absolute[s as usize][1] |= centre || y != 0.0;
+                        }
                         let vs = self.virtual_stick(s);
                         let held = now.saturating_sub(since) as f32 / 1000.0;
                         for (axis, v, m) in [(0, x, vs.multiplier_x), (1, y, vs.multiplier_y)] {
@@ -1337,12 +1356,14 @@ impl Engine {
                 }
             };
             let [px, py] = pushes[s as usize];
+            let [ax, ay] = absolute[s as usize];
             let (cx, cy) = pad.stick(s);
+            let base = |c: f32, abs: bool| if abs { 0.0 } else { c };
             pad.set_stick(
                 s,
                 (
-                    (cx + axis(px)).clamp(-1.0, 1.0),
-                    (cy + axis(py)).clamp(-1.0, 1.0),
+                    (base(cx, ax) + axis(px)).clamp(-1.0, 1.0),
+                    (base(cy, ay) + axis(py)).clamp(-1.0, 1.0),
                 ),
             );
         }
@@ -1373,7 +1394,10 @@ impl Engine {
                 }
                 RouteOutput::Stick(s, x, y) => {
                     let (cx, cy) = pad.stick(s);
-                    pad.set_stick(s, ((cx + x).clamp(-1.0, 1.0), (cy + y).clamp(-1.0, 1.0)));
+                    let [ax, ay] = absolute[s as usize];
+                    let add =
+                        |c: f32, v: f32, abs: bool| if abs { c } else { (c + v).clamp(-1.0, 1.0) };
+                    pad.set_stick(s, (add(cx, x, ax), add(cy, y, ay)));
                 }
             }
         }
@@ -1402,11 +1426,11 @@ impl Engine {
                 } else {
                     0
                 };
-                let size = j.min + (j.max - j.min).max(0.0) * self.rng.unit();
+                let size = j.min + (j.max - j.min).max(0.0) * self.outs.rng.unit();
                 let (px, py) = points[st.point];
                 st.offset = (px * size, py * size);
                 let spread = j.delay_max_ms.saturating_sub(j.delay_min_ms) as u64;
-                st.next_at = now + j.delay_min_ms.max(1) as u64 + self.rng.upto(spread);
+                st.next_at = now + j.delay_min_ms.max(1) as u64 + self.outs.rng.upto(spread);
                 st.active = true;
             }
             let (x, y) = pad.stick(s);

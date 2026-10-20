@@ -45,7 +45,7 @@ export type Action =
   | { pad: PadButtonName; action?: Press }
   | { mouse: MouseButtonName; action?: Press }
   | { wheel: WheelDir; clicks?: number }
-  | { stick: StickName; x: number; y: number; action?: Press }
+  | { stick: StickName; x: number; y: number; absolute?: boolean; action?: Press }
   | { trigger: TriggerName; value?: number; action?: Press }
   | { mouse_move: Dir; speed?: number }
   | { pause: number }
@@ -70,6 +70,8 @@ export interface Mapping {
   turbo_ms?: number;
   repeat?: number;
   repeat_pause_ms?: number;
+  /** Extra random wait of up to this many ms before each turbo or repeat cycle. */
+  random_ms?: number;
   long_press_ms?: number;
   double_tap_ms?: number;
   triple_tap_ms?: number;
