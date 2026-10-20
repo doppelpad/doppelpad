@@ -24,6 +24,23 @@ pub enum Request {
     },
     /// Deactivate the current profile (release everything, unhide devices).
     Stop,
+    /// Put a profile file into a slot (1–4), make that slot active and turn remapping on.
+    ApplyToSlot {
+        path: String,
+        slot: usize,
+    },
+    /// Make a slot (1–4) active and turn remapping on.
+    SelectSlot {
+        slot: usize,
+    },
+    /// Empty a slot (1–4), or every slot.
+    ClearSlot {
+        slot: Option<usize>,
+    },
+    /// Turn remapping on (the active slot) or off.
+    Remap {
+        on: bool,
+    },
     Devices,
     /// Enable or disable automatic profile switching by foreground application.
     AutoSwitch {
@@ -44,6 +61,14 @@ pub struct Status {
     pub virtual_pad: Option<String>,
     pub hidden_devices: usize,
     pub warnings: Vec<String>,
+    /// Profile file of each slot (1–4), `None` when empty.
+    #[serde(default)]
+    pub slots: Vec<Option<String>>,
+    /// The active slot, 1–4.
+    #[serde(default)]
+    pub active_slot: usize,
+    #[serde(default)]
+    pub remap_on: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -152,6 +177,12 @@ mod tests {
         let back: Request =
             serde_json::from_str(r#"{"cmd":"auto_switch","enabled":true}"#).unwrap();
         assert_eq!(back, Request::AutoSwitch { enabled: true });
+        assert_eq!(
+            serde_json::to_string(&Request::ClearSlot { slot: None }).unwrap(),
+            r#"{"cmd":"clear_slot","slot":null}"#
+        );
+        let back: Request = serde_json::from_str(r#"{"cmd":"remap","on":false}"#).unwrap();
+        assert_eq!(back, Request::Remap { on: false });
         let resp = Response::Ok {
             message: "fine".into(),
         };

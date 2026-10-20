@@ -19,10 +19,11 @@ pub fn run(profiles_dir: PathBuf, initial: Option<PathBuf>, auto_switch: bool) -
     let mut service = ServiceOptions::new(profiles_dir);
     service.initial_profile = initial;
     service.auto_switch = Some(auto_switch);
-    // Controller hotkeys set up in the app work here too.
+    // Slots and controller hotkeys are shared with the app.
+    service.state_path = Some(dp_config::config_dir().join("state.toml"));
     service.hotkeys_path = Some(dp_config::config_dir().join("hotkeys.toml"));
     let mut handle = dp_service::spawn(HostOptions { service, ipc: true })?;
-    tracing::info!("daemon running; control it with `doppelpad apply|stop|status`");
+    tracing::info!("daemon running; control it with `doppelpad apply|select-slot|remap|status`");
 
     while running.load(Ordering::Relaxed) && handle.is_running() {
         std::thread::sleep(Duration::from_millis(50));

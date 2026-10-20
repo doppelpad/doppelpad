@@ -266,7 +266,33 @@ impl Service {
             virtual_pad: self.rt.virtual_pad().map(|k| format!("{k:?}")),
             hidden_devices: self.rt.hidden_devices(),
             warnings: self.warnings(),
+            slots: self
+                .state
+                .slots
+                .iter()
+                .map(|s| s.as_ref().map(|p| p.display().to_string()))
+                .collect(),
+            active_slot: self.state.active + 1,
+            remap_on: self.state.remap_on,
         }
+    }
+
+    /// The reply to a slot or remap command in IPC form; slots are 1–4 over IPC.
+    fn ipc_reply(&mut self, cmd: ServiceCmd) -> Response {
+        match self.handle(cmd).into_result() {
+            Ok(message) => Response::Ok { message },
+            Err(message) => Response::Error { message },
+        }
+    }
+
+    /// Run a slot command for a 1-based slot number from IPC.
+    fn ipc_slot(&mut self, slot: usize, cmd: impl FnOnce(usize) -> ServiceCmd) -> Response {
+        if !(1..=SLOTS).contains(&slot) {
+            return Response::Error {
+                message: format!("slot {slot} does not exist (1–{SLOTS})"),
+            };
+        }
+        self.ipc_reply(cmd(slot - 1))
     }
 
     fn warnings(&self) -> Vec<String> {
@@ -308,6 +334,23 @@ impl Service {
                     message: "remapping stopped".into(),
                 }
             }
+            Request::ApplyToSlot { path, slot } => {
+                self.ipc_slot(slot, |slot| ServiceCmd::ApplyToSlot {
+                    slot,
+                    path: PathBuf::from(path),
+                })
+            }
+            Request::SelectSlot { slot } => self.ipc_slot(slot, ServiceCmd::SelectSlot),
+            Request::ClearSlot { slot: Some(slot) } => self.ipc_slot(slot, ServiceCmd::ClearSlot),
+            Request::ClearSlot { slot: None } => {
+                for slot in 0..SLOTS {
+                    self.handle(ServiceCmd::ClearSlot(slot));
+                }
+                Response::Ok {
+                    message: "all slots cleared".into(),
+                }
+            }
+            Request::Remap { on } => self.ipc_reply(ServiceCmd::SetRemap(on)),
             Request::Devices => Response::Devices {
                 devices: ipc_devices(&self.rt),
             },
@@ -873,6 +916,49 @@ mod tests {
         );
         let saved = crate::hotkeys::load(&dir.path().join("hotkeys.toml"));
         assert_eq!(saved.remap, vec![Guide], "settings persisted");
+    }
+
+    #[test]
+    fn ipc_slots_and_remap() {
+        let dir = tempfile::tempdir().unwrap();
+        let a = write_profile(dir.path(), "a.toml", "A", &[]);
+        let b = write_profile(dir.path(), "b.toml", "B", &[]);
+        let (mut s, _) = service(dir.path(), None);
+        let ok = |r: Response| matches!(r, Response::Ok { .. });
+        assert!(ok(s.handle_ipc(Request::ApplyToSlot {
+            path: a.display().to_string(),
+            slot: 1
+        })));
+        assert!(ok(s.handle_ipc(Request::ApplyToSlot {
+            path: b.display().to_string(),
+            slot: 3
+        })));
+        assert_eq!(active_name(&s).as_deref(), Some("B"));
+        assert!(ok(s.handle_ipc(Request::SelectSlot { slot: 1 })));
+        assert_eq!(active_name(&s).as_deref(), Some("A"));
+        let Response::Status(st) = s.handle_ipc(Request::Status) else {
+            panic!()
+        };
+        assert_eq!((st.active_slot, st.remap_on), (1, true));
+        assert_eq!(
+            st.slots[2].as_deref(),
+            Some(b.display().to_string().as_str())
+        );
+
+        assert!(ok(s.handle_ipc(Request::Remap { on: false })));
+        assert_eq!(active_name(&s), None);
+        assert!(ok(s.handle_ipc(Request::Remap { on: true })));
+        assert_eq!(active_name(&s).as_deref(), Some("A"));
+        assert!(
+            !ok(s.handle_ipc(Request::SelectSlot { slot: 0 })),
+            "slots are 1–4"
+        );
+        assert!(!ok(s.handle_ipc(Request::SelectSlot { slot: 5 })));
+        assert!(ok(s.handle_ipc(Request::ClearSlot { slot: Some(3) })));
+        assert_eq!(s.slots().slots[2], None);
+        assert!(ok(s.handle_ipc(Request::ClearSlot { slot: None })));
+        assert!(s.slots().slots.iter().all(Option::is_none));
+        assert_eq!(active_name(&s), None);
     }
 
     #[test]

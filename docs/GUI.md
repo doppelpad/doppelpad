@@ -1,7 +1,7 @@
 # Desktop app
 
 `doppelpad-gui` is the editor and the remapping service in one program. It runs the same
-engine as `doppelpad daemon`. While it runs, `doppelpad status`, `apply` and `stop` talk to
+engine as `doppelpad daemon`. While it runs, `doppelpad status`, `apply`, `select-slot`, `remap` and `stop` talk to
 it over the usual IPC socket. Closing the window keeps remapping running in the tray (see
 [Tray](#tray)), and **Quit** in the tray menu stops it and shows hidden controllers again.
 
