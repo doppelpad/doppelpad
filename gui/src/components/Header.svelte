@@ -1,10 +1,12 @@
 <script lang="ts">
   import { ChevronDown, Ellipsis, Save, Settings, Lock } from '@lucide/svelte';
-  import { open } from '@tauri-apps/plugin-dialog';
+  import { open, save } from '@tauri-apps/plugin-dialog';
   import { api, errorText } from '../lib/api';
   import { t } from '../lib/i18n/index.svelte';
+  import { bindingsSheet } from '../lib/model/sheet';
   import { app } from '../lib/state/app.svelte';
   import { platform } from '../lib/state/window.svelte';
+  import type { Profile } from '../lib/types';
   import Menu, { type MenuItem } from './ui/Menu.svelte';
   import WindowControls from './WindowControls.svelte';
 
@@ -38,6 +40,22 @@
       await app.openConfig(r.path);
       app.toast(t('notices.imported', { name: app.profile?.name ?? '' }), 'ok');
       for (const d of r.diagnostics.filter((d) => d.severity !== 'info').slice(0, 3)) app.toast(d.message, 'info');
+    } catch (e) {
+      app.toast(errorText(e), 'error');
+    }
+  }
+
+  async function saveSheet() {
+    if (!app.profile) return;
+    const path = await save({
+      title: t('sheet.save_title'),
+      defaultPath: `${app.profile.name || 'bindings'}.html`,
+      filters: [{ name: 'HTML', extensions: ['html'] }],
+    });
+    if (!path) return;
+    try {
+      await api.sheetSave(path, bindingsSheet($state.snapshot(app.profile) as Profile, app.family));
+      app.toast(t('sheet.saved'), 'ok');
     } catch (e) {
       app.toast(errorText(e), 'error');
     }
@@ -91,6 +109,7 @@
   const optionItems = $derived<MenuItem[]>([
     { label: t('header.rename_config') + '…', onclick: renameConfig, disabled: !app.profile || app.readOnly },
     { label: t('common.duplicate'), onclick: duplicate, disabled: !app.configPath },
+    { label: t('sheet.menu') + '…', onclick: saveSheet, disabled: !app.profile },
     { label: t('common.reveal'), onclick: () => app.configPath && api.reveal(app.configPath), disabled: !app.configPath },
     { label: t('header.clear_mappings'), onclick: clearMappings, disabled: !app.profile || app.readOnly },
     { separator: true, label: '' },

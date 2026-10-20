@@ -1,4 +1,11 @@
 {
+  "sheet": {
+    "menu": "Belegungsübersicht speichern",
+    "save_title": "Belegungsübersicht als HTML speichern",
+    "saved": "Belegungsübersicht gespeichert; zum Drucken im Browser öffnen",
+    "untitled": "Config",
+    "empty": "Diese Config belegt noch nichts."
+  },
   "common": {
     "ok": "OK",
     "cancel": "Abbrechen",
@@ -18,6 +25,13 @@
     "reveal": "Im Explorer zeigen"
   },
   "profiles": {
+    "export": "Spiel exportieren",
+    "export_title": "Spiel mit allen Configs speichern",
+    "bundle_filter": "Doppelpad-Spiel",
+    "exported": "{name} exportiert",
+    "import": "Spiel importieren",
+    "import_title": "Doppelpad-Spiel öffnen",
+    "imported": "{name} importiert",
     "title": "Spiele",
     "add": "Spiel hinzufügen",
     "new_name": "Name des Spiels",
@@ -72,6 +86,11 @@
     "as_drawing": "Zeichnung anzeigen"
   },
   "layers": {
+    "save_preset": "Als Vorlage speichern",
+    "preset_name": "Name der Vorlage",
+    "preset_saved": "Vorlage {name} gespeichert",
+    "insert_preset": "Vorlage einfügen: {name}",
+    "preset_dropped": "{n} Ebenenwechsel zeigten auf Ebenen, die diese Config nicht hat, und wurden entfernt",
     "main": "Haupt",
     "shift": "Shift {n}",
     "add": "Shift-Ebene hinzufügen",

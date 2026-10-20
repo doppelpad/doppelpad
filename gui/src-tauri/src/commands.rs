@@ -6,6 +6,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+use dp_config::bundle::{self, LayerPreset, PresetEntry};
 use dp_config::library::{self, Game, GameMeta, Library};
 use dp_config::{Diagnostics, Severity};
 use dp_core::control::{Control, mouse_button_name, pad_button_name};
@@ -151,6 +152,52 @@ pub fn game_delete(app: AppHandle, dir: PathBuf) -> CmdResult<()> {
     library::delete_game(&dir).map_err(err)?;
     library_changed(&app);
     Ok(())
+}
+
+/// Write a game and its configs as one bundle file.
+#[tauri::command]
+pub fn game_export(dir: PathBuf, out: PathBuf) -> CmdResult<()> {
+    bundle::export_game(&dir, &out).map_err(err)
+}
+
+/// Unpack a game bundle into a new game folder.
+#[tauri::command]
+pub fn game_import(app: AppHandle, state: State<AppState>, file: PathBuf) -> CmdResult<Game> {
+    let g = bundle::import_game(&state.profiles_dir, &file).map_err(err)?;
+    library_changed(&app);
+    Ok(g)
+}
+
+#[tauri::command]
+pub fn preset_list(state: State<AppState>) -> Vec<PresetEntry> {
+    bundle::list_presets(&state.profiles_dir)
+}
+
+#[tauri::command]
+pub fn preset_save(state: State<AppState>, preset: LayerPreset) -> CmdResult<PathBuf> {
+    bundle::save_preset(&state.profiles_dir, &preset).map_err(err)
+}
+
+#[tauri::command]
+pub fn preset_load(path: PathBuf) -> CmdResult<LayerPreset> {
+    bundle::load_preset(&path).map_err(err)
+}
+
+#[tauri::command]
+pub fn preset_delete(path: PathBuf) -> CmdResult<()> {
+    bundle::delete_preset(&path).map_err(err)
+}
+
+/// Save a bindings sheet (an HTML page the editor made).
+#[tauri::command]
+pub fn sheet_save(path: PathBuf, html: String) -> CmdResult<()> {
+    let html_file = path
+        .extension()
+        .is_some_and(|e| e.eq_ignore_ascii_case("html") || e.eq_ignore_ascii_case("htm"));
+    if !html_file {
+        return Err("a bindings sheet is saved as .html".into());
+    }
+    std::fs::write(&path, html).map_err(|e| format!("{}: {e}", path.display()))
 }
 
 #[derive(Serialize)]

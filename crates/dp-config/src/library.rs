@@ -34,7 +34,7 @@ pub enum LibraryError {
     NotAGame(PathBuf),
 }
 
-type Result<T, E = LibraryError> = std::result::Result<T, E>;
+pub type Result<T, E = LibraryError> = std::result::Result<T, E>;
 
 fn io(path: &Path) -> impl FnOnce(std::io::Error) -> LibraryError + '_ {
     move |e| LibraryError::Io(path.to_path_buf(), e)
@@ -242,6 +242,13 @@ fn write_meta(dir: &Path, meta: &GameMeta) -> Result<()> {
 
 /// Create a new game folder with one empty config named "Default".
 pub fn create_game(root: &Path, name: &str) -> Result<Game> {
+    let dir = create_game_empty(root, name)?;
+    create_config(&dir, "Default")?;
+    read_game(&dir)
+}
+
+/// A new game folder with metadata only (for imports that bring their own configs).
+pub fn create_game_empty(root: &Path, name: &str) -> Result<PathBuf> {
     std::fs::create_dir_all(root).map_err(io(root))?;
     let dir = unique_path(root, &slugify(name), None);
     std::fs::create_dir(&dir).map_err(io(&dir))?;
@@ -252,8 +259,7 @@ pub fn create_game(root: &Path, name: &str) -> Result<Game> {
             ..Default::default()
         },
     )?;
-    create_config(&dir, "Default")?;
-    read_game(&dir)
+    Ok(dir)
 }
 
 /// Replace a game's metadata.

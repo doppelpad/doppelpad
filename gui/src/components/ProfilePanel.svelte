@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { Plus, Ellipsis, FileText, Radar } from '@lucide/svelte';
+  import { Download, Ellipsis, FileText, Plus, Radar } from '@lucide/svelte';
+  import { open, save } from '@tauri-apps/plugin-dialog';
   import { api, errorText } from '../lib/api';
   import { t } from '../lib/i18n/index.svelte';
   import { app } from '../lib/state/app.svelte';
@@ -45,6 +46,39 @@
     await app.refreshLibrary();
   }
 
+  async function exportGame(g: Game) {
+    const out = await save({
+      title: t('profiles.export_title'),
+      defaultPath: `${g.meta.name}.dpgame`,
+      filters: [{ name: t('profiles.bundle_filter'), extensions: ['dpgame'] }],
+    });
+    if (!out) return;
+    try {
+      await api.gameExport(g.dir, out);
+      app.toast(t('profiles.exported', { name: g.meta.name }), 'ok');
+    } catch (e) {
+      app.toast(errorText(e), 'error');
+    }
+  }
+
+  async function importGame() {
+    const file = await open({
+      title: t('profiles.import_title'),
+      multiple: false,
+      directory: false,
+      filters: [{ name: t('profiles.bundle_filter'), extensions: ['dpgame'] }],
+    });
+    if (typeof file !== 'string') return;
+    try {
+      const g = await api.gameImport(file);
+      await app.refreshLibrary();
+      await app.selectGame(g.dir);
+      app.toast(t('profiles.imported', { name: g.meta.name }), 'ok');
+    } catch (e) {
+      app.toast(errorText(e), 'error');
+    }
+  }
+
   async function deleteGame(g: Game) {
     if (!confirm(t('profiles.delete_confirm', { name: g.meta.name }))) return;
     try {
@@ -69,6 +103,7 @@
   <!-- Part of the title bar, beside the header; holds the macOS traffic lights. -->
   <div class="head" class:traffic-lights={platform === 'macos' && !win.fullscreen} data-tauri-drag-region="deep">
     <span class="title">{t('profiles.title')}</span>
+    <button class="icon-btn" title={t('profiles.import') + '…'} onclick={importGame}><Download size={17} /></button>
     <button class="icon-btn" title={t('profiles.add')} onclick={addGame}><Plus size={18} /></button>
   </div>
 
@@ -96,6 +131,7 @@
             { label: t('common.rename'), onclick: () => renameGame(g) },
             { label: t('profiles.autodetect') + '…', onclick: () => editProcesses(g) },
             { label: t('common.reveal'), onclick: () => api.reveal(g.dir) },
+            { label: t('profiles.export') + '…', onclick: () => exportGame(g) },
             { separator: true, label: '' },
             { label: t('common.delete'), danger: true, onclick: () => deleteGame(g) },
           ]}
