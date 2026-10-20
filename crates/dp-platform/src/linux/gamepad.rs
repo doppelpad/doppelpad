@@ -574,6 +574,7 @@ impl GamepadBackend for EvdevBackend {
             out.push(PadSnapshot {
                 info: pad.info.clone(),
                 state,
+                battery: None,
             });
         }
     }

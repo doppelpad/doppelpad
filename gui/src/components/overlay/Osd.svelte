@@ -5,7 +5,7 @@
   import { fly } from 'svelte/transition';
   import { invoke } from '@tauri-apps/api/core';
   import { listen } from '@tauri-apps/api/event';
-  import { Bell, Gamepad2, Hash, Layers, Power, PowerOff, Unplug } from '@lucide/svelte';
+  import { BatteryLow, BatteryWarning, Bell, Gamepad2, Hash, Layers, Power, PowerOff, Unplug } from '@lucide/svelte';
   import { setLanguage, t } from '../../lib/i18n/index.svelte';
   import type { OsdMessage } from '../../lib/types';
 
@@ -43,6 +43,10 @@
         return { icon: Gamepad2, title: msg.name, detail: t('osd.connected'), color: 'var(--ok)' };
       case 'disconnected':
         return { icon: Unplug, title: msg.name, detail: t('osd.disconnected'), color: 'var(--warning)' };
+      case 'battery_low':
+        return { icon: BatteryLow, title: msg.name, detail: t('osd.battery_low', { level: msg.level }), color: 'var(--warning)' };
+      case 'battery_critical':
+        return { icon: BatteryWarning, title: msg.name, detail: t('osd.battery_critical', { level: msg.level }), color: 'var(--danger)' };
       case 'test':
         return { icon: Bell, title: 'Doppelpad', detail: t('osd.test'), color: 'var(--accent)' };
     }

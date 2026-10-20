@@ -617,7 +617,9 @@
     "in_use": "Aktiv",
     "use": "Diesen Controller verwenden",
     "own_slots": "Eigene Slots für diesen Controller",
-    "own_hint": "Dieser Controller hat eigene Slots: eigene Config und eigener virtueller Controller"
+    "own_hint": "Dieser Controller hat eigene Slots: eigene Config und eigener virtueller Controller",
+    "battery": "Akku {level} %",
+    "battery_charging": "Akku {level} %, lädt"
   },
   "remap": {
     "on": "Remap AN",
@@ -663,6 +665,7 @@
       "layer": "Ebene gewechselt",
       "keep_layer": "Stehen lassen, solange die Ebene aktiv ist",
       "controller": "Controller verbunden oder getrennt",
+      "battery": "Controller-Akku schwach (40 %) oder fast leer (20 %)",
       "monitor": "Monitor",
       "primary": "Hauptmonitor ({size})",
       "monitor_n": "Monitor {n} ({size})",
@@ -873,6 +876,8 @@
     "layer": "Ebene",
     "connected": "Verbunden",
     "disconnected": "Getrennt",
-    "test": "So sehen Meldungen aus."
+    "test": "So sehen Meldungen aus.",
+    "battery_low": "Akku schwach: {level} %",
+    "battery_critical": "Akku fast leer: {level} %"
   }
 }

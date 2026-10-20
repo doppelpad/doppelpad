@@ -2,7 +2,7 @@
 //! input, the active profile and layer, slots, switches, warnings and driver status.
 
 use dp_core::pad::PadState;
-use dp_platform::PadFamily;
+use dp_platform::{Battery, PadFamily};
 use serde::Serialize;
 
 use crate::calibration::CalibrationStatus;
@@ -19,6 +19,8 @@ pub struct LiveDevice {
     pub state: PadState,
     /// Gyro calibration, for controllers with motion sensors.
     pub gyro_calibration: Option<CalibrationStatus>,
+    /// `None` when the controller does not report one.
+    pub battery: Option<Battery>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize)]

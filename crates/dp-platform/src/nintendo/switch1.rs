@@ -12,7 +12,7 @@ use dp_core::pad::{Axis, Motion, PadState, Rumble};
 
 use super::{NINTENDO_VID, StickCal, apply_buttons, imu_to_pad, unpack12};
 use crate::padio::{Identity, InitError, PadDriver, ReportIo, RumblePacer, pause};
-use crate::{JoyConSide, PadFamily};
+use crate::{Battery, JoyConSide, PadFamily};
 
 /// Rumble data for "no vibration" (320 Hz / 160 Hz at amplitude 0).
 pub const NEUTRAL_RUMBLE: [u8; 4] = [0x00, 0x01, 0x40, 0x40];
@@ -328,6 +328,19 @@ fn parse_motion(ty: ControllerType, cal: &ImuCal, r: &[u8]) -> Option<Motion> {
     Some(Motion { gyro, accel })
 }
 
+/// The battery from byte 2 of a 0x21, 0x30 or 0x31 report: bits 5–7 the level (empty,
+/// critical, low, medium, full), bit 4 charging.
+pub fn parse_battery(r: &[u8]) -> Option<Battery> {
+    if r.len() < 3 || !matches!(r[0], 0x21 | 0x30 | 0x31) {
+        return None;
+    }
+    Some(Battery {
+        level: [0, 10, 30, 60, 100][(r[2] >> 5).min(4) as usize],
+        charging: r[2] & 0x10 != 0,
+        wired: false,
+    })
+}
+
 /// Parse a full report (0x30 / 0x31) into a pad state, with sticks calibrated.
 pub fn parse_full(ty: ControllerType, cal: &mut Calibration, r: &[u8]) -> Option<PadState> {
     if r.len() < 49 || !matches!(r[0], 0x30 | 0x31) {
@@ -443,6 +456,7 @@ pub struct Switch1Driver {
     imu_lost: bool,
     last_imu_fix: Option<Instant>,
     now: Option<Instant>,
+    battery: Option<Battery>,
 }
 
 impl Switch1Driver {
@@ -465,6 +479,7 @@ impl Switch1Driver {
             mode_lost: false,
             last_mode_fix: None,
             imu_seen: false,
+            battery: None,
             imu_lost: false,
             last_imu_fix: None,
             now: None,
@@ -704,6 +719,9 @@ impl PadDriver for Switch1Driver {
 
     fn parse(&mut self, report: &[u8], now: Instant) -> Option<PadState> {
         self.now = Some(now);
+        if let Some(b) = parse_battery(report) {
+            self.battery = Some(b);
+        }
         match report.first()? {
             0x30 | 0x31 => {
                 self.last_input = Some(now);
@@ -731,6 +749,10 @@ impl PadDriver for Switch1Driver {
                 None
             }
         }
+    }
+
+    fn battery(&self) -> Option<Battery> {
+        self.battery
     }
 
     fn service(&mut self, io: &mut dyn ReportIo, rumble: Rumble) -> io::Result<()> {
@@ -1197,5 +1219,21 @@ mod tests {
         );
         assert_eq!(ControllerType::from_byte(0x0C), Some(ControllerType::N64));
         assert_eq!(ControllerType::from_byte(0x00), None);
+    }
+
+    #[test]
+    fn battery_levels_and_charging() {
+        let report = |b: u8| {
+            let mut r = vec![0u8; 49];
+            r[0] = 0x30;
+            r[2] = b;
+            r
+        };
+        let b = parse_battery(&report(0x8E)).unwrap(); // full, connection bits set
+        assert_eq!((b.level, b.charging), (100, false));
+        let b = parse_battery(&report(0x50)).unwrap(); // low, charging
+        assert_eq!((b.level, b.charging), (30, true));
+        assert_eq!(parse_battery(&report(0x20)).unwrap().level, 10); // critical
+        assert_eq!(parse_battery(&[0x3F, 0, 0x80]), None);
     }
 }

@@ -1,5 +1,18 @@
 <script lang="ts">
-  import { Gamepad2, TriangleAlert, Power, Pause, X, ChevronDown, Layers } from '@lucide/svelte';
+  import {
+    BatteryCharging,
+    BatteryFull,
+    BatteryLow,
+    BatteryMedium,
+    BatteryWarning,
+    ChevronDown,
+    Gamepad2,
+    Layers,
+    Pause,
+    Power,
+    TriangleAlert,
+    X,
+  } from '@lucide/svelte';
   import { api, errorText } from '../lib/api';
   import { t } from '../lib/i18n/index.svelte';
   import { app } from '../lib/state/app.svelte';
@@ -90,6 +103,18 @@
             >
               {#if own}<Layers size={15} />{:else}<Gamepad2 size={15} />{/if}
               {d.name}
+              {#if d.battery && !d.battery.wired}
+                {@const b = d.battery}
+                <span
+                  class="battery"
+                  class:low={b.level < 40 && !b.charging}
+                  class:critical={b.level < 20 && !b.charging}
+                  title={t(b.charging ? 'devices.battery_charging' : 'devices.battery', { level: b.level })}
+                >
+                  {#if b.charging}<BatteryCharging size={14} />{:else if b.level < 20}<BatteryWarning size={14} />{:else if b.level < 40}<BatteryLow size={14} />{:else if b.level < 80}<BatteryMedium size={14} />{:else}<BatteryFull size={14} />{/if}
+                  {b.level} %
+                </span>
+              {/if}
             </button>
             <Menu items={deviceMenu(d)}>
               {#snippet trigger()}<span class="device-more"><ChevronDown size={13} /></span>{/snippet}
@@ -224,6 +249,20 @@
   .device.primary {
     color: var(--text);
     background: var(--bg-2);
+  }
+  .battery {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    margin-left: 2px;
+    color: var(--text-dim);
+    font-size: 11px;
+  }
+  .battery.low {
+    color: var(--warning);
+  }
+  .battery.critical {
+    color: var(--danger);
   }
   .device-wrap {
     display: inline-flex;

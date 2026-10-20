@@ -18,7 +18,7 @@ only edits profiles and sends commands.
 | **Toolbar** | Views: *Controller*, *Back side* (the shoulder buttons and the back buttons the connected model has, e.g. GL / GR on the Switch 2 Pro Controller, none on the first one), *Keyboard*, *Mouse*. Layer chips: *Main* plus shift layers, which you can add, rename, copy, paste, clear and remove (together with their analog routes), and whose *Layer settings* say what they inherit from *Main*. On the right: *Analog* (see [Sticks, triggers and analog routes](#sticks-triggers-and-analog-routes)), *Shortcuts* and *Config settings*. |
 | **Centre** | The selected view. Click a control to edit it. On the controller views, pressing a button on the controller selects it. On the keyboard view, pressing a key does the same. |
 | **Binding panel** (right) | See below. With nothing selected, it lists the mappings of the current layer. |
-| **Bottom bar** | Connected controllers (click one to use it; its menu gives it *own slots*, see [Several controllers](#several-controllers)), driver warnings, **Remap ON/OFF**, *Apply to slot n* (saves, puts the config in that slot and activates it), *Autodetect* (switch configs by the game in the foreground; only while remapping is on), and the four slots (click to activate, which also turns remapping on; × to unload). |
+| **Bottom bar** | Connected controllers with their battery level where the controller reports one (DualShock 4, DualSense, Switch controllers, wireless Xbox controllers; orange below 40 %, red below 20 %) (click one to use it; its menu gives it *own slots*, see [Several controllers](#several-controllers)), driver warnings, **Remap ON/OFF**, *Apply to slot n* (saves, puts the config in that slot and activates it), *Autodetect* (switch configs by the game in the foreground; only while remapping is on), and the four slots (click to activate, which also turns remapping on; × to unload). |
 
 ## Editing a control
 
@@ -267,8 +267,8 @@ LB + RB + X) waits for the larger one.
 
 ## Tray
 
-The tray icon is greyed out while remapping is off. Its tooltip names the active config
-and warns when no controller is connected. Left-click opens the window, middle-click
+The tray icon is greyed out while remapping is off. Its tooltip names the active config,
+warns when no controller is connected and lists the controllers' battery levels. Left-click opens the window, middle-click
 turns remapping on or off. The right-click menu has:
 
 - **Open Doppelpad**
@@ -290,7 +290,8 @@ start-up* is set to *Ask*, the window opens to ask.
 ## On-screen notifications
 
 Short messages appear over games when remapping goes on or off, another slot or config
-becomes active, the layer changes, or a controller connects or disconnects. They also show
+becomes active, the layer changes, a controller connects or disconnects, or a controller's
+battery drops below 40 % or 20 % (once per drop, not while charging). They also show
 while the window is closed to the tray, but not while the window has focus (it shows the same
 state) or in the first seconds after start. *Settings → On-screen notifications* picks the
 events, the monitor and corner, the size, opacity and display time, and whether a layer

@@ -1076,6 +1076,7 @@ pub(crate) mod testing {
                 has_rumble: true,
             }),
             state: PadState::default(),
+            battery: None,
         }
     }
 

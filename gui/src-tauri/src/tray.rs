@@ -9,6 +9,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use dp_config::library::Library;
+use dp_platform::Battery;
 use dp_service::{LiveState, SLOTS, ServiceCmd};
 use tauri::image::Image;
 use tauri::menu::{CheckMenuItem, IsMenuItem, Menu, MenuItem, PredefinedMenuItem};
@@ -32,6 +33,7 @@ struct Texts {
     remap_off: &'static str,
     no_config: &'static str,
     no_controller: &'static str,
+    charging: &'static str,
     quit: &'static str,
 }
 
@@ -46,6 +48,7 @@ fn texts(lang: &str) -> Texts {
             remap_off: "Remapping aus",
             no_config: "Keine Config aktiv",
             no_controller: "Kein Controller verbunden",
+            charging: "lädt",
             quit: "Beenden",
         },
         _ => Texts {
@@ -57,6 +60,7 @@ fn texts(lang: &str) -> Texts {
             remap_off: "Remapping off",
             no_config: "No config active",
             no_controller: "No controller connected",
+            charging: "charging",
             quit: "Quit",
         },
     }
@@ -71,6 +75,8 @@ struct View {
     slots: Vec<Option<String>>,
     profile_path: Option<String>,
     has_controller: bool,
+    /// Name and battery of each controller that reports one.
+    batteries: Vec<(String, Battery)>,
 }
 
 impl View {
@@ -82,6 +88,11 @@ impl View {
             slots: live.slots.clone(),
             profile_path: live.profile_path.clone(),
             has_controller: !live.devices.is_empty(),
+            batteries: live
+                .devices
+                .iter()
+                .filter_map(|d| Some((d.name.clone(), d.battery.filter(|b| !b.wired)?)))
+                .collect(),
         }
     }
 }
@@ -213,6 +224,12 @@ fn render(app: &AppHandle) {
         let mut tip = format!("Doppelpad\n{line}");
         if !view.has_controller {
             tip = format!("{tip}\n{}", t.no_controller);
+        }
+        for (name, b) in &view.batteries {
+            tip = format!("{tip}\n{name}: {} %", b.level);
+            if b.charging {
+                tip = format!("{tip} ({})", t.charging);
+            }
         }
         let _ = icon.set_tooltip(Some(truncate_utf16(&tip, TOOLTIP_MAX)));
     }

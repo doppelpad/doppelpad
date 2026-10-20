@@ -862,6 +862,7 @@ impl Service {
                         .state
                         .motion
                         .map(|_| self.rt.calibration().status(&s.info.id.0, now)),
+                    battery: s.battery,
                 })
                 .collect(),
             primary: self.rt.primary_device().map(|d| d.to_string()),

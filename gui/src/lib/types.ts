@@ -326,6 +326,16 @@ export interface LiveDevice {
   state: PadState;
   /** Gyro calibration, for controllers with motion sensors. */
   gyro_calibration: GyroCalibration | null;
+  /** `null` when the controller does not report one. */
+  battery: Battery | null;
+}
+
+export interface Battery {
+  /** Percent; coarse steps on some controllers. */
+  level: number;
+  charging: boolean;
+  /** Runs on the cable without a battery. */
+  wired: boolean;
 }
 
 export interface DriverState {
@@ -458,6 +468,8 @@ export type OsdEvent =
   | { kind: 'layer'; layer: number; name: string | null }
   | { kind: 'connected'; name: string }
   | { kind: 'disconnected'; name: string }
+  | { kind: 'battery_low'; name: string; level: number }
+  | { kind: 'battery_critical'; name: string; level: number }
   | { kind: 'test' };
 
 export type OsdMessage = OsdEvent & { id: number; lang: string; opacity: number; scale: number; corner: Corner };
