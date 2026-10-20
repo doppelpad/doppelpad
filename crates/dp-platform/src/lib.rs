@@ -17,7 +17,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
 pub use dp_core::event::KbmEvent;
 use dp_core::keys::{Key, MouseButton, WheelDir};
-use dp_core::pad::{PadState, Rumble};
+use dp_core::pad::{PadState, Rgb, Rumble};
 use serde::{Deserialize, Serialize};
 
 #[cfg(windows)]
@@ -130,6 +130,9 @@ pub trait GamepadBackend: Send {
     fn poll(&mut self, out: &mut Vec<PadSnapshot>);
     /// Forward rumble to a physical device (if it supports it).
     fn set_rumble(&mut self, _id: &DeviceId, _rumble: Rumble) {}
+    /// Show a light bar colour on a physical device (if it has one); `None` stops setting
+    /// it and leaves the light bar as it is.
+    fn set_lightbar(&mut self, _id: &DeviceId, _color: Option<Rgb>) {}
     /// Tell the backend which XInput slots / device paths belong to our own virtual pads
     /// so it does not read them back as physical input.
     fn ignore_virtual(&mut self, _ignored: &VirtualIgnoreList) {}
@@ -162,6 +165,11 @@ pub trait VirtualPad: Send {
     fn update(&mut self, state: &PadState) -> Result<()>;
     /// Latest rumble request from the game, if it changed since the last call.
     fn take_rumble(&mut self) -> Option<Rumble>;
+    /// Latest light bar colour the game set (DualShock 4 only), if it changed since the
+    /// last call.
+    fn take_lightbar(&mut self) -> Option<Rgb> {
+        None
+    }
     /// XInput slot the pad occupies (Windows X360 only), so readers can skip it.
     fn xinput_slot(&self) -> Option<u32> {
         None

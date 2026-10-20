@@ -213,6 +213,14 @@ pub struct Rumble {
     pub high: f32,
 }
 
+/// Colour of a controller's light bar (DualShock 4, DualSense).
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct Rgb {
+    pub r: u8,
+    pub g: u8,
+    pub b: u8,
+}
+
 /// Convert a signed 16-bit raw axis (XInput convention) to `[-1, 1]`.
 #[inline]
 pub fn axis_from_i16(v: i16) -> f32 {

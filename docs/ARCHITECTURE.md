@@ -102,7 +102,8 @@ Threads on Windows:
 - **HID scanner:** device discovery every 2 s, so the loop never waits on SetupAPI.
 - **hook thread:** low-level keyboard/mouse hooks and raw-input mouse deltas, connected to the
   loop by a lock-free filter and a channel.
-- **ViGEm notification thread:** rumble coming back from games.
+- **ViGEm notification thread** per virtual pad: rumble (and the DualShock 4 light bar)
+  coming back from games.
 - **IPC thread** (daemon only).
 
 On Linux:

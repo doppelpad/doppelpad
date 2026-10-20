@@ -12,7 +12,7 @@ use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
-use dp_core::pad::{PadState, Rumble};
+use dp_core::pad::{PadState, Rgb, Rumble};
 use windows_sys::Win32::Devices::HumanInterfaceDevice::HidD_GetHidGuid;
 use windows_sys::core::GUID;
 
@@ -130,6 +130,7 @@ enum DevState {
 struct Shared {
     state: Mutex<DevState>,
     rumble: Mutex<Rumble>,
+    lightbar: Mutex<Option<Rgb>>,
     waker: Arc<Waker>,
     stop: AtomicBool,
     done: AtomicBool,
@@ -194,6 +195,26 @@ impl HidBackend {
             problems,
             stop,
             rescan,
+        }
+    }
+}
+
+impl HidBackend {
+    /// Store an output value for a device's thread and wake it if the value changed.
+    fn hand_over<T: PartialEq>(&self, id: &DeviceId, slot: impl Fn(&Shared) -> &Mutex<T>, v: T) {
+        for d in self.devices.lock().unwrap().values() {
+            let matches = matches!(
+                &*d.shared.state.lock().unwrap(),
+                DevState::Ready { info, .. } if &info.id == id
+            );
+            if matches {
+                let mut current = slot(&d.shared).lock().unwrap();
+                if *current != v {
+                    *current = v;
+                    d.shared.waker.wake();
+                }
+                return;
+            }
         }
     }
 }
@@ -321,6 +342,7 @@ fn spawn_device(io: HidIo, base: Base) -> Device {
     let shared = Arc::new(Shared {
         state: Mutex::new(DevState::Starting),
         rumble: Mutex::new(Rumble::default()),
+        lightbar: Mutex::new(None),
         waker: io.waker(),
         stop: AtomicBool::new(false),
         done: AtomicBool::new(false),
@@ -399,6 +421,7 @@ fn run_device(mut io: HidIo, base: &Base, shared: &Shared) {
             }
         }
         let rumble = *shared.rumble.lock().unwrap();
+        driver.set_lightbar(*shared.lightbar.lock().unwrap());
         if let Err(e) = driver.service(&mut io, rumble) {
             tracing::debug!(path = %base.path, "HID write failed: {e}");
         }
@@ -433,20 +456,11 @@ impl GamepadBackend for HidBackend {
     }
 
     fn set_rumble(&mut self, id: &DeviceId, rumble: Rumble) {
-        for d in self.devices.lock().unwrap().values() {
-            let matches = matches!(
-                &*d.shared.state.lock().unwrap(),
-                DevState::Ready { info, .. } if &info.id == id
-            );
-            if matches {
-                let mut current = d.shared.rumble.lock().unwrap();
-                if *current != rumble {
-                    *current = rumble;
-                    d.shared.waker.wake();
-                }
-                return;
-            }
-        }
+        self.hand_over(id, |s| &s.rumble, rumble);
+    }
+
+    fn set_lightbar(&mut self, id: &DeviceId, color: Option<Rgb>) {
+        self.hand_over(id, |s| &s.lightbar, color);
     }
 
     fn problems(&self) -> Vec<String> {

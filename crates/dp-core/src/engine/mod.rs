@@ -1105,8 +1105,17 @@ impl Engine {
                     shape_trigger(phys.axis(t.axis()), self.profile.triggers.get(t)),
                 );
             }
-            pad.motion = phys.motion;
-            pad.touch = phys.touch;
+            // A remapped touchpad or gyro no longer reaches the game, like a remapped stick.
+            let touch_used = TouchRegion::ALL.iter().any(|r| hidden(&Control::Touch(*r)))
+                || route_consumes(AnalogSource::Touchpad);
+            if !touch_used {
+                pad.touch = phys.touch;
+            }
+            let gyro_used = Dir::ALL.iter().any(|d| hidden(&Control::Gyro(*d)))
+                || route_consumes(AnalogSource::Gyro);
+            if !gyro_used {
+                pad.motion = phys.motion;
+            }
         }
 
         // Mapping outputs.

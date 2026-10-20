@@ -8,7 +8,7 @@
 
 use std::sync::Arc;
 
-use dp_core::pad::{Axis, Motion, PadButton, PadState, Rumble, Stick};
+use dp_core::pad::{Axis, Motion, PadButton, PadState, Rgb, Rumble, Stick};
 
 use crate::nintendo::NINTENDO_VID;
 use crate::{
@@ -242,6 +242,13 @@ impl<B: GamepadBackend> GamepadBackend for JoyConCombiner<B> {
             );
         } else {
             self.inner.set_rumble(id, rumble);
+        }
+    }
+
+    fn set_lightbar(&mut self, id: &DeviceId, color: Option<Rgb>) {
+        // Joy-Cons have no light bar; everything else the inner backend reads may.
+        if !self.pairs.iter().any(|p| &p.info.id == id) {
+            self.inner.set_lightbar(id, color);
         }
     }
 

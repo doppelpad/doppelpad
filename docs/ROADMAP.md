@@ -18,7 +18,7 @@
 | Per-game auto-switching (foreground process) | ✅ |
 | JSON profile import | ✅ (radial menus, crosshairs, right trackpad, flick stick not yet) |
 | Emergency stop combo | ✅ |
-| Virtual Xbox 360 / DualShock 4 | ✅ via ViGEmBus; Linux: Xbox 360 via uinput (untested on hardware) |
+| Virtual Xbox 360 / DualShock 4 | ✅ via ViGEmBus, with the game's rumble fed back; DualShock 4 with touchpad, motion and light bar (⏳ hardware testing); Linux: Xbox 360 via uinput (untested on hardware) |
 | Hide physical controller | ✅ via HidHide; Linux: `EVIOCGRAB` (untested on hardware) |
 | Desktop app (editor, tray, 4 slots, autodetect, English/German, stick/trigger/curve editor, analog and gyro routes) | ✅ (controller drawings ⏳) |
 | Installer | ✅ Windows setup (NSIS) that installs missing ViGEmBus/HidHide; ⏳ code signing, test on a clean Windows install |
