@@ -605,6 +605,19 @@ export interface ConfigEntry {
   error: string | null;
 }
 
+/** One layer kept to reuse: its settings, mappings and routes (layer ids left out). */
+export interface LayerPreset {
+  name: string;
+  layer?: Layer;
+  mappings?: Mapping[];
+  analog?: AnalogMapping[];
+}
+
+export interface PresetEntry {
+  name: string;
+  path: string;
+}
+
 export interface Game {
   dir: string;
   meta: GameMeta;

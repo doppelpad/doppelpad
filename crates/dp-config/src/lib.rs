@@ -1,6 +1,7 @@
 //! Loading, saving and validating Doppelpad profiles, and importing JSON profiles
 //! (schema 3.0).
 
+pub mod bundle;
 pub mod compat;
 pub mod diag;
 pub mod library;

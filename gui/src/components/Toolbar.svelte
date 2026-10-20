@@ -1,9 +1,11 @@
 <script lang="ts">
   import { Gamepad2, RotateCcw, Keyboard, Mouse, Combine, Cable, Joystick, Plus, Ellipsis, ChevronDown } from '@lucide/svelte';
+  import { api, errorText } from '../lib/api';
   import { t } from '../lib/i18n/index.svelte';
+  import { insertPreset, makePreset } from '../lib/model/presets';
   import { addLayer, clearLayer, copyLayer, layerIds, pasteLayer, removeLayer, renameLayer } from '../lib/model/profile';
   import { app, type View } from '../lib/state/app.svelte';
-  import type { Profile } from '../lib/types';
+  import type { PresetEntry, Profile } from '../lib/types';
   import LayerDialog from './LayerDialog.svelte';
   import Menu from './ui/Menu.svelte';
 
@@ -81,6 +83,40 @@
     if (app.profile && app.copiedLayer) app.update(pasteLayer(app.profile, app.copiedLayer, app.layer));
   }
 
+  let presets = $state<PresetEntry[]>([]);
+  const loadPresets = () =>
+    api
+      .presetList()
+      .then((p) => (presets = p))
+      .catch(() => {});
+  loadPresets();
+
+  async function onSavePreset() {
+    if (!app.profile) return;
+    const name = await app.ask(t('layers.preset_name'), app.layerLabel(app.layer));
+    if (!name) return;
+    try {
+      await api.presetSave(makePreset($state.snapshot(app.profile) as Profile, app.layer, name));
+      await loadPresets();
+      app.toast(t('layers.preset_saved', { name }), 'ok');
+    } catch (e) {
+      app.toast(errorText(e), 'error');
+    }
+  }
+
+  async function onInsertPreset(entry: PresetEntry) {
+    if (!app.profile) return;
+    try {
+      const preset = await api.presetLoad(entry.path);
+      const { profile, layer, dropped } = insertPreset(app.profile, preset);
+      app.update(profile);
+      app.layer = layer;
+      if (dropped > 0) app.toast(t('layers.preset_dropped', { n: dropped }), 'info');
+    } catch (e) {
+      app.toast(errorText(e), 'error');
+    }
+  }
+
   function onRemove() {
     if (!app.profile || app.layer === 0) return;
     app.update(removeLayer(app.profile, app.layer));
@@ -95,6 +131,13 @@
     { label: t('layers.copy'), onclick: onCopy },
     { label: t('layers.paste'), onclick: onPaste, disabled: !app.copiedLayer },
     { label: t('layers.clear'), onclick: () => app.profile && app.update(clearLayer(app.profile, app.layer)) },
+    { separator: true, label: '' },
+    { label: t('layers.save_preset') + '…', onclick: onSavePreset, disabled: !app.profile },
+    ...presets.map((p) => ({
+      label: t('layers.insert_preset', { name: p.name }),
+      onclick: () => onInsertPreset(p),
+      disabled: !app.profile || app.readOnly,
+    })),
     { separator: true, label: '' },
     { label: t('layers.remove'), danger: true, onclick: onRemove, disabled: app.layer === 0 },
   ]);
