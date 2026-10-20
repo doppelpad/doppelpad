@@ -8,6 +8,7 @@ use std::time::Duration;
 
 use dp_config::bundle::{self, LayerPreset, PresetEntry};
 use dp_config::library::{self, Game, GameMeta, Library};
+use dp_config::templates::{self, Template};
 use dp_config::{Diagnostics, Severity};
 use dp_core::control::{Control, mouse_button_name, pad_button_name};
 use dp_core::hotkeys::Hotkeys;
@@ -152,6 +153,46 @@ pub fn game_delete(app: AppHandle, dir: PathBuf) -> CmdResult<()> {
     library::delete_game(&dir).map_err(err)?;
     library_changed(&app);
     Ok(())
+}
+
+/// A new game whose first config (`config`) starts from a template.
+#[tauri::command]
+pub fn game_create_template(
+    app: AppHandle,
+    state: State<AppState>,
+    name: String,
+    config: String,
+    template: Template,
+) -> CmdResult<Game> {
+    let profile = templates::profile(template, &config);
+    let g = library::create_game_with(&state.profiles_dir, &name, &profile).map_err(err)?;
+    library_changed(&app);
+    Ok(g)
+}
+
+/// A new config in a game, starting from a template.
+#[tauri::command]
+pub fn config_from_template(
+    game_dir: PathBuf,
+    name: String,
+    template: Template,
+) -> CmdResult<PathBuf> {
+    library::create_config_with(&game_dir, &templates::profile(template, &name)).map_err(err)
+}
+
+/// Open the download page of a driver Doppelpad uses.
+#[tauri::command]
+pub fn open_driver_page(driver: String) -> CmdResult<()> {
+    let url = match driver.as_str() {
+        "virtual_pads" => "https://github.com/nefarius/ViGEmBus/releases",
+        "device_hiding" => "https://github.com/nefarius/HidHide/releases",
+        _ => return Err(format!("unknown driver {driver}")),
+    };
+    #[cfg(windows)]
+    let opened = std::process::Command::new("explorer").arg(url).spawn();
+    #[cfg(not(windows))]
+    let opened = std::process::Command::new("xdg-open").arg(url).spawn();
+    opened.map(drop).map_err(err)
 }
 
 /// Write a game and its configs as one bundle file.

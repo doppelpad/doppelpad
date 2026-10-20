@@ -1,4 +1,49 @@
 {
+  "welcome": {
+    "skip": "Skip",
+    "next": "Next",
+    "default_game": "My first game",
+    "created": "{name} created",
+    "settings_title": "Welcome",
+    "again": "Show the welcome guide again",
+    "welcome": {
+      "title": "Welcome to Doppelpad",
+      "text": "Doppelpad remaps controllers, keyboard and mouse, with configs of their own for every game. This short guide checks the drivers, finds your controller and makes a first config."
+    },
+    "drivers": {
+      "title": "Drivers",
+      "text": "Doppelpad needs ViGEmBus for virtual controllers and HidHide to hide the real controller from games. Both are open and free.",
+      "after": "After installing, check again in Settings → Drivers. Keyboard and mouse mappings work without them."
+    },
+    "controller": {
+      "title": "Controller",
+      "text": "These controllers are connected:",
+      "none": "No controller found. Connect one over USB or Bluetooth, or play without one, using keyboard and mouse as a controller."
+    },
+    "output": {
+      "title": "What should it become?",
+      "text": "Pick a start; everything can be changed later."
+    },
+    "finish": {
+      "title": "First config",
+      "name": "Name of the game",
+      "use_now": "Use it now (slot 1, remapping on)",
+      "no_pad": "No controller connected yet; the config works as soon as one is.",
+      "create": "Create"
+    },
+    "templates": {
+      "virtual_xbox": "Virtual Xbox controller",
+      "virtual_ds4": "Virtual DualShock 4",
+      "desktop": "Desktop with the controller",
+      "keyboard_mouse": "Keyboard and mouse as a controller"
+    },
+    "template_hints": {
+      "virtual_xbox": "Games see an Xbox 360 controller; your controller is hidden from them. The best start for most games.",
+      "virtual_ds4": "The same as a PlayStation controller, with touchpad and motion reaching the game.",
+      "desktop": "Right stick as the mouse, triggers click, D-pad for the arrow keys; no virtual controller.",
+      "keyboard_mouse": "WASD and the mouse drive a virtual Xbox controller, for games that only know controllers."
+    }
+  },
   "sheet": {
     "menu": "Save bindings sheet",
     "save_title": "Save the bindings sheet as HTML",
@@ -50,6 +95,7 @@
     "close": "Close"
   },
   "header": {
+    "from_template": "New from template: {template}",
     "new_config": "New config",
     "new_config_name": "Name of the config",
     "import": "Import JSON profile…",

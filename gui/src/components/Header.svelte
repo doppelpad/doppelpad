@@ -6,7 +6,7 @@
   import { bindingsSheet } from '../lib/model/sheet';
   import { app } from '../lib/state/app.svelte';
   import { platform } from '../lib/state/window.svelte';
-  import type { Profile } from '../lib/types';
+  import type { Profile, Template } from '../lib/types';
   import Menu, { type MenuItem } from './ui/Menu.svelte';
   import WindowControls from './WindowControls.svelte';
 
@@ -20,6 +20,19 @@
     if (!name) return;
     try {
       const path = await api.configCreate(app.gameDir, name);
+      await app.refreshLibrary();
+      await app.openConfig(path);
+    } catch (e) {
+      app.toast(errorText(e), 'error');
+    }
+  }
+
+  const TEMPLATES: Template[] = ['virtual_xbox', 'virtual_ds4', 'desktop', 'keyboard_mouse'];
+
+  async function fromTemplate(tpl: Template) {
+    if (!app.gameDir) return;
+    try {
+      const path = await api.configFromTemplate(app.gameDir, t(`welcome.templates.${tpl}`), tpl);
       await app.refreshLibrary();
       await app.openConfig(path);
     } catch (e) {
@@ -104,6 +117,11 @@
     { separator: true, label: '' },
     { label: t('header.new_config') + '…', onclick: newConfig, disabled: !app.gameDir },
     { label: t('header.import'), onclick: importJson, disabled: !app.gameDir },
+    ...TEMPLATES.map((tpl) => ({
+      label: t('header.from_template', { template: t(`welcome.templates.${tpl}`) }),
+      onclick: () => fromTemplate(tpl),
+      disabled: !app.gameDir,
+    })),
   ]);
 
   const optionItems = $derived<MenuItem[]>([

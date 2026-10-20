@@ -289,6 +289,13 @@ trigger and stick direction in turn and records what the controller sends (skip 
 not have). The layout is kept for every controller of that model; the same menu entry can
 discard it again.
 
+On first start a short guide checks the drivers (with download buttons for ViGEmBus and
+HidHide), lists the connected controllers (unknown ones can be identified right there), asks
+what the controller should become (a virtual Xbox or DualShock 4 controller, the desktop, or
+keyboard and mouse as a controller) and creates a first game with a matching config, applied to
+slot 1 if you like. *Settings → Welcome* shows it again. The same templates are in the config
+menu as **New from template: …**.
+
 To share a game, choose **Export game …** in its menu in the game list: one `.dpgame` file holds
 its settings, every config and its picture. **Import game** (the arrow next to *+*) unpacks such
 a file into a new game; nothing existing is overwritten. **Save bindings sheet …** in a config's

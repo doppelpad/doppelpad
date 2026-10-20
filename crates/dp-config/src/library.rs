@@ -293,6 +293,20 @@ pub fn create_config(game_dir: &Path, name: &str) -> Result<PathBuf> {
     Ok(path)
 }
 
+/// A new config file holding `profile`, named after it.
+pub fn create_config_with(game_dir: &Path, profile: &Profile) -> Result<PathBuf> {
+    let path = unique_path(game_dir, &slugify(&profile.name), Some("toml"));
+    save_profile_atomic(&path, profile)?;
+    Ok(path)
+}
+
+/// A new game whose first config is `profile`.
+pub fn create_game_with(root: &Path, name: &str, profile: &Profile) -> Result<Game> {
+    let dir = create_game_empty(root, name)?;
+    create_config_with(&dir, profile)?;
+    read_game(&dir)
+}
+
 /// Copy a config next to itself under a new name ("<name> copy").
 pub fn duplicate_config(path: &Path) -> Result<PathBuf> {
     let (mut profile, _) = load(path)?;

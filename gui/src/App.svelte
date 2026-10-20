@@ -23,6 +23,7 @@
   import SettingsDialog from './components/SettingsDialog.svelte';
   import PromptDialog from './components/ui/PromptDialog.svelte';
   import RewasdDialog from './components/RewasdDialog.svelte';
+  import WelcomeWizard from './components/WelcomeWizard.svelte';
   import Toasts from './components/ui/Toasts.svelte';
 
   let settingsOpen = $state(false);
@@ -118,6 +119,7 @@
 {#if settingsOpen}<SettingsDialog onclose={() => (settingsOpen = false)} />{/if}
 <PromptDialog />
 <RewasdDialog />
+{#if !app.settings.welcome_done}<WelcomeWizard />{/if}
 <Toasts />
 
 <style>

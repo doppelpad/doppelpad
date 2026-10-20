@@ -679,7 +679,12 @@ export interface GuiSettings {
   osd: OsdSettings;
   pad_overlay: PadOverlaySettings;
   mappings_overlay: MappingsOverlaySettings;
+  /** The welcome guide was finished or skipped. */
+  welcome_done: boolean;
 }
+
+/** Starting points for new configs. */
+export type Template = 'virtual_xbox' | 'virtual_ds4' | 'desktop' | 'keyboard_mouse';
 
 export type Corner = 'top_left' | 'top_right' | 'bottom_left' | 'bottom_right';
 
