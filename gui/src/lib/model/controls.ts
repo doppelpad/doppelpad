@@ -113,6 +113,12 @@ export function controlLabel(c: ControlName, family: PadFamily | null): string {
   return c;
 }
 
+/** Like `controlLabel`, but mouse buttons say so, for lists that mix devices. */
+export function controlLabelMixed(c: ControlName, family: PadFamily | null): string {
+  const name = controlLabel(c, family);
+  return c.startsWith('Mouse:') ? `${t('picker.mouse')}: ${name}` : name;
+}
+
 /** Short name for compact labels (e.g. on the controller drawing). */
 export function controlShort(c: ControlName, family: PadFamily | null): string {
   return controlLabel(c, family);

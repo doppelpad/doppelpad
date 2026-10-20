@@ -57,10 +57,11 @@ pub fn parse_toml(src: &str) -> Result<Profile, toml::de::Error> {
     toml::from_str(src)
 }
 
-/// Serialize a profile as TOML.
+/// Serialize a profile as TOML. Arrays of values stay on one line (`trigger = ["LB", "RB"]`,
+/// `curve = [[0.3, 0.15], [0.7, 0.55]]`) like in hand-written profiles; the "pretty" style
+/// would put every element, even of a curve point, on a line of its own.
 pub fn to_toml(p: &Profile) -> String {
-    let body =
-        toml::to_string_pretty(p).unwrap_or_else(|e| format!("# serialization failed: {e}\n"));
+    let body = toml::to_string(p).unwrap_or_else(|e| format!("# serialization failed: {e}\n"));
     format!("# Doppelpad profile — https://github.com/doppelpad/doppelpad\n{body}")
 }
 
@@ -282,6 +283,40 @@ mod tests {
         let p = parse_toml(src).unwrap();
         let again = parse_toml(&to_toml(&p)).unwrap();
         assert_eq!(p, again);
+    }
+
+    #[test]
+    fn to_toml_keeps_value_arrays_on_one_line() {
+        let src = r#"
+name = "x"
+processes = ["a.exe", "b.exe"]
+
+[sticks.right]
+curve = [[0.3, 0.15], [0.7, 0.55]]
+
+[[mappings]]
+trigger = ["LB", "RB"]
+actions = [{ key = "Escape" }, { pause = 20 }]
+
+[[analog]]
+source = "gyro"
+target = "right_stick"
+while_held = ["LT", "Mouse:Right"]
+"#;
+        let p = parse_toml(src).unwrap();
+        let text = to_toml(&p);
+        for line in [
+            r#"processes = ["a.exe", "b.exe"]"#,
+            "curve = [[0.3, 0.15], [0.7, 0.55]]",
+            r#"trigger = ["LB", "RB"]"#,
+            r#"while_held = ["LT", "Mouse:Right"]"#,
+            "[[mappings]]",
+            "[[mappings.actions]]",
+            "[[analog]]",
+        ] {
+            assert!(text.lines().any(|l| l == line), "missing `{line}` in\n{text}");
+        }
+        assert_eq!(parse_toml(&text).unwrap(), p);
     }
 
     #[test]

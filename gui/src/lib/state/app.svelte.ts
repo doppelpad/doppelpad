@@ -13,6 +13,7 @@ import {
   removeMapping,
   tidyMapping,
   upsertMapping,
+  type LayerCopy,
 } from '../model/profile';
 import type {
   Activator,
@@ -31,7 +32,9 @@ import type {
   RewasdStatus,
 } from '../types';
 
-export type View = 'front' | 'back' | 'keyboard' | 'mouse' | 'shortcuts' | 'macro' | 'output';
+export type View = 'front' | 'back' | 'keyboard' | 'mouse' | 'shortcuts' | 'macro' | 'output' | 'analog';
+/** Pages of the analog view. */
+export type AnalogTab = 'left' | 'right' | 'triggers' | 'routes';
 
 export interface Toast {
   id: number;
@@ -93,10 +96,11 @@ class AppState {
   activator = $state<Activator>('single');
   /** Mapping opened in the macro editor (layer + trigger + activator of it). */
   macroTarget = $state<{ layer: number; trigger: Combo; activator: Activator } | null>(null);
+  analogTab = $state<AnalogTab>('left');
   applySlot = $state(0);
   toasts = $state<Toast[]>([]);
   prompt = $state<PromptRequest | null>(null);
-  copiedLayer: Mapping[] | null = null;
+  copiedLayer: LayerCopy | null = null;
 
   /** Listeners for physical controller presses (shortcut recording overrides selection). */
   pressListener: ((c: ControlName) => void) | null = null;
@@ -315,6 +319,13 @@ class AppState {
     this.selected = c;
     this.macroTarget = null;
     if (c && this.view === 'macro') this.view = 'front';
+  }
+
+  /** Show the analog view on one of its pages (from the controller drawing or the binding panel). */
+  openAnalog(tab: AnalogTab) {
+    this.analogTab = tab;
+    this.view = 'analog';
+    this.select(null);
   }
 
   selectedKey = $derived(this.selected ? comboKey(this.selected) : '');

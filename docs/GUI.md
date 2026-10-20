@@ -15,7 +15,7 @@ only edits profiles and sends commands.
 |---|---|
 | **Games** (left) | One entry per game. A game has one or more configs and an optional list of programs (`game.exe`) that switch to it automatically. A green dot marks the game whose config is running. Configs outside a game folder appear under *Other configs*. |
 | **Header** | *Game › Config* picker (switch, create, import a JSON profile), **Save** (Ctrl+S; a dot means unsaved changes), options (rename, duplicate, show in Explorer, clear, delete), settings. Imported JSON files are read-only; duplicate them to edit. The header and the top of the games list also act as the title bar: drag them to move the window, double-click to maximize. On Windows and Linux the app draws its own minimize, maximize and close buttons at the right. On macOS the system buttons sit at the top left. |
-| **Toolbar** | Views: *Controller*, *Back buttons*, *Keyboard*, *Mouse*. Layer chips: *Main* plus shift layers, which you can add, rename, copy, paste, clear and remove. On the right: *Shortcuts* and *Output device*. |
+| **Toolbar** | Views: *Controller*, *Back buttons*, *Keyboard*, *Mouse*. Layer chips: *Main* plus shift layers, which you can add, rename, copy, paste, clear and remove (together with their analog routes). On the right: *Analog* (see [Sticks, triggers and analog routes](#sticks-triggers-and-analog-routes)), *Shortcuts* and *Output device*. |
 | **Centre** | The selected view. Click a control to edit it. On the controller views, pressing a button on the controller selects it. On the keyboard view, pressing a key does the same. |
 | **Binding panel** (right) | See below. With nothing selected, it lists the mappings of the current layer. |
 | **Bottom bar** | Connected controllers (click one to use it), driver warnings, **Remap ON/OFF**, *Apply to slot n* (saves, puts the config in that slot and activates it), *Autodetect* (switch configs by the game in the foreground; only while remapping is on), and the four slots (click to activate, which also turns remapping on; × to unload). |
@@ -60,6 +60,79 @@ together with the pauses between them.
 and mouse only). It also covers hiding the physical controller from games, passing
 unmapped controls through, and blocking the original keys of remapped controls. Missing
 drivers are shown here and in the bottom bar.
+
+## Sticks, triggers and analog routes
+
+**Analog** in the toolbar opens the analog settings. The controller drawing leads there
+too: clicking a stick offers *Stick settings* under the direction picker, and the binding
+panel of a stick direction, stick click or trigger links to the matching page. With a
+controller connected, the previews follow its sticks and triggers live. The view has four
+tabs.
+
+**Left stick** and **Right stick** shape the physical stick for the whole config (every
+layer):
+
+- *Deadzone*: below this deflection the output is zero, and the rest is rescaled. 0 passes
+  the raw stick through, so the game applies its own deadzone.
+- *Full deflection at*: deflection treated as fully pushed (the outer deadzone).
+- *Anti-deadzone*: the smallest output once the stick leaves the deadzone, to skip a
+  game's own deadzone.
+- *Sensitivity*: output multiplier; the output never exceeds full deflection.
+- *Rotation* (degrees, counter-clockwise) and *Invert horizontal* / *Invert vertical*.
+- *Direction threshold*: deflection at which the stick's directions (`LeftStickUp`, …)
+  count as pressed for mappings, which is where the low zone starts (`zones.low`). The
+  medium and high zones, and separate horizontal and vertical thresholds, are set under
+  *Zone thresholds* in the binding panel once a zone (*Low*, *Medium*, *High*) of a stick
+  direction is selected. While the low zone has separate axes, this slider shows the
+  horizontal value and is locked.
+- *Response curve*: points between the deadzone and full deflection, linear in between.
+  Drag a point to move it, double-click the graph to add one (up to eight), double-click a
+  point to remove it. A focused point also moves with the arrow keys (Shift for bigger
+  steps) and is removed with Delete. Presets: *Linear*, *Precise*, *Very precise*, *Fast*.
+
+The top view shows the deadzone (grey disc), full deflection (dashed ring), the zone
+thresholds (dotted; the low one, which is the direction threshold, the most visible), where
+pushing the stick up ends up after rotation or inversion
+(orange), the stick (ring) and the output (dot). The graph draws the complete response from
+stick to output, and a dashed line follows the stick. Inversion and rotation also apply to
+analog routes that read the stick; the other settings only shape what the virtual
+controller receives, because routes have their own deadzone and curve.
+
+**Triggers** sets, per trigger, the *Deadzone* (pulls below it read as zero, the rest is
+rescaled), the *Press point* at which `LT` / `RT` mappings fire (where the low zone starts),
+and the *Full pull*, which reads as fully pressed and fires `LTFull` / `RTFull` mappings.
+The bars show the live pull with the press point (blue line), the medium and high zone
+thresholds (faint lines; set in the zone editor) and the output; *Pressed* and *Full pull*
+light up when mappings would fire.
+
+**Routes** lists the analog routes of the current layer. *Add route* offers common ones:
+right stick → mouse, gyro → mouse, gyro → right stick while `LT` is held, mouse → right
+stick, touchpad → mouse. Each route can then take any source (left or right stick, gyro,
+mouse, touchpad) and target (mouse, left or right stick; the mouse cannot drive the mouse).
+A route shows only the settings it uses:
+
+| Setting | Used by |
+|---|---|
+| *Sensitivity*, *Vertical ratio*, *Invert* | every route; the hint under *Sensitivity* says what 1 means for the route |
+| *Curve* (exponent on the deflection; 1 = linear) | stick → mouse, mouse → stick, touchpad → stick |
+| *Deadzone* | stick → mouse, stick → stick, touchpad → stick |
+| *Anti-deadzone* | routes to a stick |
+| *Smoothing* | stick → mouse, mouse → stick, gyro → mouse or stick |
+| *Recentre after* | mouse → stick |
+| *Trackball friction* (100 % = no glide after lift-off) | touchpad → mouse |
+| *Keep the stick from also reaching the virtual controller* / *Keep the mouse from also moving the cursor* | stick and mouse sources |
+
+*Only while held* lists controls that must all be held for the route to run, for example
+gyro aiming only while `LT` is held. Pick controller buttons, triggers or mouse buttons
+from the list, or choose *Press a button or key…* and press one on the controller or the
+keyboard.
+
+On a shift layer, Main's routes keep working for every source the layer does not route
+itself (unless the layer does not inherit). They are listed below the layer's own routes,
+and *Change on this layer* copies one onto the layer, where it replaces Main's.
+
+The settings are stored as `[sticks.left]`, `[sticks.right]`, `[triggers.left]`,
+`[triggers.right]` and `[[analog]]` in the profile; see [PROFILES.md](PROFILES.md).
 
 ## Remapping while the window is open
 
@@ -148,8 +221,8 @@ npm run icons                 # re-render src-tauri/icons/ from icons/source/*.s
 
 The GUI crate is not in the workspace's `default-members`, so `cargo build` and
 `cargo test` at the root build only the CLI. Use `cargo test -p dp-gui` for the bridge
-tests. They check that the frontend's key table and JSON shapes match the Rust model,
-using the fixtures in `gui/src/lib/model/fixtures`. Regenerate them with
+tests. They check that the frontend's key table, JSON shapes and default values match the
+Rust model, using the fixtures in `gui/src/lib/model/fixtures`. Regenerate them with
 `DOPPELPAD_UPDATE_FIXTURES=1 cargo test -p dp-gui`.
 
 ## Installer

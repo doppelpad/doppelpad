@@ -1,7 +1,7 @@
 <script lang="ts">
   // Right-hand editor for the selected control: activator, actions, mode, block, layer
   // jump, description and timing overrides.
-  import { Plus, X, Trash2, Info, ChevronRight, Zap, Repeat, Ban, Clapperboard } from '@lucide/svelte';
+  import { Plus, X, Trash2, Info, ChevronRight, Zap, Repeat, Ban, Clapperboard, SlidersHorizontal } from '@lucide/svelte';
   import { t } from '../../lib/i18n/index.svelte';
   import { ZONES, controlLabel, isAnyDirection, withZone, zoneParts, type ZoneName } from '../../lib/model/controls';
   import {
@@ -19,7 +19,7 @@
     removeMapping,
     sameAction,
   } from '../../lib/model/profile';
-  import { app } from '../../lib/state/app.svelte';
+  import { app, type AnalogTab } from '../../lib/state/app.svelte';
   import type { Action, Activator, Combo, JumpMode, Mapping, Mode } from '../../lib/types';
   import Toggle from '../ui/Toggle.svelte';
   import ActionPicker from './ActionPicker.svelte';
@@ -53,6 +53,17 @@
   const usedActivators = $derived(new Set(effective.mappings.map(activatorOf)));
 
   const title = $derived(combo ? comboList(combo).map((c) => controlLabel(c, app.family)).join(' + ') : '');
+
+  /** The analog settings page of a selected stick or trigger control (including its zones). */
+  const analogTab = $derived.by<AnalogTab | null>(() => {
+    const list = combo ? comboList(combo) : [];
+    if (list.length !== 1) return null;
+    const c = list[0];
+    if (c === 'LS' || c.startsWith('LeftStick')) return 'left';
+    if (c === 'RS' || c.startsWith('RightStick')) return 'right';
+    if (/^(LT|RT)(Full|Low|Med|High)?$/.test(c)) return 'triggers';
+    return null;
+  });
 
   /** A stick direction, trigger or one of their zones: the panel offers its zones. */
   const zone = $derived.by(() => {
@@ -201,6 +212,18 @@
       </div>
       <button class="icon-btn" title={t('common.close')} onclick={() => app.select(null)}><X size={16} /></button>
     </div>
+
+    {#if analogTab}
+      {@const stick = analogTab !== 'triggers'}
+      <button class="analog-link" onclick={() => app.openAnalog(analogTab)}>
+        <SlidersHorizontal size={14} />
+        <span class="al-text">
+          <span>{t(stick ? 'binding.stick_settings' : 'binding.trigger_settings')}</span>
+          <span class="al-hint">{t(stick ? 'binding.stick_settings_hint' : 'binding.trigger_settings_hint')}</span>
+        </span>
+        <ChevronRight size={14} />
+      </button>
+    {/if}
 
     {#if zone}
       {@const zp = zone}
@@ -483,6 +506,35 @@
     border-radius: 99px;
     border: 1px solid var(--c);
     color: var(--c);
+  }
+  .analog-link {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 10px;
+    border-radius: var(--radius-s);
+    border: 1px solid var(--line);
+    background: var(--bg-2);
+    color: var(--text-dim);
+    text-align: left;
+  }
+  .analog-link:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .al-text {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .al-text > span:first-child {
+    color: var(--text);
+    font-weight: 500;
+  }
+  .al-hint {
+    font-size: 11.5px;
+    color: var(--text-faint);
   }
   .zones {
     display: grid;

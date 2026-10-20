@@ -1,13 +1,15 @@
 //! Checks that the web frontend and the Rust model agree on names and JSON shapes.
 //!
-//! `gui/src/lib/model/fixtures/keys.json` lists every key name and `examples.json` holds the
-//! example profiles in JSON form; the frontend tests use both. Regenerate them with
+//! `gui/src/lib/model/fixtures/keys.json` lists every key name, `examples.json` holds the
+//! example profiles in JSON form and `defaults.json` the defaults of the analog settings;
+//! the frontend tests use them. Regenerate them with
 //! `DOPPELPAD_UPDATE_FIXTURES=1 cargo test -p dp-gui`.
 
 use std::path::PathBuf;
 
 use dp_core::keys::Key;
-use dp_core::profile::Profile;
+use dp_core::profile::{AnalogMapping, Profile, StickConfig, TriggerConfig};
+use serde::Serialize;
 use serde_json::Value;
 
 fn fixtures() -> PathBuf {
@@ -34,14 +36,44 @@ fn key_names_fixture_is_current() {
     }
 }
 
-/// Numbers compare by value (`1` from JavaScript equals `1.0` from Rust).
+/// Numbers compare by their value as `f32`, the profile's number type (`1` from JavaScript
+/// equals `1.0` from Rust, `0.1` equals the `f32` nearest to it).
 fn normalize(v: Value) -> Value {
     match v {
-        Value::Number(n) => Value::from(n.as_f64().unwrap()),
+        Value::Number(n) => Value::from(n.as_f64().unwrap() as f32 as f64),
         Value::Array(a) => Value::Array(a.into_iter().map(normalize).collect()),
         Value::Object(o) => Value::Object(o.into_iter().map(|(k, v)| (k, normalize(v))).collect()),
         other => other,
     }
+}
+
+/// The defaults of the analog settings, which the frontend gets from the `catalog` command,
+/// for the frontend tests as `defaults.json`.
+#[test]
+fn defaults_fixture_is_current() {
+    #[derive(Serialize)]
+    struct Defaults {
+        stick: StickConfig,
+        trigger: TriggerConfig,
+        analog: AnalogMapping,
+    }
+    let defaults = Defaults {
+        stick: StickConfig::default(),
+        trigger: TriggerConfig::default(),
+        analog: AnalogMapping::default(),
+    };
+    let path = fixtures().join("defaults.json");
+    let expected = serde_json::to_string_pretty(&defaults).unwrap() + "\n";
+    if std::env::var_os("DOPPELPAD_UPDATE_FIXTURES").is_some() {
+        std::fs::write(&path, &expected).unwrap();
+    }
+    let actual = std::fs::read_to_string(&path)
+        .unwrap_or_default()
+        .replace("\r\n", "\n");
+    assert_eq!(
+        actual, expected,
+        "defaults.json is stale; run with DOPPELPAD_UPDATE_FIXTURES=1"
+    );
 }
 
 /// The example profiles survive the editor's path (Rust → JSON → Rust) unchanged, and
@@ -57,16 +89,17 @@ fn example_profiles_round_trip_through_json() {
     names.sort();
     assert!(!names.is_empty());
 
-    let mut all = serde_json::Map::new();
+    let mut all = std::collections::BTreeMap::new();
     for path in names {
         let profile = dp_config::parse_toml(&std::fs::read_to_string(&path).unwrap()).unwrap();
-        let json = serde_json::to_value(&profile).unwrap();
-        let back: Profile = serde_json::from_value(json.clone()).unwrap();
+        let json = serde_json::to_string(&profile).unwrap();
+        let back: Profile = serde_json::from_str(&json).unwrap();
         assert_eq!(back, profile, "{}", path.display());
         let name = path.file_stem().unwrap().to_string_lossy().into_owned();
-        all.insert(name, json);
+        all.insert(name, profile);
     }
 
+    // Written like the app's commands answer: fields in declaration order, `f32` as written.
     let path = fixtures().join("examples.json");
     let expected = serde_json::to_string_pretty(&all).unwrap() + "\n";
     if std::env::var_os("DOPPELPAD_UPDATE_FIXTURES").is_some() {

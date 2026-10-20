@@ -1,9 +1,11 @@
 // Pure helpers for editing a Profile in the GUI. They mirror the engine's rules
 // (one binding per layer + trigger + activator, inheritance from the base layer).
 
+import { replaceLayerRoutes, routeLayer } from './analog';
 import type {
   Action,
   Activator,
+  AnalogMapping,
   Combo,
   ControlName,
   Layer,
@@ -146,7 +148,7 @@ export function tidyMapping(m: Mapping): Mapping {
   return out;
 }
 
-/** Layer ids in use: 0 plus declared layers plus layers referenced by mappings or jumps. */
+/** Layer ids in use: 0 plus declared layers plus layers referenced by mappings, jumps or routes. */
 export function layerIds(p: Profile): number[] {
   const ids = new Set<number>([0]);
   for (const l of p.layers ?? []) ids.add(l.id);
@@ -154,6 +156,7 @@ export function layerIds(p: Profile): number[] {
     ids.add(layerOf(m));
     if (m.jump) ids.add(m.jump.layer);
   }
+  for (const r of p.analog ?? []) ids.add(routeLayer(r));
   return [...ids].sort((a, b) => a - b);
 }
 
@@ -175,26 +178,44 @@ export function renameLayer(p: Profile, id: number, name: string): Profile {
   return { ...p, layers };
 }
 
-/** Remove a layer, its mappings, and jumps that lead to it. */
+/** Remove a layer, its mappings and routes, and jumps that lead to it. */
 export function removeLayer(p: Profile, id: number): Profile {
-  return {
-    ...p,
-    layers: (p.layers ?? []).filter((l) => l.id !== id),
-    mappings: p.mappings
-      .filter((m) => layerOf(m) !== id)
-      .map((m) => (m.jump?.layer === id ? tidyMapping({ ...m, jump: undefined }) : m)),
-  };
+  return replaceLayerRoutes(
+    {
+      ...p,
+      layers: (p.layers ?? []).filter((l) => l.id !== id),
+      mappings: p.mappings
+        .filter((m) => layerOf(m) !== id)
+        .map((m) => (m.jump?.layer === id ? tidyMapping({ ...m, jump: undefined }) : m)),
+    },
+    id,
+    [],
+  );
 }
 
+/** Remove a layer's mappings and routes. */
 export function clearLayer(p: Profile, id: number): Profile {
-  return { ...p, mappings: p.mappings.filter((m) => layerOf(m) !== id) };
+  return replaceLayerRoutes({ ...p, mappings: p.mappings.filter((m) => layerOf(m) !== id) }, id, []);
 }
 
-/** Copy of a layer's mappings, re-targeted to another layer (replacing its mappings). */
-export function pasteLayer(p: Profile, copied: Mapping[], into: number): Profile {
+/** What "Copy mappings" keeps of a layer. */
+export interface LayerCopy {
+  mappings: Mapping[];
+  analog: AnalogMapping[];
+}
+
+export function copyLayer(p: Profile, id: number): LayerCopy {
+  return structuredClone({
+    mappings: p.mappings.filter((m) => layerOf(m) === id),
+    analog: (p.analog ?? []).filter((r) => routeLayer(r) === id),
+  });
+}
+
+/** A copied layer, re-targeted to another layer (replacing its mappings and routes). */
+export function pasteLayer(p: Profile, copied: LayerCopy, into: number): Profile {
   const rest = p.mappings.filter((m) => layerOf(m) !== into);
-  const moved = copied.map((m) => tidyMapping({ ...structuredClone(m), layer: into }));
-  return { ...p, mappings: [...rest, ...moved] };
+  const moved = copied.mappings.map((m) => tidyMapping({ ...structuredClone(m), layer: into }));
+  return replaceLayerRoutes({ ...p, mappings: [...rest, ...moved] }, into, copied.analog);
 }
 
 /** Mappings whose trigger is a combo of 2+ controls, on a layer. */

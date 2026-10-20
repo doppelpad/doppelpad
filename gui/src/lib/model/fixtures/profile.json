@@ -6,16 +6,30 @@
   "timing": { "long_press_ms": 400, "double_tap_ms": 250, "triple_tap_ms": 250, "key_delay_ms": 20, "turbo_ms": 80, "combo_window_ms": 60 },
   "sticks": {
     "left": {
-      "deadzone": 0, "outer": 1, "anti_deadzone": 0, "sensitivity": 1, "curve": [], "invert_x": false, "invert_y": false, "rotation": 0,
+      "deadzone": 0.08,
+      "outer": 0.95,
+      "anti_deadzone": 0.15,
+      "sensitivity": 1.2,
+      "curve": [],
+      "invert_x": false,
+      "invert_y": true,
+      "rotation": 45,
       "zones": { "low": [0.25, 0.375], "high": 0.75 }
     },
     "right": {
-      "deadzone": 0, "outer": 1, "anti_deadzone": 0, "sensitivity": 1, "curve": [], "invert_x": false, "invert_y": false, "rotation": 0,
+      "deadzone": 0.06,
+      "outer": 1,
+      "anti_deadzone": 0,
+      "sensitivity": 1,
+      "curve": [[0.3, 0.15], [0.7, 0.55]],
+      "invert_x": false,
+      "invert_y": false,
+      "rotation": 0,
       "zones": { "low": 0.25 }
     }
   },
   "triggers": {
-    "left": { "deadzone": 0, "zones": { "low": 0.0625 }, "full_pull": 1 },
+    "left": { "deadzone": 0.05, "zones": { "low": 0.0625 }, "full_pull": 0.9 },
     "right": { "deadzone": 0, "zones": { "low": 0.125, "med": 0.5 }, "full_pull": 0.875 }
   },
   "layers": [
@@ -56,5 +70,75 @@
     { "layer": 1, "trigger": "A", "mode": "once", "actions": [{ "key": "F" }] },
     { "layer": 1, "trigger": "PaddleUL" },
     { "layer": 2, "trigger": "Key:Q", "mode": "while_held", "actions": [{ "mouse": "x1" }] }
+  ],
+  "analog": [
+    {
+      "layer": 0,
+      "source": "right_stick",
+      "target": "mouse",
+      "sensitivity": 1.2,
+      "vertical_ratio": 0.8,
+      "curve": 1.8,
+      "invert_x": false,
+      "invert_y": false,
+      "deadzone": 0.12,
+      "anti_deadzone": 0,
+      "smoothing_ms": 10,
+      "decay_ms": 40,
+      "trackball_friction": 0,
+      "while_held": [],
+      "consume": true
+    },
+    {
+      "layer": 1,
+      "source": "gyro",
+      "target": "right_stick",
+      "sensitivity": 2.5,
+      "vertical_ratio": 1,
+      "curve": 1,
+      "invert_x": false,
+      "invert_y": true,
+      "deadzone": 0.1,
+      "anti_deadzone": 0.2,
+      "smoothing_ms": 0,
+      "decay_ms": 40,
+      "trackball_friction": 0,
+      "while_held": ["LT"],
+      "consume": false
+    },
+    {
+      "layer": 2,
+      "source": "mouse",
+      "target": "left_stick",
+      "sensitivity": 1.5,
+      "vertical_ratio": 1,
+      "curve": 1,
+      "invert_x": true,
+      "invert_y": false,
+      "deadzone": 0.1,
+      "anti_deadzone": 0.2,
+      "smoothing_ms": 8,
+      "decay_ms": 60,
+      "trackball_friction": 0,
+      "while_held": ["LB", "Mouse:Right"],
+      "consume": true
+    },
+    {
+      "layer": 0,
+      "source": "touchpad",
+      "target": "mouse",
+      "sensitivity": 1,
+      "vertical_ratio": 1,
+      "curve": 1,
+      "invert_x": false,
+      "invert_y": false,
+      "deadzone": 0.1,
+      "anti_deadzone": 0,
+      "smoothing_ms": 0,
+      "decay_ms": 40,
+      "trackball_friction": 0.5,
+      "while_held": [],
+      "consume": true
+    }
   ]
 }

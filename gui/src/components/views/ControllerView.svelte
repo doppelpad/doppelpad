@@ -2,6 +2,7 @@
   // A device drawing with a label chip per control, joined by leader lines. Clicking a
   // part or chip selects the control; sticks ask which direction (or the click) to edit.
   // Live input highlights pressed controls and moves the stick caps.
+  import { SlidersHorizontal } from '@lucide/svelte';
   import { DEVICE_LAYOUTS, type DeviceId, type LayoutControl } from '../../assets/devices/layouts';
   import { t } from '../../lib/i18n/index.svelte';
   import { ZONES, controlShort, withZone, zoneFamily, zoneParts, zoneTag } from '../../lib/model/controls';
@@ -216,6 +217,10 @@
           <span></span>
         </div>
         <button class="sm-any" onclick={() => choose(`${name}Low`)}>{t('zones.any_direction_button')}</button>
+        <button class="sm-settings" onclick={() => app.openAnalog(stickMenu!.stick === 'Left' ? 'left' : 'right')}>
+          <SlidersHorizontal size={13} />
+          {t('binding.stick_settings')}
+        </button>
       </div>
     {/if}
   </div>
@@ -393,8 +398,12 @@
   .sm-grid .click {
     font-size: 10px;
   }
-  .sm-any {
-    display: block;
+  .sm-any,
+  .sm-settings {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
     width: 100%;
     margin-top: 6px;
     padding: 5px 8px;
@@ -404,7 +413,11 @@
     font-size: 11px;
     white-space: nowrap;
   }
-  .sm-any:hover {
+  .sm-settings {
+    color: var(--text-dim);
+  }
+  .sm-any:hover,
+  .sm-settings:hover {
     border-color: var(--accent);
     color: var(--accent);
   }

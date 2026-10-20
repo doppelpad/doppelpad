@@ -1,8 +1,9 @@
 <script lang="ts">
-  import { Gamepad2, RotateCcw, Keyboard, Mouse, Combine, Cable, Plus, Ellipsis, ChevronDown } from '@lucide/svelte';
+  import { Gamepad2, RotateCcw, Keyboard, Mouse, Combine, Cable, Joystick, Plus, Ellipsis, ChevronDown } from '@lucide/svelte';
   import { t } from '../lib/i18n/index.svelte';
-  import { addLayer, clearLayer, layerIds, layerOf, pasteLayer, removeLayer, renameLayer } from '../lib/model/profile';
+  import { addLayer, clearLayer, copyLayer, layerIds, pasteLayer, removeLayer, renameLayer } from '../lib/model/profile';
   import { app, type View } from '../lib/state/app.svelte';
+  import type { Profile } from '../lib/types';
   import Menu from './ui/Menu.svelte';
 
   const views: { id: View; icon: typeof Gamepad2; label: string }[] = $derived([
@@ -72,7 +73,7 @@
 
   function onCopy() {
     if (!app.profile) return;
-    app.copiedLayer = structuredClone($state.snapshot(app.profile.mappings).filter((m) => layerOf(m) === app.layer));
+    app.copiedLayer = copyLayer($state.snapshot(app.profile) as Profile, app.layer);
   }
 
   function onPaste() {
@@ -144,6 +145,9 @@
   </div>
 
   <div class="extra" bind:offsetWidth={extraWidth}>
+    <button class="tile" class:active={app.view === 'analog'} title={t('analog.hint')} onclick={() => setView('analog')}>
+      <Joystick size={18} /><span>{t('views.analog')}</span>
+    </button>
     <button class="tile" class:active={app.view === 'shortcuts'} onclick={() => setView('shortcuts')}>
       <Combine size={18} /><span>{t('views.shortcuts')}</span>
     </button>

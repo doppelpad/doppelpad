@@ -1,0 +1,39 @@
+{
+  "stick": {
+    "deadzone": 0.0,
+    "outer": 1.0,
+    "anti_deadzone": 0.0,
+    "sensitivity": 1.0,
+    "curve": [],
+    "invert_x": false,
+    "invert_y": false,
+    "rotation": 0.0,
+    "zones": {
+      "low": 0.24
+    }
+  },
+  "trigger": {
+    "deadzone": 0.0,
+    "zones": {
+      "low": 0.03
+    },
+    "full_pull": 0.99
+  },
+  "analog": {
+    "layer": 0,
+    "source": "right_stick",
+    "target": "mouse",
+    "sensitivity": 1.0,
+    "vertical_ratio": 1.0,
+    "curve": 1.0,
+    "invert_x": false,
+    "invert_y": false,
+    "deadzone": 0.1,
+    "anti_deadzone": 0.0,
+    "smoothing_ms": 0,
+    "decay_ms": 40,
+    "trackball_friction": 0.0,
+    "while_held": [],
+    "consume": true
+  }
+}
