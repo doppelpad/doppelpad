@@ -47,6 +47,7 @@ export type Command =
   | 'radial_back'
   | 'pad_overlay'
   | 'mappings_overlay'
+  | 'power_off'
   /** Show crosshair N (1-based), or hide it if it is the one showing. */
   | { crosshair: number }
   | { launch: { path: string; args?: string } }
@@ -503,6 +504,8 @@ export interface LiveState {
   /** Devices Doppelpad ignores. */
   blocked: string[];
   groups: DeviceGroup[];
+  /** Wireless controllers turn off after this many minutes without input; 0 never. */
+  power_off_after_min: number;
   suspended: boolean;
   foreground: string | null;
   virtual_pad: string | null;

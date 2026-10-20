@@ -1907,6 +1907,7 @@ impl<'a> Importer<'a> {
             let ty = int(cmd, "type").unwrap_or(0);
             let command = match ty {
                 1 => Command::RemapOff,
+                2 => Command::PowerOff,
                 4 => Command::SwitchGyroAxis,
                 5 => Command::ResetTilt,
                 6 => Command::ToggleGyro,

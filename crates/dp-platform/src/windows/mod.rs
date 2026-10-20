@@ -2,6 +2,7 @@
 //! hiding, `SendInput` output, and low-level hook / raw-input capture.
 
 pub mod autostart;
+mod bluetooth;
 mod capture;
 mod devnode;
 mod foreground;

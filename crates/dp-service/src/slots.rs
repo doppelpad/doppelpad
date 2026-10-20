@@ -43,6 +43,8 @@ pub struct SlotState {
     pub blocked: Vec<String>,
     /// Controllers that act as one.
     pub groups: Vec<DeviceGroup>,
+    /// Turn wireless controllers off after this many minutes without input; 0 never.
+    pub power_off_after_min: u32,
 }
 
 /// What the player lights of a controller show.
@@ -70,6 +72,7 @@ impl Default for SlotState {
             mic_led: false,
             blocked: Vec::new(),
             groups: Vec::new(),
+            power_off_after_min: 0,
         }
     }
 }
@@ -90,6 +93,7 @@ struct StateFile {
     blocked: Vec<String>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     groups: Vec<DeviceGroup>,
+    power_off_after_min: u32,
 }
 
 #[derive(Default, Serialize, Deserialize)]
@@ -151,6 +155,7 @@ impl SlotState {
             mic_led: file.mic_led,
             blocked: file.blocked,
             groups: file.groups,
+            power_off_after_min: file.power_off_after_min,
         }
     }
 
@@ -176,6 +181,7 @@ impl SlotState {
             mic_led: self.mic_led,
             blocked: self.blocked.clone(),
             groups: self.groups.clone(),
+            power_off_after_min: self.power_off_after_min,
         };
         let text = toml::to_string_pretty(&file).map_err(std::io::Error::other)?;
         if let Some(dir) = path.parent() {

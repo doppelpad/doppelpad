@@ -238,6 +238,7 @@
       <button class="cmd" onclick={() => onpick({ command: 'close_window' })}>{t('picker.close_window')}</button>
       <button class="cmd" onclick={() => onpick({ command: 'pad_overlay' })}>{t('picker.pad_overlay')}</button>
       <button class="cmd" onclick={() => onpick({ command: 'mappings_overlay' })}>{t('picker.mappings_overlay')}</button>
+      <button class="cmd" onclick={() => onpick({ command: 'power_off' })}>{t('picker.power_off')}</button>
       {#each app.profile?.crosshairs ?? [] as x, i (i)}
         <button class="cmd" onclick={() => onpick({ command: { crosshair: i + 1 } })}>
           {t('picker.crosshair', { n: i + 1 })}{x.name ? ` · ${x.name}` : ''}

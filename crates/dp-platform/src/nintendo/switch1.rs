@@ -27,6 +27,7 @@ const IMU_RETRY: Duration = Duration::from_secs(3);
 const SUB_DEVICE_INFO: u8 = 0x02;
 const SUB_REPORT_MODE: u8 = 0x03;
 const SUB_SPI_READ: u8 = 0x10;
+const SUB_HCI_STATE: u8 = 0x06;
 const SUB_PLAYER_LEDS: u8 = 0x30;
 const SUB_HOME_LED: u8 = 0x38;
 const SUB_IMU: u8 = 0x40;
@@ -765,6 +766,15 @@ impl PadDriver for Switch1Driver {
         self.player_want = leds.player.map(player_mask);
     }
 
+    fn power_off(&mut self, io: &mut dyn ReportIo) -> io::Result<bool> {
+        if !self.link.bluetooth {
+            return Ok(false);
+        }
+        // Set HCI state: disconnect. The controller drops the link and sleeps.
+        self.send_subcommand(io, SUB_HCI_STATE, &[0x00])?;
+        Ok(true)
+    }
+
     fn service(&mut self, io: &mut dyn ReportIo, rumble: Rumble) -> io::Result<()> {
         let now = io.now();
         if !self.link.bluetooth
@@ -1215,6 +1225,17 @@ mod tests {
         let (mut d, mut io) = ready_driver(false);
         d.shutdown(&mut io);
         assert!(!io.writes().iter().any(|w| w[0] == 0x01 && w[10] == 0x03));
+    }
+
+    #[test]
+    fn power_off_only_over_bluetooth() {
+        let off = |w: &[u8]| w[0] == 0x01 && w[10] == SUB_HCI_STATE && w[11] == 0x00;
+        let (mut d, mut io) = ready_driver(true);
+        assert!(d.power_off(&mut io).unwrap());
+        assert!(io.writes().iter().any(|w| off(w)));
+        let (mut d, mut io) = ready_driver(false);
+        assert!(!d.power_off(&mut io).unwrap());
+        assert!(!io.writes().iter().any(|w| off(w)));
     }
 
     #[test]

@@ -11,7 +11,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result};
 use crossbeam_channel::Receiver;
@@ -215,6 +215,37 @@ pub struct Runtime {
     policy: Arc<Mutex<DevicePolicy>>,
     /// Every device the backends report, before blocking and grouping.
     seen: Arc<Mutex<Vec<SeenDevice>>>,
+    /// Turn wireless controllers off after this long without input.
+    power_off_after: Option<u64>,
+    idle: HashMap<DeviceId, Idle>,
+}
+
+/// When a controller last did something.
+#[derive(Clone, Copy, Debug)]
+struct Idle {
+    since: u64,
+    /// Its state at that moment; drifting sticks and resting triggers are no input.
+    reference: PadState,
+    /// Turning it off was tried already (wired controllers cannot be).
+    tried: bool,
+}
+
+/// How far an axis moves before it counts as input.
+const IDLE_AXIS: f32 = 0.2;
+
+/// Whether `now` differs from `then` by more than resting noise.
+fn moved(then: &PadState, now: &PadState) -> bool {
+    then.buttons != now.buttons
+        || then
+            .axes
+            .iter()
+            .zip(now.axes)
+            .any(|(a, b)| (a - b).abs() > IDLE_AXIS)
+        || then
+            .touch
+            .iter()
+            .zip(now.touch)
+            .any(|(a, b)| a.is_some() != b.is_some())
 }
 
 /// One full in-game turn sent as mouse motion, so the user can check `counts_per_turn`.
@@ -491,6 +522,8 @@ impl Runtime {
             pad_overlay: false,
             mappings_overlay: false,
             sent_leds: HashMap::new(),
+            power_off_after: None,
+            idle: HashMap::new(),
         }
     }
 
@@ -604,6 +637,55 @@ impl Runtime {
     /// Ignore the blocked devices and play each group as one controller.
     pub fn set_device_policy(&mut self, policy: DevicePolicy) {
         *self.policy.lock().unwrap() = policy;
+    }
+
+    /// Turn wireless controllers off after `after` without input; `None` never does.
+    pub fn set_power_off_after(&mut self, after: Option<Duration>) {
+        self.power_off_after = after.map(|d| d.as_millis() as u64);
+        // Count from now, not from before the timeout was set.
+        self.idle.clear();
+    }
+
+    /// Turn a wireless controller off now; `false` if none of the backends can.
+    pub fn power_off(&mut self, id: &DeviceId) -> bool {
+        let mut done = false;
+        for b in &mut self.platform.gamepads {
+            done |= b.power_off(id);
+        }
+        if done {
+            tracing::info!(device = %id, "controller turned off");
+        } else {
+            tracing::info!(device = %id, "this controller cannot be turned off");
+        }
+        done
+    }
+
+    /// Turn off the controllers that had no input for the idle timeout.
+    fn watch_idle(&mut self, now: u64) {
+        self.idle
+            .retain(|id, _| self.snapshots.iter().any(|s| &s.info.id == id));
+        let Some(after) = self.power_off_after else {
+            return;
+        };
+        let mut off = Vec::new();
+        for s in &self.snapshots {
+            let fresh = Idle {
+                since: now,
+                reference: s.state,
+                tried: false,
+            };
+            let e = self.idle.entry(s.info.id.clone()).or_insert(fresh);
+            if moved(&e.reference, &s.state) {
+                *e = fresh;
+            } else if !e.tried && now.saturating_sub(e.since) >= after {
+                e.tried = true;
+                off.push(s.info.id.clone());
+            }
+        }
+        for id in off {
+            tracing::info!(device = %id, "no input for a while");
+            self.power_off(&id);
+        }
     }
 
     /// Every device the backends report, blocked and grouped ones included.
@@ -995,6 +1077,7 @@ impl Runtime {
         let now = self.now_ms();
         self.send_test_turn(now);
         self.poll_devices(now);
+        self.watch_idle(now);
         self.kbm_buf.clear();
         if let Some(rx) = &self.kbm_rx {
             self.kbm_buf.extend(rx.try_iter());
@@ -1131,6 +1214,11 @@ impl Runtime {
             | Command::RadialBack => {}
             Command::PadOverlay => self.pad_overlay = !self.pad_overlay,
             Command::MappingsOverlay => self.mappings_overlay = !self.mappings_overlay,
+            Command::PowerOff => {
+                if let Some(id) = self.sessions.get(i).and_then(|s| s.device.clone()) {
+                    self.power_off(&id);
+                }
+            }
             Command::Crosshair(_) | Command::ToggleCrosshair => {
                 if let Some(s) = self.sessions.get_mut(i) {
                     s.crosshair_command(&c);
@@ -1246,6 +1334,8 @@ pub(crate) mod testing {
         pub keys: Vec<(dp_core::keys::Key, bool)>,
         /// System commands carried out, by name.
         pub system: Vec<String>,
+        /// Controllers told to turn off.
+        pub powered_off: Vec<DeviceId>,
     }
 
     pub type Shared = Arc<Mutex<World>>;
@@ -1292,6 +1382,11 @@ pub(crate) mod testing {
 
         fn set_trigger_effects(&mut self, id: &DeviceId, effects: TriggerEffects) {
             self.0.lock().unwrap().triggers.push((id.clone(), effects));
+        }
+
+        fn power_off(&mut self, id: &DeviceId) -> bool {
+            self.0.lock().unwrap().powered_off.push(id.clone());
+            true
         }
     }
 
@@ -1528,6 +1623,61 @@ mod tests {
             std::thread::sleep(std::time::Duration::from_millis(15));
         }
         assert_eq!(rt.overlays(), (true, true));
+    }
+
+    #[test]
+    fn power_off_command_and_idle_timeout() {
+        use dp_core::control::Control;
+        use dp_core::pad::PadButton;
+        use dp_core::profile::{Action, Mapping, Mode};
+        let (platform, world) = testing::platform();
+        world
+            .lock()
+            .unwrap()
+            .pads
+            .push(pad("pad1", PadFamily::DualSense));
+        let mut rt = Runtime::with_platform(platform);
+        let mut p = Profile::default();
+        let mut m = Mapping::new(
+            Control::Button(PadButton::A),
+            vec![Action::Command {
+                command: Command::PowerOff,
+            }],
+        );
+        m.mode = Mode::Once;
+        p.mappings.push(m);
+        rt.apply(p, None).unwrap();
+        rt.tick();
+        world.lock().unwrap().pads[0].state.set(PadButton::A, true);
+        for _ in 0..3 {
+            rt.tick();
+            std::thread::sleep(Duration::from_millis(15));
+        }
+        let off = std::mem::take(&mut world.lock().unwrap().powered_off);
+        assert_eq!(
+            off,
+            [DeviceId("pad1".into())],
+            "the command turns its controller off"
+        );
+
+        rt.set_power_off_after(Some(Duration::from_millis(60)));
+        // `wiggle` swings the stick every tick; otherwise it rests with a little drift.
+        let mut run_for = |ms: u64, wiggle: bool| {
+            let start = Instant::now();
+            let mut flip = 1.0;
+            while start.elapsed() < Duration::from_millis(ms) {
+                flip = -flip;
+                world.lock().unwrap().pads[0].state.axes[0] = if wiggle { 0.9 * flip } else { 0.1 };
+                rt.tick();
+                std::thread::sleep(Duration::from_millis(5));
+            }
+            std::mem::take(&mut world.lock().unwrap().powered_off).len()
+        };
+        assert_eq!(run_for(150, true), 0, "input keeps it on");
+        assert_eq!(run_for(150, false), 1, "drift is no input");
+        assert_eq!(run_for(150, false), 0, "only once");
+        assert_eq!(run_for(20, true), 0);
+        assert_eq!(run_for(150, false), 1, "input starts the count again");
     }
 
     #[test]

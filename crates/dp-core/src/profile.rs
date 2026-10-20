@@ -1646,6 +1646,8 @@ pub enum Command {
     PadOverlay,
     /// Show or hide the overlay listing the current layer's mappings.
     MappingsOverlay,
+    /// Turn the controller off (wireless controllers only).
+    PowerOff,
     /// Launch a program.
     Launch {
         path: String,

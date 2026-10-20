@@ -46,6 +46,7 @@ struct XInputBatteryInformation {
 type GetStateFn = unsafe extern "system" fn(u32, *mut XInputState) -> u32;
 type SetStateFn = unsafe extern "system" fn(u32, *mut XInputVibration) -> u32;
 type GetBatteryFn = unsafe extern "system" fn(u32, u8, *mut XInputBatteryInformation) -> u32;
+type PowerOffFn = unsafe extern "system" fn(u32) -> u32;
 
 const ERROR_SUCCESS: u32 = 0;
 const SLOTS: u32 = 4;
@@ -77,6 +78,7 @@ pub struct XInputBackend {
     get_state: Option<GetStateFn>,
     set_state: Option<SetStateFn>,
     get_battery: Option<GetBatteryFn>,
+    power_off: Option<PowerOffFn>,
     /// Last battery reading per slot and when it was taken.
     batteries: [Option<(Instant, Option<Battery>)>; SLOTS as usize],
     infos: [Option<Arc<DeviceInfo>>; SLOTS as usize],
@@ -89,6 +91,7 @@ impl XInputBackend {
         let mut get_state = None;
         let mut set_state = None;
         let mut get_battery = None;
+        let mut power_off = None;
         for dll in ["xinput1_4.dll", "xinput1_3.dll", "xinput9_1_0.dll"] {
             // SAFETY: plain library load; the handle is intentionally leaked for the process lifetime.
             let h = unsafe { LoadLibraryW(wide(dll).as_ptr()) };
@@ -110,6 +113,10 @@ impl XInputBackend {
                 unsafe { GetProcAddress(h, c"XInputGetBatteryInformation".as_ptr().cast()) };
             // SAFETY: the signature matches the XInput ABI.
             get_battery = battery.map(|f| unsafe { std::mem::transmute::<_, GetBatteryFn>(f) });
+            // Ordinal 103 turns a wireless controller off (not in xinput9_1_0.dll).
+            // SAFETY: ordinal lookup as above; the signature matches.
+            let off = unsafe { GetProcAddress(h, 103usize as *const u8) };
+            power_off = off.map(|f| unsafe { std::mem::transmute::<_, PowerOffFn>(f) });
             if get_state.is_some() {
                 break;
             }
@@ -121,6 +128,7 @@ impl XInputBackend {
             get_state,
             set_state,
             get_battery,
+            power_off,
             batteries: Default::default(),
             infos: Default::default(),
             last_probe: [None; 4],
@@ -243,10 +251,7 @@ impl GamepadBackend for XInputBackend {
     }
 
     fn set_rumble(&mut self, id: &DeviceId, rumble: Rumble) {
-        let (Some(set_state), Some(slot)) = (self.set_state, id.0.strip_prefix("xinput:")) else {
-            return;
-        };
-        let Ok(slot) = slot.parse::<u32>() else {
+        let (Some(set_state), Some(slot)) = (self.set_state, slot_of(id)) else {
             return;
         };
         let mut v = XInputVibration {
@@ -257,9 +262,29 @@ impl GamepadBackend for XInputBackend {
         unsafe { set_state(slot, &mut v) };
     }
 
+    fn power_off(&mut self, id: &DeviceId) -> bool {
+        let (Some(off), Some(slot)) = (self.power_off, slot_of(id)) else {
+            return false;
+        };
+        // A wired pad cannot be turned off; XInput reports its battery as wired.
+        let wired = self.batteries[slot as usize]
+            .and_then(|(_, b)| b)
+            .is_some_and(|b| b.wired);
+        // SAFETY: plain call with a slot index.
+        !wired && unsafe { off(slot) } == ERROR_SUCCESS
+    }
+
     fn ignore_virtual(&mut self, ignored: &VirtualIgnoreList) {
         self.ignored = ignored.xinput_slots.clone();
     }
+}
+
+/// The XInput slot behind an `xinput:<n>` id.
+fn slot_of(id: &DeviceId) -> Option<u32> {
+    id.0.strip_prefix("xinput:")?
+        .parse()
+        .ok()
+        .filter(|s| *s < SLOTS)
 }
 
 #[cfg(test)]

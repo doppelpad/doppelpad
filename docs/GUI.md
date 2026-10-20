@@ -271,6 +271,11 @@ and rumble, lights and trigger effects go to all of them. A group appears as one
 with its own name and can have slots of its own. Keyboard and mouse cannot join a group;
 they always count for everyone.
 
+Wireless controllers can be turned off from their menu in the bottom bar (**Turn off**), with
+the `power_off` command in a mapping, or by themselves: *Turn wireless controllers off after*
+switches off a controller that had no input for that many minutes (resting sticks with a
+little drift do not count). Wired controllers stay on. Its home button turns it back on.
+
 ## Controller hotkeys
 
 *Settings → Controller hotkeys* sets button combos that work in every config, with

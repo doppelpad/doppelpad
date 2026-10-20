@@ -68,6 +68,8 @@
       ...(d.id.startsWith('group:')
         ? []
         : [{ label: t('devices.ignore'), onclick: () => run(api.setBlocked(d.id, true)) }]),
+      // Only wireless controllers can be told to turn off.
+      ...(d.battery && !d.battery.wired ? [{ label: t('devices.power_off'), onclick: () => run(api.powerOff(d.id)) }] : []),
     ];
   }
 

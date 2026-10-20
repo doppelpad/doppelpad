@@ -12,7 +12,7 @@ use std::time::Duration;
 
 use windows_sys::Win32::Devices::HumanInterfaceDevice::{
     HIDD_ATTRIBUTES, HIDP_CAPS, HidD_FreePreparsedData, HidD_GetAttributes, HidD_GetPreparsedData,
-    HidP_GetCaps,
+    HidD_GetSerialNumberString, HidP_GetCaps,
 };
 use windows_sys::Win32::Foundation::{
     ERROR_IO_PENDING, GENERIC_READ, GENERIC_WRITE, GetLastError, HANDLE, WAIT_OBJECT_0,
@@ -138,6 +138,21 @@ impl HidIo {
 
     pub fn caps(&self) -> HidCaps {
         self.caps
+    }
+
+    /// The serial number string (over Bluetooth, Sony pads report their address here).
+    pub fn serial(&self) -> Option<String> {
+        let mut buf = [0u16; 128];
+        // SAFETY: valid handle; the buffer length is given in bytes.
+        let ok = unsafe {
+            HidD_GetSerialNumberString(
+                self.handle.0,
+                buf.as_mut_ptr().cast(),
+                (buf.len() * 2) as u32,
+            )
+        };
+        let end = buf.iter().position(|&c| c == 0).unwrap_or(buf.len());
+        (ok && end > 0).then(|| String::from_utf16_lossy(&buf[..end]))
     }
 
     /// Vendor ID, product ID.

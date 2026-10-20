@@ -263,6 +263,17 @@ impl<B: GamepadBackend> GamepadBackend for JoyConCombiner<B> {
         }
     }
 
+    fn power_off(&mut self, id: &DeviceId) -> bool {
+        match self.pairs.iter().find(|p| &p.info.id == id) {
+            Some(p) => {
+                let (left, right) = (p.left.clone(), p.right.clone());
+                let l = self.inner.power_off(&left);
+                self.inner.power_off(&right) || l
+            }
+            None => self.inner.power_off(id),
+        }
+    }
+
     fn set_trigger_effects(&mut self, id: &DeviceId, effects: TriggerEffects) {
         if !self.pairs.iter().any(|p| &p.info.id == id) {
             self.inner.set_trigger_effects(id, effects);
