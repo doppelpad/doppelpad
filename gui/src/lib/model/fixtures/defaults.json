@@ -70,5 +70,11 @@
       22.0,
       34.0
     ]
+  },
+  "touchpad": {
+    "split": false,
+    "zones": "radial",
+    "centre": 0.35,
+    "click_required": false
   }
 }

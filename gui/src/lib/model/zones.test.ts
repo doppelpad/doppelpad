@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { setLanguage } from '../i18n/index.svelte';
 import type { Profile } from '../types';
-import { controlLabel, withZone, zoneFamily, zoneParts } from './controls';
+import { controlLabel, touchControls, withZone, zoneFamily, zoneParts } from './controls';
 import { nativeAction } from './profile';
 import {
   isElliptic,
@@ -51,6 +51,13 @@ describe('zone controls', () => {
     expect(controlLabel('RTHigh', 'dual_sense')).toBe('R2 · high zone');
     expect(controlLabel('LeftStickUpLow', null)).toBe('Left stick Up · low zone');
     expect(controlLabel('RightStickMed', null)).toBe('Right stick, any direction · medium zone');
+    expect(controlLabel('TouchSwipe2Left', null)).toBe('Two-finger swipe left');
+    expect(controlLabel('TrackpadRightTap', null)).toBe('Right half: tap');
+    expect(controlLabel('TrackpadLeftUpLeft', null)).toBe('Left half: up-left');
+    expect(controlLabel('GyroLeanLeft', null)).toBe('Gyro lean left');
+    expect(controlLabel('GyroUpHigh', null)).toBe('Gyro Up · high zone');
+    expect(touchControls(true)).toContain('TrackpadLeftClick');
+    expect(touchControls(false)).not.toContain('TrackpadLeftClick');
   });
 });
 

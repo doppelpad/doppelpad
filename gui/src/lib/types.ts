@@ -215,6 +215,16 @@ export interface VirtualDevices {
 }
 
 /** How the motion sensors become gyro controls and feed gyro routes. */
+/** How the touchpad becomes region controls. */
+export interface TouchpadSettings {
+  /** Left and right halves are two trackpads. */
+  split?: boolean;
+  zones?: 'radial' | 'grid';
+  /** Radial zones: radius of the centre region (fraction of half the pad). */
+  centre?: number;
+  click_required?: boolean;
+}
+
 export interface GyroSettings {
   mode?: 'motion' | 'tilt';
   steering?: 'roll' | 'yaw';
@@ -234,6 +244,7 @@ export interface Profile {
   sticks?: Sticks;
   triggers?: Triggers;
   gyro?: GyroSettings;
+  touchpad?: TouchpadSettings;
   layers?: Layer[];
   mappings: Mapping[];
   analog?: AnalogMapping[];
@@ -365,6 +376,7 @@ export interface Catalog {
     analog: Required<AnalogMapping>;
     virtual_stick: Required<VirtualStick>;
     gyro: Required<GyroSettings>;
+    touchpad: Required<TouchpadSettings>;
   };
 }
 

@@ -31,6 +31,10 @@
   let drawing: HTMLDivElement | undefined = $state();
   /** Direction picker of a stick, the touchpad regions or the gyro directions, at a point of the drawing. */
   let menu = $state<{ kind: 'stick' | 'touch' | 'gyro'; stick?: 'Left' | 'Right'; click?: ControlName; x: number; y: number } | null>(null);
+  /** On a split touchpad, which half the touch menu shows. */
+  let half = $state<'Left' | 'Right'>('Left');
+  const split = $derived(!!app.profile?.touchpad?.split);
+  const GESTURES = ['Tap', 'TapLeft', 'TapCenter', 'TapRight', 'MultiTap', 'ZoomIn', 'ZoomOut', 'SwipeUp', 'SwipeDown', 'SwipeLeft', 'SwipeRight', 'Swipe2Up', 'Swipe2Down', 'Swipe2Left', 'Swipe2Right'] as const;
 
   const DIRS = ['Up', 'Down', 'Left', 'Right'] as const;
   const ARROW: Record<string, string> = {
@@ -270,10 +274,17 @@
     {#if menu}
       {@const m = menu}
       {@const p = pct(m.x, m.y)}
-      {@const prefix = m.kind === 'stick' ? (m.stick === 'Left' ? 'LeftStick' : 'RightStick') : m.kind === 'touch' ? 'Touch' : 'Gyro'}
+      {@const prefix = m.kind === 'stick' ? (m.stick === 'Left' ? 'LeftStick' : 'RightStick') : m.kind === 'touch' ? (split ? `Trackpad${half}` : 'Touch') : 'Gyro'}
       {@const diag = m.kind === 'touch' || (m.kind === 'stick' && !!app.profile?.sticks?.[m.stick === 'Left' ? 'left' : 'right']?.diagonals)}
       <div class="stick-menu" style="left: {p.left}%; top: {p.top}%">
         <div class="sm-title">{t(`binding.${m.kind}_choose`)}</div>
+        {#if m.kind === 'touch' && split}
+          <div class="sm-lean">
+            {#each ['Left', 'Right'] as const as h (h)}
+              <button class:on={half === h} onclick={() => (half = h)}>{t(`binding.half_${h.toLowerCase()}`)}</button>
+            {/each}
+          </div>
+        {/if}
         {#snippet corner(d: string, arrow: string)}
           {#if diag}<button onclick={() => choose(`${prefix}${d}`)}>{arrow}</button>{:else}<span></span>{/if}
         {/snippet}
@@ -285,7 +296,7 @@
           {#if m.kind === 'gyro'}
             <span></span>
           {:else if m.kind === 'touch'}
-            <button title={t('controls.touch.center')} onclick={() => choose('TouchCenter')}>◎</button>
+            <button title={t('controls.touch.center')} onclick={() => choose(`${prefix}Center`)}>◎</button>
           {:else}
             <button class="click" onclick={() => choose(m.click!)}>{t('binding.click')}</button>
           {/if}
@@ -301,7 +312,24 @@
             {t('binding.stick_settings')}
           </button>
         {:else if m.kind === 'touch'}
-          <button class="sm-any" onclick={() => choose('Touchpad')}>{t('controls.Touchpad')}</button>
+          {#if split}
+            <div class="sm-lean">
+              <button onclick={() => choose(`${prefix}Tap`)}>{t('binding.trackpad_tap')}</button>
+              <button onclick={() => choose(`${prefix}Click`)}>{t('binding.click')}</button>
+            </div>
+          {:else}
+            <button class="sm-any" onclick={() => choose('Touchpad')}>{t('controls.Touchpad')}</button>
+          {/if}
+          <div class="sm-sub">{t('binding.gestures')}</div>
+          <div class="sm-gestures">
+            {#each GESTURES as g (g)}
+              <button onclick={() => choose(`Touch${g}`)}>{t(`controls.gesture.${g}`)}</button>
+            {/each}
+          </div>
+          <button class="sm-settings" onclick={() => app.openAnalog('touchpad')}>
+            <SlidersHorizontal size={13} />
+            {t('binding.touchpad_controls_settings')}
+          </button>
           <button class="sm-settings" onclick={() => app.openAnalog('routes')}>
             <SlidersHorizontal size={13} />
             {t('binding.touch_settings')}
@@ -545,7 +573,34 @@
     font-size: 11px;
     white-space: nowrap;
   }
-  .sm-lean button:hover {
+  .sm-lean button:hover,
+  .sm-lean button.on {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .sm-sub {
+    margin-top: 8px;
+    font-size: 10.5px;
+    color: var(--text-faint);
+    text-align: center;
+  }
+  .sm-gestures {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 3px;
+    margin-top: 4px;
+    max-height: 116px;
+    overflow-y: auto;
+  }
+  .sm-gestures button {
+    padding: 3px 6px;
+    border-radius: var(--radius-s);
+    background: var(--bg-3);
+    border: 1px solid var(--line);
+    font-size: 10.5px;
+    white-space: nowrap;
+  }
+  .sm-gestures button:hover {
     border-color: var(--accent);
     color: var(--accent);
   }

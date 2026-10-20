@@ -1,7 +1,7 @@
 //! Scenario tests: a fake 1 ms clock drives the engine through button timelines.
 
 use super::*;
-use crate::control::{GyroDir, Zone};
+use crate::control::{GyroDir, Half, TouchGesture, TouchRegion, TrackpadPart, Zone};
 use crate::profile::{
     Action, AnalogMapping, AnalogTarget, Combo, Jump, JumpMode, Layer, Mapping, Press,
 };
@@ -763,6 +763,48 @@ fn tilt_mode_starts_off_and_recentres_on_command() {
     h.btn(PadButton::X, true); // this pose is the new centre
     h.until(30);
     assert!(!h.e.is_output_down(Key::U));
+}
+
+#[test]
+fn touchpad_gestures_and_split_trackpads() {
+    use crate::pad::TouchPoint;
+    let mut p = Profile::default();
+    p.touchpad.split = true;
+    p.mappings.push(map(
+        Control::Gesture(TouchGesture::TapRight),
+        vec![key(Key::T)],
+    ));
+    p.mappings.push(map(
+        Control::Trackpad(Half::Left, TrackpadPart::Region(TouchRegion::Up)),
+        vec![key(Key::U)],
+    ));
+    p.mappings.push(map(
+        Control::Trackpad(Half::Right, TrackpadPart::Click),
+        vec![key(Key::C)],
+    ));
+    let mut h = Harness::new(p);
+    // Quick tap on the right third.
+    h.pad.touch[0] = Some(TouchPoint { x: 0.9, y: 0.5 });
+    h.until(30);
+    h.pad.touch[0] = None;
+    h.until(200);
+    assert_eq!(
+        h.key_events(Key::T),
+        vec![(31, true), (81, false)],
+        "a 50 ms press"
+    );
+    // Top of the left half; then a click with the finger on the right half.
+    h.pad.touch[0] = Some(TouchPoint { x: 0.2, y: 0.05 });
+    h.until(250);
+    assert!(h.e.is_output_down(Key::U));
+    h.pad.touch[0] = Some(TouchPoint { x: 0.8, y: 0.5 });
+    h.pad.set(PadButton::Touchpad, true);
+    h.until(300);
+    assert!(h.e.is_output_down(Key::C) && !h.e.is_output_down(Key::U));
+    assert!(
+        !h.virtual_pad().pressed(PadButton::Touchpad),
+        "the click is taken"
+    );
 }
 
 #[test]

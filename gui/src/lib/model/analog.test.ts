@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import type { AnalogMapping, GyroSettings, Profile, StickConfig, TriggerConfig, VirtualStick } from '../types';
+import type {
+  AnalogMapping,
+  GyroSettings,
+  Profile,
+  StickConfig,
+  TouchpadSettings,
+  TriggerConfig,
+  VirtualStick,
+} from '../types';
 import defaultsJson from './fixtures/defaults.json';
 import examples from './fixtures/examples.json';
 import fixture from './fixtures/profile.json';
@@ -24,6 +32,7 @@ import {
   setStick,
   setTrigger,
   setGyro,
+  setTouchpad,
   setVirtualStick,
   shapeStick,
   shapeTrigger,
@@ -44,6 +53,7 @@ const def = defaultsJson as unknown as {
   analog: Required<AnalogMapping>;
   virtual_stick: Required<VirtualStick>;
   gyro: Required<GyroSettings>;
+  touchpad: Required<TouchpadSettings>;
 };
 
 const zd: ZoneDefaults = {
@@ -266,5 +276,15 @@ describe('gyro settings', () => {
     expect(p.gyro).toEqual(fixture.gyro);
     p = setGyro(p, def.gyro, def.gyro);
     expect('gyro' in p).toBe(false);
+  });
+});
+
+describe('touchpad settings', () => {
+  it('are written in full, or left out at their defaults', () => {
+    let p: Profile = { name: 'Test', mappings: [] };
+    p = setTouchpad(p, { split: true, zones: 'grid', centre: 0.25, click_required: true }, def.touchpad);
+    expect(p.touchpad).toEqual(fixture.touchpad);
+    p = setTouchpad(p, def.touchpad, def.touchpad);
+    expect('touchpad' in p).toBe(false);
   });
 });

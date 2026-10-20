@@ -12,6 +12,7 @@ import type {
   Profile,
   StickConfig,
   Sticks,
+  TouchpadSettings,
   TriggerConfig,
   Triggers,
   VirtualDevices,
@@ -183,6 +184,19 @@ export function setVirtualStick(
   if (!sticks) delete v.sticks;
   const out: Profile = { ...p, virtual: v };
   if (Object.keys(v).length === 0) delete out.virtual;
+  return out;
+}
+
+/** The touchpad settings with the defaults filled in. */
+export function touchpadConfig(p: Profile, def: Required<TouchpadSettings>): Required<TouchpadSettings> {
+  return { ...def, ...p.touchpad };
+}
+
+/** Change the touchpad settings; written in full unless all are defaults, like Rust. */
+export function setTouchpad(p: Profile, patch: Partial<TouchpadSettings>, def: Required<TouchpadSettings>): Profile {
+  const touchpad = { ...touchpadConfig(p, def), ...patch };
+  const out: Profile = { ...p, touchpad };
+  if (isDefault(touchpad, def)) delete out.touchpad;
   return out;
 }
 

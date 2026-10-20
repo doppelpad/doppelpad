@@ -11,6 +11,8 @@
 //! | `LTLow`, `RTMed`, ...       | trigger pulled into a zone                     |
 //! | `LTFull`, `RTFull`          | trigger fully pulled                           |
 //! | `TouchUp`, `TouchCenter`... | finger resting in a touchpad region            |
+//! | `TouchTapLeft`, `TouchSwipe2Up`... | touchpad gesture (a short press)     |
+//! | `TrackpadLeftUp`, `TrackpadRightTap`... | one half of a split touchpad    |
 //! | `GyroUp`, `GyroLeanLeft`... | controller tilted / turned in a direction      |
 //! | `GyroLow`, `GyroUpHigh`...  | gyro or tilt into a zone (any or one direction) |
 //! | `Key:Space`                 | keyboard key ([`Key`] name)                    |
@@ -140,6 +142,112 @@ impl Zone {
     }
 }
 
+/// A touchpad gesture, recognised from the finger tracks; each is a short press.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+pub enum TouchGesture {
+    /// A short tap anywhere.
+    Tap,
+    /// A tap in the left, middle or right third.
+    TapLeft,
+    TapCenter,
+    TapRight,
+    /// Two fingers tapping together.
+    MultiTap,
+    SwipeUp,
+    SwipeDown,
+    SwipeLeft,
+    SwipeRight,
+    /// Two-finger swipes.
+    Swipe2Up,
+    Swipe2Down,
+    Swipe2Left,
+    Swipe2Right,
+    /// Two fingers spreading apart, or pinching together.
+    ZoomIn,
+    ZoomOut,
+}
+
+impl TouchGesture {
+    pub const ALL: [TouchGesture; 15] = [
+        TouchGesture::Tap,
+        TouchGesture::TapLeft,
+        TouchGesture::TapCenter,
+        TouchGesture::TapRight,
+        TouchGesture::MultiTap,
+        TouchGesture::SwipeUp,
+        TouchGesture::SwipeDown,
+        TouchGesture::SwipeLeft,
+        TouchGesture::SwipeRight,
+        TouchGesture::Swipe2Up,
+        TouchGesture::Swipe2Down,
+        TouchGesture::Swipe2Left,
+        TouchGesture::Swipe2Right,
+        TouchGesture::ZoomIn,
+        TouchGesture::ZoomOut,
+    ];
+
+    pub fn name(self) -> &'static str {
+        match self {
+            TouchGesture::Tap => "Tap",
+            TouchGesture::TapLeft => "TapLeft",
+            TouchGesture::TapCenter => "TapCenter",
+            TouchGesture::TapRight => "TapRight",
+            TouchGesture::MultiTap => "MultiTap",
+            TouchGesture::SwipeUp => "SwipeUp",
+            TouchGesture::SwipeDown => "SwipeDown",
+            TouchGesture::SwipeLeft => "SwipeLeft",
+            TouchGesture::SwipeRight => "SwipeRight",
+            TouchGesture::Swipe2Up => "Swipe2Up",
+            TouchGesture::Swipe2Down => "Swipe2Down",
+            TouchGesture::Swipe2Left => "Swipe2Left",
+            TouchGesture::Swipe2Right => "Swipe2Right",
+            TouchGesture::ZoomIn => "ZoomIn",
+            TouchGesture::ZoomOut => "ZoomOut",
+        }
+    }
+
+    /// The swipe in a cardinal direction with one or two fingers.
+    pub fn swipe(dir: Dir, two: bool) -> TouchGesture {
+        use TouchGesture::*;
+        match (dir, two) {
+            (Dir::Up, false) => SwipeUp,
+            (Dir::Down, false) => SwipeDown,
+            (Dir::Left, false) => SwipeLeft,
+            (Dir::Right, false) => SwipeRight,
+            (Dir::Up, true) => Swipe2Up,
+            (Dir::Down, true) => Swipe2Down,
+            (Dir::Left, true) => Swipe2Left,
+            (_, true) => Swipe2Right,
+            (_, false) => SwipeRight,
+        }
+    }
+}
+
+/// One half of a touchpad split into two trackpads.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+pub enum Half {
+    Left,
+    Right,
+}
+
+impl Half {
+    pub fn name(self) -> &'static str {
+        match self {
+            Half::Left => "Left",
+            Half::Right => "Right",
+        }
+    }
+}
+
+/// What one of the two trackpads of a split touchpad reports.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum TrackpadPart {
+    Region(TouchRegion),
+    Tap,
+    /// The pad click while this half is touched.
+    Click,
+}
+
 /// Direction of the controller's motion: nose up or down, the steering axis (roll or yaw, see
 /// the profile's `[gyro]`) to the left or right, or a lean (roll, left grip down = left).
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
@@ -259,6 +367,10 @@ pub enum Control {
     TriggerZone(Trigger, Zone),
     TriggerFull(Trigger),
     Touch(TouchRegion),
+    /// A touchpad gesture (a short press).
+    Gesture(TouchGesture),
+    /// One trackpad of a touchpad split into halves.
+    Trackpad(Half, TrackpadPart),
     Gyro(GyroDir),
     /// Controller moved or tilted into a zone, in a direction or (`None`) in any direction.
     GyroZone(Option<GyroDir>, Zone),
@@ -292,6 +404,20 @@ impl Control {
                 .map(move |d| Control::StickZone(s, d, z))
         });
         dirs.into_iter().chain(zones).collect()
+    }
+
+    /// Every touchpad control: regions, gestures and the trackpads of a split pad.
+    pub fn of_touchpad() -> Vec<Control> {
+        let regions = TouchRegion::ALL.map(Control::Touch);
+        let gestures = TouchGesture::ALL.map(Control::Gesture);
+        let halves = [Half::Left, Half::Right].into_iter().flat_map(|h| {
+            TouchRegion::ALL
+                .map(TrackpadPart::Region)
+                .into_iter()
+                .chain([TrackpadPart::Tap, TrackpadPart::Click])
+                .map(move |p| Control::Trackpad(h, p))
+        });
+        regions.into_iter().chain(gestures).chain(halves).collect()
     }
 
     /// Every gyro control: directions and zones.
@@ -447,6 +573,12 @@ impl fmt::Display for Control {
             Control::TriggerZone(t, z) => write!(f, "{}{}", trigger_name(t), z.name()),
             Control::TriggerFull(t) => write!(f, "{}Full", trigger_name(t)),
             Control::Touch(r) => write!(f, "Touch{}", r.name()),
+            Control::Gesture(g) => write!(f, "Touch{}", g.name()),
+            Control::Trackpad(h, p) => match p {
+                TrackpadPart::Region(r) => write!(f, "Trackpad{}{}", h.name(), r.name()),
+                TrackpadPart::Tap => write!(f, "Trackpad{}Tap", h.name()),
+                TrackpadPart::Click => write!(f, "Trackpad{}Click", h.name()),
+            },
             Control::Gyro(d) => write!(f, "Gyro{}", d.name()),
             Control::GyroZone(d, z) => write!(f, "Gyro{}{}", d.map_or("", GyroDir::name), z.name()),
             Control::Key(k) => write!(f, "Key:{}", k.name()),
@@ -508,12 +640,36 @@ impl FromStr for Control {
                 }
             }
         }
-        if let Some(rest) = lower.strip_prefix("touch")
-            && let Some(r) = TouchRegion::ALL
+        let region = |rest: &str| {
+            TouchRegion::ALL
                 .into_iter()
                 .find(|r| r.name().eq_ignore_ascii_case(rest))
-        {
-            return Ok(Control::Touch(r));
+        };
+        if let Some(rest) = lower.strip_prefix("touch") {
+            if let Some(r) = region(rest) {
+                return Ok(Control::Touch(r));
+            }
+            if let Some(g) = TouchGesture::ALL
+                .into_iter()
+                .find(|g| g.name().eq_ignore_ascii_case(rest))
+            {
+                return Ok(Control::Gesture(g));
+            }
+        }
+        if let Some(rest) = lower.strip_prefix("trackpad") {
+            for half in [Half::Left, Half::Right] {
+                let Some(part) = rest.strip_prefix(&half.name().to_ascii_lowercase()) else {
+                    continue;
+                };
+                let part = match part {
+                    "tap" => Some(TrackpadPart::Tap),
+                    "click" => Some(TrackpadPart::Click),
+                    other => region(other).map(TrackpadPart::Region),
+                };
+                if let Some(p) = part {
+                    return Ok(Control::Trackpad(half, p));
+                }
+            }
         }
         if let Some(rest) = lower.strip_prefix("gyro") {
             if let Some(d) = GyroDir::parse(rest) {
@@ -570,6 +726,11 @@ mod tests {
             Control::TriggerZone(Trigger::Right, Zone::High),
             Control::TriggerFull(Trigger::Left),
             Control::Touch(TouchRegion::Center),
+            Control::Gesture(TouchGesture::TapLeft),
+            Control::Gesture(TouchGesture::Swipe2Down),
+            Control::Trackpad(Half::Left, TrackpadPart::Region(TouchRegion::UpRight)),
+            Control::Trackpad(Half::Right, TrackpadPart::Tap),
+            Control::Trackpad(Half::Right, TrackpadPart::Click),
             Control::Gyro(GyroDir::Down),
             Control::Gyro(GyroDir::LeanRight),
             Control::GyroZone(None, Zone::Low),
