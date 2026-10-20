@@ -559,7 +559,7 @@ pub struct AnalogMapping {
     pub smoothing_ms: u32,
     /// Mouse→stick: time without motion before the stick recenters.
     pub decay_ms: u32,
-    /// Touchpad→mouse: keep gliding after lift-off with this friction (0 = off, 1 = stop at once).
+    /// Touchpad→mouse: friction of the glide after lift-off (0 = longest glide, 1 = no glide).
     pub trackball_friction: f32,
     /// Route is active only while all of these controls are held (e.g. gyro aim on `LT`).
     pub while_held: Vec<Control>,
