@@ -15,7 +15,10 @@ fn embed_version_info() {
         .set("ProductName", "Doppelpad")
         .set("FileDescription", "Doppelpad command-line tool")
         .set("CompanyName", "Doppelpad contributors")
-        .set("LegalCopyright", "Copyright (c) 2026 The Doppelpad contributors")
+        .set(
+            "LegalCopyright",
+            "Copyright (c) 2026 The Doppelpad contributors",
+        )
         .set("OriginalFilename", "doppelpad.exe")
         .compile()
         .expect("compile the version resource");

@@ -314,7 +314,10 @@ while_held = ["LT", "Mouse:Right"]
             "[[mappings.actions]]",
             "[[analog]]",
         ] {
-            assert!(text.lines().any(|l| l == line), "missing `{line}` in\n{text}");
+            assert!(
+                text.lines().any(|l| l == line),
+                "missing `{line}` in\n{text}"
+            );
         }
         assert_eq!(parse_toml(&text).unwrap(), p);
     }
