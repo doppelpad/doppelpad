@@ -628,6 +628,21 @@ pub enum Command {
     RemapOff,
     /// Enable/disable all gyro routes.
     ToggleGyro,
+    /// Enable all gyro routes.
+    GyroOn,
+    /// Disable all gyro routes.
+    GyroOff,
+    /// Shut the computer down (applications may still ask to save).
+    Shutdown,
+    Restart,
+    Sleep,
+    Hibernate,
+    /// End the user's session.
+    LogOff,
+    /// Save a picture of the screen showing the focused window.
+    Screenshot,
+    /// Ask the focused window to close.
+    CloseWindow,
     /// Launch a program.
     Launch {
         path: String,

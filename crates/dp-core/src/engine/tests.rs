@@ -535,6 +535,48 @@ fn touch_and_motion_pass_through_unless_remapped() {
 }
 
 #[test]
+fn gyro_commands_switch_gyro_routes() {
+    use crate::pad::Motion;
+    let mut p = Profile::default();
+    p.analog.push(AnalogMapping {
+        source: AnalogSource::Gyro,
+        target: AnalogTarget::Mouse,
+        ..Default::default()
+    });
+    for (button, command) in [
+        (PadButton::X, Command::GyroOff),
+        (PadButton::Y, Command::GyroOn),
+        (PadButton::B, Command::ToggleGyro),
+    ] {
+        p.mappings
+            .push(map(b(button), vec![Action::Command { command }]));
+    }
+    let mut h = Harness::new(p);
+    h.pad.motion = Some(Motion {
+        gyro: [0.0, 100.0, 0.0],
+        accel: [0.0, 1.0, 0.0],
+    });
+    let moved = |h: &mut Harness| {
+        h.mouse_moved = (0.0, 0.0);
+        h.until(h.t + 20);
+        h.mouse_moved.0.abs() > 0.5
+    };
+    assert!(moved(&mut h), "gyro aims");
+    h.btn(PadButton::X, true);
+    h.btn(PadButton::X, false);
+    assert!(!moved(&mut h), "off");
+    h.btn(PadButton::X, true);
+    h.btn(PadButton::X, false);
+    assert!(!moved(&mut h), "off stays off");
+    h.btn(PadButton::Y, true);
+    h.btn(PadButton::Y, false);
+    assert!(moved(&mut h), "on");
+    h.btn(PadButton::B, true);
+    h.btn(PadButton::B, false);
+    assert!(!moved(&mut h), "toggled off");
+}
+
+#[test]
 fn mouse_to_stick_route_mutes_cursor() {
     let mut p = Profile::default();
     p.analog.push(AnalogMapping {

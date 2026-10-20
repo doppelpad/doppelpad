@@ -25,6 +25,15 @@ export type JumpMode = 'hold' | 'toggle' | 'switch';
 export type Command =
   | 'remap_off'
   | 'toggle_gyro'
+  | 'gyro_on'
+  | 'gyro_off'
+  | 'shutdown'
+  | 'restart'
+  | 'sleep'
+  | 'hibernate'
+  | 'log_off'
+  | 'screenshot'
+  | 'close_window'
   | { launch: { path: string; args?: string } }
   | { unsupported: string };
 

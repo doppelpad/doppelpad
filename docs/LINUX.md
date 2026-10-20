@@ -144,6 +144,13 @@ windows are not detected, because Wayland has no portable "focused window" query
 
 Profiles live in `~/.config/doppelpad/profiles` (or `$XDG_CONFIG_HOME/doppelpad/profiles`).
 
+## Commands
+
+The power commands run `systemctl poweroff`, `reboot`, `suspend` and `hibernate`, and
+`loginctl terminate-session $XDG_SESSION_ID` for signing out; polkit decides whether the
+user may do that. `close_window` sends the EWMH `_NET_CLOSE_WINDOW` request for the active
+X11 window. The `screenshot` command is not available on Linux yet.
+
 ## Troubleshooting
 
 - **"uinput is not installed or not reachable"**:

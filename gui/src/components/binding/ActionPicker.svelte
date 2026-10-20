@@ -6,6 +6,7 @@
   import { t } from '../../lib/i18n/index.svelte';
   import { keyFromEvent } from '../../lib/model/keymap';
   import { controlLabel } from '../../lib/model/controls';
+  import { POWER_COMMANDS } from '../../lib/model/profile';
   import { app } from '../../lib/state/app.svelte';
   import type { Action, Dir, MouseButtonName, PadButtonName, StickName, TriggerName } from '../../lib/types';
 
@@ -74,6 +75,11 @@
     if (typeof path !== 'string') return;
     const args = (await app.ask(t('picker.launch_args'), '')) ?? '';
     onpick({ command: { launch: args ? { path, args } : { path } } });
+  }
+
+  /** Power commands end the session or the PC's uptime: confirm before adding one. */
+  function pickPower(c: (typeof POWER_COMMANDS)[number]) {
+    if (confirm(t('picker.power_confirm', { command: t(`picker.${c}`) }))) onpick({ command: c });
   }
 
   async function pickPause() {
@@ -172,6 +178,13 @@
     <div class="list">
       <button class="cmd" onclick={() => onpick({ command: 'remap_off' })}>{t('picker.remap_off')}</button>
       <button class="cmd" onclick={() => onpick({ command: 'toggle_gyro' })}>{t('picker.toggle_gyro')}</button>
+      <button class="cmd" onclick={() => onpick({ command: 'gyro_on' })}>{t('picker.gyro_on')}</button>
+      <button class="cmd" onclick={() => onpick({ command: 'gyro_off' })}>{t('picker.gyro_off')}</button>
+      <button class="cmd" onclick={() => onpick({ command: 'screenshot' })}>{t('picker.screenshot')}</button>
+      <button class="cmd" onclick={() => onpick({ command: 'close_window' })}>{t('picker.close_window')}</button>
+      {#each POWER_COMMANDS as c (c)}
+        <button class="cmd power" onclick={() => pickPower(c)}>{t(`picker.${c}`)}…</button>
+      {/each}
       <button class="cmd" onclick={pickLaunch}>{t('picker.launch')}…</button>
       <button class="cmd" onclick={pickPause}>{t('picker.pause')}…</button>
       <button class="cmd" onclick={pickRumble}>{t('picker.rumble')}…</button>

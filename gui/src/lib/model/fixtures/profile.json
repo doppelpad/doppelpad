@@ -70,6 +70,7 @@
     { "trigger": "GyroLeft", "actions": [{ "key": "Q" }] },
     { "trigger": "TouchCenter", "activator": "double", "actions": [{ "key": "M" }] },
     { "trigger": "RTFull", "actions": [{ "mouse": "middle" }] },
+    { "trigger": "Misc", "actions": [{ "command": "screenshot" }, { "command": "gyro_off" }] },
     { "trigger": "DpadLeft", "mode": "once", "actions": [{ "key": "Digit1" }, { "break": true }, { "key": "Digit2" }, { "wheel": "up", "clicks": 3 }] },
     { "layer": 1, "trigger": "A", "mode": "once", "actions": [{ "key": "F" }] },
     { "layer": 1, "trigger": "PaddleUL" },

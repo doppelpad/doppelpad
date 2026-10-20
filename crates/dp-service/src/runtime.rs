@@ -15,8 +15,8 @@ use dp_core::pad::{PadButton, PadState, Rgb, Rumble, Trigger};
 use dp_core::profile::{AnalogSource, Command, KeyRepeat, Profile, VirtualPadType};
 use dp_core::repeat::KeyRepeater;
 use dp_platform::{
-    CaptureFilter, DeviceId, KbmEvent, PadSnapshot, Platform, VirtualIgnoreList, VirtualPad,
-    VirtualPadKind,
+    CaptureFilter, DeviceId, KbmEvent, PadSnapshot, Platform, PowerAction, VirtualIgnoreList,
+    VirtualPad, VirtualPadKind,
 };
 use serde::Serialize;
 
@@ -605,7 +605,40 @@ impl Runtime {
                         tracing::warn!("cannot launch {path}: {e}");
                     }
                 }
-                Command::ToggleGyro => tracing::info!("gyro toggled"),
+                Command::ToggleGyro | Command::GyroOn | Command::GyroOff => {
+                    tracing::info!(command = ?c, "gyro switched")
+                }
+                Command::Shutdown
+                | Command::Restart
+                | Command::Sleep
+                | Command::Hibernate
+                | Command::LogOff => {
+                    let action = match c {
+                        Command::Shutdown => PowerAction::Shutdown,
+                        Command::Restart => PowerAction::Restart,
+                        Command::Sleep => PowerAction::Sleep,
+                        Command::Hibernate => PowerAction::Hibernate,
+                        _ => PowerAction::LogOff,
+                    };
+                    tracing::info!(?action, "power command");
+                    // Let go of everything before the session ends or the PC sleeps.
+                    if let Some(engine) = &mut self.engine {
+                        let out = engine.release_all();
+                        self.emit(&out);
+                    }
+                    if let Err(e) = self.platform.system.power(action) {
+                        tracing::warn!("{action:?} failed: {e}");
+                    }
+                }
+                Command::Screenshot => match self.platform.system.screenshot() {
+                    Ok(path) => tracing::info!(path = %path.display(), "screenshot saved"),
+                    Err(e) => tracing::warn!("screenshot failed: {e}"),
+                },
+                Command::CloseWindow => {
+                    if let Err(e) = self.platform.system.close_foreground_window() {
+                        tracing::warn!("cannot close the window: {e}");
+                    }
+                }
                 Command::Unsupported(name) => {
                     tracing::debug!("ignoring unsupported command {name}")
                 }
@@ -755,6 +788,8 @@ pub(crate) mod testing {
         pub game_lightbar: Option<Rgb>,
         /// Keys sent to the virtual keyboard, in order.
         pub keys: Vec<(dp_core::keys::Key, bool)>,
+        /// System commands carried out, by name.
+        pub system: Vec<String>,
     }
 
     pub type Shared = Arc<Mutex<World>>;
@@ -834,6 +869,23 @@ pub(crate) mod testing {
         }
     }
 
+    struct FakeSystem(Shared);
+
+    impl dp_platform::SystemControl for FakeSystem {
+        fn power(&mut self, action: dp_platform::PowerAction) -> dp_platform::Result<()> {
+            self.0.lock().unwrap().system.push(format!("{action:?}"));
+            Ok(())
+        }
+        fn screenshot(&mut self) -> dp_platform::Result<std::path::PathBuf> {
+            self.0.lock().unwrap().system.push("Screenshot".into());
+            Ok("shot.png".into())
+        }
+        fn close_foreground_window(&mut self) -> dp_platform::Result<()> {
+            self.0.lock().unwrap().system.push("CloseWindow".into());
+            Ok(())
+        }
+    }
+
     struct FakeKbm(Shared);
 
     impl dp_platform::KbmOutput for FakeKbm {
@@ -852,6 +904,7 @@ pub(crate) mod testing {
         p.gamepads.push(Box::new(FakeBackend(world.clone())));
         p.virtual_pads = Box::new(FakeFactory(world.clone()));
         p.kbm_out = Box::new(FakeKbm(world.clone()));
+        p.system = Box::new(FakeSystem(world.clone()));
         (p, world)
     }
 }
@@ -937,6 +990,41 @@ mod tests {
         assert!(
             keys.iter().filter(|k| k.1).count() >= 2,
             "the held key repeated: {keys:?}"
+        );
+    }
+
+    #[test]
+    fn system_commands_reach_the_platform() {
+        use dp_core::control::Control;
+        use dp_core::pad::PadButton;
+        use dp_core::profile::{Action, Mapping, Mode};
+        let (platform, world) = testing::platform();
+        world
+            .lock()
+            .unwrap()
+            .pads
+            .push(pad("pad1", PadFamily::Xbox));
+        let mut rt = Runtime::with_platform(platform);
+        let mut p = Profile::default();
+        let mut m = Mapping::new(
+            Control::Button(PadButton::A),
+            [Command::Screenshot, Command::CloseWindow, Command::Sleep]
+                .into_iter()
+                .map(|command| Action::Command { command })
+                .collect(),
+        );
+        m.mode = Mode::Once;
+        p.mappings.push(m);
+        rt.apply(p, None).unwrap();
+        rt.tick();
+        world.lock().unwrap().pads[0].state.set(PadButton::A, true);
+        for _ in 0..3 {
+            rt.tick();
+            std::thread::sleep(std::time::Duration::from_millis(15));
+        }
+        assert_eq!(
+            world.lock().unwrap().system,
+            ["Screenshot", "CloseWindow", "Sleep"]
         );
     }
 
