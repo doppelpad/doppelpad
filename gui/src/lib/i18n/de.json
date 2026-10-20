@@ -442,6 +442,22 @@
     "declined": "reWASD läuft weiter: Die Administrator-Abfrage wurde abgelehnt.",
     "quit_failed": "reWASD konnte nicht vollständig beendet werden: {error}"
   },
+  "hotkeys": {
+    "title": "Controller-Hotkeys",
+    "hint": "Halte die Tasten am benutzten Controller zusammen gedrückt. Sie wirken in jeder Config, bei ausgeschaltetem Remapping und ohne dieses Fenster. Solange ein Hotkey gehalten wird, erreichen seine Tasten das Spiel nicht.",
+    "hold_ms": "Halten für",
+    "slot1": "Slot 1",
+    "slot2": "Slot 2",
+    "slot3": "Slot 3",
+    "slot4": "Slot 4",
+    "remap": "Remapping an/aus",
+    "stop_macros": "Makros stoppen",
+    "emergency_stop": "Not-Aus",
+    "none": "Aus",
+    "press": "Tasten halten, dann loslassen …",
+    "record": "Aufnehmen",
+    "too_many": "Ein Hotkey hat höchstens {n} Tasten."
+  },
   "notices": {
     "service-takeover": "Ein laufender Doppelpad-Hintergrunddienst wurde beendet – diese App übernimmt jetzt das Remapping.",
     "saved": "Gespeichert",

@@ -7,6 +7,7 @@ import type {
   Game,
   GameMeta,
   GuiSettings,
+  Hotkeys,
   Library,
   LiveState,
   LoadedConfig,
@@ -39,6 +40,10 @@ export const api = {
   setAutoSwitch: (on: boolean) => invoke<string>('set_auto_switch', { on }),
   setPreferredDevice: (id: string | null) => invoke<string>('set_preferred_device', { id }),
   refreshDrivers: () => invoke<string>('refresh_drivers'),
+  hotkeysGet: () => invoke<Hotkeys>('hotkeys_get'),
+  hotkeysSet: (hotkeys: Hotkeys) => invoke<string>('hotkeys_set', { hotkeys }),
+  /** Pause the hotkeys while recording a new one. */
+  hotkeysPause: (on: boolean) => invoke<string>('hotkeys_pause', { on }),
   /** `null` when reWASD is not installed. */
   rewasdStatus: () => invoke<RewasdStatus | null>('rewasd_status'),
   /** `false` when the user declined the administrator prompt. */

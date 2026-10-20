@@ -3,6 +3,7 @@
 //! and live snapshots for user interfaces.
 
 pub mod host;
+pub mod hotkeys;
 pub mod live;
 pub mod runtime;
 pub mod service;

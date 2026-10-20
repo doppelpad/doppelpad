@@ -17,7 +17,7 @@
 | Stick → mouse, mouse → stick, gyro → mouse/stick, touchpad → mouse (trackball) | ✅ |
 | Per-game auto-switching (foreground process) | ✅ |
 | JSON profile import | ✅ (radial menus, crosshairs, right trackpad, flick stick not yet) |
-| Emergency stop combo | ✅ |
+| Controller hotkeys: slots 1–4, remap on/off, stop macros, emergency stop (hold time, set in the app) | ✅ |
 | Virtual Xbox 360 / DualShock 4 | ✅ via ViGEmBus, with the game's rumble fed back; DualShock 4 with touchpad, motion and light bar (⏳ hardware testing); Linux: Xbox 360 via uinput (untested on hardware) |
 | Hide physical controller | ✅ via HidHide; Linux: `EVIOCGRAB` (untested on hardware) |
 | Desktop app (editor, tray, 4 slots, autodetect, English/German, stick/trigger/curve editor, analog and gyro routes) | ✅ (controller drawings ⏳) |
@@ -26,7 +26,7 @@
 | Flick stick, tilt mode | ⏳ planned |
 | Zones for gyro, mouse-as-stick and pressure buttons; separate diagonal directions | ⏳ planned |
 | Digital → stick ramp (initial deflection, speed, acceleration) | ⏳ planned |
-| Slots (4 profiles per controller) | ✅ in the app; ⏳ slot hotkeys |
+| Slots (4 profiles per controller) | ✅ in the app and by controller hotkey |
 | Multiple controllers / multiple virtual pads | ⏳ planned (first controller only) |
 | Keyboard repeat modes (typematic) | ⏳ planned |
 | Nintendo Switch controllers as input (Pro Controller, Joy-Con paired or sideways, NSO and Switch-style wired pads; gyro, rumble) | ✅ Windows via raw HID (⏳ hardware testing); Linux through hid-nintendo |
