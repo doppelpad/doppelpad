@@ -246,6 +246,7 @@ impl GamepadBackend for XInputBackend {
                 info,
                 state: convert(&st.gamepad),
                 battery: self.battery(slot, now),
+                raw: None,
             });
         }
     }

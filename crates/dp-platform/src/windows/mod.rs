@@ -9,6 +9,7 @@ mod foreground;
 mod hid;
 mod hidhide;
 mod hidio;
+mod hidparse;
 mod magnifier;
 mod osinfo;
 pub mod overlay;

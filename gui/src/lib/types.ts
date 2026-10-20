@@ -470,6 +470,32 @@ export interface LiveDevice {
   gyro_calibration: GyroCalibration | null;
   /** `null` when the controller does not report one. */
   battery: Battery | null;
+  /** Unmapped input of a generic pad, for identifying its buttons. */
+  raw?: RawInput | null;
+}
+
+/** What a generic pad reports: buttons in HID order, axes -1..1, hats 0–7 clockwise from up. */
+export interface RawInput {
+  buttons: boolean[];
+  axes: number[];
+  hats: (number | null)[];
+}
+
+export type HatDir = 'up' | 'right' | 'down' | 'left';
+export type StickAxis = 'LeftX' | 'LeftY' | 'RightX' | 'RightY';
+
+export type RawSource =
+  | { kind: 'button'; index: number }
+  | { kind: 'hat'; index: number; dir: HatDir }
+  | { kind: 'axis'; index: number; rest: number; full: number };
+
+/** Which raw input of a generic pad model is which pad control. */
+export interface GenericLayout {
+  /** `vvvv:pppp` in hex. */
+  device: string;
+  buttons: { button: string; from: RawSource }[];
+  triggers: { trigger: 'left' | 'right'; from: RawSource }[];
+  sticks: { axis: StickAxis; from: number; invert: boolean }[];
 }
 
 export interface Battery {
@@ -506,6 +532,8 @@ export interface LiveState {
   groups: DeviceGroup[];
   /** Wireless controllers turn off after this many minutes without input; 0 never. */
   power_off_after_min: number;
+  /** Generic pad models with a recorded layout (`vvvv:pppp`). */
+  layouts: string[];
   suspended: boolean;
   foreground: string | null;
   virtual_pad: string | null;

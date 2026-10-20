@@ -575,6 +575,7 @@ impl GamepadBackend for EvdevBackend {
                 info: pad.info.clone(),
                 state,
                 battery: None,
+                raw: None,
             });
         }
     }

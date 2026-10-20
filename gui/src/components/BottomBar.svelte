@@ -17,6 +17,7 @@
   import { t } from '../lib/i18n/index.svelte';
   import { app } from '../lib/state/app.svelte';
   import type { LiveDevice } from '../lib/types';
+  import IdentifyWizard from './IdentifyWizard.svelte';
   import Menu from './ui/Menu.svelte';
   import Toggle from './ui/Toggle.svelte';
 
@@ -53,6 +54,9 @@
     }
   }
 
+  /** The device the identify wizard runs for. */
+  let identify = $state<string | null>(null);
+
   function deviceMenu(d: LiveDevice) {
     const own = ownIds.has(d.id);
     return [
@@ -68,6 +72,8 @@
       ...(d.id.startsWith('group:')
         ? []
         : [{ label: t('devices.ignore'), onclick: () => run(api.setBlocked(d.id, true)) }]),
+      // Generic pads: which button is which.
+      ...(d.family === 'generic' && d.raw ? [{ label: t('identify.menu'), onclick: () => (identify = d.id) }] : []),
       // Only wireless controllers can be told to turn off.
       ...(d.battery && !d.battery.wired ? [{ label: t('devices.power_off'), onclick: () => run(api.powerOff(d.id)) }] : []),
     ];
@@ -190,6 +196,8 @@
     </div>
   </div>
 </footer>
+
+{#if identify}<IdentifyWizard deviceId={identify} onclose={() => (identify = null)} />{/if}
 
 <style>
   .service-warnings {

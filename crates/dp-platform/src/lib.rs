@@ -28,6 +28,7 @@ pub mod windows;
 #[cfg(any(target_os = "linux", test))]
 pub mod linux;
 
+pub mod generic;
 pub mod groups;
 pub mod joycon;
 pub mod nintendo;
@@ -125,6 +126,8 @@ pub struct PadSnapshot {
     pub state: PadState,
     /// `None` when the device does not report one.
     pub battery: Option<Battery>,
+    /// The unmapped input of a generic pad (for identifying its buttons).
+    pub raw: Option<Arc<generic::RawInput>>,
 }
 
 /// Trigger effects, left then right; `None` leaves a trigger as it is.
@@ -178,6 +181,8 @@ pub trait GamepadBackend: Send {
     /// Tell the backend which XInput slots / device paths belong to our own virtual pads
     /// so it does not read them back as physical input.
     fn ignore_virtual(&mut self, _ignored: &VirtualIgnoreList) {}
+    /// How generic pads' inputs map to pad controls, by model.
+    fn set_layouts(&mut self, _layouts: Arc<Vec<generic::GenericLayout>>) {}
     /// Devices the backend found but cannot use, as user-facing explanations
     /// (e.g. "another program is using the controller").
     fn problems(&self) -> Vec<String> {

@@ -132,6 +132,7 @@ fn combine(group: &DeviceGroup, members: &[&PadSnapshot]) -> PadSnapshot {
         }),
         state: merge(&states),
         battery,
+        raw: None,
     }
 }
 
@@ -209,6 +210,12 @@ impl GamepadBackend for Grouping {
         }
     }
 
+    fn set_layouts(&mut self, layouts: Arc<Vec<crate::generic::GenericLayout>>) {
+        for b in &mut self.inner {
+            b.set_layouts(layouts.clone());
+        }
+    }
+
     fn problems(&self) -> Vec<String> {
         self.inner.iter().flat_map(|b| b.problems()).collect()
     }
@@ -244,6 +251,7 @@ mod tests {
             }),
             state,
             battery: None,
+            raw: None,
         }
     }
 

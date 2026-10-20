@@ -278,6 +278,12 @@ settings to map each pad on its own. The Steam Controller's right pad also works
 stick. When Steam runs, it adds a virtual Xbox controller of its own for these pads; ignore
 one of the two in *Settings → Controllers*.
 
+Other game pads and joysticks (HID devices without a driver of their own) work with a guessed
+layout at first. Choose **Identify buttons …** in their menu: Doppelpad asks for each button,
+trigger and stick direction in turn and records what the controller sends (skip what it does
+not have). The layout is kept for every controller of that model; the same menu entry can
+discard it again.
+
 Wireless controllers can be turned off from their menu in the bottom bar (**Turn off**), with
 the `power_off` command in a mapping, or by themselves: *Turn wireless controllers off after*
 switches off a controller that had no input for that many minutes (resting sticks with a

@@ -12,7 +12,7 @@ use std::time::Duration;
 
 use windows_sys::Win32::Devices::HumanInterfaceDevice::{
     HIDD_ATTRIBUTES, HIDP_CAPS, HidD_FreePreparsedData, HidD_GetAttributes, HidD_GetPreparsedData,
-    HidD_GetSerialNumberString, HidD_SetFeature, HidP_GetCaps,
+    HidD_GetProductString, HidD_GetSerialNumberString, HidD_SetFeature, HidP_GetCaps,
 };
 use windows_sys::Win32::Foundation::{
     ERROR_IO_PENDING, GENERIC_READ, GENERIC_WRITE, GetLastError, HANDLE, WAIT_OBJECT_0,
@@ -153,6 +153,27 @@ impl HidIo {
         };
         let end = buf.iter().position(|&c| c == 0).unwrap_or(buf.len());
         (ok && end > 0).then(|| String::from_utf16_lossy(&buf[..end]))
+    }
+
+    /// The product name the device reports.
+    pub fn product(&self) -> Option<String> {
+        let mut buf = [0u16; 128];
+        // SAFETY: valid handle; the buffer length is given in bytes.
+        let ok = unsafe {
+            HidD_GetProductString(
+                self.handle.0,
+                buf.as_mut_ptr().cast(),
+                (buf.len() * 2) as u32,
+            )
+        };
+        let end = buf.iter().position(|&c| c == 0).unwrap_or(buf.len());
+        let name = String::from_utf16_lossy(&buf[..end]).trim().to_owned();
+        (ok && !name.is_empty()).then_some(name)
+    }
+
+    /// A decoder for the device's input reports (generic pads).
+    pub fn decoder(&self) -> Option<super::hidparse::HidDecoder> {
+        super::hidparse::HidDecoder::new(self.handle.0)
     }
 
     /// Vendor ID, product ID.

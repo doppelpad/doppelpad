@@ -7,6 +7,7 @@ import type {
   DeviceGroup,
   Game,
   GameMeta,
+  GenericLayout,
   GuiSettings,
   Hotkeys,
   Library,
@@ -78,6 +79,8 @@ export const api = {
   setGroups: (groups: DeviceGroup[]) => invoke<string>('set_groups', { groups }),
   setPowerOffAfter: (minutes: number) => invoke<string>('set_power_off_after', { minutes }),
   powerOff: (id: string) => invoke<string>('power_off', { id }),
+  setLayout: (layout: GenericLayout) => invoke<string>('set_layout', { layout }),
+  forgetLayout: (device: string) => invoke<string>('forget_layout', { device }),
   osdTest: () => invoke<void>('osd_test'),
   /** Sizes of the monitors, the primary one first. */
   osdMonitors: () => invoke<string[]>('osd_monitors'),
