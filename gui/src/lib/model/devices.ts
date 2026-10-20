@@ -13,6 +13,7 @@ export interface Drawings {
 const MICROSOFT = 0x045e;
 const SONY = 0x054c;
 const NINTENDO = 0x057e;
+const VALVE = 0x28de;
 
 const DUALSENSE_EDGE = 0x0df2;
 const SWITCH2_PRO = 0x2069;
@@ -51,7 +52,8 @@ export function drawingsFor(dev: Pick<LiveDevice, 'family' | 'vendor_id' | 'prod
     case 'generic':
       return { front: 'generic', back: 'genericBack' };
     case 'xbox':
-      return { front: 'xbox', back: is(MICROSOFT, XBOX_ELITE) ? 'xboxEliteBack' : 'xboxBack' };
+      // Steam Controller and Deck: their grips are paddles.
+      return { front: 'xbox', back: is(MICROSOFT, XBOX_ELITE) || dev.vendor_id === VALVE ? 'xboxEliteBack' : 'xboxBack' };
   }
 }
 

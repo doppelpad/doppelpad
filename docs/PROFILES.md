@@ -127,8 +127,8 @@ every 25 ms; only a virtual DualShock 4 has motion sensors.
 | `LB` `RB` `LS` `RS` | Shoulders, stick clicks. Aliases: `L1`, `R1`, `L3`, `R3` |
 | `Back` `Start` `Guide` | Aliases: `View`, `Share`, `Create`, `Menu`, `Options`, `Home`, `PS` |
 | `DpadUp` … `DpadRight` | D-pad |
-| `Touchpad` `Misc` | Touchpad click, Share/Mute/Capture |
-| `PaddleUL` `PaddleUR` `PaddleLL` `PaddleLR` | Back paddles (Elite, DualSense Edge) |
+| `Touchpad` `Misc` | Touchpad click, Share/Mute/Capture (Steam Deck: either trackpad click, quick access button) |
+| `PaddleUL` `PaddleUR` `PaddleLL` `PaddleLR` | Back paddles (Elite, DualSense Edge; Steam Controller grips = `PaddleUL` `PaddleUR`; Steam Deck L4 R4 = `PaddleUL` `PaddleUR`, L5 R5 = `PaddleLL` `PaddleLR`) |
 | `LeftStickUp` … `RightStickRight` | Stick pushed past its low zone threshold (a diagonal presses two, unless the stick has `diagonals = true`) |
 | `LeftStickUpLeft` `LeftStickUpRight` `LeftStickDownLeft` `LeftStickDownRight` (same for `RightStick…`) | Diagonals of a stick with `diagonals = true` |
 | `LeftStickUpLow` … `RightStickDownRightHigh` | Stick pushed in a direction (diagonals too) and within a zone (see Zones) |
@@ -140,7 +140,7 @@ every 25 ms; only a virtual DualShock 4 has motion sensors.
 | `TouchTap` `TouchTapLeft` `TouchTapCenter` `TouchTapRight` `TouchMultiTap` | Quick tap (under 200 ms, barely moving): anywhere, in the left, middle or right third, or with two fingers; a 50 ms press |
 | `TouchSwipeUp` … `TouchSwipeRight`, `TouchSwipe2Up` … | Swipe with one or two fingers across a quarter of the pad within 500 ms; a 50 ms press |
 | `TouchZoomIn` `TouchZoomOut` | Two fingers spreading apart or pinching together by a fifth; a 50 ms press |
-| `TrackpadLeftUp` … `TrackpadRightCenter`, `TrackpadLeftTap`, `TrackpadLeftClick` … | With `[touchpad] split`: the regions, taps and clicks of each half |
+| `TrackpadLeftUp` … `TrackpadRightCenter`, `TrackpadLeftTap`, `TrackpadLeftClick` … | With `[touchpad] split`: the regions, taps and clicks of each half; on the Steam Controller and Steam Deck each half is one of the two trackpads |
 | `GyroUp` `GyroDown` `GyroLeft` `GyroRight` `GyroLeanLeft` `GyroLeanRight` | Controller turned (nose up/down, the steering axis, roll) past the low zone, or in tilt mode tilted past it; see `[gyro]` |
 | `GyroLow` … `GyroUpHigh`, `GyroLeanLeftMed` … | Gyro in a zone, any direction or one; see `[gyro]` |
 | `Key:Space` | Keyboard key (names below) |

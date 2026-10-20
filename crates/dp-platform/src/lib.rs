@@ -34,6 +34,7 @@ pub mod nintendo;
 mod null;
 pub mod padio;
 pub mod sony;
+pub mod steam;
 pub use null::NullPlatform;
 
 pub type Result<T, E = PlatformError> = std::result::Result<T, E>;

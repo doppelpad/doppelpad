@@ -24,6 +24,10 @@ pub trait ReportIo {
     fn get_feature(&mut self, _buf: &mut [u8]) -> io::Result<usize> {
         Err(io::ErrorKind::Unsupported.into())
     }
+    /// Send a feature report (`buf[0]` = report ID), padded to the device's length.
+    fn set_feature(&mut self, _buf: &[u8]) -> io::Result<()> {
+        Err(io::ErrorKind::Unsupported.into())
+    }
     fn now(&self) -> Instant {
         Instant::now()
     }
@@ -116,6 +120,11 @@ pub trait PadDriver: Send {
     /// Periodic output (rumble, keep-alives). Called after every report, timeout and
     /// wake-up, with the rumble the engine currently wants.
     fn service(&mut self, io: &mut dyn ReportIo, rumble: Rumble) -> io::Result<()>;
+    /// Whether a controller is behind the interface (a wireless receiver's slot may be
+    /// empty); while not, the device is not reported.
+    fn connected(&self) -> bool {
+        true
+    }
     /// The battery as of the last parsed report, if the device reports one.
     fn battery(&self) -> Option<Battery> {
         None
@@ -252,6 +261,10 @@ pub(crate) mod testing {
         responder: Responder,
         pub reply_delay: Duration,
         pub features: Vec<Vec<u8>>,
+        /// Feature reports sent, in order.
+        pub set_features: Vec<Vec<u8>>,
+        /// What the next feature reads return, in order.
+        pub feature_replies: VecDeque<Vec<u8>>,
     }
 
     impl ScriptIo {
@@ -264,6 +277,8 @@ pub(crate) mod testing {
                 responder: Box::new(responder),
                 reply_delay: Duration::from_millis(5),
                 features: Vec::new(),
+                set_features: Vec::new(),
+                feature_replies: VecDeque::new(),
             }
         }
 
@@ -315,7 +330,16 @@ pub(crate) mod testing {
 
         fn get_feature(&mut self, buf: &mut [u8]) -> io::Result<usize> {
             self.features.push(buf.to_vec());
+            if let Some(r) = self.feature_replies.pop_front() {
+                let n = r.len().min(buf.len());
+                buf[..n].copy_from_slice(&r[..n]);
+            }
             Ok(buf.len())
+        }
+
+        fn set_feature(&mut self, buf: &[u8]) -> io::Result<()> {
+            self.set_features.push(buf.to_vec());
+            Ok(())
         }
 
         fn now(&self) -> Instant {
