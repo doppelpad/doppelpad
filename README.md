@@ -5,7 +5,7 @@
 Doppelpad turns any supported controller, keyboard or mouse into whatever a game expects:
 remap buttons, build combos and macros, add shift layers, turbo, toggles, long/double/triple
 presses, use your keyboard and mouse as an Xbox controller, aim with gyro, or drive the
-desktop with a gamepad. Advanced controller configuration should not sit behind a paywall.
+desktop with a gamepad.
 
 Doppelpad uses only open drivers ([ViGEmBus](https://github.com/nefarius/ViGEmBus) and
 [HidHide](https://github.com/nefarius/HidHide)) and can import JSON profiles (schema 3.0)
