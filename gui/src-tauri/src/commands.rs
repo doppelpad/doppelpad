@@ -20,6 +20,7 @@ use dp_ipc::Request;
 use dp_platform::generic::GenericLayout;
 use dp_platform::groups::DeviceGroup;
 use dp_service::dsu::DsuSettings;
+use dp_service::slots::RuntimeOptions;
 use dp_service::{LiveState, PlayerLights, ServiceCmd, ServiceHandle, ServiceReply};
 use serde::Serialize;
 use tauri::ipc::Channel;
@@ -360,6 +361,12 @@ pub fn set_layout(state: State<AppState>, layout: GenericLayout) -> CmdResult<St
 #[tauri::command]
 pub fn forget_layout(state: State<AppState>, device: String) -> CmdResult<String> {
     state.call(ServiceCmd::ForgetLayout(device))
+}
+
+/// Sleep, focus and disconnect behaviour of remapping.
+#[tauri::command]
+pub fn set_runtime_options(state: State<AppState>, options: RuntimeOptions) -> CmdResult<String> {
+    state.call(ServiceCmd::SetRuntimeOptions(options))
 }
 
 /// Turn the DSU motion server for emulators on or off, or move it.

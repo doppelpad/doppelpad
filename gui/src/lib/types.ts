@@ -479,6 +479,13 @@ export interface LiveDevice {
 /** All keyboard/mouse input, physical devices only, or only what scripts inject. */
 export type KbmSource = 'all' | 'physical' | 'scripts';
 
+/** How remapping fits in with the rest of the system. */
+export interface RuntimeOptions {
+  prevent_sleep: boolean;
+  pause_unfocused: boolean;
+  keep_offline_pads: boolean;
+}
+
 export interface DsuSettings {
   enabled: boolean;
   /** Listen on all network interfaces, not only this computer. */
@@ -557,6 +564,11 @@ export interface LiveState {
   /** Generic pad models with a recorded layout (`vvvv:pppp`). */
   layouts: string[];
   dsu: LiveDsu;
+  runtime: RuntimeOptions;
+  /** Paused: the desktop is locked or a secure desktop shows. */
+  locked: boolean;
+  /** Paused: the config's game is not in front. */
+  focus_paused: boolean;
   suspended: boolean;
   foreground: string | null;
   virtual_pad: string | null;

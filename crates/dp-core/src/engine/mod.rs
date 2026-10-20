@@ -523,6 +523,12 @@ impl Engine {
         self.layer
     }
 
+    /// Whether a mapping is playing output right now (a macro runs, a toggle or a held
+    /// mapping keeps something pressed).
+    pub fn emulating(&self) -> bool {
+        !self.acts.is_empty() || !self.toggles.is_empty()
+    }
+
     pub fn warnings(&self) -> &[String] {
         &self.c.warnings
     }

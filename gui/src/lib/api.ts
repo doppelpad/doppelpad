@@ -17,6 +17,7 @@ import type {
   PlayerLights,
   Profile,
   RewasdStatus,
+  RuntimeOptions,
 } from './types';
 
 export const api = {
@@ -83,6 +84,7 @@ export const api = {
   setLayout: (layout: GenericLayout) => invoke<string>('set_layout', { layout }),
   forgetLayout: (device: string) => invoke<string>('forget_layout', { device }),
   setDsu: (settings: DsuSettings) => invoke<string>('set_dsu', { settings }),
+  setRuntimeOptions: (options: RuntimeOptions) => invoke<string>('set_runtime_options', { options }),
   osdTest: () => invoke<void>('osd_test'),
   /** Sizes of the monitors, the primary one first. */
   osdMonitors: () => invoke<string[]>('osd_monitors'),

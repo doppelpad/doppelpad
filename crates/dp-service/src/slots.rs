@@ -52,6 +52,30 @@ pub struct SlotState {
     pub layouts: Vec<GenericLayout>,
     /// The DSU motion server for emulators.
     pub dsu: DsuSettings,
+    pub runtime: RuntimeOptions,
+}
+
+/// How remapping fits in with the rest of the system (`[runtime]` in state.toml).
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct RuntimeOptions {
+    /// Keep the computer awake while a mapping plays output (a macro, a toggle).
+    pub prevent_sleep: bool,
+    /// Pause remapping while the active config's game is not in front.
+    pub pause_unfocused: bool,
+    /// A controller with slots of its own keeps its virtual controller (idle) while it is
+    /// disconnected.
+    pub keep_offline_pads: bool,
+}
+
+impl Default for RuntimeOptions {
+    fn default() -> Self {
+        RuntimeOptions {
+            prevent_sleep: true,
+            pause_unfocused: false,
+            keep_offline_pads: false,
+        }
+    }
 }
 
 /// What the player lights of a controller show.
@@ -82,6 +106,7 @@ impl Default for SlotState {
             power_off_after_min: 0,
             layouts: Vec::new(),
             dsu: DsuSettings::default(),
+            runtime: RuntimeOptions::default(),
         }
     }
 }
@@ -106,6 +131,7 @@ struct StateFile {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     layouts: Vec<GenericLayout>,
     dsu: DsuSettings,
+    runtime: RuntimeOptions,
 }
 
 #[derive(Default, Serialize, Deserialize)]
@@ -170,6 +196,7 @@ impl SlotState {
             power_off_after_min: file.power_off_after_min,
             layouts: file.layouts,
             dsu: file.dsu,
+            runtime: file.runtime,
         }
     }
 
@@ -198,6 +225,7 @@ impl SlotState {
             power_off_after_min: self.power_off_after_min,
             layouts: self.layouts.clone(),
             dsu: self.dsu,
+            runtime: self.runtime,
         };
         let text = toml::to_string_pretty(&file).map_err(std::io::Error::other)?;
         if let Some(dir) = path.parent() {

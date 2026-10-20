@@ -155,6 +155,7 @@ fn main() {
             commands::set_layout,
             commands::forget_layout,
             commands::set_dsu,
+            commands::set_runtime_options,
             commands::set_preferred_device,
             commands::refresh_drivers,
             commands::hotkeys_get,

@@ -790,6 +790,8 @@
     "autodetect": "Automatisch",
     "autodetect_hint": "Zur Config eines Spiels wechseln, solange das Spiel im Vordergrund ist",
     "paused": "Pausiert während der Bearbeitung",
+    "paused_locked": "Pausiert: Bildschirm gesperrt",
+    "paused_focus": "Pausiert: das Spiel ist nicht im Vordergrund",
     "applied": "Auf Slot {n} angewendet",
     "no_config": "Wähle zuerst eine Config"
   },
@@ -840,6 +842,14 @@
       "scale": "Größe",
       "opacity": "Deckkraft",
       "seconds": "Anzeigedauer"
+    },
+    "runtime": {
+      "title": "Beim Remappen",
+      "prevent_sleep": "Ruhezustand verhindern, während eine Belegung Eingaben abspielt",
+      "pause_unfocused": "Pausieren, wenn das Spiel der Config nicht im Vordergrund ist",
+      "pause_unfocused_hint": "Gilt für Configs eines Spiels (aus seinem Ordner oder mit eigenen Programmnamen).",
+      "keep_offline_pads": "Virtuellen Controller behalten, wenn ein Controller mit eigenen Slots getrennt wird",
+      "locked_hint": "Bei gesperrtem Bildschirm, Strg+Alt+Entf und Administrator-Abfragen pausiert Doppelpad immer und lässt alles los."
     },
     "dsu": {
       "title": "Bewegungsserver (DSU)",

@@ -15,10 +15,12 @@ use dp_platform::groups::{DeviceGroup, DevicePolicy};
 use crate::dsu::{DsuServer, DsuSettings};
 use crate::live::{LiveDevice, LiveState};
 use crate::runtime::{DriverStatus, Runtime};
-use crate::slots::{PlayerLights, SLOTS, SlotState};
+use crate::slots::{PlayerLights, RuntimeOptions, SLOTS, SlotState};
 
 /// How often the foreground application is checked by default.
 pub const FOREGROUND_POLL_MS: u64 = 250;
+/// How often to check whether the user's desktop takes input.
+const DESKTOP_POLL_MS: u64 = 250;
 /// How often driver availability is re-probed.
 const DRIVER_POLL_MS: u64 = 5000;
 
@@ -113,6 +115,8 @@ pub enum ServiceCmd {
     ForgetLayout(String),
     /// Turn the DSU motion server on or off, or move it.
     SetDsu(DsuSettings),
+    /// Sleep, focus and disconnect behaviour.
+    SetRuntimeOptions(RuntimeOptions),
     /// Turn a wireless controller off now.
     PowerOff(String),
     /// Re-probe ViGEmBus / HidHide now.
@@ -188,6 +192,14 @@ pub struct Service {
     /// The DSU motion server while it runs, and why it could not start.
     dsu: Option<DsuServer>,
     dsu_error: Option<String>,
+    /// Why remapping is paused: the editor has focus, the desktop is locked or a secure
+    /// desktop shows, the config's game is not in front.
+    gui_suspended: bool,
+    locked: bool,
+    focus_paused: bool,
+    desktop_checked: Option<u64>,
+    /// The application in front, as last asked.
+    fg_now: Option<String>,
     /// When the gyro calibration was last saved.
     calibration_saved: Option<u64>,
 }
@@ -252,11 +264,17 @@ impl Service {
             connected: Vec::new(),
             dsu: None,
             dsu_error: None,
+            gui_suspended: false,
+            locked: false,
+            focus_paused: false,
+            desktop_checked: None,
+            fg_now: None,
             calibration_saved: None,
             opts,
         };
         svc.apply_device_policy();
         svc.apply_dsu();
+        svc.rt.set_prevent_sleep(svc.state.runtime.prevent_sleep);
         svc.reload();
         if let Some(p) = svc.oneoff.clone() {
             svc.apply_path(&p)?;
@@ -275,11 +293,20 @@ impl Service {
             .iter()
             .map(|s| s.info.id.0.clone())
             .collect();
+        // With the option on, a disconnected controller keeps its session (and so its
+        // virtual controller, idle) until it is back.
+        let keep = self.state.runtime.keep_offline_pads;
+        let running: Vec<String> = self
+            .rt
+            .sessions()
+            .into_iter()
+            .filter_map(|s| s.owner)
+            .collect();
         let wanted: Vec<(String, PathBuf)> = if self.state.remap_on {
             self.state
                 .devices
                 .iter()
-                .filter(|(id, _)| connected.contains(id))
+                .filter(|(id, _)| connected.contains(id) || (keep && running.contains(id)))
                 .filter_map(|(id, d)| Some((id.clone(), d.active_profile()?.clone())))
                 .collect()
         } else {
@@ -444,6 +471,12 @@ impl Service {
         w.extend(self.hiding_problems.iter().cloned());
         w.extend(self.rt.device_problems());
         w.extend(self.last_error.clone());
+        w.extend(
+            self.fg_now
+                .as_deref()
+                .and_then(crate::anticheat::lookup)
+                .map(|a| a.warning()),
+        );
         w.extend(
             self.device_errors
                 .iter()
@@ -657,7 +690,8 @@ impl Service {
                 }
             }
             ServiceCmd::SetSuspended(on) => {
-                self.rt.set_suspended(on);
+                self.gui_suspended = on;
+                self.apply_suspend();
                 ServiceReply::Ok(format!(
                     "remapping {}",
                     if on { "paused" } else { "resumed" }
@@ -715,6 +749,13 @@ impl Service {
                     ServiceReply::Ok("layout saved".into())
                 }
             },
+            ServiceCmd::SetRuntimeOptions(o) => {
+                self.state.runtime = o;
+                self.rt.set_prevent_sleep(o.prevent_sleep);
+                self.save_state();
+                self.sync_devices();
+                ServiceReply::Ok("runtime options set".into())
+            }
             ServiceCmd::SetDsu(settings) => {
                 self.state.dsu = settings;
                 self.apply_dsu();
@@ -938,7 +979,11 @@ impl Service {
             self.sync_devices();
         }
         let now = self.rt.now_ms();
-        self.auto_switch_tick(now);
+        self.watch_desktop(now);
+        if self.poll_foreground(now) {
+            self.watch_focus();
+        }
+        self.auto_switch_tick();
         if self
             .drivers_checked
             .is_none_or(|t| now >= t + DRIVER_POLL_MS)
@@ -968,21 +1013,87 @@ impl Service {
         self.drivers_checked = Some(now);
     }
 
-    fn auto_switch_tick(&mut self, now: u64) {
+    /// Ask which application is in front, at most every poll interval; `true` if it asked.
+    fn poll_foreground(&mut self, now: u64) -> bool {
+        if self
+            .last_fg_check
+            .is_some_and(|t| now < t + self.opts.foreground_poll_ms)
+        {
+            return false;
+        }
+        self.last_fg_check = Some(now);
+        self.fg_now = self.rt.platform_mut().foreground.foreground_process();
+        true
+    }
+
+    /// Pause while the user's desktop does not take input (locked, Ctrl+Alt+Del, an
+    /// elevation prompt): nothing stays pressed meanwhile.
+    fn watch_desktop(&mut self, now: u64) {
+        if self
+            .desktop_checked
+            .is_some_and(|t| now < t + DESKTOP_POLL_MS)
+        {
+            return;
+        }
+        self.desktop_checked = Some(now);
+        let locked = !self.rt.platform_mut().system.desktop_active();
+        if locked != self.locked {
+            tracing::info!(locked, "the user's desktop changed");
+            self.locked = locked;
+            self.apply_suspend();
+        }
+    }
+
+    /// Executables of the game the active config belongs to (its game folder, or its own
+    /// `processes`); empty for a config of no particular game.
+    fn game_processes(&self) -> Vec<String> {
+        let Some(path) = self.rt.profile_path() else {
+            return Vec::new();
+        };
+        let mut out: Vec<String> = self
+            .library
+            .games
+            .iter()
+            .filter(|g| g.configs.iter().any(|c| &c.path == path))
+            .flat_map(|g| g.meta.processes.iter().cloned())
+            .collect();
+        out.extend(
+            self.rt
+                .profile()
+                .into_iter()
+                .flat_map(|p| p.processes.iter().cloned()),
+        );
+        out
+    }
+
+    /// With the option on, pause while the active config's game is not in front.
+    fn watch_focus(&mut self) {
+        let paused = self.state.runtime.pause_unfocused
+            && self.state.remap_on
+            && self.fg_now.as_deref().is_some_and(|fg| {
+                let games = self.game_processes();
+                !games.is_empty() && !games.iter().any(|g| g.eq_ignore_ascii_case(fg))
+            });
+        if paused != self.focus_paused {
+            tracing::info!(paused, "the config's game lost or got the focus");
+            self.focus_paused = paused;
+            self.apply_suspend();
+        }
+    }
+
+    fn apply_suspend(&mut self) {
+        self.rt
+            .set_suspended(self.gui_suspended || self.locked || self.focus_paused);
+    }
+
+    fn auto_switch_tick(&mut self) {
         if !self.state.auto_switch || !self.state.remap_on {
             // Look again once switching is back on, even if the same application kept
             // the focus meanwhile.
             self.foreground = None;
             return;
         }
-        if self
-            .last_fg_check
-            .is_some_and(|t| now < t + self.opts.foreground_poll_ms)
-        {
-            return;
-        }
-        self.last_fg_check = Some(now);
-        let fg = self.rt.platform_mut().foreground.foreground_process();
+        let fg = self.fg_now.clone();
         if fg == self.foreground {
             return;
         }
@@ -1052,6 +1163,9 @@ impl Service {
             blocked: self.state.blocked.clone(),
             groups: self.state.groups.clone(),
             power_off_after_min: self.state.power_off_after_min,
+            runtime: self.state.runtime,
+            locked: self.locked,
+            focus_paused: self.focus_paused,
             layouts: self
                 .state
                 .layouts
@@ -1210,6 +1324,67 @@ mod tests {
 
     fn active_name(s: &Service) -> Option<String> {
         s.runtime().profile().map(|p| p.name.clone())
+    }
+
+    struct Desktop(Arc<std::sync::atomic::AtomicBool>);
+
+    impl dp_platform::SystemControl for Desktop {
+        fn power(&mut self, _: dp_platform::PowerAction) -> dp_platform::Result<()> {
+            Ok(())
+        }
+        fn screenshot(&mut self) -> dp_platform::Result<PathBuf> {
+            Ok(PathBuf::new())
+        }
+        fn close_foreground_window(&mut self) -> dp_platform::Result<()> {
+            Ok(())
+        }
+        fn desktop_active(&self) -> bool {
+            self.0.load(std::sync::atomic::Ordering::Relaxed)
+        }
+    }
+
+    #[test]
+    fn pauses_while_locked_or_the_game_is_not_in_front() {
+        use std::sync::atomic::{AtomicBool, Ordering};
+        let dir = tempfile::tempdir().unwrap();
+        let game = write_profile(dir.path(), "game.toml", "Game", &["game.exe"]);
+        let fg = Arc::new(Mutex::new(Some("game.exe".to_string())));
+        let active = Arc::new(AtomicBool::new(true));
+        let mut platform = NullPlatform::platform();
+        platform.foreground = Box::new(FakeForeground(fg.clone()));
+        platform.system = Box::new(Desktop(active.clone()));
+        let mut opts = ServiceOptions::new(dir.path().join("profiles"));
+        opts.foreground_poll_ms = 0;
+        let mut s = Service::new(Runtime::with_platform(platform), opts).unwrap();
+        s.handle(ServiceCmd::ApplyToSlot {
+            device: None,
+            slot: 0,
+            path: game,
+        });
+        s.handle(ServiceCmd::SetRuntimeOptions(RuntimeOptions {
+            pause_unfocused: true,
+            ..Default::default()
+        }));
+        s.tick();
+        assert!(!s.live().suspended);
+        *fg.lock().unwrap() = Some("notepad.exe".into());
+        s.tick();
+        assert!(
+            s.live().focus_paused && s.live().suspended,
+            "the game is not in front"
+        );
+        *fg.lock().unwrap() = Some("GAME.EXE".into());
+        s.tick();
+        assert!(!s.live().suspended);
+
+        active.store(false, Ordering::Relaxed);
+        std::thread::sleep(std::time::Duration::from_millis(DESKTOP_POLL_MS + 20));
+        s.tick();
+        assert!(s.live().locked && s.live().suspended, "locked");
+        active.store(true, Ordering::Relaxed);
+        std::thread::sleep(std::time::Duration::from_millis(DESKTOP_POLL_MS + 20));
+        s.tick();
+        assert!(!s.live().suspended);
     }
 
     #[test]
