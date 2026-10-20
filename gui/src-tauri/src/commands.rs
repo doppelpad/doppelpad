@@ -347,6 +347,24 @@ pub fn test_turn(state: State<AppState>, counts: f32) -> CmdResult<String> {
     state.call(ServiceCmd::TestTurn { counts })
 }
 
+/// Measure a controller's gyro bias (it should lie still); `None`: the controller in use.
+#[tauri::command]
+pub fn gyro_calibrate(state: State<AppState>, device: Option<String>) -> CmdResult<String> {
+    state.call(ServiceCmd::CalibrateGyro { device })
+}
+
+/// Switch the automatic gyro calibration of a controller.
+#[tauri::command]
+pub fn gyro_auto(state: State<AppState>, device: Option<String>, on: bool) -> CmdResult<String> {
+    state.call(ServiceCmd::SetGyroAuto { device, on })
+}
+
+/// Forget a controller's gyro bias.
+#[tauri::command]
+pub fn gyro_reset(state: State<AppState>, device: Option<String>) -> CmdResult<String> {
+    state.call(ServiceCmd::ResetGyro { device })
+}
+
 // ----- reWASD ------------------------------------------------------------------------
 
 /// What of reWASD is running. reWASD keeps the controllers to itself while it runs.

@@ -22,6 +22,7 @@ pub fn run(profiles_dir: PathBuf, initial: Option<PathBuf>, auto_switch: bool) -
     // Slots and controller hotkeys are shared with the app.
     service.state_path = Some(dp_config::config_dir().join("state.toml"));
     service.hotkeys_path = Some(dp_config::config_dir().join("hotkeys.toml"));
+    service.calibration_path = Some(dp_config::config_dir().join("calibration.toml"));
     let mut handle = dp_service::spawn(HostOptions { service, ipc: true })?;
     tracing::info!("daemon running; control it with `doppelpad apply|select-slot|remap|status`");
 

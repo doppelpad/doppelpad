@@ -113,8 +113,8 @@ doppelpad stop
 doppelpad shutdown
 ```
 
-The daemon shares its slots (`state.toml`) and controller hotkeys (`hotkeys.toml`) with the
-desktop app. `doppelpad devices` lists controllers with ids that stay the same across
+The daemon shares its slots (`state.toml`), controller hotkeys (`hotkeys.toml`) and gyro
+calibration (`calibration.toml`) with the desktop app. `doppelpad devices` lists controllers with ids that stay the same across
 reconnects (on Linux the Bluetooth address or USB port; XInput pads on Windows are only
 known by their XInput slot).
 

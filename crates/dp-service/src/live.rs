@@ -5,6 +5,7 @@ use dp_core::pad::PadState;
 use dp_platform::PadFamily;
 use serde::Serialize;
 
+use crate::calibration::CalibrationStatus;
 use crate::runtime::{DriverStatus, SessionInfo};
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -16,6 +17,8 @@ pub struct LiveDevice {
     pub vendor_id: u16,
     pub product_id: u16,
     pub state: PadState,
+    /// Gyro calibration, for controllers with motion sensors.
+    pub gyro_calibration: Option<CalibrationStatus>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize)]

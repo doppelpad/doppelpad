@@ -76,6 +76,7 @@ fn main() {
             let mut service = ServiceOptions::new(profiles_dir.clone());
             service.state_path = Some(dp_config::config_dir().join("state.toml"));
             service.hotkeys_path = Some(dp_config::config_dir().join("hotkeys.toml"));
+            service.calibration_path = Some(dp_config::config_dir().join("calibration.toml"));
             let handle = dp_service::spawn(HostOptions { service, ipc: true })?;
 
             app.manage(AppState {
@@ -137,6 +138,9 @@ fn main() {
             commands::hotkeys_set,
             commands::hotkeys_pause,
             commands::test_turn,
+            commands::gyro_calibrate,
+            commands::gyro_auto,
+            commands::gyro_reset,
             commands::rewasd_status,
             commands::rewasd_quit,
             commands::live_subscribe,

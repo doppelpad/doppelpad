@@ -153,6 +153,12 @@ gravity, however the controller is held. *Gyro on when the config starts* can be
 for configs that turn it on with a command. The zones (low, medium, high) are in degrees per
 second when turning and in degrees when tilting.
 
+*Calibration of this controller* removes gyro drift from the controller in use, in every
+config and at once: *Calibrate* measures for three seconds while it lies still (if it moves,
+the old calibration stays), *Reset* forgets it, and *Calibrate automatically while it rests*
+keeps adjusting it whenever the controller lies still (on by default; very slow turns can be
+taken for drift).
+
 With a shift layer selected in the toolbar, the stick and trigger pages show the settings as
 they are on that layer, and a change applies to that layer only. Everything the layer does
 not change follows *Main*: a note above the settings says whether the layer has settings of
@@ -283,6 +289,7 @@ running reWASD.
 | `%APPDATA%\doppelpad\profiles\<game>\<config>.toml` | One profile (the normal TOML format, see [PROFILES.md](PROFILES.md)) |
 | `%APPDATA%\doppelpad\state.toml` | The four slots, active slot, remap on/off, autodetect |
 | `%APPDATA%\doppelpad\hotkeys.toml` | Controller hotkeys and their hold time (also read by `doppelpad daemon`) |
+| `%APPDATA%\doppelpad\calibration.toml` | Gyro calibration per controller (also used by `doppelpad daemon`) |
 | `%APPDATA%\doppelpad\gui.toml` | Language, focus pause, press-to-select |
 | `%LOCALAPPDATA%\doppelpad\logs\doppelpad-gui.log` | Log of the current run; the previous run's log is kept as `doppelpad-gui.log.1` |
 

@@ -1,7 +1,9 @@
 <script lang="ts">
   // How the motion sensors become gyro controls: by turning (motion) or by tilting from a
   // centre pose (tilt), which axis steers, whether the gyro starts on, how gyro routes read
-  // turning, and where the zones start. For the whole config.
+  // turning, and where the zones start (for the whole config); and the gyro calibration of
+  // the controller in use.
+  import { api } from '../../lib/api';
   import { t } from '../../lib/i18n/index.svelte';
   import { gyroConfig, setGyro } from '../../lib/model/analog';
   import { app } from '../../lib/state/app.svelte';
@@ -20,6 +22,19 @@
   }
 
   const LEVELS = ['low', 'med', 'high'] as const;
+
+  /** Calibration belongs to the controller in use, not to the config; it applies at once. */
+  const dev = $derived(app.primary);
+  const cal = $derived(dev?.gyro_calibration ?? null);
+  const fmt = (v: number) => v.toFixed(2);
+
+  async function run(call: () => Promise<string>) {
+    try {
+      await call();
+    } catch (e) {
+      app.toast(String(e), 'error');
+    }
+  }
 
   /** Set one zone threshold, moving the others so they keep increasing. */
   function setZone(i: number, v: number) {
@@ -71,6 +86,33 @@
         onchange={(v) => setZone(i, v)}
       />
     {/each}
+
+    {#if dev && cal}
+      <div class="sub">{t('analog.gyro.calibration')}</div>
+      <p class="hint">{t('analog.gyro.calibration_hint', { name: dev.name })}</p>
+      <div class="cal">
+        <button class="btn" disabled={cal.measuring !== null} onclick={() => run(() => api.gyroCalibrate(dev.id))}>
+          {cal.measuring !== null
+            ? t('analog.gyro.measuring', { pct: Math.round(cal.measuring * 100) })
+            : t('analog.gyro.calibrate')}
+        </button>
+        <button class="btn" disabled={cal.measuring !== null} onclick={() => run(() => api.gyroReset(dev.id))}>
+          {t('analog.gyro.calibration_reset')}
+        </button>
+        <span class="bias">{t('analog.gyro.bias', { x: fmt(cal.gyro_bias[0]), y: fmt(cal.gyro_bias[1]), z: fmt(cal.gyro_bias[2]) })}</span>
+      </div>
+      {#if cal.last_manual === false}
+        <p class="warn">{t('analog.gyro.calibration_moved')}</p>
+      {:else if cal.last_manual}
+        <p class="hint">{t('analog.gyro.calibration_done')}</p>
+      {/if}
+      <Toggle
+        checked={cal.auto}
+        label={t('analog.gyro.auto_calibration')}
+        onchange={(v) => run(() => api.gyroAuto(dev.id, v))}
+      />
+      <p class="hint">{t('analog.gyro.auto_calibration_hint')}</p>
+    {/if}
   </div>
 {/if}
 
@@ -118,6 +160,17 @@
     margin: 0;
     color: var(--warning);
     font-size: 12px;
+  }
+  .cal {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 10px;
+  }
+  .bias {
+    color: var(--text-dim);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
   }
   .sub {
     margin-top: 8px;
