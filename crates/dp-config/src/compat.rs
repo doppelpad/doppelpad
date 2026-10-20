@@ -14,7 +14,7 @@ use dp_core::profile::{
     Action, Activator, AnalogMapping, AnalogSource, AnalogTarget, Combo, Command, GyroMode,
     JitterPattern, Jump, JumpMode, KeyRepeat, Layer, LayerSticks, LayerTriggers,
     LayerVirtualSticks, Mapping, Mode, Press, Profile, ShakeAxis, StickPatch, Sticks, TriggerPatch,
-    Triggers, VirtualMotion, VirtualMouse, VirtualPadType, VirtualStick, VirtualStickPatch,
+    Triggers, Unlock, VirtualMotion, VirtualMouse, VirtualPadType, VirtualStick, VirtualStickPatch,
     VirtualSticks, ZoneRadius,
 };
 use serde_json::Value;
@@ -1187,9 +1187,16 @@ impl<'a> Importer<'a> {
                 self.diags.warn(&path, "invalid layer id");
                 continue;
             };
-            let kind = match enum_str(s, "type").as_deref() {
+            let ty = enum_str(s, "type");
+            let unlock = match ty.as_deref() {
+                Some("unlock") => Some(Unlock::All),
+                Some("unlockkeyboardonly") => Some(Unlock::Keyboard),
+                Some("unlockmouseonly") => Some(Unlock::Mouse),
+                _ => None,
+            };
+            let kind = match ty.as_deref() {
                 Some("toggle") => LayerKind::Toggle,
-                Some("unlock" | "unlockkeyboardonly" | "unlockmouseonly") => LayerKind::Unlock,
+                _ if unlock.is_some() => LayerKind::Unlock,
                 Some("radialmenu") => LayerKind::RadialMenu,
                 _ => LayerKind::Common,
             };
@@ -1219,15 +1226,19 @@ impl<'a> Importer<'a> {
                 not_inherited,
                 sticks,
                 triggers,
+                unlock,
                 ..Default::default()
             });
 
-            // Legacy single-button modifier → synthesized jump mapping.
+            // Legacy modifier (one button or several held together) → synthesized jump mapping.
             let set = array(s, "set");
-            if set.len() == 1
-                && let Some(c) = self.element(&set[0], &format!("{path}.set[0]"))
-            {
-                let mut m = Mapping::new(c, Vec::new());
+            let controls: Vec<Control> = set
+                .iter()
+                .enumerate()
+                .filter_map(|(k, e)| self.element(e, &format!("{path}.set[{k}]")))
+                .collect();
+            if !set.is_empty() && controls.len() == set.len() {
+                let mut m = Mapping::new(Combo(controls), Vec::new());
                 m.jump = Some(Jump {
                     layer: id as u8,
                     mode: if kind == LayerKind::Toggle {
@@ -1236,14 +1247,10 @@ impl<'a> Importer<'a> {
                         JumpMode::Hold
                     },
                     delay_ms: None,
+                    postpone: false,
                 });
                 m.description = format!("layer {id} modifier");
                 p.mappings.push(m);
-            } else if set.len() > 1 {
-                self.diags.warn(
-                    format!("{path}.set"),
-                    "multi-button layer modifiers are not supported",
-                );
             }
         }
         let mut orphans: Vec<_> = self.layer_analog.drain().collect();
@@ -1459,13 +1466,8 @@ impl<'a> Importer<'a> {
                 delay_ms: int(j, "delay")
                     .filter(|d| *d > 0)
                     .map(|d| d.min(5000) as u32),
+                postpone: boolean(j, "postpone"),
             });
-            if boolean(j, "postpone") {
-                self.diags.info(
-                    path,
-                    "`postpone` on layer jumps is not supported; outputs start immediately",
-                );
-            }
             if out.mode == Mode::Toggle && out.actions.is_empty() {
                 out.mode = Mode::Hold;
             }
@@ -1924,6 +1926,42 @@ mod tests {
         let (p, _) = import(doc).unwrap();
         assert_eq!(p.mappings.len(), 1);
         assert_eq!(p.mappings[0].jump.as_ref().unwrap().mode, JumpMode::Hold);
+    }
+
+    #[test]
+    fn unlock_layers_multi_button_modifiers_and_postpone() {
+        let doc = r#"{ "schemaVersion": 3.0, "appVersion": "9.2.0", "config": { "appName": "x", "minTimeUnit": 1 },
+          "devices": { "hardware": [ { "id": 1, "name": "gamepad" } ] },
+          "shifts": [ { "id": 1, "type": "unlockMouseOnly", "set": [ { "deviceId": 1, "buttonId": 5 }, { "deviceId": 1, "buttonId": 6 } ] },
+                      { "id": 2, "type": "unlock" }, { "id": 3, "type": "unlockKeyboardOnly" } ],
+          "masks": [ { "id": 1, "set": [ { "deviceId": 1, "buttonId": 7 } ] } ],
+          "mappings": [
+            { "condition": { "mask": { "id": 1, "activator": { "type": "single", "mode": "hold_until_release" } } },
+              "jumpToLayer": { "layer": 2, "delay": 250, "postpone": true } }
+          ] }"#;
+        let (p, diags) = import(doc).unwrap();
+        assert!(!diags.has_errors());
+        let unlocks: Vec<_> = p.layers.iter().map(|l| l.unlock).collect();
+        assert_eq!(
+            unlocks,
+            vec![
+                Some(Unlock::Mouse),
+                Some(Unlock::All),
+                Some(Unlock::Keyboard)
+            ]
+        );
+        let modifier = p
+            .mappings
+            .iter()
+            .find(|m| m.jump.as_ref().is_some_and(|j| j.layer == 1))
+            .unwrap();
+        assert_eq!(modifier.trigger.0.len(), 2, "both buttons held together");
+        let delayed = p
+            .mappings
+            .iter()
+            .find_map(|m| m.jump.as_ref().filter(|j| j.layer == 2))
+            .unwrap();
+        assert_eq!((delayed.delay_ms, delayed.postpone), (Some(250), true));
     }
 
     #[test]

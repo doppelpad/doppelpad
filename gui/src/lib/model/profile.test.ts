@@ -9,6 +9,7 @@ import {
   findMapping,
   inheritableTriggers,
   layerInheritance,
+  layerUnlock,
   layerIds,
   mappingSummary,
   nativeAction,
@@ -16,6 +17,7 @@ import {
   removeLayer,
   removeMapping,
   setLayerInherit,
+  setLayerUnlock,
   setProfileTiming,
   setVirtualDevice,
   setTriggerInherited,
@@ -161,6 +163,22 @@ describe('layer inheritance', () => {
     expect(layerInheritance(p, 1).inherit).toBe(false);
     expect(effectiveMappings(p, 1, 'B').mappings).toEqual([]);
     expect(layerInheritance(base(), 2)).toEqual({ inherit: true, notInherited: [] });
+  });
+
+  it("keeps Main's keyboard and mouse mappings out of an unlock layer", () => {
+    const kbm: Profile = {
+      ...base(),
+      mappings: [...base().mappings, { trigger: 'Key:W', actions: [{ key: 'Up' }] }, { trigger: 'Mouse:Left', actions: [{ pad: 'A' }] }],
+    };
+    let p = setLayerUnlock(kbm, 1, 'keyboard');
+    expect(layerUnlock(p, 1)).toBe('keyboard');
+    expect(effectiveMappings(p, 1, 'Key:W').mappings).toEqual([]);
+    expect(effectiveMappings(p, 1, 'Mouse:Left').inherited).toBe(true);
+    expect(effectiveMappings(p, 1, 'B').inherited).toBe(true);
+    p = setLayerUnlock(p, 1, 'all');
+    expect(effectiveMappings(p, 1, 'Mouse:Left').mappings).toEqual([]);
+    p = setLayerUnlock(p, 1, undefined);
+    expect(p.layers).toEqual([{ id: 1, inherit: true }]);
   });
 
   it('keeps single triggers of Main out of a layer and lets them back in', () => {

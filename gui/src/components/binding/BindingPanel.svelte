@@ -430,7 +430,7 @@
             </button>
           {/each}
         </div>
-        {#if shown.jump.mode === 'switch'}
+        {#if shown.jump.mode === 'switch' || shown.jump.delay_ms}
           <label class="inline">
             {t('binding.jump_delay')}
             <input
@@ -444,6 +444,17 @@
             />
             {t('common.ms')}
           </label>
+          {#if shown.jump.delay_ms}
+            <label class="inline" title={t('binding.jump_postpone_hint')}>
+              <input
+                type="checkbox"
+                checked={shown.jump.postpone ?? false}
+                disabled={readOnly}
+                onchange={(e) => edit((m) => m.jump && (m.jump = { ...m.jump, postpone: e.currentTarget.checked || undefined }))}
+              />
+              {t('binding.jump_postpone')}
+            </label>
+          {/if}
         {/if}
       {/if}
     </div>

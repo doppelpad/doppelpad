@@ -428,13 +428,13 @@ fn has_pad_output(actions: &[Action]) -> bool {
 }
 
 /// Expand jump sugar: `hold` and `toggle` jumps get a return mapping in the target layer.
-/// Target layer and optional delay of a binding's jump.
-type JumpTarget = Option<(u8, Option<u32>)>;
+/// Target layer, optional delay and postponed actions of a binding's jump.
+type JumpTarget = Option<(u8, Option<u32>, bool)>;
 
 fn expand_jumps(mappings: &[Mapping]) -> Vec<(Mapping, JumpTarget)> {
     let mut out = Vec::new();
     for m in mappings {
-        let jump = m.jump.as_ref().map(|j| (j.layer, j.delay_ms));
+        let jump = m.jump.as_ref().map(|j| (j.layer, j.delay_ms, j.postpone));
         out.push((m.clone(), jump));
         let Some(j) = &m.jump else { continue };
         if j.layer == m.layer {
@@ -457,7 +457,7 @@ fn expand_jumps(mappings: &[Mapping]) -> Vec<(Mapping, JumpTarget)> {
         ret.double_tap_ms = m.double_tap_ms;
         ret.triple_tap_ms = m.triple_tap_ms;
         ret.description = format!("return to layer {}", m.layer);
-        out.push((ret, Some((m.layer, None))));
+        out.push((ret, Some((m.layer, None, false))));
     }
     out
 }
@@ -558,6 +558,10 @@ pub fn compile(p: &Profile) -> Compiled {
     for &lid in &layer_ids {
         let decl = p.layers.iter().find(|l| l.id == lid);
         let inherit = lid != 0 && decl.is_none_or(|l| l.inherit);
+        // Unlock layers give the physical keyboard/mouse back: nothing of it is swallowed and
+        // the base layer's keyboard/mouse mappings stay behind.
+        let unlock = decl.and_then(|l| l.unlock);
+        let unlocked = |c: Control| unlock.is_some_and(|u| u.covers(c));
         let not_inherited: HashSet<MaskId> = decl
             .map(|l| l.not_inherited.iter().map(|c| mt.id(&c.0)).collect())
             .unwrap_or_default();
@@ -572,6 +576,7 @@ pub fn compile(p: &Profile) -> Compiled {
             for (bid, b) in bindings.iter().enumerate() {
                 if b.layer == 0
                     && !not_inherited.contains(&b.mask)
+                    && !mt.masks[b.mask].iter().any(|&c| unlocked(c))
                     && !bindings.iter().any(|o| o.layer == lid && o.mask == b.mask)
                 {
                     table.bindings.entry(b.mask).or_default().push(bid);
@@ -623,7 +628,7 @@ pub fn compile(p: &Profile) -> Compiled {
                 table.plain.insert(c, mask);
                 table.mapped.insert(c);
                 let unmap = bids.iter().any(|&b| bindings[b].is_unmap);
-                if !c.is_pad() && (unmap || p.output.mute_mapped_inputs) {
+                if !c.is_pad() && !unlocked(c) && (unmap || p.output.mute_mapped_inputs) {
                     table.muted.insert(c);
                 }
             } else {
@@ -643,9 +648,11 @@ pub fn compile(p: &Profile) -> Compiled {
             .map(|r| r.source)
             .collect();
         for (i, r) in p.analog.iter().enumerate() {
-            if r.layer == lid || (inherit && r.layer == 0 && !own.contains(&r.source)) {
+            let mouse = r.source == AnalogSource::Mouse;
+            let gone = mouse && unlocked(Control::MouseMove(crate::control::Dir::Up));
+            if r.layer == lid || (inherit && r.layer == 0 && !own.contains(&r.source) && !gone) {
                 table.routes.push(i);
-                if r.source == AnalogSource::Mouse && r.consume {
+                if mouse && r.consume && !gone {
                     table
                         .muted
                         .insert(Control::MouseMove(crate::control::Dir::Up));
@@ -656,7 +663,7 @@ pub fn compile(p: &Profile) -> Compiled {
     }
 
     for b in &bindings {
-        if let Some((target, _)) = b.jump
+        if let Some((target, ..)) = b.jump
             && !layer_ids.contains(&target)
         {
             warnings.push(format!("jump to undefined layer {target}"));
@@ -689,6 +696,7 @@ mod tests {
             layer: 1,
             mode: JumpMode::Hold,
             delay_ms: None,
+            postpone: false,
         });
         p.mappings.push(m);
         p.mappings.push(Mapping::new(
@@ -703,7 +711,7 @@ mod tests {
         let ret = &c.bindings[1];
         assert_eq!(
             (ret.layer, ret.activator, ret.jump),
-            (1, Activator::Release, Some((0, None)))
+            (1, Activator::Release, Some((0, None, false)))
         );
         // Layer 1 inherits A from layer 0, but Back has its own (release) binding there.
         let l1 = c.layer(1);

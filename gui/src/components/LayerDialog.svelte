@@ -8,18 +8,22 @@
     comboList,
     inheritableTriggers,
     layerInheritance,
+    layerUnlock,
     renameLayer,
     sameCombo,
     setLayerInherit,
+    setLayerUnlock,
     setTriggerInherited,
   } from '../lib/model/profile';
   import { app } from '../lib/state/app.svelte';
-  import type { Combo } from '../lib/types';
+  import type { Combo, Unlock } from '../lib/types';
   import Toggle from './ui/Toggle.svelte';
 
   let { layer, onclose }: { layer: number; onclose: () => void } = $props();
 
   const inheritance = $derived(app.profile ? layerInheritance(app.profile, layer) : { inherit: true, notInherited: [] });
+  const unlock = $derived(app.profile ? layerUnlock(app.profile, layer) : undefined);
+  const UNLOCKS = ['none', 'all', 'keyboard', 'mouse'] as const;
   const triggers = $derived(app.profile ? inheritableTriggers(app.profile) : []);
 
   const label = (c: Combo) => comboList(c).map((x) => controlLabel(x, app.family)).join(' + ');
@@ -43,6 +47,21 @@
       <span>{t('layers.name_prompt')}</span>
       <input value={app.layerLabel(layer)} disabled={app.readOnly} onchange={(e) => rename(e.currentTarget.value)} />
     </label>
+
+    <label class="row">
+      <span>{t('layers.unlock')}</span>
+      <select
+        value={unlock ?? 'none'}
+        disabled={app.readOnly}
+        onchange={(e) => {
+          const v = e.currentTarget.value;
+          if (app.profile) app.update(setLayerUnlock(app.profile, layer, v === 'none' ? undefined : (v as Unlock)));
+        }}
+      >
+        {#each UNLOCKS as u (u)}<option value={u}>{t(`layers.unlock_options.${u}`)}</option>{/each}
+      </select>
+    </label>
+    {#if unlock}<p class="hint">{t('layers.unlock_hint')}</p>{/if}
 
     <Toggle
       checked={inheritance.inherit}
@@ -116,7 +135,8 @@
     justify-content: space-between;
     gap: 12px;
   }
-  .row input {
+  .row input,
+  .row select {
     flex: 1;
     max-width: 240px;
   }

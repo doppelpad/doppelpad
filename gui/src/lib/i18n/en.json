@@ -88,7 +88,15 @@
     "inherit_hint_on": "Controls this layer does not map do what they do on Main.",
     "inherit_hint_off": "Controls this layer does not map do nothing while it is active.",
     "inherited_list": "Taken over from Main",
-    "inherit_none": "Main has no mappings yet."
+    "inherit_none": "Main has no mappings yet.",
+    "unlock": "Give back while active",
+    "unlock_options": {
+      "none": "Nothing",
+      "all": "Keyboard and mouse",
+      "keyboard": "Keyboard only",
+      "mouse": "Mouse only"
+    },
+    "unlock_hint": "A keyboard or mouse given back reaches other programs unchanged again, and Main's keyboard or mouse mappings do not apply here. Meant for layers you hold, e.g. to get the real mouse back for a moment."
   },
   "output": {
     "title": "Output device",
@@ -99,6 +107,8 @@
     "hide_physical": "Hide the physical controller from games",
     "passthrough": "Pass unmapped controls through",
     "mute_mapped": "Block the original keys and buttons that are remapped",
+    "repress": "Re-press held buttons when the layer changes",
+    "repress_hint": "On: held buttons do what they do in the new layer at once. Off: they keep their old action until released.",
     "driver_missing": "{driver} is not installed — this config cannot be applied yet.",
     "hide_missing": "HidHide is not installed — games will still see the physical controller.",
     "mouse": "Mouse",
@@ -165,6 +175,8 @@
     "jump_toggle": "Toggle",
     "jump_switch": "Switch",
     "jump_delay": "Delay",
+    "jump_postpone": "Run the actions at the layer change",
+    "jump_postpone_hint": "This mapping's actions start only once the delay is over. Let go before that and nothing happens.",
     "macro": "Macro editor",
     "delete": "Delete mapping",
     "stick_choose": "Which direction of the stick?",
