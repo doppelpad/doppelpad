@@ -10,7 +10,7 @@ use anyhow::{Context, Result};
 use crossbeam_channel::Receiver;
 use dp_core::control::{Control, mouse_button_name, pad_button_name};
 use dp_core::engine::{Engine, Input, Output};
-use dp_core::pad::{PadButton, PadState, Rumble, Trigger};
+use dp_core::pad::{PadButton, PadState, Rgb, Rumble, Trigger};
 use dp_core::profile::{AnalogSource, Command, Profile, VirtualPadType};
 use dp_platform::{
     CaptureFilter, DeviceId, KbmEvent, PadSnapshot, Platform, VirtualIgnoreList, VirtualPad,
@@ -75,6 +75,10 @@ pub struct Runtime {
     hide_wanted: bool,
     game_rumble: Rumble,
     sent_rumble: Option<Rumble>,
+    /// Light bar colour the game set on a virtual DualShock 4.
+    game_lightbar: Option<Rgb>,
+    /// What the controller was last told to show, and which controller.
+    sent_lightbar: Option<(DeviceId, Option<Rgb>)>,
     warnings: Vec<String>,
     echo: Option<Echo>,
     suspended: bool,
@@ -208,6 +212,8 @@ impl Runtime {
             hide_wanted: false,
             game_rumble: Rumble::default(),
             sent_rumble: None,
+            game_lightbar: None,
+            sent_lightbar: None,
             warnings: Vec::new(),
             echo: None,
             suspended: false,
@@ -424,6 +430,13 @@ impl Runtime {
                 b.set_rumble(&id, Rumble::default());
             }
         }
+        self.game_rumble = Rumble::default();
+        self.game_lightbar = None;
+        if let Some((id, Some(_))) = self.sent_lightbar.take() {
+            for b in &mut self.platform.gamepads {
+                b.set_lightbar(&id, None);
+            }
+        }
         self.profile_path = None;
     }
 
@@ -543,6 +556,7 @@ impl Runtime {
             }
             self.sent_rumble = Some(want);
         }
+        self.forward_lightbar();
 
         for c in out.commands {
             match c {
@@ -564,6 +578,31 @@ impl Runtime {
                 }
             }
         }
+    }
+
+    /// Show the light bar colour the game set on the virtual pad on the controller in use.
+    fn forward_lightbar(&mut self) {
+        if let Some(c) = self.vpad.as_mut().and_then(|v| v.take_lightbar()) {
+            self.game_lightbar = Some(c);
+        }
+        let Some(id) = self.primary.clone() else {
+            return;
+        };
+        let want = (id, self.game_lightbar);
+        if self.sent_lightbar.as_ref() == Some(&want) {
+            return;
+        }
+        if let Some((old, Some(_))) = &self.sent_lightbar
+            && *old != want.0
+        {
+            for b in &mut self.platform.gamepads {
+                b.set_lightbar(old, None);
+            }
+        }
+        for b in &mut self.platform.gamepads {
+            b.set_lightbar(&want.0, want.1);
+        }
+        self.sent_lightbar = Some(want);
     }
 
     fn emit(&mut self, out: &Output) {
@@ -615,5 +654,180 @@ impl Drop for TimerResolution {
         unsafe {
             windows_sys::Win32::Media::timeEndPeriod(1);
         }
+    }
+}
+
+#[cfg(test)]
+pub(crate) mod testing {
+    //! Fake controllers and virtual pads for runtime tests.
+
+    use std::sync::{Arc, Mutex};
+
+    use dp_core::pad::{PadState, Rgb, Rumble};
+    use dp_platform::{
+        DeviceId, DeviceInfo, GamepadBackend, NullPlatform, PadFamily, PadSnapshot, Platform,
+        VirtualPad, VirtualPadFactory, VirtualPadKind,
+    };
+
+    /// Everything the fakes saw, shared with the test.
+    #[derive(Default)]
+    pub struct World {
+        pub pads: Vec<PadSnapshot>,
+        pub rumble: Vec<(DeviceId, Rumble)>,
+        pub lightbar: Vec<(DeviceId, Option<Rgb>)>,
+        /// Virtual pads created so far, with the last state each was sent.
+        pub virtual_pads: Vec<(VirtualPadKind, Option<PadState>)>,
+        /// What the game "sends" to the next virtual pad poll.
+        pub game_rumble: Option<Rumble>,
+        pub game_lightbar: Option<Rgb>,
+    }
+
+    pub type Shared = Arc<Mutex<World>>;
+
+    pub fn pad(id: &str, family: PadFamily) -> PadSnapshot {
+        PadSnapshot {
+            info: Arc::new(DeviceInfo {
+                id: DeviceId(id.into()),
+                name: id.into(),
+                family,
+                vendor_id: 0,
+                product_id: 0,
+                backend: "fake".into(),
+                instance_paths: vec![format!("path-{id}")],
+                joycon: None,
+                has_motion: true,
+                has_touchpad: true,
+                has_rumble: true,
+            }),
+            state: PadState::default(),
+        }
+    }
+
+    struct FakeBackend(Shared);
+
+    impl GamepadBackend for FakeBackend {
+        fn name(&self) -> &'static str {
+            "fake"
+        }
+        fn poll(&mut self, out: &mut Vec<PadSnapshot>) {
+            out.extend(self.0.lock().unwrap().pads.iter().cloned());
+        }
+        fn set_rumble(&mut self, id: &DeviceId, rumble: Rumble) {
+            self.0.lock().unwrap().rumble.push((id.clone(), rumble));
+        }
+        fn set_lightbar(&mut self, id: &DeviceId, color: Option<Rgb>) {
+            self.0.lock().unwrap().lightbar.push((id.clone(), color));
+        }
+    }
+
+    struct FakeFactory(Shared);
+
+    impl VirtualPadFactory for FakeFactory {
+        fn available(&self) -> dp_platform::Result<()> {
+            Ok(())
+        }
+        fn create(&mut self, kind: VirtualPadKind) -> dp_platform::Result<Box<dyn VirtualPad>> {
+            let mut w = self.0.lock().unwrap();
+            w.virtual_pads.push((kind, None));
+            Ok(Box::new(FakePad {
+                world: self.0.clone(),
+                index: w.virtual_pads.len() - 1,
+                kind,
+            }))
+        }
+    }
+
+    struct FakePad {
+        world: Shared,
+        index: usize,
+        kind: VirtualPadKind,
+    }
+
+    impl VirtualPad for FakePad {
+        fn kind(&self) -> VirtualPadKind {
+            self.kind
+        }
+        fn update(&mut self, state: &PadState) -> dp_platform::Result<()> {
+            self.world.lock().unwrap().virtual_pads[self.index].1 = Some(*state);
+            Ok(())
+        }
+        fn take_rumble(&mut self) -> Option<Rumble> {
+            self.world.lock().unwrap().game_rumble.take()
+        }
+        fn take_lightbar(&mut self) -> Option<Rgb> {
+            self.world.lock().unwrap().game_lightbar.take()
+        }
+    }
+
+    /// Null backends plus one fake controller backend and fake virtual pads.
+    pub fn platform() -> (Platform, Shared) {
+        let world = Shared::default();
+        let mut p = NullPlatform::platform();
+        p.gamepads.push(Box::new(FakeBackend(world.clone())));
+        p.virtual_pads = Box::new(FakeFactory(world.clone()));
+        (p, world)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use dp_core::profile::VirtualPadType;
+    use dp_platform::PadFamily;
+
+    use super::testing::{self, pad};
+    use super::*;
+
+    fn ds4_profile() -> Profile {
+        let mut p = Profile::default();
+        p.output.virtual_pad = VirtualPadType::DualShock4;
+        p
+    }
+
+    #[test]
+    fn game_feedback_reaches_the_controller() {
+        let (platform, world) = testing::platform();
+        world
+            .lock()
+            .unwrap()
+            .pads
+            .push(pad("pad1", PadFamily::DualSense));
+        let mut rt = Runtime::with_platform(platform);
+        rt.apply(ds4_profile(), None).unwrap();
+        rt.tick();
+
+        let red = Rgb { r: 255, g: 0, b: 0 };
+        let buzz = Rumble {
+            low: 1.0,
+            high: 0.5,
+        };
+        {
+            let mut w = world.lock().unwrap();
+            w.game_rumble = Some(buzz);
+            w.game_lightbar = Some(red);
+        }
+        rt.tick();
+        rt.tick();
+        {
+            let w = world.lock().unwrap();
+            let id = DeviceId("pad1".into());
+            assert_eq!(w.rumble.last(), Some(&(id.clone(), buzz)));
+            assert_eq!(w.lightbar.last(), Some(&(id.clone(), Some(red))));
+            assert_eq!(
+                w.lightbar.iter().filter(|(_, c)| *c == Some(red)).count(),
+                1,
+                "sent once"
+            );
+            assert_eq!(w.virtual_pads[0].0, VirtualPadKind::DualShock4);
+            assert!(
+                w.virtual_pads[0].1.is_some(),
+                "the virtual pad gets reports"
+            );
+        }
+
+        rt.stop();
+        let w = world.lock().unwrap();
+        let id = DeviceId("pad1".into());
+        assert_eq!(w.rumble.last(), Some(&(id.clone(), Rumble::default())));
+        assert_eq!(w.lightbar.last(), Some(&(id, None)), "light bar released");
     }
 }

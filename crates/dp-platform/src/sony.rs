@@ -5,7 +5,9 @@
 
 use std::time::Instant;
 
-use dp_core::pad::{Axis, Motion, PadButton, PadState, Rumble, TouchPoint, axis_from_u8};
+use dp_core::pad::{
+    Axis, Motion, PadButton, PadState, Rgb, Rumble, TouchPoint, axis_from_u8, axis_to_u8,
+};
 
 use crate::PadFamily;
 use crate::padio::{Identity, InitError, PadDriver, ReportIo};
@@ -191,9 +193,14 @@ pub fn parse_report(model: SonyModel, r: &[u8]) -> Option<PadState> {
     Some(s)
 }
 
-/// Build a USB output report that sets rumble. Bluetooth output needs a CRC'd
-/// report and is not implemented yet (returns `None`).
-pub fn rumble_report(model: SonyModel, bluetooth: bool, rumble: Rumble) -> Option<Vec<u8>> {
+/// Build a USB output report that sets rumble and, if given, the light bar colour.
+/// Bluetooth output needs a CRC'd report and is not implemented yet (returns `None`).
+pub fn output_report(
+    model: SonyModel,
+    bluetooth: bool,
+    rumble: Rumble,
+    lightbar: Option<Rgb>,
+) -> Option<Vec<u8>> {
     if bluetooth {
         return None;
     }
@@ -206,6 +213,10 @@ pub fn rumble_report(model: SonyModel, bluetooth: bool, rumble: Rumble) -> Optio
             r[1] = 0x01; // rumble valid
             r[4] = high;
             r[5] = low;
+            if let Some(c) = lightbar {
+                r[1] |= 0x02; // light bar valid
+                r[6..9].copy_from_slice(&[c.r, c.g, c.b]);
+            }
             r
         }
         SonyModel::DualSense | SonyModel::DualSenseEdge => {
@@ -214,17 +225,23 @@ pub fn rumble_report(model: SonyModel, bluetooth: bool, rumble: Rumble) -> Optio
             r[1] = 0x03; // compatible vibration + haptics select
             r[3] = high;
             r[4] = low;
+            if let Some(c) = lightbar {
+                r[2] |= 0x04; // light bar control
+                r[45..48].copy_from_slice(&[c.r, c.g, c.b]);
+            }
             r
         }
     })
 }
 
-/// Driver for the raw-HID backends: asks for full reports and forwards rumble.
+/// Driver for the raw-HID backends: asks for full reports and forwards rumble and the
+/// light bar colour.
 pub struct SonyDriver {
     model: SonyModel,
     bluetooth: bool,
     feature_len: usize,
-    last_rumble: Rumble,
+    lightbar: Option<Rgb>,
+    sent: (Rumble, Option<Rgb>),
 }
 
 impl SonyDriver {
@@ -234,9 +251,236 @@ impl SonyDriver {
             model,
             bluetooth,
             feature_len,
-            last_rumble: Rumble::default(),
+            lightbar: None,
+            sent: (Rumble::default(), None),
         }
     }
+}
+
+/// Size of a DualShock 4 USB input report without its report-ID byte.
+pub const DS4_REPORT_LEN: usize = 63;
+
+/// How raw DualShock 4 motion values relate to physical units, as a game reads it from
+/// the controller's calibration feature report (0x02 over USB). Raw = value × scale + bias.
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub struct Ds4Calibration {
+    /// Counts per °/s, pitch/yaw/roll.
+    pub gyro_scale: [f32; 3],
+    pub gyro_bias: [f32; 3],
+    /// Counts per g, x/y/z.
+    pub accel_scale: [f32; 3],
+    pub accel_bias: [f32; 3],
+}
+
+impl Default for Ds4Calibration {
+    /// The nominal scale [`parse_report`] assumes, without bias.
+    fn default() -> Self {
+        Ds4Calibration {
+            gyro_scale: [1.0 / GYRO_DPS_PER_LSB; 3],
+            gyro_bias: [0.0; 3],
+            accel_scale: [1.0 / ACCEL_G_PER_LSB; 3],
+            accel_bias: [0.0; 3],
+        }
+    }
+}
+
+impl Ds4Calibration {
+    /// Decode a USB calibration feature report (report ID first, at least 35 bytes), the
+    /// way the public drivers interpret it: the gyro range between the plus and minus
+    /// readings spans `speed_plus + speed_minus` °/s, the accelerometer range spans 2 g.
+    pub fn from_usb_feature(r: &[u8]) -> Option<Self> {
+        if r.len() < 35 || r[0] != 0x02 {
+            return None;
+        }
+        let v = |at: usize| i16::from_le_bytes([r[at], r[at + 1]]) as f32;
+        let speed = v(19) + v(21);
+        let mut c = Ds4Calibration::default();
+        for i in 0..3 {
+            let bias = v(1 + 2 * i);
+            let (plus, minus) = (v(7 + 4 * i), v(9 + 4 * i));
+            let range = (plus - bias).abs() + (minus - bias).abs();
+            if speed <= 0.0 || range <= 0.0 {
+                return None;
+            }
+            c.gyro_scale[i] = range / speed;
+            c.gyro_bias[i] = bias;
+            let (plus, minus) = (v(23 + 4 * i), v(25 + 4 * i));
+            let range = plus - minus;
+            if range <= 0.0 {
+                return None;
+            }
+            c.accel_scale[i] = range / 2.0;
+            c.accel_bias[i] = plus - (range / 2.0).trunc();
+        }
+        Some(c)
+    }
+
+    fn encode(value: f32, scale: f32, bias: f32) -> [u8; 2] {
+        let raw = (value * scale + bias)
+            .round()
+            .clamp(i16::MIN as f32, i16::MAX as f32);
+        (raw as i16).to_le_bytes()
+    }
+}
+
+/// Last state of one touch point in the virtual report.
+#[derive(Copy, Clone, Debug, Default)]
+struct Finger {
+    id: u8,
+    down: bool,
+    x: u16,
+    y: u16,
+}
+
+/// Builds DualShock 4 USB input reports (the 63 bytes after the report ID) for a virtual
+/// controller, keeping the report counter, the sensor timestamp and touch tracking IDs.
+#[derive(Clone, Debug)]
+pub struct Ds4ReportBuilder {
+    calibration: Ds4Calibration,
+    counter: u8,
+    touch_counter: u8,
+    next_id: u8,
+    fingers: [Finger; 2],
+}
+
+/// The pad at rest on a table: no rotation, gravity along +y.
+const RESTING: Motion = Motion {
+    gyro: [0.0; 3],
+    accel: [0.0, 1.0, 0.0],
+};
+
+impl Ds4ReportBuilder {
+    /// `calibration` is what the virtual device tells games in its calibration report.
+    pub fn new(calibration: Ds4Calibration) -> Self {
+        Ds4ReportBuilder {
+            calibration,
+            counter: 0,
+            touch_counter: 0,
+            next_id: 0,
+            fingers: [Finger::default(); 2],
+        }
+    }
+
+    /// One report for `s`; `elapsed_us` is the time since the device was created.
+    pub fn build(&mut self, s: &PadState, elapsed_us: u64) -> [u8; DS4_REPORT_LEN] {
+        let mut r = [0u8; DS4_REPORT_LEN];
+        r[0] = axis_to_u8(s.axis(Axis::LeftX), false);
+        r[1] = axis_to_u8(s.axis(Axis::LeftY), true);
+        r[2] = axis_to_u8(s.axis(Axis::RightX), false);
+        r[3] = axis_to_u8(s.axis(Axis::RightY), true);
+        let buttons = ds4_buttons(s);
+        r[4..6].copy_from_slice(&buttons.to_le_bytes());
+        let mut special = self.counter << 2;
+        self.counter = (self.counter + 1) & 0x3F;
+        if s.pressed(PadButton::Guide) {
+            special |= 0x01;
+        }
+        if s.pressed(PadButton::Touchpad) {
+            special |= 0x02;
+        }
+        r[6] = special;
+        r[7] = (s.axis(Axis::LeftTrigger).clamp(0.0, 1.0) * 255.0).round() as u8;
+        r[8] = (s.axis(Axis::RightTrigger).clamp(0.0, 1.0) * 255.0).round() as u8;
+        // Sensor timestamp in units of 16/3 µs.
+        let stamp = (elapsed_us * 3 / 16) as u16;
+        r[9..11].copy_from_slice(&stamp.to_le_bytes());
+        let m = s.motion.unwrap_or(RESTING);
+        let c = &self.calibration;
+        for i in 0..3 {
+            let g = Ds4Calibration::encode(m.gyro[i], c.gyro_scale[i], c.gyro_bias[i]);
+            r[12 + 2 * i..14 + 2 * i].copy_from_slice(&g);
+            let a = Ds4Calibration::encode(m.accel[i], c.accel_scale[i], c.accel_bias[i]);
+            r[18 + 2 * i..20 + 2 * i].copy_from_slice(&a);
+        }
+        r[29] = 0x1B; // cable connected, battery full
+        r[32] = 1; // one touch record
+        self.touch(s, &mut r[33..42]);
+        r
+    }
+
+    /// Touch record: packet counter, then two points of
+    /// `[inactive:1 id:7] [x lo] [y lo:4 | x hi:4] [y hi]`.
+    fn touch(&mut self, s: &PadState, out: &mut [u8]) {
+        for (i, point) in s.touch.iter().enumerate() {
+            let f = &mut self.fingers[i];
+            match point {
+                Some(p) => {
+                    if !f.down {
+                        f.id = self.next_id;
+                        self.next_id = (self.next_id + 1) & 0x7F;
+                        f.down = true;
+                    }
+                    f.x = (p.x.clamp(0.0, 1.0) * DS4_TOUCH.0)
+                        .round()
+                        .min(DS4_TOUCH.0 - 1.0) as u16;
+                    f.y = (p.y.clamp(0.0, 1.0) * DS4_TOUCH.1)
+                        .round()
+                        .min(DS4_TOUCH.1 - 1.0) as u16;
+                }
+                None => f.down = false,
+            }
+        }
+        if self.fingers.iter().any(|f| f.down) {
+            self.touch_counter = self.touch_counter.wrapping_add(1);
+        }
+        out[0] = self.touch_counter;
+        for (i, f) in self.fingers.iter().enumerate() {
+            let p = &mut out[1 + 4 * i..5 + 4 * i];
+            p[0] = f.id | if f.down { 0 } else { 0x80 };
+            p[1] = f.x as u8;
+            p[2] = ((f.x >> 8) as u8 & 0x0F) | ((f.y as u8 & 0x0F) << 4);
+            p[3] = (f.y >> 4) as u8;
+        }
+    }
+}
+
+/// Touchpad resolution of the DualShock 4.
+const DS4_TOUCH: (f32, f32) = (1920.0, 943.0);
+
+/// Hat in the low nibble, then square, cross, circle, triangle, L1, R1, L2, R2, share,
+/// options, L3, R3.
+fn ds4_buttons(s: &PadState) -> u16 {
+    let hat = match (
+        s.pressed(PadButton::DpadUp),
+        s.pressed(PadButton::DpadRight),
+        s.pressed(PadButton::DpadDown),
+        s.pressed(PadButton::DpadLeft),
+    ) {
+        (true, false, _, false) => 0,
+        (true, true, _, _) => 1,
+        (false, true, false, _) => 2,
+        (_, true, true, _) => 3,
+        (false, false, true, false) => 4,
+        (_, false, true, true) => 5,
+        (false, false, false, true) => 6,
+        (true, false, _, true) => 7,
+        _ => 8,
+    };
+    let mut buttons = hat as u16;
+    let bits = [
+        (PadButton::X, 1 << 4),  // square
+        (PadButton::A, 1 << 5),  // cross
+        (PadButton::B, 1 << 6),  // circle
+        (PadButton::Y, 1 << 7),  // triangle
+        (PadButton::LB, 1 << 8), // L1
+        (PadButton::RB, 1 << 9), // R1
+        (PadButton::Back, 1 << 12),
+        (PadButton::Start, 1 << 13),
+        (PadButton::LS, 1 << 14),
+        (PadButton::RS, 1 << 15),
+    ];
+    for (b, bit) in bits {
+        if s.pressed(b) {
+            buttons |= bit;
+        }
+    }
+    if s.axis(Axis::LeftTrigger) > 0.0 {
+        buttons |= 1 << 10; // L2 digital
+    }
+    if s.axis(Axis::RightTrigger) > 0.0 {
+        buttons |= 1 << 11; // R2 digital
+    }
+    buttons
 }
 
 impl PadDriver for SonyDriver {
@@ -265,12 +509,17 @@ impl PadDriver for SonyDriver {
         parse_report(self.model, report)
     }
 
+    fn set_lightbar(&mut self, color: Option<Rgb>) {
+        self.lightbar = color;
+    }
+
     fn service(&mut self, io: &mut dyn ReportIo, rumble: Rumble) -> std::io::Result<()> {
-        if rumble == self.last_rumble {
+        let want = (rumble, self.lightbar);
+        if want == self.sent {
             return Ok(());
         }
-        self.last_rumble = rumble;
-        match rumble_report(self.model, self.bluetooth, rumble) {
+        self.sent = want;
+        match output_report(self.model, self.bluetooth, rumble, self.lightbar) {
             Some(report) => io.write(&report),
             None => Ok(()),
         }
@@ -300,6 +549,129 @@ mod tests {
         d.service(&mut io, r).unwrap();
         assert_eq!(io.writes().len(), 1);
         assert_eq!(io.writes()[0][0], 0x02);
+        assert_eq!(io.writes()[0][2] & 0x04, 0, "light bar left alone");
+
+        d.set_lightbar(Some(Rgb { r: 1, g: 2, b: 3 }));
+        d.service(&mut io, r).unwrap();
+        let w = io.writes()[1];
+        assert_eq!((w[2] & 0x04, &w[45..48]), (0x04, &[1, 2, 3][..]));
+    }
+
+    #[test]
+    fn ds4_output_report_carries_lightbar() {
+        let red = Some(Rgb { r: 255, g: 0, b: 0 });
+        let r = output_report(SonyModel::DualShock4, false, Rumble::default(), red).unwrap();
+        assert_eq!((r[0], r[1], &r[6..9]), (0x05, 0x03, &[255, 0, 0][..]));
+        let r = output_report(SonyModel::DualShock4, false, Rumble::default(), None).unwrap();
+        assert_eq!(r[1], 0x01);
+        assert!(output_report(SonyModel::DualShock4, true, Rumble::default(), red).is_none());
+    }
+
+    /// A report as the virtual DS4 sends it, prefixed with its report ID, parses back.
+    fn reparse(b: &mut Ds4ReportBuilder, s: &PadState, us: u64) -> (Vec<u8>, PadState) {
+        let mut raw = vec![0x01];
+        raw.extend_from_slice(&b.build(s, us));
+        let back = parse_report(SonyModel::DualShock4, &raw).unwrap();
+        (raw, back)
+    }
+
+    #[test]
+    fn virtual_ds4_report_round_trips() {
+        let mut b = Ds4ReportBuilder::new(Ds4Calibration::default());
+        let mut s = PadState::default();
+        s.set(PadButton::A, true);
+        s.set(PadButton::DpadUp, true);
+        s.set(PadButton::DpadLeft, true);
+        s.set(PadButton::Guide, true);
+        s.set_axis(Axis::LeftX, 1.0);
+        s.set_axis(Axis::RightY, -1.0);
+        s.set_axis(Axis::RightTrigger, 0.5);
+        s.motion = Some(Motion {
+            gyro: [100.0, -50.0, 2.0],
+            accel: [0.5, -1.0, 0.25],
+        });
+        s.touch[1] = Some(TouchPoint { x: 0.5, y: 0.25 });
+        let (raw, back) = reparse(&mut b, &s, 0);
+        assert_eq!(raw.len(), 64);
+        assert_eq!(back.buttons, s.buttons);
+        assert!(back.axis(Axis::LeftX) > 0.99 && back.axis(Axis::RightY) < -0.99);
+        assert!((back.axis(Axis::RightTrigger) - 0.5).abs() < 0.01);
+        assert_eq!(
+            back.motion, s.motion,
+            "nominal scale is exact for these values"
+        );
+        assert_eq!(back.touch[0], None);
+        let t = back.touch[1].unwrap();
+        assert!((t.x - 0.5).abs() < 1e-3 && (t.y - 0.25).abs() < 2e-3);
+    }
+
+    #[test]
+    fn virtual_ds4_counters_and_touch_ids() {
+        let mut b = Ds4ReportBuilder::new(Ds4Calibration::default());
+        let mut s = PadState::default();
+        let r0 = b.build(&s, 0);
+        let r1 = b.build(&s, 3000);
+        assert_eq!((r0[6] >> 2, r1[6] >> 2), (0, 1), "report counter");
+        assert_eq!(r0[4] & 0x0F, 8, "hat released");
+        assert_eq!(
+            u16::from_le_bytes([r1[9], r1[10]]),
+            562,
+            "3 ms in 16/3 µs units"
+        );
+        assert_eq!((r0[34], r0[38]), (0x80, 0x80), "no finger down");
+        assert_eq!(
+            i16::from_le_bytes([r0[20], r0[21]]),
+            8192,
+            "resting pad feels 1 g up"
+        );
+
+        s.touch[0] = Some(TouchPoint { x: 1.0, y: 1.0 });
+        let r = b.build(&s, 4000);
+        assert_eq!(r[34], 0, "first contact gets id 0");
+        let x = r[35] as u16 | ((r[36] as u16 & 0x0F) << 8);
+        let y = (r[36] as u16 >> 4) | ((r[37] as u16) << 4);
+        assert_eq!((x, y), (1919, 942));
+        let counter = r[33];
+        s.touch[0] = None;
+        let r = b.build(&s, 5000);
+        assert_eq!(r[34], 0x80, "lifted finger keeps its id");
+        assert_eq!(r[33], counter, "touch counter only runs while touched");
+        s.touch[0] = Some(TouchPoint { x: 0.0, y: 0.0 });
+        assert_eq!(b.build(&s, 6000)[34], 1, "a new contact gets a new id");
+    }
+
+    #[test]
+    fn calibration_report_is_inverted() {
+        // A calibration report as a real pad sends it over USB.
+        let feature = [
+            0x02, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x87, 0x22, 0x7B, 0xDD, 0xB2, 0x22, 0x47,
+            0xDD, 0xBD, 0x22, 0x43, 0xDD, 0x1C, 0x02, 0x1C, 0x02, 0x7F, 0x1E, 0x2E, 0xDF, 0x60,
+            0x1F, 0x4C, 0xE0, 0x3A, 0x1D, 0xC6, 0xDE, 0x08, 0x00,
+        ];
+        let c = Ds4Calibration::from_usb_feature(&feature).unwrap();
+        // Pitch: 8838 + 8838 counts span 1080 °/s, bias 1.
+        assert!((c.gyro_scale[0] - 17676.0 / 1080.0).abs() < 1e-3);
+        assert_eq!(c.gyro_bias, [1.0, 0.0, 0.0]);
+        // Accel x: 7807 - (-8402) = 16209 counts span 2 g, bias 7807 - 8104.
+        assert!((c.accel_scale[0] - 8104.5).abs() < 1e-3);
+        assert_eq!(c.accel_bias[0], -297.0);
+
+        let mut b = Ds4ReportBuilder::new(c);
+        let s = PadState {
+            motion: Some(Motion {
+                gyro: [90.0, 0.0, 0.0],
+                accel: [0.0, 0.0, 1.0],
+            }),
+            ..Default::default()
+        };
+        let r = b.build(&s, 0);
+        let raw = |at: usize| i16::from_le_bytes([r[at], r[at + 1]]) as f32;
+        // What a reader that applies this calibration gets back.
+        let pitch = (raw(12) - 1.0) * 1080.0 / 17676.0;
+        let z = (raw(22) - c.accel_bias[2]) / c.accel_scale[2];
+        assert!((pitch - 90.0).abs() < 0.1, "{pitch}");
+        assert!((z - 1.0).abs() < 1e-3, "{z}");
+        assert!(Ds4Calibration::from_usb_feature(&feature[..20]).is_none());
     }
 
     fn ds4_usb() -> Vec<u8> {

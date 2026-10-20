@@ -59,7 +59,10 @@ together with the pauses between them.
 **Output device** sets the virtual controller (Xbox 360, DualShock 4, or none for keyboard
 and mouse only). It also covers hiding the physical controller from games, passing
 unmapped controls through, and blocking the original keys of remapped controls. Missing
-drivers are shown here and in the bottom bar.
+drivers are shown here and in the bottom bar. A virtual DualShock 4 also passes the
+touchpad fingers and the motion sensors through (unless a mapping or analog route uses
+them), and the game's rumble and light bar colour come back to the physical controller
+(light bar: DualShock 4 and DualSense over USB).
 
 ## Sticks, triggers and analog routes
 

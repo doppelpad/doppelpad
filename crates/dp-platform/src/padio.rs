@@ -9,7 +9,7 @@
 use std::io;
 use std::time::{Duration, Instant};
 
-use dp_core::pad::{PadState, Rumble};
+use dp_core::pad::{PadState, Rgb, Rumble};
 
 use crate::{JoyConSide, PadFamily};
 
@@ -116,6 +116,9 @@ pub trait PadDriver: Send {
     /// Periodic output (rumble, keep-alives). Called after every report, timeout and
     /// wake-up, with the rumble the engine currently wants.
     fn service(&mut self, io: &mut dyn ReportIo, rumble: Rumble) -> io::Result<()>;
+    /// Light bar colour to show from the next [`service`](Self::service) on; `None` leaves
+    /// the light bar as it is. Ignored by pads without one.
+    fn set_lightbar(&mut self, _color: Option<Rgb>) {}
     /// When [`service`](Self::service) must run again even if no report arrives.
     fn next_deadline(&self) -> Option<Instant>;
     /// The limitation notice if it changed since [`init`](Self::init) or the last call:
