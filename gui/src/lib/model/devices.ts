@@ -21,6 +21,14 @@ const JOYCON2 = [0x2066, 0x2067, 0x2068];
 /** Elite and Elite Series 2 (USB, Bluetooth). XInput hides the IDs and the paddles. */
 const XBOX_ELITE = [0x02e3, 0x0b00, 0x0b05, 0x0b22];
 
+/** Front drawings of controllers with motion sensors, whose gyro can be mapped. */
+const MOTION_DRAWINGS: DeviceId[] = ['dualsense', 'dualsenseEdge', 'switchpro', 'switch2pro', 'joycon', 'joycon2'];
+
+/** Whether the controller drawn by `drawing` has a gyro. */
+export function hasMotion(drawing: DeviceId): boolean {
+  return MOTION_DRAWINGS.includes(drawing);
+}
+
 /** Drawings for a controller; without one, the Xbox drawing with all four paddles. */
 export function drawingsFor(dev: Pick<LiveDevice, 'family' | 'vendor_id' | 'product_id'> | null): Drawings {
   if (!dev) return { front: 'xbox', back: 'xboxEliteBack' };

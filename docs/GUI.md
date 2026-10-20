@@ -15,14 +15,18 @@ only edits profiles and sends commands.
 |---|---|
 | **Games** (left) | One entry per game. A game has one or more configs and an optional list of programs (`game.exe`) that switch to it automatically. A green dot marks the game whose config is running. Configs outside a game folder appear under *Other configs*. |
 | **Header** | *Game › Config* picker (switch, create, import a JSON profile), **Save** (Ctrl+S; a dot means unsaved changes), options (rename, duplicate, show in Explorer, clear, delete), settings. Imported JSON files are read-only; duplicate them to edit. The header and the top of the games list also act as the title bar: drag them to move the window, double-click to maximize. On Windows and Linux the app draws its own minimize, maximize and close buttons at the right. On macOS the system buttons sit at the top left. |
-| **Toolbar** | Views: *Controller*, *Back side* (the shoulder buttons and the back buttons the connected model has, e.g. GL / GR on the Switch 2 Pro Controller, none on the first one), *Keyboard*, *Mouse*. Layer chips: *Main* plus shift layers, which you can add, rename, copy, paste, clear and remove (together with their analog routes). On the right: *Analog* (see [Sticks, triggers and analog routes](#sticks-triggers-and-analog-routes)), *Shortcuts* and *Output device*. |
+| **Toolbar** | Views: *Controller*, *Back side* (the shoulder buttons and the back buttons the connected model has, e.g. GL / GR on the Switch 2 Pro Controller, none on the first one), *Keyboard*, *Mouse*. Layer chips: *Main* plus shift layers, which you can add, rename, copy, paste, clear and remove (together with their analog routes), and whose *Layer settings* say what they inherit from *Main*. On the right: *Analog* (see [Sticks, triggers and analog routes](#sticks-triggers-and-analog-routes)), *Shortcuts* and *Config settings*. |
 | **Centre** | The selected view. Click a control to edit it. On the controller views, pressing a button on the controller selects it. On the keyboard view, pressing a key does the same. |
 | **Binding panel** (right) | See below. With nothing selected, it lists the mappings of the current layer. |
 | **Bottom bar** | Connected controllers (click one to use it), driver warnings, **Remap ON/OFF**, *Apply to slot n* (saves, puts the config in that slot and activates it), *Autodetect* (switch configs by the game in the foreground; only while remapping is on), and the four slots (click to activate, which also turns remapping on; × to unload). |
 
 ## Editing a control
 
-1. Pick the layer in the toolbar and click the control (or press it).
+1. Pick the layer in the toolbar and click the control (or press it). A stick asks for its
+   direction (or the click, or *any direction* for zones). The touchpad asks for its click
+   or one of five regions (top, bottom, left, right, centre). Controllers with motion
+   sensors have a **Gyro** chip at the top left of the drawing for the four gyro
+   directions. A trigger's binding panel offers its zones and *Full pull*.
 2. Choose the **activator** from the six icons: single press, long press, double press,
    triple press, start press and release. A dot under an icon means it is already mapped.
 3. **Add** actions: keyboard (from the list, or *Press a key…* and press it), mouse
@@ -40,6 +44,9 @@ only edits profiles and sends commands.
      delay for this mapping only.
 5. On a shift layer, controls without their own mapping inherit the one from *Main*. The
    panel says so. Editing such a control creates an override on the current layer.
+   **Layer settings** (in the layer menu) turn inheriting off for the whole layer, or keep
+   single controls of *Main* out of it: an unticked control does nothing on that layer
+   unless the layer maps it.
 
 **Shortcuts** are mappings that fire when 2–4 controls are pressed together. Open
 *Shortcuts* and choose *New shortcut*. Then click or press the controls, confirm, and edit
@@ -56,13 +63,18 @@ You can add steps with the pickers, add pauses and rumble, reorder or delete ste
 choose *down*, *up* or *tap* for keys and buttons. **Record** captures keyboard presses
 together with the pauses between them.
 
-**Output device** sets the virtual controller (Xbox 360, DualShock 4, or none for keyboard
-and mouse only). It also covers hiding the physical controller from games, passing
+**Config settings** sets the output device: the virtual controller (Xbox 360, DualShock 4,
+or none for keyboard and mouse only). It also covers hiding the physical controller from games, passing
 unmapped controls through, and blocking the original keys of remapped controls. Missing
 drivers are shown here and in the bottom bar. A virtual DualShock 4 also passes the
 touchpad fingers and the motion sensors through (unless a mapping or analog route uses
 them), and the game's rumble and light bar colour come back to the physical controller
 (light bar: DualShock 4 and DualSense over USB).
+
+Its **Timing** section holds the config-wide defaults: the shortcut window (how long the
+controls of a shortcut may take to be pressed together), the long-press time, the double-
+and triple-press windows, the turbo period and the delay between keys. A mapping's own
+timing wins over these; empty fields use the built-in defaults.
 
 ## Sticks, triggers and analog routes
 

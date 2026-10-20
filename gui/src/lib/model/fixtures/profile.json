@@ -67,6 +67,9 @@
     { "trigger": "LeftStickUpLow", "activator": "long", "actions": [{ "key": "W" }] },
     { "trigger": "RightStickMed", "mode": "turbo", "actions": [{ "mouse": "right" }] },
     { "trigger": ["LB", "LTMed"], "actions": [{ "key": "G" }] },
+    { "trigger": "GyroLeft", "actions": [{ "key": "Q" }] },
+    { "trigger": "TouchCenter", "activator": "double", "actions": [{ "key": "M" }] },
+    { "trigger": "RTFull", "actions": [{ "mouse": "middle" }] },
     { "layer": 1, "trigger": "A", "mode": "once", "actions": [{ "key": "F" }] },
     { "layer": 1, "trigger": "PaddleUL" },
     { "layer": 2, "trigger": "Key:Q", "mode": "while_held", "actions": [{ "mouse": "x1" }] }

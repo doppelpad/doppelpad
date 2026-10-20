@@ -65,10 +65,16 @@
     return null;
   });
 
+  /** The trigger (`LT`/`RT`) whose full pull is selected, which sits next to its zones. */
+  const fullPull = $derived.by(() => {
+    const list = combo ? comboList(combo) : [];
+    return list.length === 1 ? (/^(LT|RT)Full$/.exec(list[0])?.[1] ?? null) : null;
+  });
   /** A stick direction, trigger or one of their zones: the panel offers its zones. */
   const zone = $derived.by(() => {
     const list = combo ? comboList(combo) : [];
-    return list.length === 1 ? zoneParts(list[0]) : null;
+    if (list.length !== 1) return null;
+    return zoneParts(fullPull ?? list[0]);
   });
   /** Zones (and the whole range, `null`) that have a mapping on this layer. */
   const usedZones = $derived.by(() => {
@@ -79,6 +85,10 @@
     }
     return used;
   });
+  const usedFull = $derived(
+    !!profile && !!zone && zone.source.kind === 'trigger' &&
+      effectiveMappings(profile, app.layer, `${zone.base}Full`).mappings.length > 0,
+  );
 
   const defaults = $derived(app.catalog?.defaults.timing);
   const timing = $derived({ ...defaults, ...(profile?.timing ?? {}) });
@@ -232,8 +242,8 @@
           {#if z !== null || !isAnyDirection(zp.base)}
             <button
               role="tab"
-              aria-selected={zp.zone === z}
-              class:active={zp.zone === z}
+              aria-selected={zp.zone === z && !fullPull}
+              class:active={zp.zone === z && !fullPull}
               class:used={usedZones.has(z)}
               title={t(`zones.desc.${z ? z.toLowerCase() : 'whole'}`)}
               onclick={() => app.select(withZone(zp.base, z))}
@@ -243,8 +253,23 @@
             </button>
           {/if}
         {/each}
+        {#if zp.source.kind === 'trigger'}
+          <button
+            role="tab"
+            aria-selected={!!fullPull}
+            class:active={!!fullPull}
+            class:used={usedFull}
+            title={t('zones.desc.full')}
+            onclick={() => app.select(`${zp.base}Full`)}
+          >
+            {t('zones.full')}
+            <span class="dot"></span>
+          </button>
+        {/if}
       </div>
-      <div class="act-desc">{t(`zones.desc.${zp.zone ? zp.zone.toLowerCase() : 'whole'}`)}</div>
+      <div class="act-desc">
+        {t(`zones.desc.${fullPull ? 'full' : zp.zone ? zp.zone.toLowerCase() : 'whole'}`)}
+      </div>
       {#if zp.zone}
         <ZoneEditor parts={zp} />
       {/if}

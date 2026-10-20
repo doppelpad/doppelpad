@@ -4,6 +4,7 @@
   import { addLayer, clearLayer, copyLayer, layerIds, pasteLayer, removeLayer, renameLayer } from '../lib/model/profile';
   import { app, type View } from '../lib/state/app.svelte';
   import type { Profile } from '../lib/types';
+  import LayerDialog from './LayerDialog.svelte';
   import Menu from './ui/Menu.svelte';
 
   const views: { id: View; icon: typeof Gamepad2; label: string }[] = $derived([
@@ -86,7 +87,10 @@
     app.layer = 0;
   }
 
+  let layerDialog = $state<number | null>(null);
+
   const layerMenu = $derived([
+    { label: t('layers.settings') + '…', onclick: () => (layerDialog = app.layer), disabled: app.layer === 0 },
     { label: t('layers.rename') + '…', onclick: onRename, disabled: app.layer === 0 },
     { label: t('layers.copy'), onclick: onCopy },
     { label: t('layers.paste'), onclick: onPaste, disabled: !app.copiedLayer },
@@ -156,6 +160,10 @@
     </button>
   </div>
 </div>
+
+{#if layerDialog !== null}
+  <LayerDialog layer={layerDialog} onclose={() => (layerDialog = null)} />
+{/if}
 
 <style>
   .toolbar {

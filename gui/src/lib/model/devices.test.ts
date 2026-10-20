@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { PadFamily } from '../types';
-import { drawingsFor } from './devices';
+import { drawingsFor, hasMotion } from './devices';
 
 const dev = (family: PadFamily, vendor_id: number, product_id: number) => ({ family, vendor_id, product_id });
 
@@ -28,5 +28,14 @@ describe('drawings for a controller', () => {
 
   it('offers all four paddles when no controller is connected', () => {
     expect(drawingsFor(null)).toEqual({ front: 'xbox', back: 'xboxEliteBack' });
+  });
+});
+
+describe('motion sensors', () => {
+  it('offer gyro controls on the drawings of controllers that have them', () => {
+    expect(hasMotion('dualsense')).toBe(true);
+    expect(hasMotion('switchpro')).toBe(true);
+    expect(hasMotion('xbox')).toBe(false);
+    expect(hasMotion('gamecube')).toBe(false);
   });
 });

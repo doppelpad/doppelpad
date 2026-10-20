@@ -5,6 +5,14 @@ import type { ControlName, PadFamily } from '../types';
 
 const DIRS = ['Up', 'Down', 'Left', 'Right'] as const;
 
+/** Touchpad regions; the controls are `TouchUp` … `TouchCenter`. */
+export const TOUCH_REGIONS = ['Up', 'Down', 'Left', 'Right', 'Center'] as const;
+/** Gyro directions; the controls are `GyroUp` … `GyroRight`. */
+export const GYRO_DIRS = DIRS;
+
+export const touchControls = (): ControlName[] => TOUCH_REGIONS.map((r) => `Touch${r}`);
+export const gyroControls = (): ControlName[] => GYRO_DIRS.map((d) => `Gyro${d}`);
+
 /** Zones of a stick's deflection or a trigger's pull, in profile syntax. */
 export const ZONES = ['Low', 'Med', 'High'] as const;
 export type ZoneName = (typeof ZONES)[number];
@@ -60,6 +68,11 @@ export function zoneTag(zone: ZoneName): string {
   return t(`zones.${zone.toLowerCase()}`).charAt(0);
 }
 
+/** Short tag of a trigger's full pull for compact summaries. */
+export function fullPullTag(): string {
+  return t('zones.full').charAt(0);
+}
+
 /** The base control and all of its zone controls. */
 export function zoneFamily(base: string): ControlName[] {
   const zones = ZONES.map((z) => withZone(base, z));
@@ -105,8 +118,10 @@ export function controlLabel(c: ControlName, family: PadFamily | null): string {
   if (zp?.zone) return `${zoneBaseLabel(zp.base, family)} · ${t(`zones.in.${zp.zone.toLowerCase()}`)}`;
   const sd = splitStickDir(c);
   if (sd) return `${t(`controls.${sd[0]}`)} ${t(`dirs.${sd[1].toLowerCase()}`)}`;
-  if (c.startsWith('Touch') && c !== 'Touchpad') return `Touchpad ${c.slice(5)}`;
-  if (c.startsWith('Gyro')) return `Gyro ${t(`dirs.${c.slice(4).toLowerCase()}`)}`;
+  const touch = /^Touch(Up|Down|Left|Right|Center)$/.exec(c);
+  if (touch) return t(`controls.touch.${touch[1].toLowerCase()}`);
+  const gyro = /^Gyro(Up|Down|Left|Right)$/.exec(c);
+  if (gyro) return t('controls.gyro', { dir: t(`dirs.${gyro[1].toLowerCase()}`) });
   const named = familyName(c, family);
   if (named) return named;
   if (has(`controls.${c}`)) return t(`controls.${c}`);

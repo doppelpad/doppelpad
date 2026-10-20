@@ -2,10 +2,21 @@
   // A device drawing with a label chip per control, joined by leader lines. Clicking a
   // part or chip selects the control; sticks ask which direction (or the click) to edit.
   // Live input highlights pressed controls and moves the stick caps.
-  import { SlidersHorizontal } from '@lucide/svelte';
+  import { Rotate3d, SlidersHorizontal } from '@lucide/svelte';
   import { DEVICE_LAYOUTS, type DeviceId, type LayoutControl } from '../../assets/devices/layouts';
   import { t } from '../../lib/i18n/index.svelte';
-  import { ZONES, controlShort, withZone, zoneFamily, zoneParts, zoneTag } from '../../lib/model/controls';
+  import {
+    TOUCH_REGIONS,
+    ZONES,
+    controlShort,
+    fullPullTag,
+    gyroControls,
+    withZone,
+    zoneFamily,
+    zoneParts,
+    zoneTag,
+  } from '../../lib/model/controls';
+  import { hasMotion } from '../../lib/model/devices';
   import { effectiveMappings, mappingSummary, shortcutMembers } from '../../lib/model/profile';
   import { app } from '../../lib/state/app.svelte';
   import type { ControlName } from '../../lib/types';
@@ -14,12 +25,14 @@
 
   const layout = $derived(DEVICE_LAYOUTS[device]);
   const [vx, vy, vw, vh] = $derived(layout.viewBox);
+  const motion = $derived(hasMotion(device));
 
   let drawing: HTMLDivElement | undefined = $state();
-  let stickMenu = $state<{ stick: 'Left' | 'Right'; click: ControlName; x: number; y: number } | null>(null);
+  /** Direction picker of a stick, the touchpad regions or the gyro directions, at a point of the drawing. */
+  let menu = $state<{ kind: 'stick' | 'touch' | 'gyro'; stick?: 'Left' | 'Right'; click?: ControlName; x: number; y: number } | null>(null);
 
   const DIRS = ['Up', 'Down', 'Left', 'Right'] as const;
-  const ARROW: Record<string, string> = { Up: '↑', Down: '↓', Left: '←', Right: '→' };
+  const ARROW: Record<string, string> = { Up: '↑', Down: '↓', Left: '←', Right: '→', Center: '◎' };
 
   const combos = $derived(app.profile ? shortcutMembers(app.profile, app.layer) : new Set<string>());
 
@@ -53,9 +66,24 @@
         ...zoneFamily(stick).map((x) => ({ c: x, tag: '◎' + zoneSuffix(x) })),
       ];
     }
-    if (zoneParts(c)) return ZONES.map((z) => ({ c: withZone(c, z), tag: zoneTag(z) }));
+    if (c === 'Touchpad') return TOUCH_REGIONS.map((r) => ({ c: `Touch${r}`, tag: ARROW[r] }));
+    if (zoneParts(c)) {
+      return [...ZONES.map((z) => ({ c: withZone(c, z), tag: zoneTag(z) })), { c: `${c}Full`, tag: fullPullTag() }];
+    }
     return [];
   }
+
+  /** The gyro chip: summaries of the gyro directions. */
+  const gyroChip = $derived.by(() => {
+    const parts: string[] = [];
+    let selected = false;
+    for (const c of gyroControls()) {
+      const s = summaryOf(c);
+      if (s) parts.push(`${ARROW[c.slice(4)]} ${s.text}`);
+      if (app.selectedKey === c) selected = true;
+    }
+    return { summary: parts.join('  '), selected };
+  });
 
   interface Chip {
     lc: LayoutControl;
@@ -91,7 +119,8 @@
       }
       return {
         lc,
-        label: controlShort(c, app.family),
+        // The touchpad chip stands for its click and its regions.
+        label: c === 'Touchpad' ? t('views.groups.touchpad') : controlShort(c, app.family),
         summary,
         mapped,
         inherited: !!own?.inherited,
@@ -117,17 +146,26 @@
   function choose(c: ControlName, at?: [number, number]) {
     const stick = stickOf(c);
     if (stick && at) {
-      stickMenu = { stick: stick === 'LeftStick' ? 'Left' : 'Right', click: c, x: at[0], y: at[1] };
+      menu = { kind: 'stick', stick: stick === 'LeftStick' ? 'Left' : 'Right', click: c, x: at[0], y: at[1] };
       return;
     }
-    stickMenu = null;
+    if (c === 'Touchpad' && at) {
+      menu = { kind: 'touch', click: c, x: at[0], y: at[1] };
+      return;
+    }
+    menu = null;
     app.select(c);
+  }
+
+  function openGyroMenu(e: MouseEvent) {
+    e.stopPropagation();
+    menu = menu?.kind === 'gyro' ? null : { kind: 'gyro', x: vx + vw * 0.12, y: vy + vh * 0.06 };
   }
 
   function onDrawingClick(e: MouseEvent) {
     const g = (e.target as Element).closest('[data-control]');
     if (!g || !drawing) {
-      stickMenu = null;
+      menu = null;
       return;
     }
     const c = g.getAttribute('data-control')!;
@@ -188,7 +226,8 @@
         title={ch.summary ? `${ch.label}: ${ch.summary}` : ch.label}
         onclick={(e) => {
           e.stopPropagation();
-          choose(ch.lc.control, stickOf(ch.lc.control) ? ch.lc.labelAt : undefined);
+          const c = ch.lc.control;
+          choose(c, stickOf(c) || c === 'Touchpad' ? ch.lc.labelAt : undefined);
         }}
       >
         {#if ch.summary}
@@ -200,33 +239,70 @@
       </button>
     {/each}
 
-    {#if stickMenu}
-      {@const p = pct(stickMenu.x, stickMenu.y)}
-      {@const name = stickMenu.stick === 'Left' ? 'LeftStick' : 'RightStick'}
+    {#if motion}
+      <button
+        class="chip gyro"
+        class:mapped={!!gyroChip.summary}
+        class:selected={gyroChip.selected || menu?.kind === 'gyro'}
+        title={gyroChip.summary ? `${t('binding.gyro')}: ${gyroChip.summary}` : t('binding.gyro')}
+        onclick={openGyroMenu}
+      >
+        <Rotate3d size={13} />
+        {#if gyroChip.summary}
+          <span class="sum">{gyroChip.summary}</span>
+        {:else}
+          <span class="name">{t('binding.gyro')}</span>
+        {/if}
+      </button>
+    {/if}
+
+    {#if menu}
+      {@const m = menu}
+      {@const p = pct(m.x, m.y)}
+      {@const prefix = m.kind === 'stick' ? (m.stick === 'Left' ? 'LeftStick' : 'RightStick') : m.kind === 'touch' ? 'Touch' : 'Gyro'}
       <div class="stick-menu" style="left: {p.left}%; top: {p.top}%">
-        <div class="sm-title">{t('binding.stick_choose')}</div>
+        <div class="sm-title">{t(`binding.${m.kind}_choose`)}</div>
         <div class="sm-grid">
           <span></span>
-          <button onclick={() => choose(`${name}Up`)}>↑</button>
+          <button onclick={() => choose(`${prefix}Up`)}>↑</button>
           <span></span>
-          <button onclick={() => choose(`${name}Left`)}>←</button>
-          <button class="click" onclick={() => choose(stickMenu!.click)}>{t('binding.click')}</button>
-          <button onclick={() => choose(`${name}Right`)}>→</button>
+          <button onclick={() => choose(`${prefix}Left`)}>←</button>
+          {#if m.kind === 'gyro'}
+            <span></span>
+          {:else if m.kind === 'touch'}
+            <button title={t('controls.touch.center')} onclick={() => choose('TouchCenter')}>◎</button>
+          {:else}
+            <button class="click" onclick={() => choose(m.click!)}>{t('binding.click')}</button>
+          {/if}
+          <button onclick={() => choose(`${prefix}Right`)}>→</button>
           <span></span>
-          <button onclick={() => choose(`${name}Down`)}>↓</button>
+          <button onclick={() => choose(`${prefix}Down`)}>↓</button>
           <span></span>
         </div>
-        <button class="sm-any" onclick={() => choose(`${name}Low`)}>{t('zones.any_direction_button')}</button>
-        <button class="sm-settings" onclick={() => app.openAnalog(stickMenu!.stick === 'Left' ? 'left' : 'right')}>
-          <SlidersHorizontal size={13} />
-          {t('binding.stick_settings')}
-        </button>
+        {#if m.kind === 'stick'}
+          <button class="sm-any" onclick={() => choose(`${prefix}Low`)}>{t('zones.any_direction_button')}</button>
+          <button class="sm-settings" onclick={() => app.openAnalog(m.stick === 'Left' ? 'left' : 'right')}>
+            <SlidersHorizontal size={13} />
+            {t('binding.stick_settings')}
+          </button>
+        {:else if m.kind === 'touch'}
+          <button class="sm-any" onclick={() => choose('Touchpad')}>{t('controls.Touchpad')}</button>
+          <button class="sm-settings" onclick={() => app.openAnalog('routes')}>
+            <SlidersHorizontal size={13} />
+            {t('binding.touch_settings')}
+          </button>
+        {:else}
+          <button class="sm-settings" onclick={() => app.openAnalog('routes')}>
+            <SlidersHorizontal size={13} />
+            {t('binding.gyro_settings')}
+          </button>
+        {/if}
       </div>
     {/if}
   </div>
 </div>
 
-<svelte:window onkeydown={(e) => e.key === 'Escape' && (stickMenu = null)} />
+<svelte:window onkeydown={(e) => e.key === 'Escape' && (menu = null)} />
 
 <style>
   .stage {
@@ -355,6 +431,16 @@
   }
   .chip.pressed {
     box-shadow: 0 0 0 2px var(--accent);
+  }
+  .chip.gyro {
+    left: 0;
+    top: 0;
+    gap: 5px;
+    max-width: 30%;
+    color: var(--text-dim);
+  }
+  .chip.gyro :global(svg) {
+    flex: none;
   }
   .combo {
     flex: none;

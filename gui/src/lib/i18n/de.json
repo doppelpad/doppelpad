@@ -58,13 +58,15 @@
     "keyboard": "Tastatur",
     "mouse": "Maus",
     "shortcuts": "Tastenkombis",
-    "output": "Ausgabegerät",
+    "output": "Config-Einstellungen",
     "analog": "Analog",
     "groups": {
       "buttons": "Tasten",
       "sticks": "Sticks",
       "triggers": "Trigger",
-      "back": "Schulter- und Rücktasten"
+      "back": "Schulter- und Rücktasten",
+      "touchpad": "Touchpad",
+      "gyro": "Bewegung (Gyro)"
     },
     "as_list": "Als Liste anzeigen",
     "as_drawing": "Zeichnung anzeigen"
@@ -80,7 +82,13 @@
     "remove": "Ebene entfernen",
     "name_prompt": "Name der Ebene",
     "inherit": "Nicht belegte Tasten nutzen die Haupt-Ebene",
-    "more": "Weitere Ebenen ({n})"
+    "more": "Weitere Ebenen ({n})",
+    "settings": "Ebenen-Einstellungen",
+    "settings_title": "Einstellungen von {layer}",
+    "inherit_hint_on": "Tasten, die diese Ebene nicht belegt, tun dasselbe wie auf der Haupt-Ebene.",
+    "inherit_hint_off": "Tasten, die diese Ebene nicht belegt, tun nichts, solange sie aktiv ist.",
+    "inherited_list": "Von der Haupt-Ebene übernommen",
+    "inherit_none": "Die Haupt-Ebene hat noch keine Belegungen."
   },
   "output": {
     "title": "Ausgabegerät",
@@ -92,7 +100,17 @@
     "passthrough": "Nicht belegte Tasten durchreichen",
     "mute_mapped": "Original-Tasten und -Buttons blockieren, die umbelegt sind",
     "driver_missing": "{driver} ist nicht installiert – diese Config lässt sich noch nicht anwenden.",
-    "hide_missing": "HidHide ist nicht installiert — Spiele sehen den echten Controller weiterhin."
+    "hide_missing": "HidHide ist nicht installiert — Spiele sehen den echten Controller weiterhin.",
+    "timing": "Timing",
+    "timing_hint": "Standardwerte für alle Belegungen dieser Config; eigene Werte einer Belegung haben Vorrang. Leere Felder nutzen den eingebauten Standard.",
+    "timing_fields": {
+      "combo_window_ms": "Zeitfenster für Tastenkombis",
+      "long_press_ms": "Zeit für langes Drücken",
+      "double_tap_ms": "Zeitfenster doppeltes Drücken",
+      "triple_tap_ms": "Zeitfenster dreifaches Drücken",
+      "turbo_ms": "Turbo-Intervall",
+      "key_delay_ms": "Verzögerung zwischen Tasten"
+    }
   },
   "binding": {
     "choose": "Klicke eine Taste am Controller an oder drücke sie, um sie zu belegen",
@@ -116,6 +134,11 @@
     "macro": "Makro-Editor",
     "delete": "Mapping löschen",
     "stick_choose": "Welche Richtung des Sticks?",
+    "touch_choose": "Welcher Bereich des Touchpads?",
+    "gyro_choose": "In welche Richtung kippen oder drehen?",
+    "gyro": "Gyro",
+    "touch_settings": "Touchpad als Maus",
+    "gyro_settings": "Gyro-Zielen",
     "click": "Klick",
     "stick_settings": "Stick-Einstellungen",
     "stick_settings_hint": "Deadzone, Kennlinie, Empfindlichkeit, Routen",
@@ -139,6 +162,7 @@
     "low": "Niedrig",
     "med": "Mittel",
     "high": "Hoch",
+    "full": "Ganz durchgedrückt",
     "in": {
       "low": "Zone niedrig",
       "med": "Zone mittel",
@@ -150,7 +174,8 @@
       "whole": "Aktiv, sobald das Bedienelement die Totzone verlässt – egal wie weit es bewegt wird.",
       "low": "Aktiv, solange das Bedienelement nur wenig bewegt ist – bis die mittlere Zone beginnt.",
       "med": "Aktiv im mittleren Bereich – zwischen der mittleren und der hohen Schwelle.",
-      "high": "Aktiv, solange das Bedienelement weit bewegt ist – ab der hohen Schwelle bis zum Anschlag."
+      "high": "Aktiv, solange das Bedienelement weit bewegt ist – ab der hohen Schwelle bis zum Anschlag.",
+      "full": "Nur aktiv, solange der Trigger ganz durchgedrückt ist – über seinen Druckpunkt für „ganz“ hinaus."
     },
     "thresholds": "Zonenschwellen",
     "thresholds_hint": "Wo jede Zone beginnt, in % des ganzen Wegs. Leere Felder nutzen den Standard oder teilen den Rest gleichmäßig auf.",
@@ -444,6 +469,14 @@
     "LTFull": "Linker Trigger (ganz durchgedrückt)",
     "RTFull": "Rechter Trigger (ganz durchgedrückt)",
     "Touchpad": "Touchpad-Klick",
+    "touch": {
+      "up": "Touchpad oben",
+      "down": "Touchpad unten",
+      "left": "Touchpad links",
+      "right": "Touchpad rechts",
+      "center": "Touchpad Mitte"
+    },
+    "gyro": "Gyro {dir}",
     "PaddleUL": "Paddle oben links",
     "PaddleUR": "Paddle oben rechts",
     "PaddleLL": "Paddle unten links",
