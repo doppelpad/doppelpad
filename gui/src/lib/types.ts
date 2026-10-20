@@ -474,6 +474,23 @@ export interface LiveDevice {
   raw?: RawInput | null;
 }
 
+export interface DsuSettings {
+  enabled: boolean;
+  /** Listen on all network interfaces, not only this computer. */
+  lan: boolean;
+  port: number;
+}
+
+/** The DSU motion server. */
+export interface LiveDsu {
+  settings: DsuSettings;
+  /** Where it listens while it runs. */
+  address: string | null;
+  /** Emulators subscribed right now. */
+  clients: number;
+  error: string | null;
+}
+
 /** What a generic pad reports: buttons in HID order, axes -1..1, hats 0–7 clockwise from up. */
 export interface RawInput {
   buttons: boolean[];
@@ -534,6 +551,7 @@ export interface LiveState {
   power_off_after_min: number;
   /** Generic pad models with a recorded layout (`vvvv:pppp`). */
   layouts: string[];
+  dsu: LiveDsu;
   suspended: boolean;
   foreground: string | null;
   virtual_pad: string | null;

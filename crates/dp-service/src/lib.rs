@@ -3,6 +3,7 @@
 //! and live snapshots for user interfaces.
 
 pub mod calibration;
+pub mod dsu;
 pub mod host;
 pub mod hotkeys;
 pub mod live;

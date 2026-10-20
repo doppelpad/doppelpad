@@ -4,6 +4,7 @@ import { Channel, invoke } from '@tauri-apps/api/core';
 import type {
   Catalog,
   DiagMsg,
+  DsuSettings,
   DeviceGroup,
   Game,
   GameMeta,
@@ -81,6 +82,7 @@ export const api = {
   powerOff: (id: string) => invoke<string>('power_off', { id }),
   setLayout: (layout: GenericLayout) => invoke<string>('set_layout', { layout }),
   forgetLayout: (device: string) => invoke<string>('forget_layout', { device }),
+  setDsu: (settings: DsuSettings) => invoke<string>('set_dsu', { settings }),
   osdTest: () => invoke<void>('osd_test'),
   /** Sizes of the monitors, the primary one first. */
   osdMonitors: () => invoke<string[]>('osd_monitors'),

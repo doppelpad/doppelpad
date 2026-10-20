@@ -834,6 +834,14 @@
       "opacity": "Opacity",
       "seconds": "Display time"
     },
+    "dsu": {
+      "title": "Motion server (DSU)",
+      "hint": "Emulators such as Cemu, Dolphin or Ryujinx read the controllers' buttons, sticks and gyro over the DSU (cemuhook) protocol. The first four controllers take slots 1–4.",
+      "enabled": "Turn the motion server on",
+      "port": "Port",
+      "lan": "Reachable from the network too (otherwise this PC only)",
+      "status": "Running on {address} · {n} emulator(s) connected"
+    },
     "lights": {
       "title": "Controller lights",
       "player": "Player lights",

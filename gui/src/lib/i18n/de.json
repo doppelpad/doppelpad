@@ -834,6 +834,14 @@
       "opacity": "Deckkraft",
       "seconds": "Anzeigedauer"
     },
+    "dsu": {
+      "title": "Bewegungsserver (DSU)",
+      "hint": "Emulatoren wie Cemu, Dolphin oder Ryujinx lesen über das DSU-Protokoll (cemuhook) Tasten, Sticks und Gyro der Controller. Die ersten vier Controller bekommen die Plätze 1–4.",
+      "enabled": "Bewegungsserver einschalten",
+      "port": "Port",
+      "lan": "Auch aus dem Netzwerk erreichbar (sonst nur dieser PC)",
+      "status": "Läuft auf {address} · {n} Emulator(en) verbunden"
+    },
     "lights": {
       "title": "Controller-Lichter",
       "player": "Spieler-LEDs",
