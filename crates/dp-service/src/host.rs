@@ -112,7 +112,11 @@ pub fn spawn_with(
             'run: loop {
                 for (cmd, reply) in rx.try_iter() {
                     let shutdown = cmd == ServiceCmd::Ipc(Request::Shutdown);
-                    let _ = reply.send(svc.handle(cmd));
+                    let answer = svc.handle(cmd);
+                    // Publish the effect before answering, so a caller reading `live()`
+                    // right after `call()` sees it.
+                    *live_out.lock().unwrap() = svc.live();
+                    let _ = reply.send(answer);
                     if shutdown {
                         break 'run;
                     }
@@ -204,6 +208,11 @@ mod tests {
         let live = h.live();
         assert_eq!(live.profile.as_deref(), Some("P"));
         assert_eq!(live.active_slot, 1);
+        h.call(ServiceCmd::SetRemap(false));
+        assert!(
+            !h.live().remap_on,
+            "the snapshot is current when the call returns"
+        );
         h.shutdown();
         assert!(!h.is_running());
         assert_eq!(h.live().profile, None, "stopped on shutdown");

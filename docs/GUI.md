@@ -2,8 +2,8 @@
 
 `doppelpad-gui` is the editor and the remapping service in one program. It runs the same
 engine as `doppelpad daemon`. While it runs, `doppelpad status`, `apply` and `stop` talk to
-it over the usual IPC socket. Closing the window keeps remapping running in the tray, and
-**Quit** in the tray menu stops it and shows hidden controllers again.
+it over the usual IPC socket. Closing the window keeps remapping running in the tray (see
+[Tray](#tray)), and **Quit** in the tray menu stops it and shows hidden controllers again.
 
 The app is built with [Tauri 2](https://tauri.app) and a Svelte 5 + TypeScript frontend
 (`gui/`). The Rust side (`gui/src-tauri`, crate `dp-gui`) hosts `dp-service`. The frontend
@@ -18,7 +18,7 @@ only edits profiles and sends commands.
 | **Toolbar** | Views: *Controller*, *Back buttons*, *Keyboard*, *Mouse*. Layer chips: *Main* plus shift layers, which you can add, rename, copy, paste, clear and remove. On the right: *Shortcuts* and *Output device*. |
 | **Centre** | The selected view. Click a control to edit it. On the controller views, pressing a button on the controller selects it. On the keyboard view, pressing a key does the same. |
 | **Binding panel** (right) | See below. With nothing selected, it lists the mappings of the current layer. |
-| **Bottom bar** | Connected controllers (click one to use it), driver warnings, **Remap ON/OFF**, *Apply to slot n* (saves, puts the config in that slot and activates it), *Autodetect* (switch configs by the game in the foreground), and the four slots (click to activate, × to unload). |
+| **Bottom bar** | Connected controllers (click one to use it), driver warnings, **Remap ON/OFF**, *Apply to slot n* (saves, puts the config in that slot and activates it), *Autodetect* (switch configs by the game in the foreground; only while remapping is on), and the four slots (click to activate, which also turns remapping on; × to unload). |
 
 ## Editing a control
 
@@ -68,6 +68,28 @@ don't land in the editor, and pressing a button selects it instead of triggering
 mapping. The bottom bar then shows *Paused while editing*. Switch to the game (or hide
 the window) and the active slot takes over again. *Settings → Keep remapping active while
 this window is focused* turns this off.
+
+## Tray
+
+The tray icon is greyed out while remapping is off. Its tooltip names the active config
+and warns when no controller is connected. Left-click opens the window, middle-click
+turns remapping on or off. The right-click menu has:
+
+- **Open Doppelpad**
+- the active config (*Game › Config*) or *No config active*
+- **Remapping on** and **Autodetect games**, the same switches as in the bottom bar
+- the four slots with their configs; choosing one activates it and turns remapping on
+- **Quit**
+
+The tray follows every change, whether it comes from the window, from `doppelpad`
+commands, or from a mapping that turns remapping off.
+
+*Settings → Start with Windows, in the tray* (Windows only) starts Doppelpad when you sign
+in, with only the tray icon showing; remapping runs as it was left. The setting is the
+`Doppelpad` entry under `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`, which runs
+`doppelpad-gui.exe --hidden`. Task Manager's *Startup* tab lists it too, and switching it
+off there shows in the settings. If reWASD runs at sign-in and *When reWASD is running at
+start-up* is set to *Ask*, the window opens to ask.
 
 ## reWASD running at start-up
 
@@ -190,7 +212,8 @@ page offers to restart now or later.
 Uninstalling Doppelpad never removes the drivers, because other programs may use them.
 They are listed separately under *Installed apps* as "ViGEm Bus Driver" and "HidHide".
 *Delete the application data* in the uninstaller also deletes `%APPDATA%\doppelpad`
-(profiles and settings) and `%LOCALAPPDATA%\doppelpad\logs`.
+(profiles and settings) and `%LOCALAPPDATA%\doppelpad\logs`. Uninstalling always removes
+the *Start with Windows* entry of the user who uninstalls; updates keep it.
 
 | Command line | Drivers |
 |---|---|
@@ -208,4 +231,4 @@ The setup is not code-signed yet, so Windows SmartScreen warns when it is starte
 The UI is available in English and German (*Settings → Language*). Translations live in
 `gui/src/lib/i18n/{en,de}.json`. A test makes sure both files have the same keys and
 placeholders. To add a language, copy `en.json`, translate it and register it in
-`gui/src/lib/i18n/index.svelte.ts`.
+`gui/src/lib/i18n/index.svelte.ts`. The tray menu's texts are in `gui/src-tauri/src/tray.rs`.

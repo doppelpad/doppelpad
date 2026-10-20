@@ -260,6 +260,12 @@ FunctionEnd
 !macroend
 
 !macro NSIS_HOOK_POSTUNINSTALL
+  ; "Start with Windows" (app settings): the user's Run entry, plus Task Manager's on/off
+  ; mark for it. Updates keep it; the path to the app stays the same.
+  ${If} $UpdateMode <> 1
+    DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "Doppelpad"
+    DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run" "Doppelpad"
+  ${EndIf}
   ; Tauri's "delete app data" removes $APPDATA\<identifier>; profiles and settings live in
   ; $APPDATA\doppelpad, logs in $LOCALAPPDATA\doppelpad\logs. The HidHide crash-recovery
   ; journal next to the logs stays, so the folder only goes when it is empty.

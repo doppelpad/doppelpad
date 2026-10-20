@@ -359,6 +359,7 @@ impl Service {
                     return e;
                 }
                 self.state.active = slot;
+                self.state.remap_on = true;
                 self.oneoff = None;
                 self.auto_active = None;
                 self.save_state();
@@ -459,10 +460,15 @@ impl Service {
     }
 
     fn auto_switch_tick(&mut self, now: u64) {
-        if !self.state.auto_switch
-            || self
-                .last_fg_check
-                .is_some_and(|t| now < t + self.opts.foreground_poll_ms)
+        if !self.state.auto_switch || !self.state.remap_on {
+            // Look again once switching is back on, even if the same application kept
+            // the focus meanwhile.
+            self.foreground = None;
+            return;
+        }
+        if self
+            .last_fg_check
+            .is_some_and(|t| now < t + self.opts.foreground_poll_ms)
         {
             return;
         }
@@ -617,6 +623,16 @@ mod tests {
         s.handle(ServiceCmd::SetRemap(true));
         assert_eq!(active_name(&s).as_deref(), Some("A"));
 
+        s.handle(ServiceCmd::SetRemap(false));
+        s.handle(ServiceCmd::SelectSlot(2));
+        assert_eq!(
+            active_name(&s).as_deref(),
+            Some("B"),
+            "selecting a slot turns remapping on"
+        );
+        assert!(s.live().remap_on);
+        s.handle(ServiceCmd::SelectSlot(0));
+
         s.handle(ServiceCmd::ClearSlot(0));
         assert_eq!(active_name(&s), None, "clearing the active slot unloads it");
         assert!(s.handle(ServiceCmd::SelectSlot(9)).into_result().is_err());
@@ -690,6 +706,27 @@ mod tests {
         *fg.lock().unwrap() = Some("game.exe".into());
         s.tick();
         assert_eq!(active_name(&s).as_deref(), Some("Base"), "auto-switch off");
+    }
+
+    #[test]
+    fn auto_switch_waits_while_remapping_is_off() {
+        let dir = tempfile::tempdir().unwrap();
+        let profiles = dir.path().join("profiles");
+        std::fs::create_dir_all(&profiles).unwrap();
+        write_profile(&profiles, "game.toml", "Game", &["game.exe"]);
+        let (mut s, fg) = service(dir.path(), None);
+        s.handle(ServiceCmd::SetRemap(false));
+        *fg.lock().unwrap() = Some("game.exe".into());
+        s.tick();
+        assert_eq!(active_name(&s), None, "remapping is off");
+
+        s.handle(ServiceCmd::SetRemap(true));
+        s.tick();
+        assert_eq!(
+            active_name(&s).as_deref(),
+            Some("Game"),
+            "the game in the foreground takes over once remapping is on again"
+        );
     }
 
     #[test]

@@ -126,7 +126,11 @@ class AppState {
       this.rewasd = await api.rewasdStatus();
       if (this.rewasdRunning) {
         if (this.settings.rewasd_at_start === 'quit') this.quitRewasd();
-        else if (this.settings.rewasd_at_start === 'ask') this.rewasdAsk = true;
+        else if (this.settings.rewasd_at_start === 'ask') {
+          this.rewasdAsk = true;
+          // The app may have started hidden with Windows.
+          await api.showWindow();
+        }
       }
       // Open the game of the config that is currently applied, else the first game.
       const first = this.library.games[0];
