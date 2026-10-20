@@ -405,7 +405,17 @@
       "initially_on_hint": "Befehle schalten den Gyro ein und aus, während die Config läuft.",
       "zones": "Zonen",
       "zones_hint_motion": "Wo die niedrige, mittlere und hohe Zone beginnen, in Grad pro Sekunde.",
-      "zones_hint_tilt": "Wo die niedrige, mittlere und hohe Zone beginnen, in Grad aus der Mitte."
+      "zones_hint_tilt": "Wo die niedrige, mittlere und hohe Zone beginnen, in Grad aus der Mitte.",
+      "calibration": "Kalibrierung dieses Controllers",
+      "calibration_hint": "Entfernt das Driften des Gyros von {name}. Gilt für den Controller, in allen Configs, und sofort.",
+      "calibrate": "Kalibrieren (ruhig ablegen)",
+      "measuring": "Messe … {pct} %",
+      "calibration_reset": "Zurücksetzen",
+      "bias": "Abweichung {x} / {y} / {z} °/s",
+      "calibration_done": "Kalibriert.",
+      "calibration_moved": "Der Controller hat sich bewegt; die alte Kalibrierung bleibt. Leg ihn ruhig ab und versuch es noch einmal.",
+      "auto_calibration": "Automatisch kalibrieren, solange er ruht",
+      "auto_calibration_hint": "Hält das Driften fern, sobald der Controller still liegt; sehr langsame Drehungen können für Driften gehalten werden."
     },
     "layer": {
       "own": "{layer} hat hier eigene Einstellungen.",

@@ -50,6 +50,10 @@ export const api = {
   hotkeysPause: (on: boolean) => invoke<string>('hotkeys_pause', { on }),
   /** One full in-game turn of `counts` mouse counts, 3 s from now (calibration). */
   testTurn: (counts: number) => invoke<string>('test_turn', { counts }),
+  /** Gyro calibration of a controller (`null`: the controller in use). */
+  gyroCalibrate: (device: string | null) => invoke<string>('gyro_calibrate', { device }),
+  gyroAuto: (device: string | null, on: boolean) => invoke<string>('gyro_auto', { device, on }),
+  gyroReset: (device: string | null) => invoke<string>('gyro_reset', { device }),
   /** `null` when reWASD is not installed. */
   rewasdStatus: () => invoke<RewasdStatus | null>('rewasd_status'),
   /** `false` when the user declined the administrator prompt. */

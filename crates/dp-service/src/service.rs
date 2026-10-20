@@ -26,6 +26,8 @@ pub struct ServiceOptions {
     pub state_path: Option<PathBuf>,
     /// Where the controller hotkeys are persisted; `None` uses the defaults in memory.
     pub hotkeys_path: Option<PathBuf>,
+    /// Where the gyro calibration is persisted; `None` keeps it in memory only.
+    pub calibration_path: Option<PathBuf>,
     /// Profile to apply at start, independent of the slots.
     pub initial_profile: Option<PathBuf>,
     /// Override the persisted auto-switch setting.
@@ -39,12 +41,18 @@ impl ServiceOptions {
             profiles_dir,
             state_path: None,
             hotkeys_path: None,
+            calibration_path: None,
             initial_profile: None,
             auto_switch: None,
             foreground_poll_ms: FOREGROUND_POLL_MS,
         }
     }
 }
+
+/// A manual gyro calibration samples this long.
+pub const GYRO_CALIBRATION_MS: u64 = 3000;
+/// An automatically updated gyro calibration is saved at most this often.
+const CALIBRATION_SAVE_MS: u64 = 60_000;
 
 /// A test turn starts this long after it is asked for (time to switch to the game) ...
 pub const TEST_TURN_DELAY_MS: u64 = 3000;
@@ -96,6 +104,19 @@ pub enum ServiceCmd {
     TestTurn {
         counts: f32,
     },
+    /// Measure a controller's gyro bias while it lies still (`None`: the controller in use).
+    CalibrateGyro {
+        device: Option<String>,
+    },
+    /// Keep estimating a controller's gyro bias while it rests, or not.
+    SetGyroAuto {
+        device: Option<String>,
+        on: bool,
+    },
+    /// Forget a controller's gyro bias.
+    ResetGyro {
+        device: Option<String>,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -138,6 +159,8 @@ pub struct Service {
     device_errors: std::collections::BTreeMap<String, String>,
     /// Connected controllers when their sessions were last brought in line.
     connected: Vec<String>,
+    /// When the gyro calibration was last saved.
+    calibration_saved: Option<u64>,
 }
 
 fn load(path: &Path) -> Result<Profile> {
@@ -180,6 +203,9 @@ impl Service {
         if let Some(path) = &opts.hotkeys_path {
             rt.set_hotkeys(crate::hotkeys::load(path));
         }
+        if let Some(path) = &opts.calibration_path {
+            *rt.calibration_mut() = crate::calibration::Calibrator::load(path);
+        }
         let mut svc = Service {
             rt,
             profiles: Vec::new(),
@@ -195,6 +221,7 @@ impl Service {
             last_error: None,
             device_errors: Default::default(),
             connected: Vec::new(),
+            calibration_saved: None,
             opts,
         };
         svc.reload();
@@ -641,6 +668,23 @@ impl Service {
                 self.rt.test_turn(counts, TEST_TURN_DELAY_MS, TEST_TURN_MS);
                 ServiceReply::Ok(format!("turning {counts} counts in 3 s"))
             }
+            ServiceCmd::CalibrateGyro { device } => self.with_gyro(device, |rt, id| {
+                let now = rt.now_ms();
+                rt.calibration_mut()
+                    .start_manual(id, now, GYRO_CALIBRATION_MS);
+                format!("calibrating the gyro of {id}")
+            }),
+            ServiceCmd::SetGyroAuto { device, on } => self.with_gyro(device, |rt, id| {
+                rt.calibration_mut().set_auto(id, on);
+                format!(
+                    "automatic gyro calibration {}",
+                    if on { "on" } else { "off" }
+                )
+            }),
+            ServiceCmd::ResetGyro { device } => self.with_gyro(device, |rt, id| {
+                rt.calibration_mut().reset(id);
+                format!("gyro calibration of {id} reset")
+            }),
         }
     }
 
@@ -681,9 +725,39 @@ impl Service {
     }
 
     /// One loop iteration: engine tick, remap-off handling, auto-switch, driver probing.
+    /// Run a gyro calibration change for `device`, or the controller in use.
+    fn with_gyro(
+        &mut self,
+        device: Option<String>,
+        f: impl FnOnce(&mut Runtime, &str) -> String,
+    ) -> ServiceReply {
+        let Some(id) = device.or_else(|| self.rt.primary_device().map(|d| d.0.clone())) else {
+            return ServiceReply::Err("no controller to calibrate".into());
+        };
+        ServiceReply::Ok(f(&mut self.rt, &id))
+    }
+
+    /// Persist the gyro calibration: explicit changes at once, automatic ones once a minute.
+    fn save_calibration(&mut self) {
+        let Some(path) = self.opts.calibration_path.clone() else {
+            return;
+        };
+        let now = self.rt.now_ms();
+        let periodic = self
+            .calibration_saved
+            .is_none_or(|t| now.saturating_sub(t) >= CALIBRATION_SAVE_MS);
+        if self.rt.calibration().needs_save(periodic) {
+            if let Err(e) = self.rt.calibration_mut().save(&path) {
+                tracing::warn!("cannot save {}: {e}", path.display());
+            }
+            self.calibration_saved = Some(now);
+        }
+    }
+
     pub fn tick(&mut self) {
         self.rt.tick();
         self.run_hotkeys();
+        self.save_calibration();
         if self.rt.take_remap_off_request() {
             self.state.remap_on = false;
             self.oneoff = None;
@@ -770,6 +844,7 @@ impl Service {
 
     /// Snapshot for user interfaces.
     pub fn live(&self) -> LiveState {
+        let now = self.rt.now_ms();
         LiveState {
             devices: self
                 .rt
@@ -783,6 +858,10 @@ impl Service {
                     vendor_id: s.info.vendor_id,
                     product_id: s.info.product_id,
                     state: s.state,
+                    gyro_calibration: s
+                        .state
+                        .motion
+                        .map(|_| self.rt.calibration().status(&s.info.id.0, now)),
                 })
                 .collect(),
             primary: self.rt.primary_device().map(|d| d.to_string()),
@@ -1061,6 +1140,41 @@ mod tests {
         *fg.lock().unwrap() = Some("racer.exe".into());
         s.tick();
         assert_eq!(active_name(&s).as_deref(), Some("Default"));
+    }
+
+    #[test]
+    fn gyro_calibration_commands_reach_the_controller_and_disk() {
+        use dp_platform::PadFamily;
+
+        let dir = tempfile::tempdir().unwrap();
+        let (platform, world) = crate::runtime::testing::platform();
+        let mut opts = ServiceOptions::new(dir.path().join("profiles"));
+        let path = dir.path().join("calibration.toml");
+        opts.calibration_path = Some(path.clone());
+        let mut s = Service::new(Runtime::with_platform(platform), opts).unwrap();
+        assert!(matches!(
+            s.handle(ServiceCmd::CalibrateGyro { device: None }),
+            ServiceReply::Err(_)
+        ));
+        world
+            .lock()
+            .unwrap()
+            .pads
+            .push(crate::runtime::testing::pad("pad", PadFamily::DualSense));
+        s.tick();
+        assert!(matches!(
+            s.handle(ServiceCmd::SetGyroAuto {
+                device: None,
+                on: false
+            }),
+            ServiceReply::Ok(_)
+        ));
+        s.tick();
+        let saved = std::fs::read_to_string(&path).unwrap();
+        assert!(
+            saved.contains("[devices.pad]") && saved.contains("auto = false"),
+            "{saved}"
+        );
     }
 
     #[test]

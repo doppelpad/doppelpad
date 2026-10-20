@@ -405,7 +405,17 @@
       "initially_on_hint": "Commands turn the gyro on and off while the config runs.",
       "zones": "Zones",
       "zones_hint_motion": "Where the low, medium and high zones start, in degrees per second.",
-      "zones_hint_tilt": "Where the low, medium and high zones start, in degrees from the centre."
+      "zones_hint_tilt": "Where the low, medium and high zones start, in degrees from the centre.",
+      "calibration": "Calibration of this controller",
+      "calibration_hint": "Removes the drift of {name}'s gyro. Applies to the controller, in every config, and at once.",
+      "calibrate": "Calibrate (lay it down still)",
+      "measuring": "Measuring … {pct} %",
+      "calibration_reset": "Reset",
+      "bias": "Bias {x} / {y} / {z} °/s",
+      "calibration_done": "Calibrated.",
+      "calibration_moved": "The controller moved; the old calibration stays. Lay it down and try again.",
+      "auto_calibration": "Calibrate automatically while it rests",
+      "auto_calibration_hint": "Keeps the drift away whenever the controller lies still; very slow turns can be taken for drift."
     },
     "layer": {
       "own": "{layer} has its own settings here.",

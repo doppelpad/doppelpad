@@ -27,6 +27,8 @@ use dp_platform::{
 };
 use serde::Serialize;
 
+use crate::calibration::Calibrator;
+
 /// Availability of one optional driver.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize)]
 pub struct DriverState {
@@ -137,6 +139,8 @@ pub struct Runtime {
     hotkey_actions: Vec<(DeviceId, HotkeyAction)>,
     /// A calibration turn: counts to send, start, length and how much was sent.
     test_turn: Option<TestTurn>,
+    /// Gyro bias per controller, taken off before anything reads the rates.
+    calibration: Calibrator,
 }
 
 /// One full in-game turn sent as mouse motion, so the user can check `counts_per_turn`.
@@ -353,6 +357,7 @@ impl Runtime {
             detectors: HashMap::new(),
             hotkeys_paused: false,
             test_turn: None,
+            calibration: Calibrator::default(),
             hotkey_actions: Vec::new(),
         }
     }
@@ -745,11 +750,14 @@ impl Runtime {
         }
     }
 
-    fn poll_devices(&mut self) {
+    fn poll_devices(&mut self, now: u64) {
         let before: Vec<DeviceId> = self.snapshots.iter().map(|s| s.info.id.clone()).collect();
         self.snapshots.clear();
         for b in &mut self.platform.gamepads {
             b.poll(&mut self.snapshots);
+        }
+        for s in &mut self.snapshots {
+            self.calibration.apply(&s.info.id.0, &mut s.state, now);
         }
         let ids: Vec<DeviceId> = self.snapshots.iter().map(|s| s.info.id.clone()).collect();
         let devices_changed = ids != before;
@@ -764,7 +772,15 @@ impl Runtime {
         }
     }
 
-    /// Run one engine step for every session. Call about once per millisecond.
+    /// Gyro calibration of every controller seen.
+    pub fn calibration(&self) -> &Calibrator {
+        &self.calibration
+    }
+
+    pub fn calibration_mut(&mut self) -> &mut Calibrator {
+        &mut self.calibration
+    }
+
     /// Send `counts` of horizontal mouse motion over `ms`, starting after `delay_ms` (time to
     /// switch to the game): one full turn when `counts` matches the game.
     pub fn test_turn(&mut self, counts: f32, delay_ms: u64, ms: u64) {
@@ -794,10 +810,11 @@ impl Runtime {
         }
     }
 
+    /// Run one engine step for every session. Call about once per millisecond.
     pub fn tick(&mut self) {
         let now = self.now_ms();
         self.send_test_turn(now);
-        self.poll_devices();
+        self.poll_devices(now);
         self.kbm_buf.clear();
         if let Some(rx) = &self.kbm_rx {
             self.kbm_buf.extend(rx.try_iter());

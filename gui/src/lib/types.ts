@@ -260,6 +260,16 @@ export type PadFamily =
   | 'game_cube'
   | 'generic';
 
+/** A controller's gyro calibration: the bias taken off its rates (°/s) and the automatic switch. */
+export interface GyroCalibration {
+  gyro_bias: [number, number, number];
+  auto: boolean;
+  /** A manual calibration runs: how far it is, 0–1. */
+  measuring: number | null;
+  /** How the last manual calibration ended. */
+  last_manual: boolean | null;
+}
+
 export interface LiveDevice {
   id: string;
   name: string;
@@ -268,6 +278,8 @@ export interface LiveDevice {
   vendor_id: number;
   product_id: number;
   state: PadState;
+  /** Gyro calibration, for controllers with motion sensors. */
+  gyro_calibration: GyroCalibration | null;
 }
 
 export interface DriverState {
