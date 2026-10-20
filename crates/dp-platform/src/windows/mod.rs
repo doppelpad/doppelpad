@@ -6,6 +6,7 @@ mod bluetooth;
 mod capture;
 mod devnode;
 mod foreground;
+mod gcadapter;
 mod hid;
 mod hidhide;
 mod hidio;
@@ -35,6 +36,7 @@ pub fn platform() -> Platform {
     Platform {
         gamepads: vec![
             Box::new(xinput::XInputBackend::new()),
+            Box::new(gcadapter::GcAdapterBackend::new()),
             Box::new(JoyConCombiner::new(hid::HidBackend::new())),
         ],
         virtual_pads: Box::new(vigem::VigemFactory::new()),
