@@ -1,0 +1,209 @@
+<script lang="ts">
+  import { ChevronDown, Ellipsis, Save, Settings, Lock } from '@lucide/svelte';
+  import { open } from '@tauri-apps/plugin-dialog';
+  import { api, errorText } from '../lib/api';
+  import { t } from '../lib/i18n/index.svelte';
+  import { app } from '../lib/state/app.svelte';
+  import { platform } from '../lib/state/window.svelte';
+  import Menu, { type MenuItem } from './ui/Menu.svelte';
+  import WindowControls from './WindowControls.svelte';
+
+  let { onsettings }: { onsettings: () => void } = $props();
+
+  const configName = $derived(app.profile?.name || '—');
+
+  async function newConfig() {
+    if (!app.gameDir) return;
+    const name = await app.ask(t('header.new_config_name'));
+    if (!name) return;
+    try {
+      const path = await api.configCreate(app.gameDir, name);
+      await app.refreshLibrary();
+      await app.openConfig(path);
+    } catch (e) {
+      app.toast(errorText(e), 'error');
+    }
+  }
+
+  async function importJson() {
+    if (!app.gameDir) {
+      app.toast(t('header.no_selection'), 'error');
+      return;
+    }
+    const source = await open({ title: t('header.import_title'), multiple: false, directory: false });
+    if (typeof source !== 'string') return;
+    try {
+      const r = await api.configImport(app.gameDir, source);
+      await app.refreshLibrary();
+      await app.openConfig(r.path);
+      app.toast(t('notices.imported', { name: app.profile?.name ?? '' }), 'ok');
+      for (const d of r.diagnostics.filter((d) => d.severity !== 'info').slice(0, 3)) app.toast(d.message, 'info');
+    } catch (e) {
+      app.toast(errorText(e), 'error');
+    }
+  }
+
+  async function renameConfig() {
+    if (!app.profile) return;
+    const name = await app.ask(t('header.rename_config'), app.profile.name ?? '');
+    if (name) app.update({ ...app.profile, name });
+  }
+
+  async function duplicate() {
+    if (!app.configPath) return;
+    if (app.dirty && !(await app.save())) return;
+    try {
+      const path = await api.configDuplicate(app.configPath);
+      await app.refreshLibrary();
+      await app.openConfig(path, true);
+    } catch (e) {
+      app.toast(errorText(e), 'error');
+    }
+  }
+
+  async function remove() {
+    if (!app.configPath || !confirm(t('header.delete_confirm', { name: configName }))) return;
+    try {
+      await api.configDelete(app.configPath);
+      app.closeConfig();
+      await app.refreshLibrary();
+      if (app.gameDir) await app.selectGame(app.gameDir);
+    } catch (e) {
+      app.toast(errorText(e), 'error');
+    }
+  }
+
+  function clearMappings() {
+    if (app.profile && confirm(t('header.clear_confirm'))) app.update({ ...app.profile, mappings: [] });
+  }
+
+  const configItems = $derived<MenuItem[]>([
+    ...(app.game?.configs ?? []).map((c) => ({
+      label: c.name + (c.error ? ' ⚠' : ''),
+      checked: c.path === app.configPath,
+      onclick: () => app.openConfig(c.path),
+    })),
+    { separator: true, label: '' },
+    { label: t('header.new_config') + '…', onclick: newConfig, disabled: !app.gameDir },
+    { label: t('header.import'), onclick: importJson, disabled: !app.gameDir },
+  ]);
+
+  const optionItems = $derived<MenuItem[]>([
+    { label: t('header.rename_config') + '…', onclick: renameConfig, disabled: !app.profile || app.readOnly },
+    { label: t('common.duplicate'), onclick: duplicate, disabled: !app.configPath },
+    { label: t('common.reveal'), onclick: () => app.configPath && api.reveal(app.configPath), disabled: !app.configPath },
+    { label: t('header.clear_mappings'), onclick: clearMappings, disabled: !app.profile || app.readOnly },
+    { separator: true, label: '' },
+    { label: t('common.delete'), danger: true, onclick: remove, disabled: !app.configPath },
+  ]);
+</script>
+
+<!-- Doubles as the window's title bar: empty parts drag the window (see main.rs). -->
+<header class="header" class:flush={platform === 'windows'} data-tauri-drag-region="deep">
+  <div class="crumbs">
+    {#if app.game || app.profile}
+      <span class="game">{app.game?.meta.name ?? t('profiles.unsorted')}</span>
+      <span class="sep">›</span>
+      <Menu items={configItems}>
+        {#snippet trigger()}
+          <span class="config">{configName} <ChevronDown size={14} /></span>
+        {/snippet}
+      </Menu>
+      {#if app.readOnly}<span class="badge" title={t('header.read_only')}><Lock size={12} /> {t('header.read_only')}</span>{/if}
+      <button
+        class="icon-btn save"
+        class:dirty={app.dirty}
+        title={t('header.save') + ' (Ctrl+S)'}
+        disabled={!app.dirty || app.readOnly}
+        onclick={() => app.save()}
+      >
+        <Save size={17} />
+      </button>
+      <Menu items={optionItems} title={t('header.options')}>
+        {#snippet trigger()}<span class="icon-btn"><Ellipsis size={17} /></span>{/snippet}
+      </Menu>
+    {:else}
+      <span class="hint">{t('header.no_selection')}</span>
+    {/if}
+  </div>
+  <div class="right">
+    <button class="icon-btn" title={t('header.settings')} onclick={onsettings}><Settings size={17} /></button>
+    <WindowControls />
+  </div>
+</header>
+
+<style>
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px;
+    border-bottom: 1px solid var(--line);
+    min-height: 52px;
+  }
+  /* Windows caption buttons sit flush with the window's right edge. */
+  .header.flush {
+    padding-right: 0;
+  }
+  .right {
+    display: flex;
+    align-items: center;
+    align-self: stretch;
+    gap: 8px;
+  }
+  .crumbs {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+  .game {
+    color: var(--text-dim);
+    font-size: 15px;
+  }
+  .sep {
+    color: var(--text-faint);
+  }
+  .config {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 15px;
+    font-weight: 600;
+    padding: 4px 8px;
+    border-radius: var(--radius-s);
+  }
+  .config:hover {
+    background: var(--bg-2);
+  }
+  .save {
+    position: relative;
+  }
+  .save.dirty::after {
+    content: '';
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+  .save:disabled {
+    opacity: 0.35;
+    cursor: default;
+  }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    color: var(--warning);
+    border: 1px solid rgba(245, 158, 11, 0.4);
+    border-radius: 99px;
+    padding: 2px 8px;
+  }
+  .hint {
+    color: var(--text-dim);
+  }
+</style>

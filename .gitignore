@@ -1,0 +1,18 @@
+# Rust build output
+/target/
+**/*.rs.bk
+
+# GUI frontend
+/gui/node_modules/
+/gui/dist/
+/gui/src-tauri/gen/
+
+# Editor / OS
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store
+
+# Windows installer payload (gui/scripts/fetch-drivers.mjs, gui/scripts/stage-cli.mjs)
+/gui/src-tauri/installer/drivers/
+/gui/src-tauri/installer/bin/

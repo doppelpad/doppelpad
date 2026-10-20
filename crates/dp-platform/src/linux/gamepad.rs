@@ -1,0 +1,626 @@
+//! Physical gamepads through evdev, and hiding them with `EVIOCGRAB`.
+//!
+//! A scanner thread looks for new `/dev/input/event*` nodes every couple of seconds, so
+//! discovery never stalls the engine loop. Each node of a controller gets a reader thread
+//! that keeps the latest state; `poll` only copies it. hid-playstation (DualShock 4 /
+//! DualSense) and hid-nintendo put motion sensors and the touchpad on separate nodes; those
+//! are merged into the controller that shares their parent device.
+//!
+//! Every node also keeps a second `evdev::Device` on a duplicate of the reader's file
+//! descriptor. Grabs and force-feedback effects belong to the open file, so grabbing through
+//! that handle hides the controller from everyone else while our reader keeps receiving
+//! events, and rumble written through it still reaches a grabbed device.
+
+use std::collections::{BTreeMap, HashMap, HashSet};
+use std::io;
+use std::os::fd::{AsFd, AsRawFd};
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
+
+use dp_core::pad::{Motion, PadButton, PadState, Rumble, TouchPoint};
+use evdev::{
+    AbsoluteAxisCode, Device, FFEffect, FFEffectCode, FFEffectData, FFEffectKind, FFReplay,
+    FFTrigger, KeyCode, PropType,
+};
+
+use super::codes::*;
+use super::dev::{abs_axes, event_nodes, is_own, parent_device, set_grab, wait_readable};
+use super::padmap::{
+    AbsRange, MotionMapper, NINTENDO_VID, PadMapper, TouchMapper, family_for, joycon_side,
+};
+use crate::{
+    DeviceHider, DeviceId, DeviceInfo, GamepadBackend, PadFamily, PadSnapshot, PlatformError,
+    Result,
+};
+
+const RESCAN: Duration = Duration::from_secs(2);
+const RETRY_FAILED: Duration = Duration::from_secs(30);
+const READ_TIMEOUT_MS: i32 = 250;
+
+/// The latest state of one controller, written by its node readers.
+#[derive(Copy, Clone, Debug, Default)]
+struct Parts {
+    pad: PadState,
+    motion: Option<Motion>,
+    touch: [Option<TouchPoint>; 2],
+    click: bool,
+}
+
+impl Parts {
+    fn compose(&self) -> PadState {
+        let mut s = self.pad;
+        s.motion = self.motion;
+        s.touch = self.touch;
+        if self.click {
+            s.set(PadButton::Touchpad, true);
+        }
+        s
+    }
+}
+
+enum Mapper {
+    Pad(PadMapper),
+    Motion(MotionMapper),
+    Touch(TouchMapper),
+}
+
+impl Mapper {
+    fn event(&mut self, ty: u16, code: u16, value: i32) {
+        match self {
+            Mapper::Pad(m) => m.event(ty, code, value),
+            Mapper::Motion(m) => m.event(ty, code, value),
+            Mapper::Touch(m) => m.event(ty, code, value),
+        }
+    }
+
+    fn publish(&self, parts: &mut Parts) {
+        match self {
+            Mapper::Pad(m) => parts.pad = m.state(),
+            Mapper::Motion(m) => parts.motion = Some(m.motion()),
+            Mapper::Touch(m) => {
+                parts.touch = m.touch();
+                parts.click = m.click();
+            }
+        }
+    }
+}
+
+/// One open event node of a controller.
+struct Node {
+    path: PathBuf,
+    /// Same open file as the reader's `Device` (see the module docs).
+    control: Device,
+    grabbed: bool,
+    alive: Arc<AtomicBool>,
+    stop: Arc<AtomicBool>,
+}
+
+impl Drop for Node {
+    fn drop(&mut self) {
+        self.stop.store(true, Ordering::Relaxed);
+    }
+}
+
+impl Node {
+    /// Start a reader thread for `dev`, seeded with its current state.
+    fn start(
+        path: PathBuf,
+        dev: Device,
+        mut mapper: Mapper,
+        parts: Arc<Mutex<Parts>>,
+    ) -> io::Result<Node> {
+        let control = Device::from_fd(dev.as_fd().try_clone_to_owned()?)?;
+        for (code, _, value) in abs_axes(&dev) {
+            mapper.event(EV_ABS, code, value);
+        }
+        if let Ok(keys) = dev.get_key_state() {
+            for k in keys.iter() {
+                mapper.event(EV_KEY, k.code(), 1);
+            }
+        }
+        mapper.publish(&mut parts.lock().unwrap());
+
+        let alive = Arc::new(AtomicBool::new(true));
+        let stop = Arc::new(AtomicBool::new(false));
+        let (alive2, stop2) = (alive.clone(), stop.clone());
+        std::thread::Builder::new()
+            .name("dp-evdev-reader".into())
+            .spawn(move || read_loop(dev, mapper, parts, stop2, alive2))?;
+        Ok(Node {
+            path,
+            control,
+            grabbed: false,
+            alive,
+            stop,
+        })
+    }
+
+    fn set_grab(&mut self, grab: bool) -> Result<()> {
+        if self.grabbed == grab || !self.alive.load(Ordering::Relaxed) {
+            return Ok(());
+        }
+        set_grab(self.control.as_raw_fd(), grab).map_err(|source| PlatformError::Os {
+            context: "EVIOCGRAB (another program may hold the device)",
+            source,
+        })?;
+        self.grabbed = grab;
+        Ok(())
+    }
+}
+
+fn read_loop(
+    mut dev: Device,
+    mut mapper: Mapper,
+    parts: Arc<Mutex<Parts>>,
+    stop: Arc<AtomicBool>,
+    alive: Arc<AtomicBool>,
+) {
+    let fd = dev.as_raw_fd();
+    'outer: while !stop.load(Ordering::Relaxed) {
+        match wait_readable(fd, READ_TIMEOUT_MS) {
+            Ok(true) => {}
+            Ok(false) => continue,
+            Err(_) => break,
+        }
+        let events = match dev.fetch_events() {
+            Ok(events) => events,
+            Err(e) if e.kind() == io::ErrorKind::WouldBlock => continue,
+            Err(_) => break, // ENODEV: unplugged
+        };
+        for ev in events {
+            let (ty, code, value) = (ev.event_type().0, ev.code(), ev.value());
+            if ty == EV_SYN && code == SYN_REPORT {
+                let Ok(mut p) = parts.lock() else {
+                    break 'outer;
+                };
+                mapper.publish(&mut p);
+            } else {
+                mapper.event(ty, code, value);
+            }
+        }
+    }
+    alive.store(false, Ordering::Relaxed);
+}
+
+/// One physical controller: its gamepad node plus any motion / touchpad nodes.
+struct Pad {
+    info: Arc<DeviceInfo>,
+    parent: Option<PathBuf>,
+    uniq: Option<String>,
+    parts: Arc<Mutex<Parts>>,
+    /// `nodes[0]` is the gamepad node.
+    nodes: Vec<Node>,
+    rumble: Option<FFEffect>,
+    rumble_playing: bool,
+    last_rumble: Rumble,
+}
+
+impl Pad {
+    fn owns(&self, parent: Option<&Path>, uniq: Option<&str>, vendor: u16, product: u16) -> bool {
+        match (&self.parent, parent) {
+            (Some(a), Some(b)) => a == b,
+            // Without sysfs, fall back to the MAC address hid-playstation puts in `uniq`.
+            _ => {
+                uniq.is_some_and(|u| !u.is_empty())
+                    && self.uniq.as_deref() == uniq
+                    && self.info.vendor_id == vendor
+                    && self.info.product_id == product
+            }
+        }
+    }
+
+    fn set_rumble(&mut self, rumble: Rumble) -> io::Result<()> {
+        let strong = (rumble.low.clamp(0.0, 1.0) * 65535.0) as u16;
+        let weak = (rumble.high.clamp(0.0, 1.0) * 65535.0) as u16;
+        let data = FFEffectData {
+            direction: 0,
+            trigger: FFTrigger::default(),
+            // Length 0 plays until stopped.
+            replay: FFReplay {
+                length: 0,
+                delay: 0,
+            },
+            kind: FFEffectKind::Rumble {
+                strong_magnitude: strong,
+                weak_magnitude: weak,
+            },
+        };
+        let off = strong == 0 && weak == 0;
+        let effect = match &mut self.rumble {
+            Some(e) => {
+                e.update(data)?;
+                e
+            }
+            None if off => return Ok(()),
+            None => self
+                .rumble
+                .insert(self.nodes[0].control.upload_ff_effect(data)?),
+        };
+        if off && self.rumble_playing {
+            effect.stop()?;
+            self.rumble_playing = false;
+        } else if !off && !self.rumble_playing {
+            effect.play(1)?;
+            self.rumble_playing = true;
+        }
+        Ok(())
+    }
+}
+
+#[derive(Default)]
+struct Shared {
+    /// By gamepad node path.
+    pads: BTreeMap<PathBuf, Pad>,
+    /// Gamepad node paths (`instance_paths`) that should be grabbed.
+    hidden: HashSet<String>,
+}
+
+impl Shared {
+    /// Grab or release every node according to `hidden`.
+    fn sync_grabs(&mut self) -> Result<()> {
+        let mut result = Ok(());
+        for (path, pad) in &mut self.pads {
+            let want = self.hidden.contains(path.to_string_lossy().as_ref());
+            for node in &mut pad.nodes {
+                if let Err(e) = node.set_grab(want) {
+                    tracing::warn!(path = %node.path.display(), "{e}");
+                    if result.is_ok() {
+                        result = Err(e);
+                    }
+                }
+            }
+        }
+        for h in &self.hidden {
+            if !self.pads.contains_key(Path::new(h)) {
+                tracing::debug!(path = %h, "not hiding: not a controller node opened by evdev");
+            }
+        }
+        result
+    }
+}
+
+type SharedRef = Arc<Mutex<Shared>>;
+
+pub struct EvdevBackend {
+    shared: SharedRef,
+    stop: Arc<AtomicBool>,
+}
+
+impl EvdevBackend {
+    pub fn new() -> Self {
+        let shared: SharedRef = Arc::default();
+        let stop = Arc::new(AtomicBool::new(false));
+        let mut scanner = Scanner {
+            shared: shared.clone(),
+            ignored: HashMap::new(),
+            failed: HashMap::new(),
+            warned_access: false,
+            warned_switch2: false,
+        };
+        let stop_flag = stop.clone();
+        std::thread::Builder::new()
+            .name("dp-evdev-scan".into())
+            .spawn(move || {
+                while !stop_flag.load(Ordering::Relaxed) {
+                    scanner.scan();
+                    std::thread::sleep(RESCAN);
+                }
+                scanner.shared.lock().unwrap().pads.clear();
+            })
+            .expect("spawn evdev scanner");
+        EvdevBackend { shared, stop }
+    }
+
+    /// The device hider working on this backend's open nodes.
+    pub fn hider(&self) -> GrabHider {
+        GrabHider {
+            shared: self.shared.clone(),
+        }
+    }
+}
+
+impl Drop for EvdevBackend {
+    fn drop(&mut self) {
+        self.stop.store(true, Ordering::Relaxed);
+    }
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+enum Kind {
+    Pad,
+    Motion,
+    Touch,
+    Other,
+}
+
+fn classify(dev: &Device) -> Kind {
+    if is_own(dev) {
+        return Kind::Other;
+    }
+    let has_key = |c| dev.supported_keys().is_some_and(|k| k.contains(KeyCode(c)));
+    let has_abs = |c| {
+        dev.supported_absolute_axes()
+            .is_some_and(|a| a.contains(AbsoluteAxisCode(c)))
+    };
+    if dev.properties().contains(PropType::ACCELEROMETER) && has_abs(ABS_RX) {
+        Kind::Motion
+    } else if has_key(BTN_SOUTH) && has_abs(ABS_X) {
+        Kind::Pad
+    } else if has_abs(ABS_MT_POSITION_X) && has_key(BTN_LEFT) {
+        Kind::Touch // only kept if it belongs to a controller
+    } else {
+        Kind::Other
+    }
+}
+
+struct Scanner {
+    shared: SharedRef,
+    /// Nodes that are not controllers, until they disappear. `true` marks motion / touch
+    /// nodes without a controller yet, which are retried when a new controller shows up.
+    ignored: HashMap<PathBuf, bool>,
+    /// Nodes we could not open, with the time of the failure.
+    failed: HashMap<PathBuf, Instant>,
+    warned_access: bool,
+    warned_switch2: bool,
+}
+
+impl Scanner {
+    fn scan(&mut self) {
+        let present = event_nodes();
+        let now = Instant::now();
+        self.ignored.retain(|p, _| present.contains(p));
+        self.failed
+            .retain(|p, t| present.contains(p) && now - *t < RETRY_FAILED);
+
+        let mut shared = self.shared.lock().unwrap();
+        shared.pads.retain(|_, pad| {
+            let alive = pad.nodes[0].alive.load(Ordering::Relaxed);
+            if !alive {
+                tracing::info!(name = %pad.info.name, "evdev controller disconnected");
+            }
+            alive
+        });
+        for pad in shared.pads.values_mut() {
+            pad.nodes.retain(|n| n.alive.load(Ordering::Relaxed));
+        }
+        let known: HashSet<PathBuf> = shared
+            .pads
+            .values()
+            .flat_map(|p| p.nodes.iter().map(|n| n.path.clone()))
+            .collect();
+        drop(shared);
+
+        let mut pads = Vec::new();
+        let mut extras = Vec::new();
+        for path in present {
+            if known.contains(&path)
+                || self.ignored.contains_key(&path)
+                || self.failed.contains_key(&path)
+            {
+                continue;
+            }
+            let dev = match Device::open(&path) {
+                Ok(dev) => dev,
+                Err(e) => {
+                    if e.kind() == io::ErrorKind::PermissionDenied && !self.warned_access {
+                        tracing::warn!(
+                            "cannot read {}: {e}; controllers need the udev rule from docs/LINUX.md",
+                            path.display()
+                        );
+                        self.warned_access = true;
+                    }
+                    self.failed.insert(path, now);
+                    continue;
+                }
+            };
+            let id = dev.input_id();
+            if id.vendor() == NINTENDO_VID
+                && matches!(id.product(), 0x2066 | 0x2067 | 0x2069 | 0x2073)
+            {
+                // Without a kernel driver these stay silent until their USB vendor interface
+                // is initialised, which the Linux backend does not do yet.
+                if !self.warned_switch2 {
+                    tracing::warn!("Switch 2 controllers are not supported on Linux yet");
+                    self.warned_switch2 = true;
+                }
+                self.ignored.insert(path, false);
+                continue;
+            }
+            match classify(&dev) {
+                Kind::Pad => pads.push((path, dev)),
+                Kind::Motion | Kind::Touch => extras.push((path, dev)),
+                Kind::Other => {
+                    self.ignored.insert(path, false);
+                }
+            }
+        }
+
+        let mut shared = self.shared.lock().unwrap();
+        if !pads.is_empty() {
+            // Motion / touch nodes seen before their controller get another chance.
+            self.ignored.retain(|_, extra| !*extra);
+        }
+        for (path, dev) in pads {
+            match open_pad(&path, dev) {
+                Ok(pad) => {
+                    tracing::info!(name = %pad.info.name, id = %pad.info.id, "evdev controller connected");
+                    shared.pads.insert(path, pad);
+                }
+                Err(e) => {
+                    tracing::debug!(path = %path.display(), "cannot open controller: {e}");
+                    self.failed.insert(path, now);
+                }
+            }
+        }
+        for (path, dev) in extras {
+            let parent = parent_device(&path);
+            let id = dev.input_id();
+            let Some(pad) = shared.pads.values_mut().find(|p| {
+                p.owns(
+                    parent.as_deref(),
+                    dev.unique_name(),
+                    id.vendor(),
+                    id.product(),
+                )
+            }) else {
+                self.ignored.insert(path, true);
+                continue;
+            };
+            if let Err(e) = attach_extra(pad, &path, dev) {
+                tracing::debug!(path = %path.display(), "cannot open controller node: {e}");
+                self.failed.insert(path, now);
+            }
+        }
+        if let Err(e) = shared.sync_grabs() {
+            tracing::debug!("hiding newly found nodes failed: {e}");
+        }
+    }
+}
+
+fn open_pad(path: &Path, dev: Device) -> io::Result<Pad> {
+    let id = dev.input_id();
+    let (vendor, product) = (id.vendor(), id.product());
+    let name = dev.name().unwrap_or("Gamepad").to_owned();
+    let joycon = joycon_side(vendor, product, &name);
+    let family = if joycon.is_some() {
+        PadFamily::JoyCon
+    } else {
+        family_for(vendor, product)
+    };
+    let axes: Vec<(u16, AbsRange)> = abs_axes(&dev).into_iter().map(|(c, r, _)| (c, r)).collect();
+    let info = DeviceInfo {
+        id: DeviceId(format!("evdev:{}", path.display())),
+        name,
+        family,
+        vendor_id: vendor,
+        product_id: product,
+        backend: "evdev".into(),
+        instance_paths: vec![path.display().to_string()],
+        joycon,
+        has_motion: false,
+        has_touchpad: false,
+        has_rumble: dev
+            .supported_ff()
+            .is_some_and(|ff| ff.contains(FFEffectCode::FF_RUMBLE)),
+    };
+    let uniq = dev.unique_name().map(str::to_owned);
+    let parts = Arc::new(Mutex::new(Parts::default()));
+    let mapper = Mapper::Pad(PadMapper::new(family, &axes).joycon(joycon));
+    let node = Node::start(path.to_owned(), dev, mapper, parts.clone())?;
+    Ok(Pad {
+        info: Arc::new(info),
+        parent: parent_device(path),
+        uniq,
+        parts,
+        nodes: vec![node],
+        rumble: None,
+        rumble_playing: false,
+        last_rumble: Rumble::default(),
+    })
+}
+
+fn attach_extra(pad: &mut Pad, path: &Path, dev: Device) -> io::Result<()> {
+    let axes = abs_axes(&dev);
+    let range = |code| {
+        axes.iter()
+            .find(|a| a.0 == code)
+            .map(|a| a.1)
+            .unwrap_or_default()
+    };
+    let mut info = (*pad.info).clone();
+    let mapper = match classify(&dev) {
+        Kind::Motion => {
+            info.has_motion = true;
+            let ranges: Vec<(u16, AbsRange)> = axes.iter().map(|a| (a.0, a.1)).collect();
+            Mapper::Motion(if dev.input_id().vendor() == NINTENDO_VID {
+                MotionMapper::nintendo(&ranges)
+            } else {
+                MotionMapper::new(&ranges)
+            })
+        }
+        _ => {
+            info.has_touchpad = true;
+            Mapper::Touch(TouchMapper::new(
+                range(ABS_MT_POSITION_X),
+                range(ABS_MT_POSITION_Y),
+            ))
+        }
+    };
+    let node = Node::start(path.to_owned(), dev, mapper, pad.parts.clone())?;
+    tracing::debug!(path = %path.display(), name = %info.name, "merged controller node");
+    pad.nodes.push(node);
+    pad.info = Arc::new(info);
+    Ok(())
+}
+
+impl GamepadBackend for EvdevBackend {
+    fn name(&self) -> &'static str {
+        "evdev"
+    }
+
+    fn poll(&mut self, out: &mut Vec<PadSnapshot>) {
+        let shared = self.shared.lock().unwrap();
+        for pad in shared.pads.values() {
+            let state = pad.parts.lock().unwrap().compose();
+            out.push(PadSnapshot {
+                info: pad.info.clone(),
+                state,
+            });
+        }
+    }
+
+    fn set_rumble(&mut self, id: &DeviceId, rumble: Rumble) {
+        let mut shared = self.shared.lock().unwrap();
+        let Some(pad) = shared.pads.values_mut().find(|p| &p.info.id == id) else {
+            return;
+        };
+        if !pad.info.has_rumble || pad.last_rumble == rumble {
+            return;
+        }
+        pad.last_rumble = rumble;
+        if let Err(e) = pad.set_rumble(rumble) {
+            tracing::debug!(device = %id, "rumble failed: {e}");
+        }
+    }
+}
+
+/// Hides controllers by grabbing their nodes (`instance_paths` = gamepad node path); motion
+/// and touchpad nodes of the same controller are grabbed with it.
+pub struct GrabHider {
+    shared: SharedRef,
+}
+
+impl DeviceHider for GrabHider {
+    fn available(&self) -> Result<()> {
+        Ok(())
+    }
+
+    fn hide(&mut self, instance_paths: &[String]) -> Result<()> {
+        let mut shared = self.shared.lock().unwrap();
+        shared.hidden = instance_paths.iter().cloned().collect();
+        let result = shared.sync_grabs();
+        if result.is_ok() && !instance_paths.is_empty() {
+            tracing::info!(devices = ?instance_paths, "devices hidden via EVIOCGRAB");
+        }
+        result
+    }
+
+    fn restore(&mut self) -> Result<()> {
+        let mut shared = self.shared.lock().unwrap();
+        if shared.hidden.is_empty() {
+            return Ok(());
+        }
+        shared.hidden.clear();
+        shared.sync_grabs()
+    }
+}
+
+impl Drop for GrabHider {
+    fn drop(&mut self) {
+        if let Err(e) = self.restore() {
+            tracing::warn!("could not release grabbed controllers: {e}");
+        }
+    }
+}

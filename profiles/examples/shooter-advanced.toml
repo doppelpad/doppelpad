@@ -1,0 +1,111 @@
+# Advanced features in one place: combos, long press, double tap, a shift layer,
+# turbo, macros and gyro aiming. Meant as a reference — adapt it to your game.
+
+name = "Shooter (advanced example)"
+processes = ["MyShooter.exe"]   # applied automatically by `doppelpad daemon` when this game has focus
+
+[output]
+virtual_pad = "xbox360"
+hide_physical = true            # hide the real pad so the game only sees the virtual one
+
+[timing]
+long_press_ms = 350
+
+[sticks.left]
+deadzone = 0.08
+anti_deadzone = 0.15
+
+[sticks.right]
+deadzone = 0.06
+curve = [[0.3, 0.15], [0.7, 0.55]]   # softer aim near the centre
+
+[triggers.right]
+press_threshold = 0.1
+
+# --- Combos ------------------------------------------------------------------
+# LB + RB together: melee (B). Pressed alone, LB and RB still work normally.
+[[mappings]]
+trigger = ["LB", "RB"]
+actions = [{ pad = "B" }]
+
+# --- Press patterns ----------------------------------------------------------
+# Y: tap = switch weapon (Y), hold = open the weapon wheel (DpadUp).
+[[mappings]]
+trigger = "Y"
+actions = [{ pad = "Y" }]
+
+[[mappings]]
+trigger = "Y"
+activator = "long"
+actions = [{ pad = "DpadUp" }]
+
+# X: double tap = quick heal (DpadDown).
+[[mappings]]
+trigger = "X"
+actions = [{ pad = "X" }]
+
+[[mappings]]
+trigger = "X"
+activator = "double"
+actions = [{ pad = "DpadDown" }]
+
+# --- Turbo -------------------------------------------------------------------
+# Paddle (Elite / DualSense Edge): rapid-fire the right trigger.
+[[mappings]]
+trigger = "PaddleLR"
+mode = "turbo"
+turbo_ms = 80
+actions = [{ trigger = "right" }]
+
+# --- Macro -------------------------------------------------------------------
+# Long-press Start: emote sequence (d-pad left, wait, A).
+[[mappings]]
+trigger = "Start"
+actions = [{ pad = "Start" }]
+
+[[mappings]]
+trigger = "Start"
+activator = "long"
+mode = "once"
+actions = [
+    { pad = "DpadLeft", action = "tap" },
+    { pause = 250 },
+    { pad = "A", action = "tap" },
+]
+
+# --- Shift layer -------------------------------------------------------------
+# Hold Back: layer 1, where the face buttons send keyboard shortcuts
+# (e.g. for a voice-chat app). Everything else is inherited from the base layer.
+[[layers]]
+id = 1
+name = "Back held"
+not_inherited = ["DpadUp"]      # DpadUp does nothing while Back is held
+
+[[mappings]]
+trigger = "Back"
+jump = { layer = 1, mode = "hold" }
+
+[[mappings]]
+layer = 1
+trigger = "A"
+actions = [{ key = "F13" }]     # push-to-talk
+
+[[mappings]]
+layer = 1
+trigger = "B"
+actions = [{ key = "LeftCtrl" }, { key = "LeftShift" }, { key = "M" }]   # mute
+
+[[mappings]]
+layer = 1
+trigger = "Y"
+mode = "once"
+actions = [{ key = "PrintScreen", action = "tap" }]
+
+# --- Gyro aiming -------------------------------------------------------------
+# DualShock 4 / DualSense: gyro moves the right stick while aiming (LT held).
+[[analog]]
+source = "gyro"
+target = "right_stick"
+sensitivity = 2.5
+while_held = ["LT"]
+consume = false

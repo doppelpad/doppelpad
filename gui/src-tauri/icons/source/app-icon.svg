@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- Doppelpad app icon, used from 48 px up: a controller (teal) and its virtual twin (violet). -->
+  <defs>
+    <!-- One controller, centred on its own origin. -->
+    <path id="pad" d="M-180,-150 C-80,-162 80,-162 180,-150 C260,-145 305,-110 322,-40 C340,30 360,120 362,170 C365,235 320,268 272,262 C235,257 215,232 198,200 L172,152 C160,130 142,120 118,120 H-118 C-142,120 -160,130 -172,152 L-198,200 C-215,232 -235,257 -272,262 C-320,268 -365,235 -362,170 C-360,120 -340,30 -322,-40 C-305,-110 -260,-145 -180,-150 Z"/>
+    <g id="front-controls">
+      <rect x="-270" y="-20" width="170" height="60" rx="16"/>
+      <rect x="-215" y="-75" width="60" height="170" rx="16"/>
+      <circle cx="185" cy="-48" r="31"/>
+      <circle cx="185" cy="68" r="31"/>
+      <circle cx="127" cy="10" r="31"/>
+      <circle cx="243" cy="10" r="31"/>
+    </g>
+    <g id="back-controls">
+      <circle cx="185" cy="-48" r="31"/>
+      <circle cx="185" cy="68" r="31"/>
+      <circle cx="127" cy="10" r="31"/>
+      <circle cx="243" cy="10" r="31"/>
+    </g>
+    <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#232a35"/>
+      <stop offset="1" stop-color="#0f1115"/>
+    </linearGradient>
+    <linearGradient id="front" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3ee6cf"/>
+      <stop offset="1" stop-color="#0fa596"/>
+    </linearGradient>
+    <linearGradient id="back" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#a78bfa"/>
+      <stop offset="1" stop-color="#6d43e0"/>
+    </linearGradient>
+    <!-- The twin loses a band around the front pad, so the two never touch. -->
+    <mask id="back-mask" maskUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024">
+      <rect width="1024" height="1024" fill="#fff"/>
+      <use href="#pad" transform="translate(430 555) scale(0.72)" fill="#000" stroke="#000" stroke-width="60" stroke-linejoin="round"/>
+      <use href="#back-controls" transform="translate(594 415) scale(0.72)" fill="#000"/>
+    </mask>
+    <mask id="front-mask" maskUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024">
+      <rect width="1024" height="1024" fill="#fff"/>
+      <use href="#front-controls" transform="translate(430 555) scale(0.72)" fill="#000"/>
+    </mask>
+  </defs>
+  <rect x="64" y="64" width="896" height="896" rx="200" fill="url(#tile)"/>
+  <rect x="68" y="68" width="888" height="888" rx="196" fill="none" stroke="#2dd4bf" stroke-opacity="0.22" stroke-width="8"/>
+  <g mask="url(#back-mask)"><use href="#pad" transform="translate(594 415) scale(0.72)" fill="url(#back)"/></g>
+  <g mask="url(#front-mask)"><use href="#pad" transform="translate(430 555) scale(0.72)" fill="url(#front)"/></g>
+</svg>

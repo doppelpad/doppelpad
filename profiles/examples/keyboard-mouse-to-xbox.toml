@@ -1,0 +1,116 @@
+# Play controller-only games with keyboard and mouse.
+#
+# WASD drives the left stick, the mouse drives the right stick, and the usual
+# keys/buttons map to the controller. A virtual Xbox 360 pad is created; the
+# mapped keys and the mouse cursor are swallowed while the profile is active.
+#
+#   doppelpad run profiles/examples/keyboard-mouse-to-xbox.toml
+#
+# Emergency stop: Ctrl+C in the terminal.
+
+name = "Keyboard & mouse → Xbox controller"
+
+[output]
+virtual_pad = "xbox360"
+hide_physical = false     # there is no physical controller to hide
+
+# Left stick from WASD (diagonals add up).
+[[mappings]]
+trigger = "Key:W"
+actions = [{ stick = "left", x = 0.0, y = 1.0 }]
+
+[[mappings]]
+trigger = "Key:S"
+actions = [{ stick = "left", x = 0.0, y = -1.0 }]
+
+[[mappings]]
+trigger = "Key:A"
+actions = [{ stick = "left", x = -1.0, y = 0.0 }]
+
+[[mappings]]
+trigger = "Key:D"
+actions = [{ stick = "left", x = 1.0, y = 0.0 }]
+
+# Walk slowly while Left Alt is held: a half-deflected stick.
+[[mappings]]
+trigger = ["Key:LeftAlt", "Key:W"]
+actions = [{ stick = "left", x = 0.0, y = 0.5 }]
+
+# Buttons.
+[[mappings]]
+trigger = "Key:Space"
+actions = [{ pad = "A" }]
+
+[[mappings]]
+trigger = "Key:LeftCtrl"
+actions = [{ pad = "B" }]
+
+[[mappings]]
+trigger = "Key:R"
+actions = [{ pad = "X" }]
+
+[[mappings]]
+trigger = "Key:F"
+actions = [{ pad = "Y" }]
+
+[[mappings]]
+trigger = "Key:Q"
+actions = [{ pad = "LB" }]
+
+[[mappings]]
+trigger = "Key:E"
+actions = [{ pad = "RB" }]
+
+[[mappings]]
+trigger = "Key:LeftShift"
+actions = [{ pad = "LS" }]
+
+[[mappings]]
+trigger = "Key:V"
+actions = [{ pad = "RS" }]
+
+[[mappings]]
+trigger = "Key:Tab"
+actions = [{ pad = "Back" }]
+
+[[mappings]]
+trigger = "Key:Escape"
+actions = [{ pad = "Start" }]
+
+[[mappings]]
+trigger = "Key:Up"
+actions = [{ pad = "DpadUp" }]
+
+[[mappings]]
+trigger = "Key:Down"
+actions = [{ pad = "DpadDown" }]
+
+[[mappings]]
+trigger = "Key:Left"
+actions = [{ pad = "DpadLeft" }]
+
+[[mappings]]
+trigger = "Key:Right"
+actions = [{ pad = "DpadRight" }]
+
+# Mouse buttons → triggers, wheel → weapon switch.
+[[mappings]]
+trigger = "Mouse:Left"
+actions = [{ trigger = "right" }]
+
+[[mappings]]
+trigger = "Mouse:Right"
+actions = [{ trigger = "left" }]
+
+[[mappings]]
+trigger = "Wheel:Up"
+actions = [{ pad = "Y", action = "tap" }]
+
+# Mouse → right stick for camera control.
+[[analog]]
+source = "mouse"
+target = "right_stick"
+sensitivity = 1.5
+anti_deadzone = 0.2       # skip the game's own stick deadzone
+smoothing_ms = 8
+decay_ms = 40

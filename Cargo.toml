@@ -1,0 +1,37 @@
+[workspace]
+resolver = "3"
+members = ["crates/dp-core", "crates/dp-config", "crates/dp-platform", "crates/dp-ipc", "crates/dp-service", "crates/doppelpad", "gui/src-tauri"]
+# The GUI crate joins `members` but stays out of `default-members`, so a plain
+# `cargo build`/`cargo test` does not need the web frontend.
+default-members = ["crates/dp-core", "crates/dp-config", "crates/dp-platform", "crates/dp-ipc", "crates/dp-service", "crates/doppelpad"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/doppelpad/doppelpad"
+rust-version = "1.85"
+
+[workspace.dependencies]
+dp-core = { path = "crates/dp-core" }
+dp-config = { path = "crates/dp-config" }
+dp-platform = { path = "crates/dp-platform" }
+dp-ipc = { path = "crates/dp-ipc" }
+dp-service = { path = "crates/dp-service" }
+anyhow = "1"
+thiserror = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.9"
+clap = { version = "4", features = ["derive", "env"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+crossbeam-channel = "0.5"
+interprocess = "2"
+vigem-client = { version = "0.1.4", features = ["unstable_ds4", "unstable_xtarget_notification"] }
+windows-sys = "0.61"
+nusb = "0.2"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1

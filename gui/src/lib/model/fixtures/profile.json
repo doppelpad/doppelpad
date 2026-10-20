@@ -1,0 +1,42 @@
+{
+  "name": "Round trip",
+  "description": "Every shape the editor writes",
+  "processes": ["game.exe"],
+  "output": { "virtual_pad": "none", "hide_physical": true, "passthrough": false, "mute_mapped_inputs": true },
+  "timing": { "long_press_ms": 400, "double_tap_ms": 250, "triple_tap_ms": 250, "key_delay_ms": 20, "turbo_ms": 80, "combo_window_ms": 60 },
+  "layers": [
+    { "id": 1, "name": "Aim", "inherit": true },
+    { "id": 2, "inherit": false, "not_inherited": ["B", ["LB", "RB"]] }
+  ],
+  "mappings": [
+    { "trigger": "A", "actions": [{ "key": "Space" }] },
+    { "trigger": "B", "activator": "long", "actions": [{ "key": "LeftCtrl" }, { "key": "C" }], "long_press_ms": 600 },
+    { "trigger": "X", "mode": "turbo", "turbo_ms": 50, "actions": [{ "mouse": "left" }] },
+    { "trigger": "Y", "mode": "toggle", "actions": [{ "pad": "A" }] },
+    { "trigger": "LB", "jump": { "layer": 1, "mode": "hold" } },
+    { "trigger": "RB", "jump": { "layer": 2, "mode": "switch", "delay_ms": 200 }, "description": "Swap weapons" },
+    { "trigger": ["LB", "RB"], "actions": [{ "key": "Tab" }] },
+    { "trigger": "Back", "activator": "double", "actions": [{ "command": "remap_off" }] },
+    { "trigger": "Start", "activator": "release", "actions": [{ "command": { "launch": { "path": "C:\\Tools\\app.exe", "args": "" } } }] },
+    { "trigger": "Guide", "activator": "triple", "actions": [{ "command": "toggle_gyro" }] },
+    {
+      "trigger": "DpadUp",
+      "mode": "repeat",
+      "repeat": 3,
+      "repeat_pause_ms": 100,
+      "key_delay_ms": 30,
+      "actions": [
+        { "key": "E", "action": "down" },
+        { "pause": 50 },
+        { "key": "E", "action": "up" },
+        { "rumble": 120, "low": 0.5, "high": 0.25 }
+      ]
+    },
+    { "trigger": "DpadDown", "actions": [{ "wheel": "down" }, { "mouse_move": "left", "speed": 800 }] },
+    { "trigger": "LeftStickUp", "actions": [{ "stick": "right", "x": 0, "y": 1 }] },
+    { "trigger": "LT", "activator": "start", "actions": [{ "trigger": "right" }] },
+    { "layer": 1, "trigger": "A", "mode": "once", "actions": [{ "key": "F" }] },
+    { "layer": 1, "trigger": "PaddleUL" },
+    { "layer": 2, "trigger": "Key:Q", "mode": "while_held", "actions": [{ "mouse": "x1" }] }
+  ]
+}

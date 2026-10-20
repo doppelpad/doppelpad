@@ -1,0 +1,429 @@
+<!doctype html>
+<!-- Template for preview.html: generate.mjs fills in the device data. Edit this file, not preview.html. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Device drawings</title>
+<style>
+  :root {
+    --bg-0: #0f1115;
+    --bg-1: #161a21;
+    --bg-2: #1e232c;
+    --line: #2a313c;
+    --line-strong: #3a4250;
+    --text: #e6e9ef;
+    --text-dim: #9aa3b2;
+    --text-faint: #6b7483;
+    --accent: #14b8a6;
+    --accent-hover: #2dd4bf;
+    --accent-soft: rgba(20, 184, 166, 0.14);
+    --danger: #f43f5e;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body {
+    margin: 0;
+    background: var(--bg-0);
+    color: var(--text);
+    font: 13px/1.4 Inter, system-ui, 'Segoe UI', sans-serif;
+  }
+  header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+    padding: 12px 16px;
+    background: var(--bg-1);
+    border-bottom: 1px solid var(--line);
+  }
+  h1 { font-size: 14px; font-weight: 600; margin: 0 8px 0 0; }
+  .tabs { display: flex; flex-wrap: wrap; gap: 4px; }
+  .tab {
+    font: inherit;
+    color: var(--text-dim);
+    background: transparent;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 4px 12px;
+    cursor: pointer;
+  }
+  .tab:hover { color: var(--text); border-color: var(--line-strong); }
+  .tab[aria-selected='true'] { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+  .opts { margin-left: auto; display: flex; gap: 14px; color: var(--text-dim); }
+  .opts label { display: flex; align-items: center; gap: 5px; cursor: pointer; }
+  .opts input { accent-color: var(--accent); margin: 0; }
+  main {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 300px;
+    gap: 16px;
+    padding: 16px;
+  }
+  @media (max-width: 960px) { main { grid-template-columns: minmax(0, 1fr); } }
+  .panel { background: var(--bg-1); border: 1px solid var(--line); border-radius: 16px; }
+  #stage svg.stage-svg { display: block; width: 100%; height: auto; }
+  #status { padding: 8px 14px 12px; color: var(--text-dim); min-height: 2.6em; }
+  #status b { color: var(--accent); font-weight: 600; }
+  #overview { display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 12px; padding: 12px; }
+  #overview figure { margin: 0; }
+  #overview figcaption { color: var(--text-dim); padding: 0 6px 4px; }
+  aside { padding: 12px 14px; align-self: start; }
+  aside h2 { font-size: 13px; font-weight: 600; margin: 0 0 8px; }
+  aside section { margin-bottom: 10px; }
+  aside h3 { font-size: 12px; font-weight: 600; margin: 0 0 4px; display: flex; gap: 6px; }
+  aside ul { margin: 0; padding: 0 0 0 16px; color: var(--text-dim); font: 11.5px/1.45 ui-monospace, 'Cascadia Code', Consolas, monospace; }
+  aside li { cursor: pointer; }
+  aside li:hover { color: var(--text); }
+  .ok { color: var(--accent); }
+  .bad { color: var(--danger); }
+  aside p { color: var(--text-faint); margin: 10px 0 0; font-size: 12px; }
+
+  .device { color: var(--text-dim); }
+  .device [data-control] { cursor: pointer; transition: color 0.12s; }
+  .device [data-control]:hover,
+  .device [data-control].hover { color: var(--accent-hover); }
+  .device [data-control].selected { color: var(--accent); }
+  .device .hit { transition: fill-opacity 0.12s; }
+  .device [data-control]:hover > .hit,
+  .device .hover > .hit,
+  .device .selected > .hit { fill-opacity: 0.13; }
+  .show-hits .device .hit { fill-opacity: 0.16; stroke: var(--danger); stroke-width: 1; stroke-dasharray: 3 3; }
+  .leader { fill: none; stroke: var(--line-strong); stroke-width: 1.5; stroke-linejoin: round; transition: stroke 0.12s; }
+  .leader-dot { fill: var(--bg-1); stroke: var(--text-faint); stroke-width: 1.5; transition: stroke 0.12s; }
+  .leader.hover, .leader.selected, .leader-dot.hover, .leader-dot.selected { stroke: var(--accent); }
+  .chip { cursor: pointer; }
+  .chip rect { fill: var(--bg-2); stroke: var(--line); stroke-width: 1; transition: stroke 0.12s; }
+  .chip .name { fill: var(--text-faint); font-size: 10.5px; font-weight: 600; }
+  .chip .action { fill: var(--text); font-size: 12px; font-weight: 500; }
+  .chip.hover rect { stroke: var(--accent-hover); }
+  .chip.selected rect { stroke: var(--accent); fill: #133230; }
+  .marks circle { fill: none; stroke: var(--danger); stroke-width: 2; }
+  .hide-marks .marks { display: none; }
+  #scratch { position: absolute; left: -20000px; top: 0; width: 1000px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Device drawings</h1>
+  <nav class="tabs" role="tablist" id="tabs"></nav>
+  <div class="opts">
+    <label><input type="checkbox" id="opt-hits"> Hit areas</label>
+    <label><input type="checkbox" id="opt-marks" checked> Issue marks</label>
+  </div>
+</header>
+<main>
+  <div class="panel">
+    <div id="stage"></div>
+    <div id="overview" hidden></div>
+    <div id="status"></div>
+  </div>
+  <aside class="panel">
+    <h2>Checks</h2>
+    <div id="report"></div>
+    <p>Chips are drawn at the largest size the layouts allow (<span id="chip-size"></span> viewBox units).</p>
+  </aside>
+</main>
+<div id="scratch"></div>
+<script>
+  const DEVICES = /*DEVICES*/[];
+  const CHIP = /*CHIP*/{};
+  const NS = 'http://www.w3.org/2000/svg';
+  const ACTIONS = ['Space', 'Left click', 'Shift', 'E', 'Ctrl + Z', 'Macro', 'Wheel up', 'Esc', 'Tab', 'Q',
+    'F', 'R', 'Right click', '1', '2', 'Alt', 'Enter', 'M', 'G'];
+
+  const el = (tag, attrs, parent) => {
+    const e = document.createElementNS(NS, tag);
+    for (const [k, v] of Object.entries(attrs || {})) e.setAttribute(k, v);
+    if (parent) parent.appendChild(e);
+    return e;
+  };
+  const leaderPoints = (c) => [c.anchor, ...(c.via || []), c.labelAt];
+
+  function chipRect([x, y], side) {
+    const { w, h } = CHIP;
+    return { left: { x: x - w, y: y - h / 2 }, right: { x, y: y - h / 2 }, top: { x: x - w / 2, y: y - h }, bottom: { x: x - w / 2, y } }[side];
+  }
+
+  /** Draws a device with its leaders and chips into host. */
+  function render(dev, host) {
+    host.textContent = '';
+    const stage = el('svg', { viewBox: '0 0 1000 700', class: 'stage-svg' }, host);
+    const doc = new DOMParser().parseFromString(dev.svg, 'image/svg+xml');
+    const parseError = doc.querySelector('parsererror');
+    const art = document.importNode(doc.documentElement, true);
+    art.setAttribute('width', '1000');
+    art.setAttribute('height', '700');
+    art.classList.add('device');
+    stage.appendChild(art);
+    const leaders = el('g', { class: 'leaders' }, stage);
+    const chips = el('g', { class: 'chips' }, stage);
+    const marks = el('g', { class: 'marks' }, stage);
+    const parts = new Map();
+    dev.controls.forEach((c, i) => {
+      const line = el('polyline', { class: 'leader', points: leaderPoints(c).map((p) => p.join(',')).join(' ') }, leaders);
+      const dot = el('circle', { class: 'leader-dot', cx: c.anchor[0], cy: c.anchor[1], r: 3.5 }, leaders);
+      const r = chipRect(c.labelAt, c.side);
+      const chip = el('g', { class: 'chip', transform: `translate(${r.x} ${r.y})` }, chips);
+      el('rect', { width: CHIP.w, height: CHIP.h, rx: 7 }, chip);
+      el('text', { class: 'name', x: 10, y: 18 }, chip).textContent = c.control;
+      el('text', { class: 'action', x: CHIP.w - 10, y: 18.5, 'text-anchor': 'end' }, chip).textContent = ACTIONS[i % ACTIONS.length];
+      const group = art.querySelector(`[data-control="${CSS.escape(c.control)}"]`);
+      parts.set(c.control, { line, dot, chip, group });
+    });
+    return { stage, art, marks, parts, parseError: parseError ? parseError.textContent : null };
+  }
+
+  /** Geometry checks that need the rendered SVG (isPointInFill / isPointInStroke). */
+  function check(dev, view) {
+    const issues = [];
+    const add = (msg, at) => issues.push({ msg, at });
+    if (view.parseError) add(`SVG does not parse: ${view.parseError}`);
+    const P = (x, y) => new DOMPoint(x, y);
+    const groups = [...view.art.querySelectorAll('[data-control]')];
+    const names = groups.map((g) => g.dataset.control);
+    for (const c of dev.controls) if (!names.includes(c.control)) add(`${c.control}: in the layout but not in the SVG`);
+    for (const n of names) if (!dev.controls.some((c) => c.control === n)) add(`${n}: in the SVG but without a label`);
+    const hit = new Map(groups.map((g) => [g.dataset.control, g.querySelector(':scope > .hit')]));
+    const shapes = new Map(groups.map((g) => [g.dataset.control,
+      [...g.querySelectorAll('path, circle, rect, ellipse, line, polyline, polygon')].filter((s) => !s.classList.contains('hit'))]));
+    for (const [n, h] of hit) if (!h) add(`${n}: no hit area`);
+    for (const g of groups) {
+      if ((g.dataset.control === 'LS' || g.dataset.control === 'RS') && !g.dataset.stick) add(`${g.dataset.control}: no data-stick`);
+    }
+    const outline = view.art.querySelector('.outline');
+
+    for (const c of dev.controls) {
+      const h = hit.get(c.control);
+      if (h && !h.isPointInFill(P(...c.anchor))) add(`${c.control}: anchor lies outside its hit area`, c.anchor);
+    }
+
+    // Leaders keep clear of other controls: test the line and points 2.5 units to either side.
+    const rects = dev.controls.map((c) => chipRect(c.labelAt, c.side));
+    const inRect = (r, x, y, m) => x > r.x - m && x < r.x + CHIP.w + m && y > r.y - m && y < r.y + CHIP.h + m;
+    dev.controls.forEach((c, ci) => {
+      const pts = leaderPoints(c);
+      const found = new Set();
+      for (let i = 0; i < pts.length - 1; i++) {
+        const [a, b] = [pts[i], pts[i + 1]];
+        const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+        const [nx, ny] = [-(b[1] - a[1]) / len, (b[0] - a[0]) / len];
+        const steps = Math.max(1, Math.ceil(len / 1.5));
+        for (let k = 0; k <= steps; k++) {
+          const x = a[0] + ((b[0] - a[0]) * k) / steps;
+          const y = a[1] + ((b[1] - a[1]) * k) / steps;
+          for (const n of names) {
+            if (n === c.control || found.has(n) || (c.allow || []).includes(n)) continue;
+            const near = [0, 2.5, -2.5].some((o) => {
+              const pt = P(x + nx * o, y + ny * o);
+              return shapes.get(n).some((s) => s.isPointInFill(pt) || s.isPointInStroke(pt));
+            });
+            if (near) {
+              found.add(n);
+              add(`leader ${c.control} touches ${n}`, [x, y]);
+            }
+          }
+          rects.forEach((r, j) => {
+            const key = `chip:${j}`;
+            if (found.has(key)) return;
+            const own = j === ci;
+            if (inRect(r, x, y, own ? -1.5 : 2)) {
+              found.add(key);
+              add(`leader ${c.control} runs through chip ${dev.controls[j].control}`, [x, y]);
+            }
+          });
+        }
+      }
+    });
+
+    // Leaders neither cross nor crowd each other.
+    const segs = dev.controls.map((c) => {
+      const pts = leaderPoints(c);
+      return pts.slice(1).map((b, i) => [pts[i], b]);
+    });
+    const cross = (a, b, c, d) => {
+      const o = (p, q, r) => (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]);
+      return o(a, b, c) * o(a, b, d) < 0 && o(c, d, a) * o(c, d, b) < 0;
+    };
+    const distToSeg = ([px, py], [a, b]) => {
+      const [dx, dy] = [b[0] - a[0], b[1] - a[1]];
+      const t = Math.max(0, Math.min(1, ((px - a[0]) * dx + (py - a[1]) * dy) / (dx * dx + dy * dy)));
+      return Math.hypot(px - a[0] - t * dx, py - a[1] - t * dy);
+    };
+    for (let i = 0; i < segs.length; i++) {
+      for (let j = i + 1; j < segs.length; j++) {
+        const pair = `${dev.controls[i].control} and ${dev.controls[j].control}`;
+        if (segs[i].some((s) => segs[j].some((t) => cross(s[0], s[1], t[0], t[1])))) add(`leaders ${pair} cross`);
+        let close = null;
+        for (const [a, b] of segs[i]) {
+          const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+          for (let k = 0; k <= len && !close; k += 2) {
+            const p = [a[0] + ((b[0] - a[0]) * k) / len, a[1] + ((b[1] - a[1]) * k) / len];
+            if (segs[j].some((t) => distToSeg(p, t) < 4)) close = p;
+          }
+        }
+        if (close) add(`leaders ${pair} run closer than 4 units`, close);
+      }
+    }
+
+    // Chips stay inside the view, apart from each other and off the drawing.
+    rects.forEach((r, i) => {
+      const name = dev.controls[i].control;
+      if (r.x < 0 || r.y < 0 || r.x + CHIP.w > 1000 || r.y + CHIP.h > 700) add(`chip ${name} leaves the view`, [r.x, r.y]);
+      for (let j = i + 1; j < rects.length; j++) {
+        const q = rects[j];
+        if (r.x < q.x + CHIP.w + 2 && q.x < r.x + CHIP.w + 2 && r.y < q.y + CHIP.h + 2 && q.y < r.y + CHIP.h + 2) add(`chips ${name} and ${dev.controls[j].control} overlap`, [r.x, r.y]);
+      }
+      let hitFound = false;
+      for (let x = r.x - 3; x <= r.x + CHIP.w + 3 && !hitFound; x += 3) {
+        for (let y = r.y - 3; y <= r.y + CHIP.h + 3 && !hitFound; y += 3) {
+          const pt = P(x, y);
+          if (outline && (outline.isPointInFill(pt) || outline.isPointInStroke(pt))) {
+            add(`chip ${name} touches the outline`, [x, y]);
+            hitFound = true;
+            continue;
+          }
+          for (const [n, h] of hit) {
+            if (h && h.isPointInFill(pt)) {
+              add(`chip ${name} covers ${n}`, [x, y]);
+              hitFound = true;
+              break;
+            }
+          }
+        }
+      }
+    });
+
+    // Hit areas do not overlap (sharing an edge is fine).
+    const hits = [...hit].filter(([, h]) => h);
+    for (let i = 0; i < hits.length; i++) {
+      for (let j = i + 1; j < hits.length; j++) {
+        const [A, B] = [hits[i][1].getBBox(), hits[j][1].getBBox()];
+        const x0 = Math.max(A.x, B.x), x1 = Math.min(A.x + A.width, B.x + B.width);
+        const y0 = Math.max(A.y, B.y), y1 = Math.min(A.y + A.height, B.y + B.height);
+        const inBoth = (x, y) => [[0, 0], [0.8, 0], [-0.8, 0], [0, 0.8], [0, -0.8]].every(([dx, dy]) => {
+          const pt = P(x + dx, y + dy);
+          return hits[i][1].isPointInFill(pt) && hits[j][1].isPointInFill(pt);
+        });
+        search: for (let x = x0; x <= x1; x += 1) {
+          for (let y = y0; y <= y1; y += 1) {
+            if (inBoth(x, y)) {
+              add(`hit areas ${hits[i][0]} and ${hits[j][0]} overlap`, [x, y]);
+              break search;
+            }
+          }
+        }
+      }
+    }
+    return issues;
+  }
+
+  // ---- page
+
+  const report = {};
+  const scratch = document.getElementById('scratch');
+  for (const dev of DEVICES) report[dev.id] = check(dev, render(dev, scratch));
+  scratch.textContent = '';
+  window.__report = report;
+
+  const stageHost = document.getElementById('stage');
+  const overview = document.getElementById('overview');
+  const status = document.getElementById('status');
+  let current = null;
+
+  function describe(dev, name) {
+    const c = dev.controls.find((x) => x.control === name);
+    const group = current.view.parts.get(name)?.group;
+    const stick = group?.dataset.stick;
+    if (stick) return `<b>${name}</b> · stick ${stick}: ${['Up', 'Down', 'Left', 'Right'].map((d) => `${stick}Stick${d}`).join(' · ')} · ${name} (click)`;
+    return `<b>${name}</b> · anchor ${c.anchor.join(', ')} → label ${c.labelAt.join(', ')} (${c.side})`;
+  }
+
+  /** Shows one device (or 'all'); `box` = "x,y,w,h" zooms the stage to that part of the viewBox. */
+  function show(id, box) {
+    for (const t of document.querySelectorAll('.tab')) t.setAttribute('aria-selected', String(t.dataset.id === id));
+    const all = id === 'all';
+    stageHost.hidden = all;
+    overview.hidden = !all;
+    if (all) {
+      overview.textContent = '';
+      for (const dev of DEVICES) {
+        const fig = document.createElement('figure');
+        fig.innerHTML = `<figcaption>${dev.file}</figcaption>`;
+        const box = document.createElement('div');
+        fig.appendChild(box);
+        overview.appendChild(fig);
+        render(dev, box);
+      }
+      status.textContent = 'All drawings.';
+      current = null;
+      return;
+    }
+    const dev = DEVICES.find((d) => d.id === id);
+    const view = render(dev, stageHost);
+    if (box) view.stage.setAttribute('viewBox', box.split(',').join(' '));
+    current = { dev, view };
+    for (const issue of report[id]) if (issue.at) el('circle', { cx: issue.at[0], cy: issue.at[1], r: 7 }, view.marks);
+    const set = (name, cls, on) => {
+      const p = view.parts.get(name);
+      for (const e of [p.line, p.dot, p.chip, p.group]) if (e) e.classList.toggle(cls, on);
+    };
+    for (const [name, p] of view.parts) {
+      for (const target of [p.chip, p.group]) {
+        if (!target) continue;
+        target.addEventListener('pointerenter', () => { set(name, 'hover', true); status.innerHTML = describe(dev, name); });
+        target.addEventListener('pointerleave', () => set(name, 'hover', false));
+        target.addEventListener('click', () => {
+          const was = p.chip.classList.contains('selected');
+          for (const n of view.parts.keys()) set(n, 'selected', false);
+          if (!was) set(name, 'selected', true);
+        });
+      }
+    }
+    status.textContent = `${dev.title} — ${dev.controls.length} controls. Hover or click a control or chip.`;
+    try { localStorage.setItem('device-preview', id); } catch {}
+  }
+
+  const tabs = document.getElementById('tabs');
+  for (const { id, title } of [...DEVICES.map((d) => ({ id: d.id, title: d.id })), { id: 'all', title: 'all' }]) {
+    const b = document.createElement('button');
+    b.className = 'tab';
+    b.role = 'tab';
+    b.dataset.id = id;
+    b.textContent = title;
+    b.addEventListener('click', () => show(id));
+    tabs.appendChild(b);
+  }
+
+  const reportHost = document.getElementById('report');
+  for (const dev of DEVICES) {
+    const issues = report[dev.id];
+    const sec = document.createElement('section');
+    sec.innerHTML = `<h3><span class="${issues.length ? 'bad' : 'ok'}">${issues.length ? '✕' : '✓'}</span>${dev.id}<span style="color:var(--text-faint);font-weight:400">${issues.length ? `${issues.length} issue(s)` : 'clean'}</span></h3>`;
+    if (issues.length) {
+      const ul = document.createElement('ul');
+      for (const issue of issues) {
+        const li = document.createElement('li');
+        li.textContent = issue.msg;
+        li.addEventListener('click', () => show(dev.id));
+        ul.appendChild(li);
+      }
+      sec.appendChild(ul);
+    }
+    reportHost.appendChild(sec);
+  }
+  document.getElementById('chip-size').textContent = `${CHIP.w}×${CHIP.h}`;
+  document.getElementById('opt-hits').addEventListener('change', (e) => document.body.classList.toggle('show-hits', e.target.checked));
+  document.getElementById('opt-marks').addEventListener('change', (e) => document.body.classList.toggle('hide-marks', !e.target.checked));
+
+  // #<device> or #<device>@x,y,w,h (zoomed) picks the start view.
+  const [hashId, hashBox] = decodeURIComponent(location.hash.slice(1)).split('@');
+  let start = hashId;
+  if (!start) try { start = localStorage.getItem('device-preview'); } catch {}
+  show(DEVICES.some((d) => d.id === start) || start === 'all' ? start : DEVICES[0].id, hashBox);
+  window.addEventListener('hashchange', () => {
+    const [id, box] = decodeURIComponent(location.hash.slice(1)).split('@');
+    show(DEVICES.some((d) => d.id === id) || id === 'all' ? id : DEVICES[0].id, box);
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,74 @@
+# cargo-about configuration for THIRD_PARTY_LICENSES.md. Run `node scripts/third-party-licenses.mjs`
+# in gui/ to regenerate that file; it passes the manifest, target and features.
+
+# Licenses we can ship under, in order of preference: for a crate with a choice such as
+# "MIT OR Apache-2.0", the first one in this list is used.
+accepted = [
+    "Apache-2.0",
+    "MIT",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "Unicode-3.0",
+    "MPL-2.0",
+    "BSL-1.0",
+    "CC0-1.0",
+    "Unlicense",
+    "0BSD",
+]
+
+# Only crates that end up in doppelpad.exe and doppelpad-gui.exe: no dev-dependencies, and
+# no crates that only build scripts use.
+ignore-build-dependencies = true
+ignore-dev-dependencies = true
+
+# Crates whose packages lack the license text with their copyright line. Without these,
+# cargo-about falls back to the generic SPDX text ("Copyright (c) <year> <owner>").
+# `git` files are fetched from the crate's repository at the commit it was published from
+# and must match the checksum.
+
+[webview2-com.clarify]
+license = "MIT"
+[[webview2-com.clarify.git]]
+path = "LICENSE"
+checksum = "0dcf41516e608bbcb6cdc5229feb7b86fe4a643b85e7df251133c93408fdac73"
+
+[webview2-com-sys.clarify]
+license = "MIT"
+[[webview2-com-sys.clarify.git]]
+path = "LICENSE"
+checksum = "0dcf41516e608bbcb6cdc5229feb7b86fe4a643b85e7df251133c93408fdac73"
+
+[webview2-com-macros.clarify]
+license = "MIT"
+[[webview2-com-macros.clarify.git]]
+path = "LICENSE"
+checksum = "0dcf41516e608bbcb6cdc5229feb7b86fe4a643b85e7df251133c93408fdac73"
+
+[alloc-stdlib.clarify]
+license = "BSD-3-Clause"
+[[alloc-stdlib.clarify.git]]
+path = "LICENSE"
+checksum = "c0c56f26d9c051cac4d200c34c84e7ae9aaa853e01a982a1df08b09931e518ae"
+
+# Offered under "BSD-3-Clause OR MIT", but the package only contains the BSD-3-Clause text,
+# so that is the license we use.
+[brotli-decompressor.clarify]
+license = "BSD-3-Clause"
+[[brotli-decompressor.clarify.files]]
+path = "LICENSE"
+checksum = "c0c56f26d9c051cac4d200c34c84e7ae9aaa853e01a982a1df08b09931e518ae"
+
+# "Apache-2.0 AND MIT": the MIT part covers code taken from libm and is in its own file.
+[dpi.clarify]
+license = "Apache-2.0 AND MIT"
+[[dpi.clarify.files]]
+path = "LICENSE"
+license = "Apache-2.0"
+checksum = "6dc0e068dcf3a5bc8e054205b85b7720e1d49265bbc64bf515d2cf79197df69a"
+[[dpi.clarify.files]]
+path = "LICENSE-LIBM-MIT"
+license = "MIT"
+checksum = "9eff396a99bafd208e7126602420d6864f6066c08b84485a5b032320a9c01997"

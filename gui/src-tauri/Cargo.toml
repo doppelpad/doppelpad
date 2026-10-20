@@ -1,0 +1,34 @@
+[package]
+name = "dp-gui"
+description = "Doppelpad desktop app: editor, live controller view, tray and the remapping service"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "doppelpad-gui"
+path = "src/main.rs"
+
+[dependencies]
+dp-core.workspace = true
+dp-config.workspace = true
+dp-ipc.workspace = true
+dp-platform.workspace = true
+dp-service.workspace = true
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+toml.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-dialog = "2"
+tauri-plugin-single-instance = "2"
+
+[features]
+# Embed the built frontend instead of loading the dev server (set by `tauri build`).
+custom-protocol = ["tauri/custom-protocol"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }

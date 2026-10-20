@@ -1,0 +1,13 @@
+[package]
+name = "dp-ipc"
+description = "Control protocol between the Doppelpad daemon and its clients"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+interprocess.workspace = true
+thiserror.workspace = true

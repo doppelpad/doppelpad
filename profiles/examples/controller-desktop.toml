@@ -1,0 +1,94 @@
+# Control the Windows desktop with a controller ("lizard mode").
+#
+# Right stick moves the mouse, triggers click, the d-pad sends arrow keys.
+# No virtual controller is created.
+
+name = "Controller desktop mode"
+
+[output]
+virtual_pad = "none"
+hide_physical = false
+
+[[mappings]]
+trigger = "RT"
+actions = [{ mouse = "left" }]
+
+[[mappings]]
+trigger = "LT"
+actions = [{ mouse = "right" }]
+
+[[mappings]]
+trigger = "RS"
+actions = [{ mouse = "middle" }]
+
+[[mappings]]
+trigger = "A"
+actions = [{ key = "Enter" }]
+
+[[mappings]]
+trigger = "B"
+actions = [{ key = "Escape" }]
+
+[[mappings]]
+trigger = "X"
+actions = [{ key = "Backspace" }]
+
+[[mappings]]
+trigger = "Y"
+actions = [{ key = "Space" }]
+
+[[mappings]]
+trigger = "DpadUp"
+actions = [{ key = "Up" }]
+
+[[mappings]]
+trigger = "DpadDown"
+actions = [{ key = "Down" }]
+
+[[mappings]]
+trigger = "DpadLeft"
+actions = [{ key = "Left" }]
+
+[[mappings]]
+trigger = "DpadRight"
+actions = [{ key = "Right" }]
+
+[[mappings]]
+trigger = "LB"
+actions = [{ key = "LeftAlt" }, { key = "LeftShift" }, { key = "Tab" }]   # Alt+Shift+Tab
+
+[[mappings]]
+trigger = "RB"
+actions = [{ key = "LeftAlt" }, { key = "Tab" }]                          # Alt+Tab
+
+# Scroll with the left stick.
+[[mappings]]
+trigger = "LeftStickUp"
+mode = "while_held"
+repeat_pause_ms = 60
+actions = [{ wheel = "up" }]
+
+[[mappings]]
+trigger = "LeftStickDown"
+mode = "while_held"
+repeat_pause_ms = 60
+actions = [{ wheel = "down" }]
+
+# Start: open the Start menu. Long-press Back: on-screen keyboard.
+[[mappings]]
+trigger = "Start"
+actions = [{ key = "LeftMeta" }]
+
+[[mappings]]
+trigger = "Back"
+activator = "long"
+mode = "once"
+actions = [{ command = { launch = { path = "osk.exe" } } }]
+
+[[analog]]
+source = "right_stick"
+target = "mouse"
+sensitivity = 1.2
+curve = 1.8               # precise near the centre, fast at full deflection
+deadzone = 0.12
+smoothing_ms = 10
