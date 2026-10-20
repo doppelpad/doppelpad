@@ -9,7 +9,7 @@
   import { app } from '../lib/state/app.svelte';
   import type { HotkeyField, Hotkeys, PadButtonName } from '../lib/types';
 
-  const FIELDS: HotkeyField[] = ['slot1', 'slot2', 'slot3', 'slot4', 'remap', 'stop_macros', 'emergency_stop'];
+  const FIELDS: HotkeyField[] = ['slot1', 'slot2', 'slot3', 'slot4', 'remap', 'stop_macros', 'emergency_stop', 'pad_overlay', 'mappings_overlay'];
   const MAX_BUTTONS = 4;
 
   let hotkeys = $state<Hotkeys | null>(null);

@@ -2,6 +2,7 @@
 
 import { api, errorText } from '../api';
 import { setLanguage, t } from '../i18n/index.svelte';
+import { controlsFromPad } from '../model/devices';
 import {
   activatorOf,
   comboKey,
@@ -49,29 +50,6 @@ interface PromptRequest {
   resolve: (v: string | null) => void;
 }
 
-/** Stick deflection / trigger pull that counts as "pressed" (highlight and press-to-select). */
-const STICK_SELECT = 0.65;
-const TRIGGER_SELECT = 0.4;
-
-function controlsFromPad(dev: LiveDevice, buttons: string[]): Set<ControlName> {
-  const s = new Set<ControlName>();
-  buttons.forEach((b, i) => {
-    if ((dev.state.buttons >>> i) & 1) s.add(b);
-  });
-  const a = dev.state.axes;
-  const stick = (name: string, x: number, y: number) => {
-    if (y > STICK_SELECT) s.add(`${name}Up`);
-    if (y < -STICK_SELECT) s.add(`${name}Down`);
-    if (x < -STICK_SELECT) s.add(`${name}Left`);
-    if (x > STICK_SELECT) s.add(`${name}Right`);
-  };
-  stick('LeftStick', a[0], a[1]);
-  stick('RightStick', a[2], a[3]);
-  if (a[4] > TRIGGER_SELECT) s.add('LT');
-  if (a[5] > TRIGGER_SELECT) s.add('RT');
-  return s;
-}
-
 class AppState {
   catalog = $state<Catalog | null>(null);
   library = $state<Library>({ games: [], unsorted: [], errors: [] });
@@ -96,6 +74,8 @@ class AppState {
       opacity: 80,
       seconds: 5,
     },
+    pad_overlay: { corner: 'top_left', size: 70, opacity: 90, hide_after: 5 },
+    mappings_overlay: { corner: 'top_right', opacity: 90 },
   });
   /** `null` when reWASD is not installed. */
   rewasd = $state<RewasdStatus | null>(null);

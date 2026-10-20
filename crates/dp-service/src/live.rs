@@ -64,6 +64,10 @@ pub struct LiveState {
     pub radial: Option<LiveRadial>,
     /// The running profile has radial menus (their window can be made ready).
     pub has_radial: bool,
+    /// The live controller overlay is on.
+    pub pad_overlay: bool,
+    /// The overlay listing the current layer's mappings is on.
+    pub mappings_overlay: bool,
 }
 
 /// The slots of a controller that has its own.

@@ -1,5 +1,6 @@
 //! Controller hotkeys that work independently of the active profile: select a slot, turn
-//! remapping on or off, stop macros, emergency stop.
+//! remapping on or off, stop macros, emergency stop, show the controller and mappings
+//! overlays.
 //!
 //! A hotkey is a set of pad buttons held together for a while. [`HotkeyDetector`] watches
 //! the buttons of the controller in use, reports a hotkey once it has been held long
@@ -29,6 +30,10 @@ pub enum HotkeyAction {
     StopMacros,
     /// Stop everything like [`HotkeyAction::StopMacros`], then turn remapping off.
     EmergencyStop,
+    /// Show or hide the live controller overlay.
+    PadOverlay,
+    /// Show or hide the overlay listing the current layer's mappings.
+    MappingsOverlay,
 }
 
 /// The hotkey settings. An empty button list disables that hotkey.
@@ -44,6 +49,8 @@ pub struct Hotkeys {
     pub remap: Vec<PadButton>,
     pub stop_macros: Vec<PadButton>,
     pub emergency_stop: Vec<PadButton>,
+    pub pad_overlay: Vec<PadButton>,
+    pub mappings_overlay: Vec<PadButton>,
 }
 
 impl Default for Hotkeys {
@@ -58,6 +65,8 @@ impl Default for Hotkeys {
             remap: Vec::new(),
             stop_macros: Vec::new(),
             emergency_stop: vec![Back, Start, LB, RB],
+            pad_overlay: Vec::new(),
+            mappings_overlay: Vec::new(),
         }
     }
 }
@@ -74,6 +83,8 @@ impl Hotkeys {
         out.push((HotkeyAction::ToggleRemap, &self.remap));
         out.push((HotkeyAction::StopMacros, &self.stop_macros));
         out.push((HotkeyAction::EmergencyStop, &self.emergency_stop));
+        out.push((HotkeyAction::PadOverlay, &self.pad_overlay));
+        out.push((HotkeyAction::MappingsOverlay, &self.mappings_overlay));
         out.into_iter()
             .filter(|(_, b)| !b.is_empty())
             .map(|(a, b)| (a, b.iter().fold(0, |m, b| m | b.bit())))

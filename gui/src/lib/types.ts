@@ -45,6 +45,8 @@ export type Command =
   | 'radial_right'
   | 'radial_apply'
   | 'radial_back'
+  | 'pad_overlay'
+  | 'mappings_overlay'
   /** Show crosshair N (1-based), or hide it if it is the one showing. */
   | { crosshair: number }
   | { launch: { path: string; args?: string } }
@@ -462,6 +464,10 @@ export interface LiveState {
   crosshair: Crosshair | null;
   /** The radial menu open over the game, and the sector pointed at. */
   radial: { menu: RadialMenu; pointed: number | null } | null;
+  /** The running profile has radial menus. */
+  has_radial: boolean;
+  pad_overlay: boolean;
+  mappings_overlay: boolean;
 }
 
 // ----- library --------------------------------------------------------------------------
@@ -537,9 +543,27 @@ export interface GuiSettings {
   hook_buttons: boolean;
   rewasd_at_start: RewasdChoice;
   osd: OsdSettings;
+  pad_overlay: PadOverlaySettings;
+  mappings_overlay: MappingsOverlaySettings;
 }
 
 export type Corner = 'top_left' | 'top_right' | 'bottom_left' | 'bottom_right';
+
+/** The live controller overlay. */
+export interface PadOverlaySettings {
+  corner: Corner;
+  /** Percent of 600 logical pixels across. */
+  size: number;
+  opacity: number;
+  /** Seconds without input before it hides (0: stays). */
+  hide_after: number;
+}
+
+/** The overlay listing the current layer's mappings. */
+export interface MappingsOverlaySettings {
+  corner: Corner;
+  opacity: number;
+}
 
 /** On-screen notifications over games. */
 export interface OsdSettings {
@@ -595,6 +619,8 @@ export interface Hotkeys {
   remap: PadButtonName[];
   stop_macros: PadButtonName[];
   emergency_stop: PadButtonName[];
+  pad_overlay: PadButtonName[];
+  mappings_overlay: PadButtonName[];
 }
 
 export type HotkeyField = Exclude<keyof Hotkeys, 'hold_ms'>;

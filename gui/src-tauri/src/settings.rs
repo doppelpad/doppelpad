@@ -18,6 +18,10 @@ pub struct GuiSettings {
     pub rewasd_at_start: RewasdChoice,
     /// On-screen notifications over games.
     pub osd: OsdSettings,
+    /// The live controller overlay.
+    pub pad_overlay: PadOverlaySettings,
+    /// The overlay listing the current layer's mappings.
+    pub mappings_overlay: MappingsOverlaySettings,
 }
 
 /// On-screen notifications: which events show one, and where and how.
@@ -87,6 +91,48 @@ pub enum Corner {
     BottomRight,
 }
 
+/// The live controller overlay: where, how big, and when it hides.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct PadOverlaySettings {
+    pub corner: Corner,
+    /// Size in percent: 50, 70 or 90 of 600 logical pixels across.
+    pub size: u8,
+    /// Opacity in percent, 20–100.
+    pub opacity: u8,
+    /// Hide after this many seconds without input (0: stay).
+    pub hide_after: u8,
+}
+
+impl Default for PadOverlaySettings {
+    fn default() -> Self {
+        PadOverlaySettings {
+            corner: Corner::TopLeft,
+            size: 70,
+            opacity: 90,
+            hide_after: 5,
+        }
+    }
+}
+
+/// The overlay listing the current layer's mappings.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct MappingsOverlaySettings {
+    pub corner: Corner,
+    /// Opacity in percent, 20–100.
+    pub opacity: u8,
+}
+
+impl Default for MappingsOverlaySettings {
+    fn default() -> Self {
+        MappingsOverlaySettings {
+            corner: Corner::TopRight,
+            opacity: 90,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum RewasdChoice {
@@ -107,6 +153,8 @@ impl Default for GuiSettings {
             hook_buttons: true,
             rewasd_at_start: RewasdChoice::Ask,
             osd: OsdSettings::default(),
+            pad_overlay: PadOverlaySettings::default(),
+            mappings_overlay: MappingsOverlaySettings::default(),
         }
     }
 }

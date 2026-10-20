@@ -260,16 +260,32 @@ Keyboard and mouse belong to the shared slots' config. Remap ON/OFF switches all
 *Settings → Controller hotkeys* sets button combos that work in every config, with
 remapping off, and without the window (`doppelpad daemon` reads them too): **Slot 1–4**
 (activates that slot and turns remapping on; empty slots do nothing), **Remapping on/off**,
-**Stop macros** (stops running macros, turbo and toggles and releases what they hold) and
-**Emergency stop** (the same, then remapping off). Hold all buttons of a combo for the
-*hold time* (500 ms by default, 50–2500 ms). Defaults: LB + RB + X / Y / B / A for slots
-1–4, Back + Start + LB + RB for the emergency stop; the other two are off.
+**Stop macros** (stops running macros, turbo and toggles and releases what they hold),
+**Emergency stop** (the same, then remapping off), and the **Controller overlay** and
+**Mappings overlay** switches (see [Overlays](#overlays)). Hold all buttons of a combo for
+the *hold time* (500 ms by default, 50–2500 ms). Defaults: LB + RB + X / Y / B / A for slots
+1–4, Back + Start + LB + RB for the emergency stop; the others are off.
 
 To record a combo, click the record button, hold the buttons on the controller and let go;
 × clears it. Hotkeys are paused while recording. As soon as all buttons of a hotkey are
 down, the game no longer sees them (each stays hidden until it is released); a combo you
 need in a game must therefore not be a hotkey. A combo inside a larger one (LB + RB inside
 LB + RB + X) waits for the larger one.
+
+## Overlays
+
+Two overlays show over games, switched on and off by a controller hotkey or a mapping's
+*Controller overlay on/off* / *Mappings overlay on/off* command:
+
+- the **controller overlay**, a live picture of the controller in use with its pressed
+  buttons and stick positions. It hides after a few seconds without input and comes back
+  with the next one;
+- the **mappings overlay**, the running config's mappings on the active layer with their
+  descriptions, in columns of up to 40 rows (120 rows at most). It follows layer changes.
+
+*Settings → Overlays* picks their corner, the controller's size, both opacities and when the
+controller hides. Like the notifications they let clicks through and never take the focus;
+`doppelpad daemon` shows neither.
 
 ## Tray
 

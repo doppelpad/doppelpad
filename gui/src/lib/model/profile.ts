@@ -356,6 +356,8 @@ const COMMAND_LABELS: Record<string, string> = {
   radial_right: 'Radial: right',
   radial_apply: 'Radial: select',
   radial_back: 'Radial: back',
+  pad_overlay: 'Controller overlay',
+  mappings_overlay: 'Mappings overlay',
 };
 
 /** Commands that end the session or put the computer to sleep: the editor asks first. */

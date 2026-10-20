@@ -719,7 +719,10 @@ impl Service {
                     }
                 }
                 // The runtime handles these itself.
-                HotkeyAction::StopMacros | HotkeyAction::EmergencyStop => {}
+                HotkeyAction::StopMacros
+                | HotkeyAction::EmergencyStop
+                | HotkeyAction::PadOverlay
+                | HotkeyAction::MappingsOverlay => {}
             }
         }
     }
@@ -913,6 +916,8 @@ impl Service {
                     menu: menu.clone(),
                     pointed,
                 }),
+            pad_overlay: self.rt.overlays().0,
+            mappings_overlay: self.rt.overlays().1,
             has_radial: self
                 .rt
                 .profile()

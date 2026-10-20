@@ -10,6 +10,7 @@ mod crosshair;
 mod logging;
 mod osd;
 mod overlay;
+mod pad_overlay;
 mod radial;
 mod settings;
 #[cfg(test)]
@@ -97,6 +98,7 @@ fn main() {
             osd::start(app.handle())?;
             crosshair::start(app.handle())?;
             radial::start(app.handle())?;
+            pad_overlay::start(app.handle())?;
 
             // Started with Windows: only the tray icon shows.
             let window = create_main_window(app, !autostart::started_hidden())?;

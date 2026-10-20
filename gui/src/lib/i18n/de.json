@@ -351,6 +351,8 @@
     "close_window": "Aktives Fenster schließen",
     "crosshair": "Fadenkreuz {n} zeigen",
     "toggle_crosshair": "Fadenkreuz an/aus",
+    "pad_overlay": "Controller-Overlay an/aus",
+    "mappings_overlay": "Belegungs-Overlay an/aus",
     "radial_next": "Radialmenü: nächster Sektor",
     "radial_prev": "Radialmenü: voriger Sektor",
     "radial_up": "Radialmenü: oben",
@@ -759,6 +761,15 @@
       "scale": "Größe",
       "opacity": "Deckkraft",
       "seconds": "Anzeigedauer"
+    },
+    "overlays": {
+      "title": "Overlays",
+      "hint": "Ein Live-Bild des Controllers und eine Übersicht der Belegungen der aktiven Ebene. Ein- und ausgeschaltet werden sie mit einem Controller-Hotkey oder einem Befehl in einer Belegung.",
+      "pad": "Controller",
+      "mappings": "Belegungen",
+      "sizes": { "50": "Klein", "70": "Mittel", "90": "Groß" },
+      "hide_after": "Ausblenden nach",
+      "hide_after_hint": "Sekunden ohne Eingabe; 0 lässt es stehen."
     }
   },
   "rewasd": {
@@ -786,6 +797,8 @@
     "remap": "Remapping an/aus",
     "stop_macros": "Makros stoppen",
     "emergency_stop": "Not-Aus",
+    "pad_overlay": "Controller-Overlay",
+    "mappings_overlay": "Belegungs-Overlay",
     "none": "Aus",
     "press": "Tasten halten, dann loslassen …",
     "record": "Aufnehmen",
@@ -959,5 +972,9 @@
     "test": "So sehen Meldungen aus.",
     "battery_low": "Akku schwach: {level} %",
     "battery_critical": "Akku fast leer: {level} %"
+  },
+  "overlays": {
+    "no_mappings": "Auf dieser Ebene ist nichts belegt.",
+    "more": "… und {n} weitere"
   }
 }
