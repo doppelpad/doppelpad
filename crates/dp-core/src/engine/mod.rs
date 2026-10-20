@@ -32,7 +32,7 @@ use self::gyro::{GyroAxes, GyroState, TILT_FULL_DEG};
 use self::recognizer::{RecEvent, Recognizer};
 use self::routes::{RouteInput, RouteOutput, RouteState};
 use self::touch::GestureTracker;
-use crate::control::{Control, Dir, Half, TrackpadPart};
+use crate::control::{Control, Dir, Half, TouchGesture, TrackpadPart};
 use crate::event::KbmEvent;
 use crate::keys::{Key, MouseButton, WheelDir};
 use crate::pad::{Axis, Motion, PadButton, PadState, Rumble, Stick, Trigger};
@@ -170,6 +170,8 @@ struct Outputs {
     shakes: Vec<(ShakeAxis, u64)>,
     /// Turn actions in progress: total and remaining degrees.
     turns: Vec<(f32, f32)>,
+    /// A gesture playing on the virtual touchpad: which, since when, how long.
+    touch: Option<(TouchGesture, u64, u64)>,
 }
 
 impl Outputs {
@@ -304,6 +306,7 @@ fn step(act: &mut Activation, program: &[Step], outs: &mut Outputs, until: u64) 
                 outs.shakes.push((*axis, t));
             }
             Step::Turn(deg) => outs.turns.push((*deg, *deg)),
+            Step::Touch(g, ms) => outs.touch = Some((*g, t, *ms as u64)),
         }
         act.pc += 1;
     }
@@ -1171,6 +1174,7 @@ impl Engine {
         self.outs.rumble = None;
         self.outs.shakes.clear();
         self.outs.turns.clear();
+        self.outs.touch = None;
     }
 
     /// Release everything and return the final output (call before unloading the profile).
@@ -1498,6 +1502,15 @@ impl Engine {
                     (y + st.offset.1).clamp(-1.0, 1.0),
                 ),
             );
+        }
+        // A touch action plays its fingers on the virtual touchpad.
+        if let Some((g, start, ms)) = self.outs.touch {
+            if now < start + ms {
+                let t = now.saturating_sub(start) as f32 / ms.max(1) as f32;
+                pad.touch = touch::output_fingers(g, t);
+            } else {
+                self.outs.touch = None;
+            }
         }
         // Shakes: a square wave on one accelerometer axis, starting in its direction.
         let motion = &self.profile.virtual_devices.motion;

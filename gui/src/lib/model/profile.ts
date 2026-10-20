@@ -348,6 +348,7 @@ export function actionLabel(a: Action): string {
   if ('rumble' in a) return `Rumble ${a.rumble} ms`;
   if ('shake' in a) return `Shake ${a.shake.toUpperCase()}`;
   if ('turn' in a) return `Turn ${a.turn > 0 ? '+' : ''}${a.turn}°`;
+  if ('touch' in a) return `Touch ${a.touch.replace(/_/g, ' ')}`;
   if ('break' in a) return '⦀';
   if ('command' in a) {
     const c = a.command;

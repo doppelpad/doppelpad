@@ -1588,6 +1588,14 @@ impl<'a> Importer<'a> {
                 value: deflection(value),
                 action,
             }),
+            // Gestures on the virtual touchpad; `value` is the length.
+            77..=90 => match gamepad_control(id) {
+                Some(Control::Gesture(touch)) => Some(Action::Touch {
+                    touch,
+                    ms: value.map(|v| self.time(v)),
+                }),
+                _ => None,
+            },
             // Accelerometer shakes: x+, x-, y+, y-, z+, z-.
             248..=253 => Some(Action::Shake {
                 shake: ShakeAxis::ALL[(id - 248) as usize],
@@ -2254,6 +2262,35 @@ mod tests {
                 "TrackpadLeftTap"
             ]
         );
+    }
+
+    #[test]
+    fn touch_gesture_outputs() {
+        let doc = r#"{ "schemaVersion": 3.0, "config": { "appName": "x" },
+          "devices": { "hardware": [ { "id": 1, "name": "gamepad" }, { "id": 11, "name": "keyboard" } ],
+                       "virtual": { "gamepads": [ { "id": 1, "type": "ds4" } ] } },
+          "masks": [ { "id": 1, "set": [ { "deviceId": 11, "buttonId": 16, "description": "DIK_Q" } ] } ],
+          "mappings": [ { "condition": { "mask": { "id": 1, "activator": { "type": "single", "mode": "hold_until_release" } } },
+                          "macros": [ { "gamepad": { "id": 1, "buttonId": 89, "value": 30 } },
+                                      { "gamepad": { "id": 1, "buttonId": 81 } } ] } ] }"#;
+        let (p, diags) = import(doc).unwrap();
+        assert!(!diags.has_errors(), "{diags:?}");
+        assert_eq!(
+            p.mappings[0].actions,
+            vec![
+                Action::Touch {
+                    touch: TouchGesture::Swipe2Left,
+                    ms: Some(300)
+                },
+                Action::Touch {
+                    touch: TouchGesture::ZoomIn,
+                    ms: None
+                }
+            ]
+        );
+        let toml = crate::to_toml(&p);
+        assert!(toml.contains("touch = \"swipe2_left\""), "{toml}");
+        assert_eq!(crate::parse_toml(&toml).unwrap(), p);
     }
 
     #[test]

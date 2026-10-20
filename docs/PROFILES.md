@@ -258,6 +258,7 @@ Several mappings can share a trigger with different activators.
 | Pause | `{ pause = 250 }` (ms) |
 | Rumble | `{ rumble = 150, low = 0.8, high = 0.8 }` |
 | Turn | `{ turn = -90.0 }`: turns in the game by that many degrees with mouse motion (positive = right), see `[virtual.mouse]` |
+| Touchpad gesture | `{ touch = "swipe_left", ms = 250 }` (`tap`, `tap_left`, `tap_center`, `tap_right`, `multi_tap`, `swipe_up` … `swipe_right`, `swipe2_up` … `swipe2_right`, `zoom_in`, `zoom_out`): plays the gesture on the virtual DualShock 4's touchpad (default 250 ms, taps 60 ms) |
 | Motion shake | `{ shake = "+y" }` (`+x` `-x` `+y` `-y` `+z` `-z`): shakes the virtual DualShock 4's accelerometer, see `[virtual.motion]` |
 | Command | `{ command = "remap_off" }`, `{ command = "toggle_gyro" }`, `{ command = { launch = { path = "osk.exe", args = "" } } }` (all commands below) |
 | Break | `{ break = true }` (splits the sequence into segments, see below) |

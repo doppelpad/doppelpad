@@ -164,6 +164,9 @@ pub fn validate(p: &Profile) -> Diagnostics {
                 Action::Turn { turn } if !turn.is_finite() || turn.abs() > 3600.0 => {
                     d.error(&path, "a turn must be within ±3600 degrees")
                 }
+                Action::Touch { ms: Some(ms), .. } if !(10..=10_000).contains(ms) => {
+                    d.error(&path, "a touch gesture takes 10–10000 ms")
+                }
                 _ => {}
             }
         }

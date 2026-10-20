@@ -3,7 +3,7 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use super::recognizer::RecConfig;
-use crate::control::Control;
+use crate::control::{Control, TouchGesture};
 use crate::keys::{Key, MouseButton, WheelDir};
 use crate::pad::{PadButton, Stick, Trigger};
 use crate::profile::{
@@ -70,6 +70,8 @@ pub enum Step {
     Shake(ShakeAxis),
     /// Turn in the game by this many degrees with mouse motion.
     Turn(f32),
+    /// Play a gesture on the virtual touchpad for this many ms.
+    Touch(TouchGesture, u32),
 }
 
 impl Step {
@@ -297,6 +299,10 @@ fn other_steps(a: &Action) -> Option<Step> {
         Action::Command { command } => Step::Command(command.clone()),
         Action::Shake { shake } => Step::Shake(*shake),
         Action::Turn { turn } => Step::Turn(*turn),
+        Action::Touch { touch, ms } => Step::Touch(
+            *touch,
+            ms.unwrap_or_else(|| super::touch::output_ms(*touch)),
+        ),
         _ => return None,
     })
 }

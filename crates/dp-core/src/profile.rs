@@ -5,7 +5,7 @@
 
 use serde::{Deserialize, Deserializer, Serialize};
 
-use crate::control::{Control, Dir};
+use crate::control::{Control, Dir, TouchGesture};
 use crate::keys::{Key, MouseButton, WheelDir};
 use crate::pad::{PadButton, Stick, Trigger};
 
@@ -1139,6 +1139,13 @@ pub enum Action {
     /// Turn in the game by this many degrees (positive = right) with mouse motion, over
     /// `[virtual.mouse] turn_ms`.
     Turn { turn: f32 },
+    /// Play a gesture on the virtual controller's touchpad (DualShock 4), over `ms`
+    /// (default 250, taps 60).
+    Touch {
+        touch: TouchGesture,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        ms: Option<u32>,
+    },
     /// Built-in command.
     Command { command: Command },
     /// Split the sequence into segments (`{ break = true }`): each activation plays the

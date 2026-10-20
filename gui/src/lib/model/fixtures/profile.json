@@ -79,7 +79,8 @@
         { "key": "E", "action": "up" },
         { "rumble": 120, "low": 0.5, "high": 0.25 },
         { "shake": "-z" },
-        { "turn": -90 }
+        { "turn": -90 },
+        { "touch": "swipe2_left", "ms": 300 }
       ]
     },
     { "trigger": "DpadDown", "actions": [{ "wheel": "down" }, { "mouse_move": "left", "speed": 800 }] },

@@ -142,8 +142,10 @@ impl Zone {
     }
 }
 
-/// A touchpad gesture, recognised from the finger tracks; each is a short press.
+/// A touchpad gesture, recognised from the finger tracks; each is a short press. Also played
+/// on the virtual controller's touchpad by touch actions (snake case there: `swipe2_left`).
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum TouchGesture {
     /// A short tap anywhere.
     Tap,
