@@ -8,3 +8,4 @@ pub mod hotkeys;
 pub mod keys;
 pub mod pad;
 pub mod profile;
+pub mod repeat;

@@ -152,6 +152,13 @@ export interface AnalogMapping {
   consume?: boolean;
 }
 
+/** Auto-repeat of keys that mappings hold: a mode or an interval in ms. */
+export type KeyRepeat = 'native' | 'fast' | 'slow' | 'off' | number;
+
+export interface VirtualDevices {
+  keyboard?: { repeat?: KeyRepeat };
+}
+
 export interface Profile {
   name?: string;
   description?: string;
@@ -163,6 +170,7 @@ export interface Profile {
   layers?: Layer[];
   mappings: Mapping[];
   analog?: AnalogMapping[];
+  virtual?: VirtualDevices;
 }
 
 // ----- live state ---------------------------------------------------------------------

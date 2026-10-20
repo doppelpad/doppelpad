@@ -33,6 +33,85 @@ pub struct Profile {
     /// Continuous analog routes (stick → mouse, mouse → stick, gyro → mouse, ...).
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub analog: Vec<AnalogMapping>,
+    /// Settings of the virtual devices Doppelpad drives (`[virtual.keyboard]`, ...).
+    #[serde(rename = "virtual", skip_serializing_if = "is_default")]
+    pub virtual_devices: VirtualDevices,
+}
+
+/// Settings of the virtual devices.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct VirtualDevices {
+    #[serde(skip_serializing_if = "is_default")]
+    pub keyboard: VirtualKeyboard,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct VirtualKeyboard {
+    /// How keys that mappings hold down repeat.
+    pub repeat: KeyRepeat,
+}
+
+/// Auto-repeat of held virtual keys (`"native"`, `"fast"`, `"slow"`, `"off"`, or an
+/// interval in milliseconds).
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
+pub enum KeyRepeat {
+    /// Like a physical keyboard: a delay, then about 30 ms with some jitter.
+    #[default]
+    Native,
+    /// Every 10 ms.
+    Fast,
+    /// Every 50 ms.
+    Slow,
+    /// Never: one key-down per press.
+    Off,
+    /// Every this many milliseconds.
+    Every(u32),
+}
+
+impl KeyRepeat {
+    /// Allowed custom intervals.
+    pub const MS_RANGE: std::ops::RangeInclusive<u32> = 1..=1000;
+}
+
+impl Serialize for KeyRepeat {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        match self {
+            KeyRepeat::Native => s.serialize_str("native"),
+            KeyRepeat::Fast => s.serialize_str("fast"),
+            KeyRepeat::Slow => s.serialize_str("slow"),
+            KeyRepeat::Off => s.serialize_str("off"),
+            KeyRepeat::Every(ms) => s.serialize_u32(*ms),
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for KeyRepeat {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum Raw {
+            Name(String),
+            Ms(i64),
+        }
+        match Raw::deserialize(d)? {
+            Raw::Name(n) => match n.as_str() {
+                "native" => Ok(KeyRepeat::Native),
+                "fast" => Ok(KeyRepeat::Fast),
+                "slow" => Ok(KeyRepeat::Slow),
+                "off" => Ok(KeyRepeat::Off),
+                other => Err(serde::de::Error::custom(format!(
+                    "unknown key repeat `{other}` (native, fast, slow, off or milliseconds)"
+                ))),
+            },
+            Raw::Ms(ms) => u32::try_from(ms)
+                .ok()
+                .filter(|ms| KeyRepeat::MS_RANGE.contains(ms))
+                .map(KeyRepeat::Every)
+                .ok_or_else(|| serde::de::Error::custom("key repeat must be 1–1000 ms")),
+        }
+    }
 }
 
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]

@@ -77,6 +77,10 @@ touchpad fingers and the motion sensors through (unless a mapping or analog rout
 them), and the game's rumble and light bar colour come back to the physical controller
 (light bar: DualShock 4 and DualSense over USB).
 
+**Held keys repeat** sets how keys that mappings hold down repeat: *Like a keyboard*
+(after half a second, about 30 times per second), *Fast*, *Slow*, *Never* or a custom
+interval. Only the last pressed key repeats.
+
 Its **Timing** section holds the config-wide defaults: the shortcut window (how long the
 controls of a shortcut may take to be pressed together), the long-press time, the double-
 and triple-press windows, the turbo period and the delay between keys. A mapping's own

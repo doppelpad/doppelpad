@@ -336,6 +336,23 @@ while_held = ["LT", "Mouse:Right"]
     }
 
     #[test]
+    fn key_repeat_names_and_milliseconds() {
+        use dp_core::profile::KeyRepeat;
+        let p = parse_toml("[virtual.keyboard]\nrepeat = \"fast\"\n").unwrap();
+        assert_eq!(p.virtual_devices.keyboard.repeat, KeyRepeat::Fast);
+        let p = parse_toml("[virtual.keyboard]\nrepeat = 40\n").unwrap();
+        assert_eq!(p.virtual_devices.keyboard.repeat, KeyRepeat::Every(40));
+        assert!(to_toml(&p).contains("repeat = 40"));
+        assert_eq!(parse_toml(&to_toml(&p)).unwrap(), p);
+        assert!(parse_toml("[virtual.keyboard]\nrepeat = 0\n").is_err());
+        assert!(parse_toml("[virtual.keyboard]\nrepeat = \"turbo\"\n").is_err());
+        assert!(
+            !to_toml(&Profile::default()).contains("virtual"),
+            "native is the default"
+        );
+    }
+
+    #[test]
     fn validation_flags_bad_layers() {
         let p = parse_toml("[[layers]]\nid = 0\n").unwrap();
         assert!(validate(&p).has_errors());

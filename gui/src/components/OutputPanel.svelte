@@ -3,11 +3,22 @@
   import { t } from '../lib/i18n/index.svelte';
   import { setProfileTiming, type TimingField } from '../lib/model/profile';
   import { app } from '../lib/state/app.svelte';
-  import type { Output, VirtualPadType } from '../lib/types';
+  import type { KeyRepeat, Output, VirtualPadType } from '../lib/types';
   import Toggle from './ui/Toggle.svelte';
 
   /** Profile-wide timing; mappings can override all but the shortcut window. */
   const TIMING: TimingField[] = ['combo_window_ms', 'long_press_ms', 'double_tap_ms', 'triple_tap_ms', 'turbo_ms', 'key_delay_ms'];
+
+  const repeat = $derived<KeyRepeat>(app.profile?.virtual?.keyboard?.repeat ?? 'native');
+  const REPEATS = ['native', 'fast', 'slow', 'off', 'custom'] as const;
+
+  function setRepeat(r: KeyRepeat) {
+    if (!app.profile) return;
+    const p = { ...app.profile };
+    if (r === 'native') delete p.virtual;
+    else p.virtual = { ...(p.virtual ?? {}), keyboard: { repeat: r } };
+    app.update(p);
+  }
 
   function setTiming(field: TimingField, raw: string) {
     if (!app.profile) return;
@@ -84,6 +95,37 @@
       onchange={(v) => set({ mute_mapped_inputs: v })}
     />
   </div>
+
+  <label class="field repeat">
+    <span class="fl">{t('output.key_repeat')}</span>
+    <select
+      value={typeof repeat === 'number' ? 'custom' : repeat}
+      disabled={app.readOnly}
+      onchange={(e) => {
+        const v = e.currentTarget.value;
+        setRepeat(v === 'custom' ? 30 : (v as KeyRepeat));
+      }}
+    >
+      {#each REPEATS as r (r)}
+        <option value={r}>{t(`output.repeat.${r}`)}</option>
+      {/each}
+    </select>
+    {#if typeof repeat === 'number'}
+      <input
+        type="number"
+        min="1"
+        max="1000"
+        value={repeat}
+        disabled={app.readOnly}
+        onchange={(e) => {
+          const n = parseInt(e.currentTarget.value, 10);
+          if (n >= 1 && n <= 1000) setRepeat(n);
+        }}
+      />
+      <span class="unit">{t('common.ms')}</span>
+    {/if}
+  </label>
+  <p class="hint">{t(`output.repeat_hint.${typeof repeat === 'number' ? 'custom' : repeat}`)}</p>
 
   <div class="label timing-label">{t('output.timing')}</div>
   <p class="hint">{t('output.timing_hint')}</p>
@@ -199,6 +241,15 @@
   }
   .field input {
     width: 80px;
+  }
+  .field.repeat {
+    margin-top: 4px;
+  }
+  .field.repeat .fl {
+    flex: 0 0 auto;
+  }
+  .field.repeat select {
+    min-width: 200px;
   }
   .unit {
     color: var(--text-dim);

@@ -37,7 +37,16 @@ zones = { low = 0.24 }       # where LeftStickUp etc. and the zones start (see Z
 deadzone = 0.0
 zones = { low = 0.03 }       # where LT / RT and the zones start (see Zones)
 full_pull = 0.99             # LTFull / RTFull controls
+
+[virtual.keyboard]
+repeat = "native"            # "native" | "fast" | "slow" | "off" | interval in ms (1–1000)
 ```
+
+`[virtual.keyboard] repeat` sets how keys that mappings hold repeat, the way a physical
+keyboard repeats a held key. Only the most recently pressed key repeats, and only while it
+is held. `native` waits 500 ms, then repeats about every 30 ms with a little jitter;
+`fast` (10 ms), `slow` (50 ms) and a number of milliseconds repeat at once at that interval;
+`off` sends one key-down per press.
 
 ## Controls (what can trigger a mapping)
 
