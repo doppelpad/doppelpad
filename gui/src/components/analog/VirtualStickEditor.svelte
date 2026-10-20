@@ -1,12 +1,13 @@
 <script lang="ts">
   // How mappings push one virtual stick from buttons and keys: where the deflection starts,
   // how fast it grows and where it stops, with a preview of the first two seconds, and the
-  // output curve of the whole virtual stick.
+  // output curve of the whole virtual stick, and an optional jitter on top.
   import { t } from '../../lib/i18n/index.svelte';
   import { setVirtualStick, virtualRamp, virtualStickConfig, type CurvePoint, type Side } from '../../lib/model/analog';
   import { app } from '../../lib/state/app.svelte';
-  import type { VirtualStick } from '../../lib/types';
+  import type { Jitter, VirtualStick } from '../../lib/types';
   import Slider from '../ui/Slider.svelte';
+  import Toggle from '../ui/Toggle.svelte';
   import CurveEditor from './CurveEditor.svelte';
   import LayerNote from './LayerNote.svelte';
 
@@ -25,6 +26,14 @@
 
   function set(patch: Partial<VirtualStick>) {
     if (app.profile && def) app.update(setVirtualStick(app.profile, side, patch, def, app.layer));
+  }
+
+  const PATTERNS = ['circle', 'square', 'cross'] as const;
+  const jit = $derived({ ...def?.jitter, ...cfg?.jitter } as Required<Jitter>);
+  const refJit = $derived({ ...def?.jitter, ...ref?.jitter } as Required<Jitter>);
+
+  function setJitter(patch: Partial<Jitter>) {
+    set({ jitter: { ...jit, ...patch } });
   }
 
   // Preview: deflection over the first two seconds of holding a button (horizontal axis).
@@ -136,6 +145,70 @@
           {disabled}
           onchange={(v) => set({ multiplier_y: v })}
         />
+        <div class="jitter">
+          <Toggle checked={jit.enabled} {disabled} label={t('analog.virtual.jitter')} onchange={(v) => setJitter({ enabled: v })} />
+          <p class="hint">{t('analog.virtual.jitter_hint')}</p>
+          {#if jit.enabled}
+            <div class="presets">
+              {#each PATTERNS as pt (pt)}
+                <button class="btn" class:on={jit.pattern === pt} {disabled} onclick={() => setJitter({ pattern: pt })}>
+                  {t(`analog.virtual.pattern.${pt}`)}
+                </button>
+              {/each}
+            </div>
+            <Slider
+              label={t('analog.virtual.jitter_min')}
+              value={jit.min}
+              def={refJit.min}
+              {resetLabel}
+              min={0.001}
+              max={0.1}
+              step={0.001}
+              scale={100}
+              unit="%"
+              {disabled}
+              onchange={(v) => setJitter({ min: v, max: Math.max(v, jit.max) })}
+            />
+            <Slider
+              label={t('analog.virtual.jitter_max')}
+              value={jit.max}
+              def={refJit.max}
+              {resetLabel}
+              min={0.001}
+              max={0.1}
+              step={0.001}
+              scale={100}
+              unit="%"
+              {disabled}
+              onchange={(v) => setJitter({ max: v, min: Math.min(v, jit.min) })}
+            />
+            <Slider
+              label={t('analog.virtual.delay_min')}
+              value={jit.delay_min_ms}
+              def={refJit.delay_min_ms}
+              {resetLabel}
+              min={10}
+              max={100}
+              step={1}
+              unit={t('common.ms')}
+              {disabled}
+              onchange={(v) => setJitter({ delay_min_ms: v, delay_max_ms: Math.max(v, jit.delay_max_ms) })}
+            />
+            <Slider
+              label={t('analog.virtual.delay_max')}
+              value={jit.delay_max_ms}
+              def={refJit.delay_max_ms}
+              {resetLabel}
+              min={10}
+              max={100}
+              step={1}
+              unit={t('common.ms')}
+              hint={t('analog.virtual.delay_hint')}
+              {disabled}
+              onchange={(v) => setJitter({ delay_max_ms: v, delay_min_ms: Math.min(v, jit.delay_min_ms) })}
+            />
+          {/if}
+        </div>
       </div>
       <div class="previews">
         <svg viewBox="-4 -4 {W + 8} {H + 22}" role="img" aria-label={t('analog.virtual.preview')}>
@@ -186,6 +259,12 @@
     flex-direction: column;
     gap: 14px;
     min-width: 0;
+  }
+  .jitter {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding-top: 4px;
   }
   .presets {
     display: flex;

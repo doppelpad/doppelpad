@@ -37,6 +37,9 @@ export type Command =
   | { launch: { path: string; args?: string } }
   | { unsupported: string };
 
+/** Accelerometer axis and the direction a shake starts in. */
+export type ShakeAxis = '+x' | '-x' | '+y' | '-y' | '+z' | '-z';
+
 export type Action =
   | { key: string; action?: Press }
   | { pad: PadButtonName; action?: Press }
@@ -47,6 +50,7 @@ export type Action =
   | { mouse_move: Dir; speed?: number }
   | { pause: number }
   | { rumble: number; low?: number; high?: number }
+  | { shake: ShakeAxis }
   | { command: Command }
   | { break: true };
 
@@ -170,6 +174,16 @@ export interface AnalogMapping {
 /** Auto-repeat of keys that mappings hold: a mode or an interval in ms. */
 export type KeyRepeat = 'native' | 'fast' | 'slow' | 'off' | number;
 
+/** A small offset that keeps moving around a virtual stick's output. */
+export interface Jitter {
+  enabled?: boolean;
+  pattern?: 'circle' | 'square' | 'cross';
+  min?: number;
+  max?: number;
+  delay_min_ms?: number;
+  delay_max_ms?: number;
+}
+
 /** How mappings push a virtual stick: start, cap and growth of the deflection, and its curve. */
 export interface VirtualStick {
   initial?: number;
@@ -179,6 +193,7 @@ export interface VirtualStick {
   multiplier_x?: number;
   multiplier_y?: number;
   curve?: [number, number][];
+  jitter?: Jitter;
 }
 
 export interface VirtualSticks {
@@ -189,6 +204,7 @@ export interface VirtualSticks {
 export interface VirtualDevices {
   keyboard?: { repeat?: KeyRepeat };
   sticks?: VirtualSticks;
+  motion?: { shake_g?: number; shake_ms?: number };
 }
 
 export interface Profile {

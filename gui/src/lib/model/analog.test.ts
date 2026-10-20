@@ -85,9 +85,11 @@ describe('stick and trigger settings', () => {
   });
 
   it('include how buttons push the virtual sticks', () => {
-    let p: Profile = { ...empty(), virtual: { keyboard: { repeat: 40 } } };
+    const kept = { keyboard: { repeat: 40 }, motion: { shake_g: 3, shake_ms: 200 } };
+    let p: Profile = { ...empty(), virtual: kept };
     p = setVirtualStick(p, 'left', { initial: 0.25, speed: 1, acceleration: 0.5, multiplier_y: 2 }, def.virtual_stick);
-    p = setVirtualStick(p, 'right', { curve: [[0.5, 0.25]] }, def.virtual_stick);
+    const jitter = { ...def.virtual_stick.jitter, enabled: true, pattern: 'cross' as const, min: 0.02, max: 0.05, delay_max_ms: 60 };
+    p = setVirtualStick(p, 'right', { curve: [[0.5, 0.25]], jitter }, def.virtual_stick);
     expect(p.virtual).toEqual(fixture.virtual);
     const left = virtualStickConfig(p, 'left', def.virtual_stick);
     expect(virtualRamp(left, 0, 1)).toBe(0.25);
@@ -97,7 +99,7 @@ describe('stick and trigger settings', () => {
     // Back to the defaults: the section disappears again.
     p = setVirtualStick(p, 'left', def.virtual_stick, def.virtual_stick);
     p = setVirtualStick(p, 'right', def.virtual_stick, def.virtual_stick);
-    expect(p.virtual).toEqual({ keyboard: { repeat: 40 } });
+    expect(p.virtual).toEqual(kept);
   });
 
   it('on a layer, keep only what differs from Main', () => {

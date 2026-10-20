@@ -46,6 +46,8 @@ pub struct VirtualDevices {
     pub keyboard: VirtualKeyboard,
     #[serde(skip_serializing_if = "is_default")]
     pub sticks: VirtualSticks,
+    #[serde(skip_serializing_if = "is_default")]
+    pub motion: VirtualMotion,
 }
 
 /// How mappings push the virtual sticks (`[virtual.sticks.left]`, ...).
@@ -61,6 +63,86 @@ impl VirtualSticks {
         match s {
             Stick::Left => &self.left,
             Stick::Right => &self.right,
+        }
+    }
+}
+
+/// The virtual controller's motion sensors.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct VirtualMotion {
+    /// Strength of a shake action, in g.
+    pub shake_g: f32,
+    /// Length of a shake action.
+    pub shake_ms: u32,
+}
+
+impl Default for VirtualMotion {
+    fn default() -> Self {
+        VirtualMotion {
+            shake_g: 2.0,
+            shake_ms: 150,
+        }
+    }
+}
+
+/// A small offset that keeps moving around the virtual stick's output.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct Jitter {
+    pub enabled: bool,
+    pub pattern: JitterPattern,
+    /// Smallest and largest offset, as a fraction of full deflection.
+    pub min: f32,
+    pub max: f32,
+    /// Shortest and longest time before the offset moves on.
+    pub delay_min_ms: u32,
+    pub delay_max_ms: u32,
+}
+
+impl Default for Jitter {
+    fn default() -> Self {
+        Jitter {
+            enabled: false,
+            pattern: JitterPattern::Circle,
+            min: 0.03,
+            max: 0.04,
+            delay_min_ms: 30,
+            delay_max_ms: 40,
+        }
+    }
+}
+
+/// The points a jitter offset moves through.
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum JitterPattern {
+    /// Eight points around a circle.
+    #[default]
+    Circle,
+    /// The four corners of a square.
+    Square,
+    /// Right, left, up, down.
+    Cross,
+}
+
+impl JitterPattern {
+    /// Unit offsets the pattern steps through, in order.
+    pub fn points(self) -> &'static [(f32, f32)] {
+        const D: f32 = std::f32::consts::FRAC_1_SQRT_2;
+        match self {
+            JitterPattern::Circle => &[
+                (1.0, 0.0),
+                (D, D),
+                (0.0, 1.0),
+                (-D, D),
+                (-1.0, 0.0),
+                (-D, -D),
+                (0.0, -1.0),
+                (D, -D),
+            ],
+            JitterPattern::Square => &[(1.0, 1.0), (1.0, -1.0), (-1.0, -1.0), (-1.0, 1.0)],
+            JitterPattern::Cross => &[(1.0, 0.0), (-1.0, 0.0), (0.0, 1.0), (0.0, -1.0)],
         }
     }
 }
@@ -85,6 +167,8 @@ pub struct VirtualStick {
     /// Output curve of the whole virtual stick (`[deflection, output]` points, linear in
     /// between); applies to every source, empty = linear.
     pub curve: Vec<[f32; 2]>,
+    /// Small moving offset on top of the output.
+    pub jitter: Jitter,
 }
 
 impl Default for VirtualStick {
@@ -97,6 +181,7 @@ impl Default for VirtualStick {
             multiplier_x: 1.0,
             multiplier_y: 1.0,
             curve: Vec::new(),
+            jitter: Jitter::default(),
         }
     }
 }
@@ -127,6 +212,8 @@ pub struct VirtualStickPatch {
     pub multiplier_y: Option<f32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub curve: Option<Vec<[f32; 2]>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub jitter: Option<Jitter>,
 }
 
 impl VirtualStickPatch {
@@ -139,6 +226,7 @@ impl VirtualStickPatch {
             multiplier_x: self.multiplier_x.unwrap_or(base.multiplier_x),
             multiplier_y: self.multiplier_y.unwrap_or(base.multiplier_y),
             curve: self.curve.clone().unwrap_or_else(|| base.curve.clone()),
+            jitter: self.jitter.clone().unwrap_or_else(|| base.jitter.clone()),
         }
     }
 
@@ -159,6 +247,7 @@ impl VirtualStickPatch {
             multiplier_x: d(&base.multiplier_x, &target.multiplier_x),
             multiplier_y: d(&base.multiplier_y, &target.multiplier_y),
             curve: d(&base.curve, &target.curve),
+            jitter: d(&base.jitter, &target.jitter),
         }
     }
 }
@@ -919,11 +1008,54 @@ pub enum Action {
         #[serde(default = "default_rumble")]
         high: f32,
     },
+    /// Shake the virtual controller's accelerometer along one axis (`[virtual.motion]`
+    /// sets how hard and how long).
+    Shake { shake: ShakeAxis },
     /// Built-in command.
     Command { command: Command },
     /// Split the sequence into segments (`{ break = true }`): each activation plays the
     /// next segment, starting over after the last.
     Break { r#break: bool },
+}
+
+/// Accelerometer axis and the direction a shake starts in (`"+x"`, `"-x"`, ... `"-z"`).
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum ShakeAxis {
+    #[serde(rename = "+x")]
+    PlusX,
+    #[serde(rename = "-x")]
+    MinusX,
+    #[serde(rename = "+y")]
+    PlusY,
+    #[serde(rename = "-y")]
+    MinusY,
+    #[serde(rename = "+z")]
+    PlusZ,
+    #[serde(rename = "-z")]
+    MinusZ,
+}
+
+impl ShakeAxis {
+    pub const ALL: [ShakeAxis; 6] = [
+        ShakeAxis::PlusX,
+        ShakeAxis::MinusX,
+        ShakeAxis::PlusY,
+        ShakeAxis::MinusY,
+        ShakeAxis::PlusZ,
+        ShakeAxis::MinusZ,
+    ];
+
+    /// Accelerometer index (x, y, z) and the sign of the first push.
+    pub fn axis(self) -> (usize, f32) {
+        match self {
+            ShakeAxis::PlusX => (0, 1.0),
+            ShakeAxis::MinusX => (0, -1.0),
+            ShakeAxis::PlusY => (1, 1.0),
+            ShakeAxis::MinusY => (1, -1.0),
+            ShakeAxis::PlusZ => (2, 1.0),
+            ShakeAxis::MinusZ => (2, -1.0),
+        }
+    }
 }
 
 impl Action {

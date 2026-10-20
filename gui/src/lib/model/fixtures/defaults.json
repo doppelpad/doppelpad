@@ -45,6 +45,14 @@
     "acceleration": 0.0,
     "multiplier_x": 1.0,
     "multiplier_y": 1.0,
-    "curve": []
+    "curve": [],
+    "jitter": {
+      "enabled": false,
+      "pattern": "circle",
+      "min": 0.03,
+      "max": 0.04,
+      "delay_min_ms": 30,
+      "delay_max_ms": 40
+    }
   }
 }

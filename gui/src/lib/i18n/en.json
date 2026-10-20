@@ -101,6 +101,10 @@
     "mute_mapped": "Block the original keys and buttons that are remapped",
     "driver_missing": "{driver} is not installed — this config cannot be applied yet.",
     "hide_missing": "HidHide is not installed — games will still see the physical controller.",
+    "shake": "Shake",
+    "shake_hint": "What a shake action does to the virtual controller's accelerometer. Only controllers with motion sensors (DualShock 4) carry it.",
+    "shake_g": "Strength",
+    "shake_ms": "Length",
     "timing": "Timing",
     "timing_hint": "Defaults for every mapping of this config; a mapping's own timing wins. Empty fields use the built-in default.",
     "timing_fields": {
@@ -255,6 +259,9 @@
     "pad_buttons": "Buttons",
     "pad_sticks": "Sticks",
     "pad_triggers": "Triggers",
+    "pad_shake": "Motion shake",
+    "pad_shake_hint": "Shakes the virtual controller's accelerometer (DualShock 4); strength and length are in Config settings.",
+    "shake_axis": "Shake {axis}",
     "press_now": "Press any key…",
     "pause_ms": "Pause length in milliseconds",
     "rumble_ms": "Rumble duration in milliseconds",
@@ -344,7 +351,15 @@
       "multiplier_hint": "Scale speed and acceleration per axis.",
       "preview": "Deflection over the first two seconds of holding a button.",
       "curve": "Output curve",
-      "curve_hint": "Shapes everything the virtual stick sends, also the passed-through stick."
+      "curve_hint": "Shapes everything the virtual stick sends, also the passed-through stick.",
+      "jitter": "Jitter",
+      "jitter_hint": "A small offset that keeps moving around the stick while this layer is active, also with the stick at rest. Use a hold layer to limit it, e.g. to aiming.",
+      "pattern": { "circle": "Circle", "square": "Square", "cross": "Cross" },
+      "jitter_min": "Smallest offset",
+      "jitter_max": "Largest offset",
+      "delay_min": "Shortest step",
+      "delay_max": "Longest step",
+      "delay_hint": "Each step moves the offset to the next point of the pattern after a random time in this range."
     },
     "layer": {
       "own": "{layer} has its own settings here.",

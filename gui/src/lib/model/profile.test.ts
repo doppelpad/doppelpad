@@ -17,6 +17,7 @@ import {
   removeMapping,
   setLayerInherit,
   setProfileTiming,
+  setVirtualDevice,
   setTriggerInherited,
   shortcutMembers,
   shortcuts,
@@ -185,5 +186,18 @@ describe('profile timing', () => {
     p = setProfileTiming(p, 'combo_window_ms', undefined);
     expect(p.timing).toEqual({ turbo_ms: 100 });
     expect(setProfileTiming(p, 'turbo_ms', undefined).timing).toBeUndefined();
+  });
+});
+
+describe('virtual devices', () => {
+  it('change one device and keep the others', () => {
+    const sticks = { left: { initial: 0.5 } };
+    let p: Profile = { ...base(), virtual: { sticks } };
+    p = setVirtualDevice(p, 'keyboard', { repeat: 'fast' });
+    expect(p.virtual).toEqual({ sticks, keyboard: { repeat: 'fast' } });
+    p = setVirtualDevice(p, 'keyboard', undefined);
+    expect(p.virtual).toEqual({ sticks });
+    p = setVirtualDevice(p, 'sticks', undefined);
+    expect('virtual' in p).toBe(false);
   });
 });

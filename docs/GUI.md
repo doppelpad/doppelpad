@@ -30,7 +30,7 @@ only edits profiles and sends commands.
 2. Choose the **activator** from the six icons: single press, long press, double press,
    triple press, start press and release. A dot under an icon means it is already mapped.
 3. **Add** actions: keyboard (from the list, or *Press a key…* and press it), mouse
-   buttons, wheel and movement, controller buttons, sticks and triggers, or commands
+   buttons, wheel and movement, controller buttons, sticks, triggers and motion shakes, or commands
    (turn remapping off, gyro on/off/toggle, screenshot, close the active window, shut
    down, restart, sleep, hibernate, sign out, launch a program, pause, rumble; power
    commands ask once before they are added). Several actions
@@ -82,6 +82,9 @@ them), and the game's rumble and light bar colour come back to the physical cont
 **Held keys repeat** sets how keys that mappings hold down repeat: *Like a keyboard*
 (after half a second, about 30 times per second), *Fast*, *Slow*, *Never* or a custom
 interval. Only the last pressed key repeats.
+
+**Shake** sets the *Strength* (in g) and *Length* of motion shake actions, which rock the
+accelerometer of a virtual DualShock 4 along one axis.
 
 Its **Timing** section holds the config-wide defaults: the shortcut window (how long the
 controls of a shortcut may take to be pressed together), the long-press time, the double-
@@ -146,6 +149,11 @@ deflection over the first two seconds of holding a button. Two buttons pushing i
 directions cancel out. The *Output curve* shapes everything the virtual stick sends, also
 the passed-through stick and analog routes. On a shift layer these settings work like the
 others: the layer keeps only what it changes.
+
+*Jitter* adds a small offset that keeps moving around the virtual stick (pattern *Circle*,
+*Square* or *Cross*, with the smallest and largest offset and the shortest and longest step).
+It runs all the time the layer is active, also with the stick at rest, so put it on a hold
+layer to limit it, e.g. to aiming.
 
 **Routes** lists the analog routes of the current layer. *Add route* offers common ones:
 right stick → mouse, gyro → mouse, gyro → right stick while `LT` is held, mouse → right

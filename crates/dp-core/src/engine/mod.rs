@@ -31,11 +31,48 @@ use self::routes::{RouteInput, RouteOutput, RouteState};
 use crate::control::{Control, Dir, TouchRegion};
 use crate::event::KbmEvent;
 use crate::keys::{Key, MouseButton, WheelDir};
-use crate::pad::{Axis, PadButton, PadState, Rumble, Stick, Trigger};
+use crate::pad::{Axis, Motion, PadButton, PadState, Rumble, Stick, Trigger};
 use crate::profile::{
-    Activator, AnalogSource, Command, Mode, Profile, Sticks, Triggers, VirtualPadType,
+    Activator, AnalogSource, Command, Mode, Profile, ShakeAxis, Sticks, Triggers, VirtualPadType,
     VirtualStick, VirtualSticks,
 };
+
+/// A shake flips direction this often.
+const SHAKE_FLIP_MS: u64 = 25;
+
+/// Where a virtual stick's jitter offset is and when it moves on.
+#[derive(Clone, Copy, Debug, Default)]
+struct JitterState {
+    active: bool,
+    point: usize,
+    offset: (f32, f32),
+    next_at: u64,
+}
+
+/// Small deterministic random generator (xorshift64*), so runs and tests repeat.
+#[derive(Debug)]
+struct Rng(u64);
+
+impl Rng {
+    fn next(&mut self) -> u64 {
+        let mut x = self.0;
+        x ^= x >> 12;
+        x ^= x << 25;
+        x ^= x >> 27;
+        self.0 = x;
+        x.wrapping_mul(0x2545_f491_4f6c_dd1d)
+    }
+
+    /// Uniform in `[0, 1)`.
+    fn unit(&mut self) -> f32 {
+        (self.next() >> 40) as f32 / (1u64 << 24) as f32
+    }
+
+    /// Uniform in `0..=n`.
+    fn upto(&mut self, n: u64) -> u64 {
+        self.next() % (n + 1)
+    }
+}
 
 /// How long one wheel notch counts as "pressed" when used as a trigger.
 const WHEEL_PULSE_MS: u64 = 50;
@@ -121,6 +158,8 @@ struct Outputs {
     wheel: Vec<(WheelDir, f32)>,
     commands: Vec<Command>,
     rumble: Option<(Rumble, u64)>,
+    /// Accelerometer shakes and when each started.
+    shakes: Vec<(ShakeAxis, u64)>,
 }
 
 impl Outputs {
@@ -244,6 +283,10 @@ fn step(act: &mut Activation, program: &[Step], outs: &mut Outputs, until: u64) 
                 ))
             }
             Step::Command(c) => outs.commands.push(c.clone()),
+            Step::Shake(axis) => {
+                outs.shakes.retain(|(a, _)| a != axis);
+                outs.shakes.push((*axis, t));
+            }
         }
         act.pc += 1;
     }
@@ -280,6 +323,9 @@ pub struct Engine {
     layer_analog: HashMap<u8, (Sticks, Triggers)>,
     /// Virtual stick settings of layers that change them.
     layer_virtual: HashMap<u8, VirtualSticks>,
+    /// Jitter offset of each virtual stick.
+    jitter: [JitterState; 2],
+    rng: Rng,
 
     prev_controls: HashSet<Control>,
     cur_controls: HashSet<Control>,
@@ -366,6 +412,8 @@ impl Engine {
             mouse_diagonals,
             layer_analog,
             layer_virtual,
+            jitter: Default::default(),
+            rng: Rng(0x9e37_79b9_7f4a_7c15),
             prev_controls: HashSet::new(),
             cur_controls: HashSet::new(),
             pending: Vec::new(),
@@ -1083,6 +1131,7 @@ impl Engine {
         self.pending.clear();
         self.combo_deadline = None;
         self.outs.rumble = None;
+        self.outs.shakes.clear();
     }
 
     /// Release everything and return the final output (call before unloading the profile).
@@ -1337,6 +1386,53 @@ impl Engine {
                 let k = apply_curve(curve, mag) / mag;
                 pad.set_stick(s, ((x * k).clamp(-1.0, 1.0), (y * k).clamp(-1.0, 1.0)));
             }
+        }
+        // Jitter: an offset that steps through its pattern after random delays.
+        for s in [Stick::Left, Stick::Right] {
+            let j = self.virtual_stick(s).jitter.clone();
+            let st = &mut self.jitter[s as usize];
+            if !j.enabled {
+                *st = JitterState::default();
+                continue;
+            }
+            if !st.active || now >= st.next_at {
+                let points = j.pattern.points();
+                st.point = if st.active {
+                    (st.point + 1) % points.len()
+                } else {
+                    0
+                };
+                let size = j.min + (j.max - j.min).max(0.0) * self.rng.unit();
+                let (px, py) = points[st.point];
+                st.offset = (px * size, py * size);
+                let spread = j.delay_max_ms.saturating_sub(j.delay_min_ms) as u64;
+                st.next_at = now + j.delay_min_ms.max(1) as u64 + self.rng.upto(spread);
+                st.active = true;
+            }
+            let (x, y) = pad.stick(s);
+            pad.set_stick(
+                s,
+                (
+                    (x + st.offset.0).clamp(-1.0, 1.0),
+                    (y + st.offset.1).clamp(-1.0, 1.0),
+                ),
+            );
+        }
+        // Shakes: a square wave on one accelerometer axis, starting in its direction.
+        let motion = &self.profile.virtual_devices.motion;
+        let shake_ms = motion.shake_ms as u64;
+        self.outs.shakes.retain(|(_, t0)| now < t0 + shake_ms);
+        if !self.outs.shakes.is_empty() {
+            let mut m = pad.motion.unwrap_or(Motion {
+                gyro: [0.0; 3],
+                accel: [0.0, 1.0, 0.0],
+            });
+            for &(axis, t0) in &self.outs.shakes {
+                let (i, sign) = axis.axis();
+                let flipped = (now - t0) / SHAKE_FLIP_MS % 2 == 1;
+                m.accel[i] += if flipped { -sign } else { sign } * motion.shake_g;
+            }
+            pad.motion = Some(m);
         }
 
         if self.profile.output.virtual_pad != VirtualPadType::None {

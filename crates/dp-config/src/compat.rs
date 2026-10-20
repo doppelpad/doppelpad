@@ -9,10 +9,10 @@ use dp_core::control::{Control, Dir, TouchRegion, Zone};
 use dp_core::keys::{Key, MouseButton, WheelDir};
 use dp_core::pad::{PadButton, Stick, Trigger};
 use dp_core::profile::{
-    Action, Activator, AnalogMapping, AnalogSource, AnalogTarget, Combo, Command, Jump, JumpMode,
-    KeyRepeat, Layer, LayerSticks, LayerTriggers, LayerVirtualSticks, Mapping, Mode, Press,
-    Profile, StickPatch, Sticks, TriggerPatch, Triggers, VirtualPadType, VirtualStick,
-    VirtualStickPatch, VirtualSticks, ZoneRadius,
+    Action, Activator, AnalogMapping, AnalogSource, AnalogTarget, Combo, Command, JitterPattern,
+    Jump, JumpMode, KeyRepeat, Layer, LayerSticks, LayerTriggers, LayerVirtualSticks, Mapping,
+    Mode, Press, Profile, ShakeAxis, StickPatch, Sticks, TriggerPatch, Triggers, VirtualMotion,
+    VirtualPadType, VirtualStick, VirtualStickPatch, VirtualSticks, ZoneRadius,
 };
 use serde_json::Value;
 
@@ -670,7 +670,12 @@ impl<'a> Importer<'a> {
         };
         let mut used = [false; 2];
         if let Some(d) = pad.and_then(|g| get(g, "default")) {
-            used = self.virtual_stick_settings(&mut base, d, &format!("{path}.default"));
+            used = self.virtual_stick_settings(
+                &mut base,
+                &mut p.virtual_devices.motion,
+                d,
+                &format!("{path}.default"),
+            );
         }
         let mut layers = Vec::new();
         for (k, s) in pad
@@ -685,7 +690,8 @@ impl<'a> Importer<'a> {
                 continue;
             };
             let mut sticks = base.clone();
-            let seen = self.virtual_stick_settings(&mut sticks, s, &spath);
+            let seen =
+                self.virtual_stick_settings(&mut sticks, &mut p.virtual_devices.motion, s, &spath);
             used = [used[0] || seen[0], used[1] || seen[1]];
             layers.push((id, sticks, spath));
         }
@@ -725,11 +731,19 @@ impl<'a> Importer<'a> {
     fn virtual_stick_settings(
         &mut self,
         sticks: &mut VirtualSticks,
+        motion: &mut VirtualMotion,
         d: &Value,
         path: &str,
     ) -> [bool; 2] {
         let mut seen = [false; 2];
         for s in array(d, "sticks") {
+            // Shake settings belong to the virtual accelerometer, whichever entry holds them.
+            if let Some(v) = int(s, "shakingDuration").filter(|v| *v > 0) {
+                motion.shake_ms = v.clamp(50, 300) as u32;
+            }
+            if let Some(v) = int(s, "shakingAmplitude").filter(|v| *v > 0) {
+                motion.shake_g = v.clamp(1, 8) as f32;
+            }
             let (cfg, i) = match enum_str(s, "name").as_deref() {
                 Some("left") => (&mut sticks.left, 0),
                 Some("right") => (&mut sticks.right, 1),
@@ -784,10 +798,36 @@ impl<'a> Importer<'a> {
                     ),
                 );
             }
-            if boolean(s, "jitter") || int(s, "shakingDuration").is_some_and(|v| v > 0) {
+            // Jitter sizes are 1–100 for 0.1–10 % of full deflection.
+            let j = &mut cfg.jitter;
+            j.enabled = boolean(s, "jitter");
+            j.pattern = match enum_str(s, "jitterType").as_deref() {
+                Some("square") => JitterPattern::Square,
+                Some("cross") => JitterPattern::Cross,
+                _ => JitterPattern::Circle,
+            };
+            let size = |v: i64| v.clamp(1, 100) as f32 / 1000.0;
+            if let Some(v) = int(s, "jitterDeflectionMin") {
+                j.min = size(v);
+            }
+            if let Some(v) = int(s, "jitterDeflectionMax") {
+                j.max = size(v);
+            }
+            if let Some(v) = int(s, "jitterDelayMin") {
+                j.delay_min_ms = v.clamp(10, 100) as u32;
+            }
+            if let Some(v) = int(s, "jitterDelayMax") {
+                j.delay_max_ms = v.clamp(10, 100) as u32;
+            }
+            (j.min, j.max) = (j.min.min(j.max), j.min.max(j.max));
+            (j.delay_min_ms, j.delay_max_ms) = (
+                j.delay_min_ms.min(j.delay_max_ms),
+                j.delay_min_ms.max(j.delay_max_ms),
+            );
+            if j.enabled && int(s, "jitterOptionalParameter").is_some_and(|v| v != 1) {
                 self.diags.info(
                     format!("{path}.sticks"),
-                    "stick shake and jitter are not supported yet",
+                    "the jitter's optional parameter is not supported",
                 );
             }
         }
@@ -1408,6 +1448,10 @@ impl<'a> Importer<'a> {
                 value: deflection(value),
                 action,
             }),
+            // Accelerometer shakes: x+, x-, y+, y-, z+, z-.
+            248..=253 => Some(Action::Shake {
+                shake: ShakeAxis::ALL[(id - 248) as usize],
+            }),
             _ => match gamepad_control(id) {
                 Some(Control::Button(pad)) => Some(Action::Pad { pad, action }),
                 _ => {
@@ -1897,6 +1941,40 @@ mod tests {
         let plain = r#"{ "schemaVersion": 3.0, "config": {}, "devices": { "hardware": [ { "id": 1, "name": "gamepad" } ] } }"#;
         let (p, _) = import(plain).unwrap();
         assert_eq!(p.virtual_devices.sticks, Default::default());
+    }
+
+    #[test]
+    fn jitter_and_shake() {
+        let doc = r#"{ "schemaVersion": 3.0, "config": { "appName": "x" },
+          "devices": { "hardware": [ { "id": 1, "name": "gamepad" }, { "id": 11, "name": "keyboard" } ],
+            "virtual": { "gamepads": [ { "id": 1, "type": "ds4",
+              "default": { "sticks": [
+                { "name": "right", "jitter": true, "jitterType": "square", "jitterDeflectionMin": 40,
+                  "jitterDeflectionMax": 20, "jitterDelayMin": 50, "jitterDelayMax": 60, "jitterOptionalParameter": 3 },
+                { "name": "gyro", "shakingDuration": 200, "shakingAmplitude": 5 } ] } } ] } },
+          "masks": [ { "id": 1, "set": [ { "deviceId": 11, "buttonId": 16, "description": "DIK_Q" } ] } ],
+          "mappings": [ { "condition": { "mask": { "id": 1, "activator": { "type": "single", "mode": "hold_until_release" } } },
+                          "macros": [ { "gamepad": { "id": 1, "buttonId": 251 } } ] } ] }"#;
+        let (p, diags) = import(doc).unwrap();
+        assert!(!diags.has_errors(), "{diags:?}");
+        let j = &p.virtual_devices.sticks.right.jitter;
+        assert!(j.enabled && j.pattern == JitterPattern::Square);
+        assert_eq!((j.min, j.max), (0.02, 0.04), "sizes in order");
+        assert_eq!((j.delay_min_ms, j.delay_max_ms), (50, 60));
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.message.contains("optional parameter"))
+        );
+        assert_eq!(p.virtual_devices.motion.shake_ms, 200);
+        assert_eq!(p.virtual_devices.motion.shake_g, 5.0);
+        assert_eq!(
+            p.mappings[0].actions,
+            vec![Action::Shake {
+                shake: ShakeAxis::MinusY
+            }]
+        );
+        assert!(!crate::validate(&p).has_errors());
     }
 
     #[test]

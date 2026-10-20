@@ -15,6 +15,7 @@ import type {
   PadButtonName,
   Profile,
   Timing,
+  VirtualDevices,
   WheelDir,
 } from '../types';
 
@@ -241,6 +242,20 @@ export function setProfileTiming(p: Profile, field: TimingField, value: number |
   return out;
 }
 
+/** Set (or with `undefined` remove) one virtual device's settings, keeping the others. */
+export function setVirtualDevice<K extends keyof VirtualDevices>(
+  p: Profile,
+  key: K,
+  value: VirtualDevices[K] | undefined,
+): Profile {
+  const v: VirtualDevices = { ...p.virtual };
+  if (value === undefined) delete v[key];
+  else v[key] = value;
+  const out: Profile = { ...p, virtual: v };
+  if (Object.keys(v).length === 0) delete out.virtual;
+  return out;
+}
+
 /** Remove a layer, its mappings and routes, and jumps that lead to it. */
 export function removeLayer(p: Profile, id: number): Profile {
   return replaceLayerRoutes(
@@ -328,6 +343,7 @@ export function actionLabel(a: Action): string {
   if ('mouse_move' in a) return `Mouse ${ARROWS[a.mouse_move] ?? a.mouse_move}`;
   if ('pause' in a) return `${a.pause} ms`;
   if ('rumble' in a) return `Rumble ${a.rumble} ms`;
+  if ('shake' in a) return `Shake ${a.shake.toUpperCase()}`;
   if ('break' in a) return '⦀';
   if ('command' in a) {
     const c = a.command;
