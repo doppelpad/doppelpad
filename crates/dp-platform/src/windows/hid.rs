@@ -18,6 +18,7 @@ use windows_sys::core::GUID;
 
 use super::devnode::{InterfaceEntry, enumerate_interfaces, is_vigem_device};
 use super::hidio::{HidIo, Wait, Waker};
+use crate::generic::{GenericDriver, GenericLayout, RawInput, ReportDecoder};
 use crate::nintendo::switch1::{Link, Switch1Driver};
 use crate::nintendo::wired::WiredDriver;
 use crate::nintendo::{self, Model};
@@ -41,6 +42,8 @@ enum DriverKind {
     Sony(SonyModel),
     Nintendo(Model),
     Steam(SteamModel),
+    /// Any other game pad or joystick, read through the HID parser.
+    Generic,
 }
 
 /// Which driver handles a HID top-level collection, if any.
@@ -55,10 +58,24 @@ fn driver_kind(vid: u16, pid: u16, usage_page: u16, usage: u16) -> Option<Driver
     if let Some(m) = sony::model_for(vid, pid) {
         return (usage == 0x05).then_some(DriverKind::Sony(m));
     }
+    let pad = matches!(usage, 0x04 | 0x05);
     // Nintendo pads are game pads over Bluetooth; wired ones may report a joystick.
-    nintendo::model_for(vid, pid)
-        .filter(|_| matches!(usage, 0x04 | 0x05))
-        .map(DriverKind::Nintendo)
+    if let Some(m) = nintendo::model_for(vid, pid) {
+        return pad.then_some(DriverKind::Nintendo(m));
+    }
+    // Xbox pads are read through XInput.
+    (pad && vid != MICROSOFT_VID).then_some(DriverKind::Generic)
+}
+
+const MICROSOFT_VID: u16 = 0x045E;
+
+/// Generic pads whose reports the HID parser cannot read: nothing to report.
+struct NoDecoder;
+
+impl ReportDecoder for NoDecoder {
+    fn decode(&mut self, _report: &[u8]) -> Option<RawInput> {
+        None
+    }
 }
 
 fn is_bluetooth(entry: &InterfaceEntry) -> bool {
@@ -107,8 +124,16 @@ impl Base {
         }
     }
 
-    fn driver(&self) -> Box<dyn PadDriver> {
+    fn driver(&self, io: &HidIo) -> Box<dyn PadDriver> {
         match self.kind {
+            DriverKind::Generic => {
+                let name = io.product().unwrap_or_else(|| "Game controller".into());
+                let decoder: Box<dyn ReportDecoder> = match io.decoder() {
+                    Some(d) => Box::new(d),
+                    None => Box::new(NoDecoder),
+                };
+                Box::new(GenericDriver::new(name, self.vid, self.pid, decoder))
+            }
             DriverKind::Sony(m) => Box::new(SonyDriver::new(m, self.bluetooth, self.feature_len)),
             DriverKind::Nintendo(Model::Switch1) => Box::new(Switch1Driver::new(Link {
                 bluetooth: self.bluetooth,
@@ -134,6 +159,8 @@ enum DevState {
         pad: Option<PadState>,
         battery: Option<Battery>,
         notice: Option<String>,
+        /// Unmapped input of a generic pad.
+        raw: Option<Arc<RawInput>>,
     },
     /// The driver could not start; `problem` explains why when the user can act on it.
     Failed {
@@ -149,6 +176,8 @@ struct Shared {
     triggers: Mutex<TriggerEffects>,
     /// Turn the controller off at the next chance.
     power_off: AtomicBool,
+    /// Layouts of generic pads.
+    layouts: Mutex<Arc<Vec<GenericLayout>>>,
     waker: Arc<Waker>,
     stop: AtomicBool,
     done: AtomicBool,
@@ -170,10 +199,13 @@ impl Device {
 
 type DeviceMap = Arc<Mutex<HashMap<String, Device>>>;
 type Problems = Arc<Mutex<HashMap<String, String>>>;
+/// Layouts of generic pads, handed to each device thread.
+type Layouts = Arc<Mutex<Arc<Vec<GenericLayout>>>>;
 
 pub struct HidBackend {
     devices: DeviceMap,
     problems: Problems,
+    layouts: Layouts,
     stop: Arc<AtomicBool>,
     /// Wakes the scanner for an immediate scan that also retries skipped interfaces.
     rescan: crossbeam_channel::Sender<()>,
@@ -182,6 +214,7 @@ pub struct HidBackend {
 struct Scanner {
     devices: DeviceMap,
     problems: Problems,
+    layouts: Layouts,
     stop: Arc<AtomicBool>,
     /// Paths not to reopen before the given time.
     skip: HashMap<String, Instant>,
@@ -191,11 +224,13 @@ impl HidBackend {
     pub fn new() -> Self {
         let devices: DeviceMap = Arc::default();
         let problems: Problems = Arc::default();
+        let layouts: Layouts = Arc::default();
         let stop = Arc::new(AtomicBool::new(false));
         let (rescan, rescan_rx) = crossbeam_channel::bounded(1);
         let mut scanner = Scanner {
             devices: devices.clone(),
             problems: problems.clone(),
+            layouts: layouts.clone(),
             stop: stop.clone(),
             skip: HashMap::new(),
         };
@@ -213,6 +248,7 @@ impl HidBackend {
         HidBackend {
             devices,
             problems,
+            layouts,
             stop,
             rescan,
         }
@@ -310,7 +346,8 @@ impl Scanner {
             match identify(&entry) {
                 Ok(Some((io, base))) => {
                     self.problems.lock().unwrap().remove(&entry.path);
-                    let device = spawn_device(io, base);
+                    let layouts = self.layouts.lock().unwrap().clone();
+                    let device = spawn_device(io, base, layouts);
                     self.devices.lock().unwrap().insert(entry.path, device);
                 }
                 Ok(None) => {
@@ -337,6 +374,13 @@ fn identify(entry: &InterfaceEntry) -> std::io::Result<Option<(HidIo, Base)>> {
     };
     if is_vigem_device(entry.devinst) {
         return Ok(None); // our own (or someone else's) virtual DS4
+    }
+    // XInput reads pads that also speak XInput (`IG_` in the path); the parser must be
+    // able to read the others.
+    if matches!(kind, DriverKind::Generic)
+        && (entry.path.to_ascii_uppercase().contains("&IG_") || io.decoder().is_none())
+    {
+        return Ok(None);
     }
     let bluetooth = is_bluetooth(entry);
     if !bluetooth && matches!(kind, DriverKind::Nintendo(_)) && nintendo::usb_unsupported(vid, pid)
@@ -365,7 +409,7 @@ fn identify(entry: &InterfaceEntry) -> std::io::Result<Option<(HidIo, Base)>> {
     )))
 }
 
-fn spawn_device(io: HidIo, base: Base) -> Device {
+fn spawn_device(io: HidIo, base: Base, layouts: Arc<Vec<GenericLayout>>) -> Device {
     let (bluetooth, bt_address) = (base.bluetooth, base.bt_address);
     let shared = Arc::new(Shared {
         state: Mutex::new(DevState::Starting),
@@ -375,6 +419,7 @@ fn spawn_device(io: HidIo, base: Base) -> Device {
         triggers: Mutex::new([None; 2]),
         waker: io.waker(),
         power_off: AtomicBool::new(false),
+        layouts: Mutex::new(layouts),
         stop: AtomicBool::new(false),
         done: AtomicBool::new(false),
     });
@@ -397,7 +442,7 @@ fn spawn_device(io: HidIo, base: Base) -> Device {
 /// The device thread: start the driver, then read, parse and service until stopped or
 /// the device goes away.
 fn run_device(mut io: HidIo, base: &Base, shared: &Shared) {
-    let mut driver = base.driver();
+    let mut driver = base.driver(&io);
     let identity = match driver.init(&mut io) {
         Ok(id) => id,
         Err(e) => {
@@ -431,6 +476,7 @@ fn run_device(mut io: HidIo, base: &Base, shared: &Shared) {
         pad: None,
         battery: None,
         notice,
+        raw: None,
     };
 
     while !shared.stop.load(Ordering::Relaxed) {
@@ -453,11 +499,15 @@ fn run_device(mut io: HidIo, base: &Base, shared: &Shared) {
                 }
                 if let Some(pad) = parsed.filter(|_| connected)
                     && let DevState::Ready {
-                        pad: p, battery, ..
+                        pad: p,
+                        battery,
+                        raw,
+                        ..
                     } = &mut *shared.state.lock().unwrap()
                 {
                     *p = Some(pad);
                     *battery = driver.battery();
+                    *raw = driver.raw().map(Arc::new);
                 }
             }
             Ok(Wait::Woken | Wait::Timeout) => {}
@@ -470,6 +520,8 @@ fn run_device(mut io: HidIo, base: &Base, shared: &Shared) {
         driver.set_lightbar(*shared.lightbar.lock().unwrap());
         driver.set_leds(*shared.leds.lock().unwrap());
         driver.set_trigger_effects(*shared.triggers.lock().unwrap());
+        let layouts = shared.layouts.lock().unwrap().clone();
+        driver.set_layouts(&layouts);
         if shared.power_off.swap(false, Ordering::Relaxed) {
             match driver.power_off(&mut io) {
                 Ok(true) => tracing::info!(path = %base.path, "controller told to turn off"),
@@ -502,6 +554,7 @@ impl GamepadBackend for HidBackend {
                 info,
                 pad: Some(state),
                 battery,
+                raw,
                 ..
             } = &*d.shared.state.lock().unwrap()
             {
@@ -509,6 +562,7 @@ impl GamepadBackend for HidBackend {
                     info: info.clone(),
                     state: *state,
                     battery: *battery,
+                    raw: raw.clone(),
                 });
             }
         }
@@ -528,6 +582,14 @@ impl GamepadBackend for HidBackend {
 
     fn set_trigger_effects(&mut self, id: &DeviceId, effects: TriggerEffects) {
         self.hand_over(id, |s| &s.triggers, effects);
+    }
+
+    fn set_layouts(&mut self, layouts: Arc<Vec<GenericLayout>>) {
+        *self.layouts.lock().unwrap() = layouts.clone();
+        for d in self.devices.lock().unwrap().values() {
+            *d.shared.layouts.lock().unwrap() = layouts.clone();
+            d.shared.waker.wake();
+        }
     }
 
     fn power_off(&mut self, id: &DeviceId) -> bool {
@@ -610,6 +672,8 @@ mod tests {
             Some(DriverKind::Steam(SteamModel::Controller))
         );
         assert_eq!(driver_kind(0x28DE, 0x1102, 1, 2), None, "lizard-mode mouse");
+        assert_eq!(driver_kind(0x0079, 0x0006, 1, 4), Some(DriverKind::Generic));
+        assert_eq!(driver_kind(0x045E, 0x0B13, 1, 5), None, "Xbox: XInput");
     }
 
     #[test]

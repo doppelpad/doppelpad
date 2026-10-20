@@ -5,6 +5,7 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
+use dp_platform::generic::GenericLayout;
 use dp_platform::groups::DeviceGroup;
 use serde::{Deserialize, Serialize};
 
@@ -26,7 +27,7 @@ impl DeviceSlots {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct SlotState {
     /// The shared slots, used by the controller in use unless it has slots of its own.
     pub slots: [Option<PathBuf>; SLOTS],
@@ -45,6 +46,8 @@ pub struct SlotState {
     pub groups: Vec<DeviceGroup>,
     /// Turn wireless controllers off after this many minutes without input; 0 never.
     pub power_off_after_min: u32,
+    /// How generic pad models' inputs map to pad controls.
+    pub layouts: Vec<GenericLayout>,
 }
 
 /// What the player lights of a controller show.
@@ -73,6 +76,7 @@ impl Default for SlotState {
             blocked: Vec::new(),
             groups: Vec::new(),
             power_off_after_min: 0,
+            layouts: Vec::new(),
         }
     }
 }
@@ -94,6 +98,8 @@ struct StateFile {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     groups: Vec<DeviceGroup>,
     power_off_after_min: u32,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    layouts: Vec<GenericLayout>,
 }
 
 #[derive(Default, Serialize, Deserialize)]
@@ -156,6 +162,7 @@ impl SlotState {
             blocked: file.blocked,
             groups: file.groups,
             power_off_after_min: file.power_off_after_min,
+            layouts: file.layouts,
         }
     }
 
@@ -182,6 +189,7 @@ impl SlotState {
             blocked: self.blocked.clone(),
             groups: self.groups.clone(),
             power_off_after_min: self.power_off_after_min,
+            layouts: self.layouts.clone(),
         };
         let text = toml::to_string_pretty(&file).map_err(std::io::Error::other)?;
         if let Some(dir) = path.parent() {
@@ -222,6 +230,12 @@ mod tests {
         own.active = 2;
         s.devices
             .insert(r"hid:HID\VID_054C&PID_0CE6\7&1".into(), own);
+        let raw = dp_platform::generic::RawInput {
+            buttons: vec![false; 10],
+            axes: vec![0.0; 4],
+            hats: vec![None],
+        };
+        s.layouts.push(GenericLayout::guess("0079:0006", &raw));
         s.save(&path).unwrap();
         assert_eq!(SlotState::load(&path), s);
         assert_eq!(s.active_profile(), Some(&PathBuf::from(r"C:\games\a.toml")));

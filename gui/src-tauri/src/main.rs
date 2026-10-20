@@ -152,6 +152,8 @@ fn main() {
             commands::set_groups,
             commands::set_power_off_after,
             commands::power_off,
+            commands::set_layout,
+            commands::forget_layout,
             commands::set_preferred_device,
             commands::refresh_drivers,
             commands::hotkeys_get,

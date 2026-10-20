@@ -7,10 +7,12 @@
 //! Tests drive drivers with scripted fakes on a virtual clock.
 
 use std::io;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use dp_core::pad::{PadState, Rgb, Rumble};
 
+use crate::generic::{GenericLayout, RawInput};
 use crate::{Battery, JoyConSide, Leds, PadFamily, TriggerEffects};
 
 /// Report transport of one HID device. Reports start with their report-ID byte.
@@ -136,6 +138,12 @@ pub trait PadDriver: Send {
     fn set_leds(&mut self, _leds: Leds) {}
     /// Trigger effects to play from the next [`service`](Self::service) on.
     fn set_trigger_effects(&mut self, _effects: TriggerEffects) {}
+    /// The layouts of generic pads (only their driver uses one).
+    fn set_layouts(&mut self, _layouts: &Arc<Vec<GenericLayout>>) {}
+    /// The unmapped input of the last report, for pads read without a fixed layout.
+    fn raw(&self) -> Option<RawInput> {
+        None
+    }
     /// Turn the controller off if it can be told to over its own link; `Ok(false)` if not.
     fn power_off(&mut self, _io: &mut dyn ReportIo) -> io::Result<bool> {
         Ok(false)

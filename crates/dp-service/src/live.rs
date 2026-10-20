@@ -3,6 +3,7 @@
 
 use dp_core::pad::PadState;
 use dp_core::profile::{Crosshair, RadialMenu};
+use dp_platform::generic::RawInput;
 use dp_platform::groups::{DeviceGroup, SeenDevice};
 use dp_platform::{Battery, PadFamily};
 use serde::Serialize;
@@ -24,6 +25,8 @@ pub struct LiveDevice {
     pub gyro_calibration: Option<CalibrationStatus>,
     /// `None` when the controller does not report one.
     pub battery: Option<Battery>,
+    /// Unmapped input of a generic pad, for identifying its buttons.
+    pub raw: Option<RawInput>,
 }
 
 /// An open radial menu and the sector pointed at.
@@ -57,6 +60,8 @@ pub struct LiveState {
     pub groups: Vec<DeviceGroup>,
     /// Wireless controllers turn off after this many minutes without input; 0 never.
     pub power_off_after_min: u32,
+    /// Generic pad models with a recorded layout (`vvvv:pppp`).
+    pub layouts: Vec<String>,
     /// Remapping is paused (the editor has focus).
     pub suspended: bool,
     /// Executable of the foreground application.

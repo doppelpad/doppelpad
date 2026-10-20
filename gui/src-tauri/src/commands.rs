@@ -17,6 +17,7 @@ use dp_core::profile::{
     RadialSector, StickConfig, Timing, TouchpadSettings, TriggerConfig, Vibration, VirtualStick,
 };
 use dp_ipc::Request;
+use dp_platform::generic::GenericLayout;
 use dp_platform::groups::DeviceGroup;
 use dp_service::{LiveState, PlayerLights, ServiceCmd, ServiceHandle, ServiceReply};
 use serde::Serialize;
@@ -346,6 +347,18 @@ pub fn set_groups(state: State<AppState>, groups: Vec<DeviceGroup>) -> CmdResult
 #[tauri::command]
 pub fn set_power_off_after(state: State<AppState>, minutes: u32) -> CmdResult<String> {
     state.call(ServiceCmd::SetPowerOffAfter(minutes))
+}
+
+/// Store how a generic pad model's inputs map to pad controls.
+#[tauri::command]
+pub fn set_layout(state: State<AppState>, layout: GenericLayout) -> CmdResult<String> {
+    state.call(ServiceCmd::SetLayout(layout))
+}
+
+/// Go back to the guessed layout for a generic pad model.
+#[tauri::command]
+pub fn forget_layout(state: State<AppState>, device: String) -> CmdResult<String> {
+    state.call(ServiceCmd::ForgetLayout(device))
 }
 
 /// Turn a wireless controller off now.

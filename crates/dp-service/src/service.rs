@@ -9,6 +9,7 @@ use dp_core::hotkeys::{HotkeyAction, Hotkeys};
 use dp_core::profile::Profile;
 use dp_ipc::{Device, Request, Response, Status};
 use dp_platform::Leds;
+use dp_platform::generic::GenericLayout;
 use dp_platform::groups::{DeviceGroup, DevicePolicy};
 
 use crate::live::{LiveDevice, LiveState};
@@ -105,6 +106,10 @@ pub enum ServiceCmd {
     SetGroups(Vec<DeviceGroup>),
     /// Turn wireless controllers off after this many minutes without input; 0 never.
     SetPowerOffAfter(u32),
+    /// Store how a generic pad model's inputs map to pad controls (replaces its old one).
+    SetLayout(GenericLayout),
+    /// Go back to the guessed layout for a generic pad model (`vvvv:pppp`).
+    ForgetLayout(String),
     /// Turn a wireless controller off now.
     PowerOff(String),
     /// Re-probe ViGEmBus / HidHide now.
@@ -691,6 +696,22 @@ impl Service {
                     m => format!("controllers turn off after {m} min without input"),
                 })
             }
+            ServiceCmd::SetLayout(layout) => match layout_problem(&layout) {
+                Some(e) => ServiceReply::Err(e),
+                None => {
+                    self.state.layouts.retain(|l| l.device != layout.device);
+                    self.state.layouts.push(layout);
+                    self.apply_device_policy();
+                    self.save_state();
+                    ServiceReply::Ok("layout saved".into())
+                }
+            },
+            ServiceCmd::ForgetLayout(device) => {
+                self.state.layouts.retain(|l| l.device != device);
+                self.apply_device_policy();
+                self.save_state();
+                ServiceReply::Ok("layout removed".into())
+            }
             ServiceCmd::PowerOff(id) => {
                 if self.rt.power_off(&dp_platform::DeviceId(id)) {
                     ServiceReply::Ok("controller turned off".into())
@@ -830,6 +851,7 @@ impl Service {
             blocked: self.state.blocked.clone(),
             groups: self.state.groups.clone(),
         });
+        self.rt.set_layouts(self.state.layouts.clone());
         let minutes = self.state.power_off_after_min;
         self.rt.set_power_off_after(
             (minutes > 0).then(|| std::time::Duration::from_secs(u64::from(minutes) * 60)),
@@ -962,6 +984,7 @@ impl Service {
                         .motion
                         .map(|_| self.rt.calibration().status(&s.info.id.0, now)),
                     battery: s.battery,
+                    raw: s.raw.as_deref().cloned(),
                 })
                 .collect(),
             primary: self.rt.primary_device().map(|d| d.to_string()),
@@ -988,6 +1011,12 @@ impl Service {
             blocked: self.state.blocked.clone(),
             groups: self.state.groups.clone(),
             power_off_after_min: self.state.power_off_after_min,
+            layouts: self
+                .state
+                .layouts
+                .iter()
+                .map(|l| l.device.clone())
+                .collect(),
             auto_switch: self.state.auto_switch,
             suspended: self.rt.is_suspended(),
             foreground: self.foreground.clone(),
@@ -1034,6 +1063,25 @@ impl Service {
 }
 
 /// What is wrong with a set of device groups, if anything.
+/// Why a generic pad layout cannot be stored, if it cannot.
+fn layout_problem(l: &GenericLayout) -> Option<String> {
+    let hex4 = |s: &str| s.len() == 4 && s.chars().all(|c| c.is_ascii_hexdigit());
+    let key_ok = l
+        .device
+        .split_once(':')
+        .is_some_and(|(v, p)| hex4(v) && hex4(p));
+    if !key_ok {
+        return Some(format!(
+            "`{}` is not a controller model (vvvv:pppp)",
+            l.device
+        ));
+    }
+    if l.buttons.is_empty() && l.triggers.is_empty() && l.sticks.is_empty() {
+        return Some("the layout maps nothing".into());
+    }
+    None
+}
+
 fn group_problem(groups: &[DeviceGroup]) -> Option<String> {
     for (i, g) in groups.iter().enumerate() {
         if g.name.trim().is_empty() {

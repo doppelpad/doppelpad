@@ -25,6 +25,7 @@ use dp_core::profile::{
     AnalogSource, Command, Crosshair, Profile, RadialMenu, TriggerEffect, VirtualPadType,
 };
 use dp_core::repeat::KeyRepeater;
+use dp_platform::generic::GenericLayout;
 use dp_platform::groups::{DevicePolicy, Grouping, SeenDevice};
 use dp_platform::{
     CaptureFilter, DeviceId, KbmEvent, Leds, PadSnapshot, Platform, PowerAction, TriggerEffects,
@@ -685,6 +686,14 @@ impl Runtime {
         for id in off {
             tracing::info!(device = %id, "no input for a while");
             self.power_off(&id);
+        }
+    }
+
+    /// How generic pads' inputs map to pad controls, by model.
+    pub fn set_layouts(&mut self, layouts: Vec<GenericLayout>) {
+        let layouts = Arc::new(layouts);
+        for b in &mut self.platform.gamepads {
+            b.set_layouts(layouts.clone());
         }
     }
 
@@ -1357,6 +1366,7 @@ pub(crate) mod testing {
             }),
             state: PadState::default(),
             battery: None,
+            raw: None,
         }
     }
 

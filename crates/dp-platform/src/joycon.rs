@@ -219,6 +219,7 @@ impl<B: GamepadBackend> GamepadBackend for JoyConCombiner<B> {
                         info: p.info.clone(),
                         state: combine(&s.state, &right.state),
                         battery: lower(s.battery, right.battery),
+                        raw: None,
                     });
                 }
             } else if self.pairs.iter().any(|p| p.right == s.info.id) {
@@ -229,6 +230,7 @@ impl<B: GamepadBackend> GamepadBackend for JoyConCombiner<B> {
                     info: s.info.clone(),
                     state: sideways(side, &s.state),
                     battery: s.battery,
+                    raw: s.raw.clone(),
                 });
             }
         }
@@ -295,6 +297,10 @@ impl<B: GamepadBackend> GamepadBackend for JoyConCombiner<B> {
         self.inner.ignore_virtual(ignored);
     }
 
+    fn set_layouts(&mut self, layouts: std::sync::Arc<Vec<crate::generic::GenericLayout>>) {
+        self.inner.set_layouts(layouts);
+    }
+
     fn problems(&self) -> Vec<String> {
         self.inner.problems()
     }
@@ -349,6 +355,7 @@ mod tests {
             }),
             state,
             battery: None,
+            raw: None,
         }
     }
 
