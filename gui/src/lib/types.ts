@@ -479,6 +479,22 @@ export interface LiveDevice {
 /** All keyboard/mouse input, physical devices only, or only what scripts inject. */
 export type KbmSource = 'all' | 'physical' | 'scripts';
 
+export interface HttpSettings {
+  enabled: boolean;
+  /** Listen on all network interfaces; every request then needs the token. */
+  lan: boolean;
+  port: number;
+  token: string;
+}
+
+/** The local HTTP API. */
+export interface LiveHttp {
+  settings: HttpSettings;
+  /** Where it listens while it runs. */
+  address: string | null;
+  error: string | null;
+}
+
 /** How remapping fits in with the rest of the system. */
 export interface RuntimeOptions {
   prevent_sleep: boolean;
@@ -564,6 +580,7 @@ export interface LiveState {
   /** Generic pad models with a recorded layout (`vvvv:pppp`). */
   layouts: string[];
   dsu: LiveDsu;
+  http: LiveHttp;
   runtime: RuntimeOptions;
   /** Paused: the desktop is locked or a secure desktop shows. */
   locked: boolean;

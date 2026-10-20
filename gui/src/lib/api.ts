@@ -11,6 +11,7 @@ import type {
   GenericLayout,
   GuiSettings,
   Hotkeys,
+  HttpSettings,
   LayerPreset,
   Library,
   LiveState,
@@ -99,6 +100,8 @@ export const api = {
   setLayout: (layout: GenericLayout) => invoke<string>('set_layout', { layout }),
   forgetLayout: (device: string) => invoke<string>('forget_layout', { device }),
   setDsu: (settings: DsuSettings) => invoke<string>('set_dsu', { settings }),
+  setHttp: (settings: HttpSettings) => invoke<string>('set_http', { settings }),
+  newHttpToken: () => invoke<string>('new_http_token'),
   setRuntimeOptions: (options: RuntimeOptions) => invoke<string>('set_runtime_options', { options }),
   osdTest: () => invoke<void>('osd_test'),
   /** Sizes of the monitors, the primary one first. */

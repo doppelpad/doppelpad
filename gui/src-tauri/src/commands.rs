@@ -22,6 +22,7 @@ use dp_ipc::Request;
 use dp_platform::generic::GenericLayout;
 use dp_platform::groups::DeviceGroup;
 use dp_service::dsu::DsuSettings;
+use dp_service::httpapi::HttpSettings;
 use dp_service::slots::RuntimeOptions;
 use dp_service::{LiveState, PlayerLights, ServiceCmd, ServiceHandle, ServiceReply};
 use serde::Serialize;
@@ -449,6 +450,18 @@ pub fn set_layout(state: State<AppState>, layout: GenericLayout) -> CmdResult<St
 #[tauri::command]
 pub fn forget_layout(state: State<AppState>, device: String) -> CmdResult<String> {
     state.call(ServiceCmd::ForgetLayout(device))
+}
+
+/// Turn the local HTTP API on or off, or change where it listens.
+#[tauri::command]
+pub fn set_http(state: State<AppState>, settings: HttpSettings) -> CmdResult<String> {
+    state.call(ServiceCmd::SetHttp(settings))
+}
+
+/// Replace the HTTP API's token.
+#[tauri::command]
+pub fn new_http_token(state: State<AppState>) -> CmdResult<String> {
+    state.call(ServiceCmd::NewHttpToken)
 }
 
 /// Sleep, focus and disconnect behaviour of remapping.

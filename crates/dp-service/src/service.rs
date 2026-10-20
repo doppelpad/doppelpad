@@ -13,6 +13,7 @@ use dp_platform::generic::GenericLayout;
 use dp_platform::groups::{DeviceGroup, DevicePolicy};
 
 use crate::dsu::{DsuServer, DsuSettings};
+use crate::httpapi::{HttpApi, HttpSettings, Job};
 use crate::live::{LiveDevice, LiveState};
 use crate::runtime::{DriverStatus, Runtime};
 use crate::slots::{PlayerLights, RuntimeOptions, SLOTS, SlotState};
@@ -117,6 +118,10 @@ pub enum ServiceCmd {
     SetDsu(DsuSettings),
     /// Sleep, focus and disconnect behaviour.
     SetRuntimeOptions(RuntimeOptions),
+    /// Turn the local HTTP API on or off, or change where it listens.
+    SetHttp(HttpSettings),
+    /// Give the HTTP API a new token (the old one stops working).
+    NewHttpToken,
     /// Turn a wireless controller off now.
     PowerOff(String),
     /// Re-probe ViGEmBus / HidHide now.
@@ -192,6 +197,9 @@ pub struct Service {
     /// The DSU motion server while it runs, and why it could not start.
     dsu: Option<DsuServer>,
     dsu_error: Option<String>,
+    /// The local HTTP API while it runs, and why it could not start.
+    http: Option<HttpApi>,
+    http_error: Option<String>,
     /// Why remapping is paused: the editor has focus, the desktop is locked or a secure
     /// desktop shows, the config's game is not in front.
     gui_suspended: bool,
@@ -264,6 +272,8 @@ impl Service {
             connected: Vec::new(),
             dsu: None,
             dsu_error: None,
+            http: None,
+            http_error: None,
             gui_suspended: false,
             locked: false,
             focus_paused: false,
@@ -274,6 +284,7 @@ impl Service {
         };
         svc.apply_device_policy();
         svc.apply_dsu();
+        svc.apply_http();
         svc.rt.set_prevent_sleep(svc.state.runtime.prevent_sleep);
         svc.reload();
         if let Some(p) = svc.oneoff.clone() {
@@ -756,6 +767,24 @@ impl Service {
                 self.sync_devices();
                 ServiceReply::Ok("runtime options set".into())
             }
+            ServiceCmd::SetHttp(settings) => {
+                self.state.http = HttpSettings {
+                    token: self.state.http.token.clone(),
+                    ..settings
+                };
+                self.apply_http();
+                self.save_state();
+                match &self.http_error {
+                    Some(e) => ServiceReply::Err(e.clone()),
+                    None => ServiceReply::Ok("HTTP API set".into()),
+                }
+            }
+            ServiceCmd::NewHttpToken => {
+                self.state.http.token = crate::httpapi::new_token();
+                self.apply_http();
+                self.save_state();
+                ServiceReply::Ok("new token".into())
+            }
             ServiceCmd::SetDsu(settings) => {
                 self.state.dsu = settings;
                 self.apply_dsu();
@@ -906,6 +935,46 @@ impl Service {
         }
     }
 
+    /// Start, stop or move the HTTP API to match the settings.
+    fn apply_http(&mut self) {
+        self.http = None;
+        self.http_error = None;
+        if !self.state.http.enabled {
+            return;
+        }
+        if self.state.http.token.is_empty() {
+            self.state.http.token = crate::httpapi::new_token();
+            self.save_state();
+        }
+        match HttpApi::start(&self.state.http) {
+            Ok(api) => self.http = Some(api),
+            Err(e) => {
+                let e = format!("the HTTP API cannot use port {}: {e}", self.state.http.port);
+                tracing::warn!("{e}");
+                self.http_error = Some(e);
+            }
+        }
+    }
+
+    /// Answer what the HTTP API's clients asked for since the last tick.
+    fn serve_http(&mut self) {
+        let Some(api) = &self.http else {
+            return;
+        };
+        let jobs: Vec<Job> = api.jobs().try_iter().collect();
+        for job in jobs {
+            match job {
+                Job::Ipc(req, reply) => {
+                    let answer = self.handle_ipc(req);
+                    let _ = reply.send(answer);
+                }
+                Job::Live(reply) => {
+                    let _ = reply.send(self.live());
+                }
+            }
+        }
+    }
+
     /// Start, stop or move the DSU server to match the settings.
     fn apply_dsu(&mut self) {
         let want = self.state.dsu;
@@ -958,6 +1027,7 @@ impl Service {
         if let Some(dsu) = &mut self.dsu {
             dsu.publish(self.rt.devices());
         }
+        self.serve_http();
         self.run_hotkeys();
         self.show_lights();
         self.save_calibration();
@@ -1172,6 +1242,11 @@ impl Service {
                 .iter()
                 .map(|l| l.device.clone())
                 .collect(),
+            http: crate::live::LiveHttp {
+                settings: self.state.http.clone(),
+                address: self.http.as_ref().map(|h| h.addr.to_string()),
+                error: self.http_error.clone(),
+            },
             dsu: crate::live::LiveDsu {
                 settings: self.state.dsu,
                 address: self.dsu.as_ref().map(|d| d.addr.to_string()),
@@ -1341,6 +1416,48 @@ mod tests {
         fn desktop_active(&self) -> bool {
             self.0.load(std::sync::atomic::Ordering::Relaxed)
         }
+    }
+
+    #[test]
+    fn answers_http_requests_on_its_tick() {
+        use std::io::{Read, Write};
+        let dir = tempfile::tempdir().unwrap();
+        let (mut s, _) = service(dir.path(), None);
+        let reply = s.handle(ServiceCmd::SetHttp(HttpSettings {
+            enabled: true,
+            port: 0,
+            ..Default::default()
+        }));
+        assert!(reply.into_result().is_ok());
+        let live = s.live().http;
+        assert_eq!(
+            live.settings.token.len(),
+            32,
+            "a token is made on first use"
+        );
+        let addr: std::net::SocketAddr = live.address.unwrap().parse().unwrap();
+        let client = std::thread::spawn(move || {
+            let mut c = std::net::TcpStream::connect(addr).unwrap();
+            write!(
+                c,
+                "GET /api/status HTTP/1.1
+Host: 127.0.0.1:{}
+
+",
+                addr.port()
+            )
+            .unwrap();
+            let mut out = String::new();
+            c.read_to_string(&mut out).unwrap();
+            out
+        });
+        while !client.is_finished() {
+            s.tick();
+            std::thread::sleep(std::time::Duration::from_millis(2));
+        }
+        let out = client.join().unwrap();
+        assert!(out.starts_with("HTTP/1.1 200 OK"), "{out}");
+        assert!(out.contains(r#""type":"status""#), "{out}");
     }
 
     #[test]

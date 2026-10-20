@@ -10,6 +10,7 @@ use serde::Serialize;
 
 use crate::calibration::CalibrationStatus;
 use crate::dsu::DsuSettings;
+use crate::httpapi::HttpSettings;
 use crate::runtime::{DriverStatus, SessionInfo};
 use crate::slots::{PlayerLights, RuntimeOptions};
 
@@ -28,6 +29,15 @@ pub struct LiveDevice {
     pub battery: Option<Battery>,
     /// Unmapped input of a generic pad, for identifying its buttons.
     pub raw: Option<RawInput>,
+}
+
+/// The local HTTP API.
+#[derive(Clone, Debug, Default, PartialEq, Serialize)]
+pub struct LiveHttp {
+    pub settings: HttpSettings,
+    /// Where it listens while it runs.
+    pub address: Option<String>,
+    pub error: Option<String>,
 }
 
 /// The DSU motion server.
@@ -75,6 +85,7 @@ pub struct LiveState {
     /// Generic pad models with a recorded layout (`vvvv:pppp`).
     pub layouts: Vec<String>,
     pub dsu: LiveDsu,
+    pub http: LiveHttp,
     pub runtime: RuntimeOptions,
     /// Remapping is paused because the desktop is locked or a secure desktop shows.
     pub locked: bool,
