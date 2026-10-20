@@ -652,7 +652,31 @@
     "rewasd_ask": "Ask",
     "rewasd_quit": "Quit it",
     "rewasd_ignore": "Leave it running",
-    "rewasd_running": "reWASD is running right now."
+    "rewasd_running": "reWASD is running right now.",
+    "osd": {
+      "title": "On-screen notifications",
+      "hint": "Short messages over games, also while this window is closed to the tray. They do not show while this window has focus.",
+      "test": "Show a sample",
+      "enabled": "Show notifications",
+      "remap": "Remapping on or off",
+      "slot": "Slot or config changed",
+      "layer": "Layer changed",
+      "keep_layer": "Keep it up while the layer is active",
+      "controller": "Controller connected or disconnected",
+      "monitor": "Monitor",
+      "primary": "Primary monitor ({size})",
+      "monitor_n": "Monitor {n} ({size})",
+      "corner": "Position",
+      "corners": {
+        "top_left": "Top left",
+        "top_right": "Top right",
+        "bottom_left": "Bottom left",
+        "bottom_right": "Bottom right"
+      },
+      "scale": "Size",
+      "opacity": "Opacity",
+      "seconds": "Display time"
+    }
   },
   "hotkeys": {
     "title": "Controller hotkeys",
@@ -840,5 +864,15 @@
     "errors": "{n} errors",
     "warnings": "{n} warnings",
     "service": "Warnings from the remapping service"
+  },
+  "osd": {
+    "remap_on": "Remapping on",
+    "remap_off": "Remapping off",
+    "slot": "Slot {n}",
+    "slot_empty": "Empty slot",
+    "layer": "Layer",
+    "connected": "Connected",
+    "disconnected": "Disconnected",
+    "test": "Notifications look like this."
   }
 }

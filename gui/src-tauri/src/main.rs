@@ -7,6 +7,8 @@
 mod autostart;
 mod commands;
 mod logging;
+mod osd;
+mod overlay;
 mod settings;
 #[cfg(test)]
 mod tests;
@@ -86,7 +88,9 @@ fn main() {
                 notices: Mutex::new(notices),
                 live_generation: Arc::new(AtomicU64::new(0)),
             });
+            app.manage(osd::OsdState::default());
             tray::create(app.handle())?;
+            osd::start(app.handle())?;
 
             // Started with Windows: only the tray icon shows.
             let window = create_main_window(app, !autostart::started_hidden())?;
@@ -152,6 +156,9 @@ fn main() {
             commands::profiles_dir,
             commands::log_file,
             commands::take_notices,
+            osd::osd_ready,
+            osd::osd_test,
+            osd::osd_monitors,
         ])
         .build(tauri::generate_context!())
         .expect("error while building the app")

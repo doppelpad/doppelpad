@@ -287,6 +287,19 @@ in, with only the tray icon showing; remapping runs as it was left. The setting 
 off there shows in the settings. If reWASD runs at sign-in and *When reWASD is running at
 start-up* is set to *Ask*, the window opens to ask.
 
+## On-screen notifications
+
+Short messages appear over games when remapping goes on or off, another slot or config
+becomes active, the layer changes, or a controller connects or disconnects. They also show
+while the window is closed to the tray, but not while the window has focus (it shows the same
+state) or in the first seconds after start. *Settings → On-screen notifications* picks the
+events, the monitor and corner, the size, opacity and display time, and whether a layer
+message stays up while the layer is active; *Show a sample* previews them.
+
+Each message is a small window that stays above other windows, lets clicks through and never
+takes the focus, so it works over windowed and borderless games. Games in exclusive full-screen
+mode draw over it. `doppelpad daemon` shows no notifications; they are part of the app.
+
 ## reWASD running at start-up
 
 While reWASD runs, its service and driver keep the controllers to themselves, and

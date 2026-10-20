@@ -3,8 +3,9 @@
   import { api, errorText } from '../lib/api';
   import { LANGUAGES, t } from '../lib/i18n/index.svelte';
   import { app } from '../lib/state/app.svelte';
-  import type { RewasdChoice } from '../lib/types';
+  import type { Corner, OsdSettings, RewasdChoice } from '../lib/types';
   import HotkeySettings from './HotkeySettings.svelte';
+  import Slider from './ui/Slider.svelte';
   import Toggle from './ui/Toggle.svelte';
 
   let { onclose }: { onclose: () => void } = $props();
@@ -34,6 +35,16 @@
         ]
       : [],
   );
+
+  const osd = $derived(app.settings.osd);
+  const OSD_EVENTS = ['remap', 'slot', 'layer', 'controller'] as const;
+  const CORNERS: Corner[] = ['top_left', 'top_right', 'bottom_left', 'bottom_right'];
+  let monitors = $state<string[]>([]);
+  api.osdMonitors().then((m) => (monitors = m));
+
+  function setOsd(patch: Partial<OsdSettings>) {
+    app.setSettings({ osd: { ...osd, ...patch } });
+  }
 
   async function refresh() {
     try {
@@ -103,6 +114,53 @@
     {/if}
 
     <HotkeySettings />
+
+    <div class="section">
+      <div class="section-head">
+        <span>{t('settings.osd.title')}</span>
+        <button class="btn" disabled={!osd.enabled} onclick={() => api.osdTest()}>{t('settings.osd.test')}</button>
+      </div>
+      <p class="hint">{t('settings.osd.hint')}</p>
+      <Toggle checked={osd.enabled} label={t('settings.osd.enabled')} onchange={(v) => setOsd({ enabled: v })} />
+      {#if osd.enabled}
+        <div class="events">
+          {#each OSD_EVENTS as e (e)}
+            <label class="check">
+              <input type="checkbox" checked={osd[e]} onchange={(ev) => setOsd({ [e]: ev.currentTarget.checked })} />
+              <span>{t(`settings.osd.${e}`)}</span>
+            </label>
+            {#if e === 'layer'}
+              <label class="check sub">
+                <input
+                  type="checkbox"
+                  checked={osd.keep_layer}
+                  disabled={!osd.layer}
+                  onchange={(ev) => setOsd({ keep_layer: ev.currentTarget.checked })}
+                />
+                <span>{t('settings.osd.keep_layer')}</span>
+              </label>
+            {/if}
+          {/each}
+        </div>
+        <label class="row">
+          <span>{t('settings.osd.monitor')}</span>
+          <select value={osd.monitor} onchange={(e) => setOsd({ monitor: Number(e.currentTarget.value) })}>
+            {#each monitors as size, i (i)}
+              <option value={i}>{i === 0 ? t('settings.osd.primary', { size }) : t('settings.osd.monitor_n', { n: i + 1, size })}</option>
+            {/each}
+          </select>
+        </label>
+        <label class="row">
+          <span>{t('settings.osd.corner')}</span>
+          <select value={osd.corner} onchange={(e) => setOsd({ corner: e.currentTarget.value as Corner })}>
+            {#each CORNERS as c (c)}<option value={c}>{t(`settings.osd.corners.${c}`)}</option>{/each}
+          </select>
+        </label>
+        <Slider label={t('settings.osd.scale')} value={osd.scale} def={100} min={50} max={200} step={10} unit="%" onchange={(v) => setOsd({ scale: v })} />
+        <Slider label={t('settings.osd.opacity')} value={osd.opacity} def={80} min={20} max={100} step={5} unit="%" onchange={(v) => setOsd({ opacity: v })} />
+        <Slider label={t('settings.osd.seconds')} value={osd.seconds} def={5} min={1} max={30} step={1} unit="s" onchange={(v) => setOsd({ seconds: v })} />
+      {/if}
+    </div>
 
     <div class="section">
       <div class="section-head">
@@ -184,6 +242,24 @@
   }
   .note {
     color: var(--warning);
+  }
+  .hint {
+    margin: 0;
+    color: var(--text-dim);
+    font-size: 12px;
+  }
+  .events {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .check {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .check.sub {
+    margin-left: 24px;
   }
   .section {
     border-top: 1px solid var(--line);

@@ -652,7 +652,31 @@
     "rewasd_ask": "Nachfragen",
     "rewasd_quit": "Beenden",
     "rewasd_ignore": "Weiterlaufen lassen",
-    "rewasd_running": "reWASD läuft gerade."
+    "rewasd_running": "reWASD läuft gerade.",
+    "osd": {
+      "title": "Bildschirm-Meldungen",
+      "hint": "Kurze Meldungen über Spielen, auch wenn dieses Fenster in den Tray geschlossen ist. Solange dieses Fenster den Fokus hat, erscheinen sie nicht.",
+      "test": "Beispiel zeigen",
+      "enabled": "Meldungen zeigen",
+      "remap": "Remapping an oder aus",
+      "slot": "Slot oder Config gewechselt",
+      "layer": "Ebene gewechselt",
+      "keep_layer": "Stehen lassen, solange die Ebene aktiv ist",
+      "controller": "Controller verbunden oder getrennt",
+      "monitor": "Monitor",
+      "primary": "Hauptmonitor ({size})",
+      "monitor_n": "Monitor {n} ({size})",
+      "corner": "Position",
+      "corners": {
+        "top_left": "Oben links",
+        "top_right": "Oben rechts",
+        "bottom_left": "Unten links",
+        "bottom_right": "Unten rechts"
+      },
+      "scale": "Größe",
+      "opacity": "Deckkraft",
+      "seconds": "Anzeigedauer"
+    }
   },
   "rewasd": {
     "title": "reWASD läuft",
@@ -840,5 +864,15 @@
     "errors": "{n} Fehler",
     "warnings": "{n} Warnungen",
     "service": "Warnungen des Remapping-Dienstes"
+  },
+  "osd": {
+    "remap_on": "Remapping an",
+    "remap_off": "Remapping aus",
+    "slot": "Slot {n}",
+    "slot_empty": "Leerer Slot",
+    "layer": "Ebene",
+    "connected": "Verbunden",
+    "disconnected": "Getrennt",
+    "test": "So sehen Meldungen aus."
   }
 }
