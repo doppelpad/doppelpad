@@ -1,8 +1,10 @@
 <script lang="ts">
   // Zone thresholds of the selected stick or trigger: a bar with the zones and the live
-  // value, and where each zone starts. Shared by every mapping of that stick or trigger.
+  // value, and where each zone starts. Shared by every mapping of that stick or trigger on
+  // a layer; a layer may have zones of its own.
   import { untrack } from 'svelte';
   import { t } from '../../lib/i18n/index.svelte';
+  import { layerOverrides, triggerConfig } from '../../lib/model/analog';
   import type { ZoneName, ZoneParts } from '../../lib/model/controls';
   import {
     LEVELS,
@@ -13,6 +15,7 @@
     setTriggerLevel,
     stickThresholds,
     stickZoneAt,
+    storedZones,
     triggerThresholds,
     triggerZoneAt,
     withZones,
@@ -22,6 +25,7 @@
     type ZoneDefaults,
   } from '../../lib/model/zones';
   import { app } from '../../lib/state/app.svelte';
+  import type { StickZones, TriggerZones } from '../../lib/types';
 
   let { parts }: { parts: ZoneParts } = $props();
 
@@ -34,8 +38,17 @@
     triggerLow: app.catalog?.defaults.trigger.zones.low ?? 0.03,
     fullPull: app.catalog?.defaults.trigger.full_pull ?? 0.99,
   });
-  const stickZones = $derived(isStick ? app.profile?.sticks?.[source.side]?.zones : undefined);
-  const trigger = $derived(isStick ? undefined : app.profile?.triggers?.[source.side]);
+  // Zones are per config; a layer may have its own (shown and edited on that layer).
+  const zonesHere = $derived(app.profile ? storedZones(app.profile, source, app.layer) : undefined);
+  const stickZones = $derived(isStick ? (zonesHere as StickZones | undefined) : undefined);
+  const ownZones = $derived(
+    !!app.profile && layerOverrides(app.profile, app.layer, isStick ? 'sticks' : 'triggers', source.side).includes('zones'),
+  );
+  const trigger = $derived.by(() => {
+    const def = app.catalog?.defaults.trigger;
+    if (isStick || !app.profile || !def) return undefined;
+    return { zones: zonesHere as TriggerZones | undefined, full_pull: triggerConfig(app.profile, source.side, def, app.layer).full_pull };
+  });
 
   const th = $derived.by<{ x: Triple; y: Triple }>(() => {
     if (isStick) return stickThresholds(stickZones, defaults);
@@ -82,13 +95,13 @@
     const zones = isStick
       ? setStickLevel(stickZones, level, axis, v, defaults)
       : setTriggerLevel(trigger?.zones, level, v);
-    app.update(withZones(app.profile, source, zones));
+    app.update(withZones(app.profile, source, zones, app.layer));
   }
 
   function setSeparate(on: boolean) {
     separate = on;
     if (!on && app.profile && isElliptic(stickZones)) {
-      app.update(withZones(app.profile, source, setElliptic(stickZones, false)));
+      app.update(withZones(app.profile, source, setElliptic(stickZones, false), app.layer));
     }
   }
 
@@ -120,6 +133,9 @@
   <p class="hint">
     {t('zones.thresholds_hint')}
     {t(isStick ? 'zones.shared_stick' : 'zones.shared_trigger')}
+    {#if app.layer !== 0}
+      {t(ownZones ? 'zones.layer_own' : 'zones.layer_main', { layer: app.layerLabel(app.layer) })}
+    {/if}
   </p>
 
   {#if separate}

@@ -10,12 +10,14 @@ import {
   curvePreset,
   curveToGraph,
   graphToCurve,
+  layerOverrides,
   layerRoutes,
   moveCurvePoint,
   newRoute,
   overrideRoute,
   removeCurvePoint,
   removeRoute,
+  resetLayerPart,
   rotate,
   routeFields,
   routeTargets,
@@ -76,6 +78,30 @@ describe('stick and trigger settings', () => {
     expect(p.sticks?.left?.zones).toEqual({ low: 0.3 });
     p = setStick(p, 'left', { zones: setStickLevel(p.sticks?.left?.zones, 'low', 'both', 0.24, zd) }, def.stick);
     expect('sticks' in p).toBe(false);
+  });
+
+  it('on a layer, keep only what differs from Main', () => {
+    const fx = fixture as unknown as Profile;
+    let p: Profile = { ...empty(), sticks: fx.sticks, triggers: fx.triggers, layers: [{ id: 1, name: 'Aim', inherit: true }] };
+    const mainRight = stickConfig(p, 'right', def.stick);
+    p = setStick(p, 'right', { sensitivity: 0.5, deadzone: mainRight.deadzone }, def.stick, 1);
+    p = setStick(p, 'right', { zones: setStickLevel(mainRight.zones, 'low', 'both', 0.125, zd) }, def.stick, 1);
+    p = setTrigger(p, 'right', { full_pull: 0.75 }, def.trigger, 1);
+    expect(p.layers?.[0]).toEqual(fx.layers?.[0]);
+    expect(p.sticks).toEqual(fx.sticks);
+    expect(stickConfig(p, 'right', def.stick, 1)).toEqual({ ...mainRight, sensitivity: 0.5, zones: { low: 0.125 } });
+    expect(stickConfig(p, 'left', def.stick, 1)).toEqual(stickConfig(p, 'left', def.stick));
+    expect(layerOverrides(p, 1, 'sticks', 'right')).toEqual(['sensitivity', 'zones']);
+
+    // Setting Main's value again drops the field; resetting drops the rest.
+    p = setStick(p, 'right', { sensitivity: mainRight.sensitivity }, def.stick, 1);
+    expect(layerOverrides(p, 1, 'sticks', 'right')).toEqual(['zones']);
+    p = resetLayerPart(resetLayerPart(p, 1, 'sticks', 'right'), 1, 'triggers', 'right');
+    expect(p.layers?.[0]).toEqual({ id: 1, name: 'Aim', inherit: true });
+
+    // An undeclared layer is declared on first change.
+    p = setTrigger(p, 'left', { deadzone: 0.2 }, def.trigger, 3);
+    expect(p.layers?.find((l) => l.id === 3)).toEqual({ id: 3, inherit: true, triggers: { left: { deadzone: 0.2 } } });
   });
 
   it('are left out once both sides are back at their defaults', () => {

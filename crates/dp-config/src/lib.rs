@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 
 pub use compat::ImportError;
 pub use diag::{Diagnostic, Diagnostics, Severity};
-use dp_core::profile::{Action, Command, Mode, Profile};
+use dp_core::profile::{Action, Command, Mode, Profile, Sticks, Triggers};
 
 #[derive(Debug, thiserror::Error)]
 pub enum LoadError {
@@ -166,13 +166,50 @@ pub fn validate(p: &Profile) -> Diagnostics {
             }
         }
     }
-    for (name, s) in [("left", &p.sticks.left), ("right", &p.sticks.right)] {
+    check_analog(&mut d, "", &p.sticks, &p.triggers, [true; 4]);
+    for (i, l) in p.layers.iter().enumerate() {
+        // Only the sides a layer changes are checked again.
+        let changed = [
+            !l.sticks.left.is_empty(),
+            !l.sticks.right.is_empty(),
+            !l.triggers.left.is_empty(),
+            !l.triggers.right.is_empty(),
+        ];
+        if changed.contains(&true) {
+            let sticks = l.sticks.apply(&p.sticks);
+            let triggers = l.triggers.apply(&p.triggers);
+            check_analog(
+                &mut d,
+                &format!("layers[{i}]."),
+                &sticks,
+                &triggers,
+                changed,
+            );
+        }
+    }
+    d
+}
+
+/// Range and zone-order checks for one set of stick and trigger settings; `which` picks
+/// left stick, right stick, left trigger and right trigger.
+fn check_analog(
+    d: &mut Diagnostics,
+    prefix: &str,
+    sticks: &Sticks,
+    triggers: &Triggers,
+    which: [bool; 4],
+) {
+    let sides = [("left", &sticks.left), ("right", &sticks.right)];
+    for ((name, s), _) in sides.into_iter().zip(which).filter(|(_, on)| *on) {
         if !(0.0..1.0).contains(&s.deadzone) {
-            d.error(format!("sticks.{name}.deadzone"), "must be in [0, 1)");
+            d.error(
+                format!("{prefix}sticks.{name}.deadzone"),
+                "must be in [0, 1)",
+            );
         }
         if !(1.0..=44.0).contains(&s.direction_width) {
             d.error(
-                format!("sticks.{name}.direction_width"),
+                format!("{prefix}sticks.{name}.direction_width"),
                 "must be between 1 and 44 degrees",
             );
         }
@@ -180,20 +217,23 @@ pub fn validate(p: &Profile) -> Diagnostics {
             .iter()
             .any(|pt| !(0.0..=1.0).contains(&pt[0]) || !(0.0..=1.0).contains(&pt[1]))
         {
-            d.error(format!("sticks.{name}.curve"), "points must be in [0, 1]");
+            d.error(
+                format!("{prefix}sticks.{name}.curve"),
+                "points must be in [0, 1]",
+            );
         }
         let [low, med, high] = s.zone_thresholds();
         let problem = zone_problem([low.x, med.x, high.x]).or(zone_problem([low.y, med.y, high.y]));
         if let Some(msg) = problem {
-            d.error(format!("sticks.{name}.zones"), msg);
+            d.error(format!("{prefix}sticks.{name}.zones"), msg);
         }
     }
-    for (name, t) in [("left", &p.triggers.left), ("right", &p.triggers.right)] {
+    let sides = [("left", &triggers.left), ("right", &triggers.right)];
+    for ((name, t), _) in sides.into_iter().zip(&which[2..]).filter(|(_, on)| **on) {
         if let Some(msg) = zone_problem(t.zone_thresholds()) {
-            d.error(format!("triggers.{name}.zones"), msg);
+            d.error(format!("{prefix}triggers.{name}.zones"), msg);
         }
     }
-    d
 }
 
 /// What is wrong with a control's effective low, medium and high zone thresholds.
@@ -376,6 +416,28 @@ while_held = ["LT", "Mouse:Right"]
         ] {
             assert!(validate(&parse_toml(bad).unwrap()).has_errors(), "{bad}");
         }
+    }
+
+    #[test]
+    fn layer_analog_settings_round_trip_and_validate() {
+        let text = "[[layers]]\nid = 1\ninherit = true\n\n[layers.sticks.left]\ndeadzone = 0.3\n\n[layers.triggers.right]\nfull_pull = 0.9\n";
+        let p = parse_toml(text).unwrap();
+        assert_eq!(p.layers[0].sticks.left.deadzone, Some(0.3));
+        assert_eq!(p.layers[0].triggers.right.full_pull, Some(0.9));
+        assert!(!validate(&p).has_errors());
+        let again = parse_toml(&to_toml(&p)).unwrap();
+        assert_eq!(again.layers, p.layers);
+        assert!(
+            !to_toml(&Profile::default()).contains("sticks.left"),
+            "no empty patches"
+        );
+
+        let bad = parse_toml("[[layers]]\nid = 1\ninherit = true\n\n[layers.sticks.right]\nzones = { low = 0.9, med = 0.5 }\n").unwrap();
+        let d = validate(&bad);
+        assert!(
+            d.iter().any(|x| x.path == "layers[0].sticks.right.zones"),
+            "{d:?}"
+        );
     }
 
     #[test]

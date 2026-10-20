@@ -963,6 +963,63 @@ fn zone_mappings_follow_layers() {
 }
 
 #[test]
+fn layers_bring_their_own_stick_and_trigger_settings() {
+    use crate::profile::{LayerSticks, LayerTriggers, StickPatch, TriggerPatch, TriggerZones};
+    let mut p = Profile::default();
+    p.layers.push(Layer {
+        id: 1,
+        sticks: LayerSticks {
+            left: StickPatch {
+                deadzone: Some(0.5),
+                ..Default::default()
+            },
+            ..Default::default()
+        },
+        triggers: LayerTriggers {
+            right: TriggerPatch {
+                zones: Some(TriggerZones {
+                    low: 0.5,
+                    ..Default::default()
+                }),
+                ..Default::default()
+            },
+            ..Default::default()
+        },
+        ..Default::default()
+    });
+    let mut shift = map(b(PadButton::Back), vec![]);
+    shift.jump = Some(Jump {
+        layer: 1,
+        mode: JumpMode::Hold,
+        delay_ms: None,
+    });
+    p.mappings.push(shift);
+    p.mappings.push(map(
+        Control::TriggerPress(Trigger::Right),
+        vec![key(Key::P)],
+    ));
+    let mut h = Harness::new(p);
+
+    h.pad.set_stick(Stick::Left, (0.3, 0.0));
+    h.pad.set_axis(Axis::RightTrigger, 0.3);
+    h.until(10);
+    assert!(h.virtual_pad().stick(Stick::Left).0 > 0.0, "base deadzone");
+    h.btn(PadButton::Back, true); // 11: layer 1 has a wider stick deadzone and a later RT
+    h.until(20);
+    assert_eq!(h.virtual_pad().stick(Stick::Left), (0.0, 0.0));
+    h.pad.set_axis(Axis::RightTrigger, 0.6);
+    h.until(30);
+    h.btn(PadButton::Back, false); // 31: back to the base settings
+    h.until(40);
+    assert!(h.virtual_pad().stick(Stick::Left).0 > 0.0);
+    assert_eq!(
+        h.key_events(Key::P),
+        vec![(1, true), (11, false), (21, true), (31, false), (31, true)],
+        "RT lets go at once where layer 1 needs a deeper pull, and is re-pressed on the way back"
+    );
+}
+
+#[test]
 fn zone_mapping_replaces_the_mirrored_control() {
     let mut p = Profile::default();
     p.mappings

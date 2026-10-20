@@ -10,6 +10,7 @@ import {
   setTriggerLevel,
   stickThresholds,
   stickZoneAt,
+  storedZones,
   triggerThresholds,
   triggerZoneAt,
   withZones,
@@ -95,6 +96,17 @@ describe('zone thresholds', () => {
     expect(r.triggers).toEqual({ right: { full_pull: 0.95 } });
     const s = withZones(p, { kind: 'stick', side: 'left' }, { med: [0.4, 0.5] });
     expect(s.sticks).toEqual({ left: { zones: { med: [0.4, 0.5] } } });
+  });
+
+  it('can be a layer’s own', () => {
+    const rt = { kind: 'trigger', side: 'right' } as const;
+    const p: Profile = { mappings: [], triggers: { right: { zones: { low: 0.1 } } }, layers: [{ id: 1, inherit: true }] };
+    const q = withZones(p, rt, { low: 0.3 }, 1);
+    expect(q.triggers).toEqual(p.triggers);
+    expect(q.layers).toEqual([{ id: 1, inherit: true, triggers: { right: { zones: { low: 0.3 } } } }]);
+    expect(storedZones(q, rt, 1)).toEqual({ low: 0.3 });
+    expect(storedZones(q, rt, 2)).toEqual({ low: 0.1 });
+    expect(withZones(q, rt, { low: 0.1 }, 1).layers).toEqual([{ id: 1, inherit: true }]);
   });
 
   it('report unusable thresholds', () => {

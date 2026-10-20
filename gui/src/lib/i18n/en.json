@@ -197,6 +197,8 @@
     "thresholds_hint": "Where each zone starts, in % of the full range. Empty fields use the default or split the rest evenly.",
     "shared_stick": "Shared by all directions of this stick.",
     "shared_trigger": "Shared by all mappings of this trigger.",
+    "layer_own": "{layer} has its own zones here.",
+    "layer_main": "{layer} uses Main's zones; changing them here gives {layer} its own.",
     "separate_axes": "Separate horizontal and vertical thresholds",
     "horizontal": "Horizontal",
     "vertical": "Vertical",
@@ -324,7 +326,13 @@
       "triggers": "Triggers",
       "routes": "Routes"
     },
-    "all_layers": "Applies on every layer of this config.",
+    "all_layers": "Applies on every layer of this config, unless a layer changes it.",
+    "layer": {
+      "own": "{layer} has its own settings here.",
+      "follows": "{layer} uses Main's settings here. Changing one gives {layer} its own value.",
+      "reset": "Use Main's settings",
+      "reset_field": "Use Main's value"
+    },
     "reset": "Reset to default",
     "live_hint": "Move the stick to see it here.",
     "no_controller": "Connect a controller to see its input here.",

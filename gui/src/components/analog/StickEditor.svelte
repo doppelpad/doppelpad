@@ -4,18 +4,23 @@
   // preview. The medium and high zones are edited in the binding panel's zone editor.
   import { t } from '../../lib/i18n/index.svelte';
   import { orient, setStick, stickConfig, type CurvePoint, type Side } from '../../lib/model/analog';
-  import { axisOf, setStickLevel, stickThresholds, type ZoneDefaults } from '../../lib/model/zones';
+  import { setStickLevel, stickThresholds, type ZoneDefaults } from '../../lib/model/zones';
   import { app } from '../../lib/state/app.svelte';
   import type { StickConfig } from '../../lib/types';
   import Slider from '../ui/Slider.svelte';
   import Toggle from '../ui/Toggle.svelte';
   import CurveEditor from './CurveEditor.svelte';
+  import LayerNote from './LayerNote.svelte';
   import StickRing from './StickRing.svelte';
 
   let { side }: { side: Side } = $props();
 
   const def = $derived(app.catalog?.defaults.stick);
-  const cfg = $derived(app.profile && def ? stickConfig(app.profile, side, def) : null);
+  /** The settings as they are on the current layer, and Main's (what a layer resets to). */
+  const cfg = $derived(app.profile && def ? stickConfig(app.profile, side, def, app.layer) : null);
+  const main = $derived(app.profile && def ? stickConfig(app.profile, side, def) : null);
+  const ref = $derived(app.layer === 0 ? def : main);
+  const resetLabel = $derived(app.layer === 0 ? undefined : t('analog.layer.reset_field'));
   const disabled = $derived(app.readOnly);
 
   const zoneDefaults = $derived<ZoneDefaults>({
@@ -37,17 +42,19 @@
   const live = $derived(raw && cfg ? Math.hypot(...orient(raw, cfg)) : null);
 
   function set(patch: Partial<StickConfig>) {
-    if (app.profile && def) app.update(setStick(app.profile, side, patch, def));
+    if (app.profile && def) app.update(setStick(app.profile, side, patch, def, app.layer));
   }
 </script>
 
-{#if cfg && def}
+{#if cfg && def && ref}
+  <LayerNote kind="sticks" sides={[side]} />
   <div class="stick">
     <div class="controls">
       <Slider
         label={t('analog.stick.deadzone')}
         value={cfg.deadzone}
-        def={def.deadzone}
+        def={ref.deadzone}
+        {resetLabel}
         min={0}
         max={0.9}
         step={0.01}
@@ -60,7 +67,8 @@
       <Slider
         label={t('analog.stick.outer')}
         value={cfg.outer}
-        def={def.outer}
+        def={ref.outer}
+        {resetLabel}
         min={0.1}
         max={1}
         step={0.01}
@@ -73,7 +81,8 @@
       <Slider
         label={t('analog.stick.anti_deadzone')}
         value={cfg.anti_deadzone}
-        def={def.anti_deadzone}
+        def={ref.anti_deadzone}
+        {resetLabel}
         min={0}
         max={0.9}
         step={0.01}
@@ -86,7 +95,8 @@
       <Slider
         label={t('analog.stick.sensitivity')}
         value={cfg.sensitivity}
-        def={def.sensitivity}
+        def={ref.sensitivity}
+        {resetLabel}
         min={0.1}
         max={3}
         step={0.05}
@@ -97,7 +107,8 @@
       <Slider
         label={t('analog.stick.rotation')}
         value={cfg.rotation}
-        def={def.rotation}
+        def={ref.rotation}
+        {resetLabel}
         min={-180}
         max={180}
         step={1}
@@ -109,7 +120,8 @@
       <Slider
         label={t('analog.stick.direction_threshold')}
         value={zones.x[0]}
-        def={axisOf(def.zones.low, 0)}
+        def={stickThresholds(ref.zones, zoneDefaults).x[0]}
+        {resetLabel}
         min={0.05}
         max={0.95}
         step={0.01}
@@ -122,7 +134,8 @@
       <Slider
         label={t('analog.stick.direction_width')}
         value={cfg.direction_width}
-        def={def.direction_width}
+        def={ref.direction_width}
+        {resetLabel}
         min={5}
         max={40}
         step={0.5}

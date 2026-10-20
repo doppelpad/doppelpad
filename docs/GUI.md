@@ -97,7 +97,7 @@ controller connected, the previews follow its sticks and triggers live. The view
 tabs.
 
 **Left stick** and **Right stick** shape the physical stick for the whole config (every
-layer):
+layer, unless a layer changes them; see below):
 
 - *Deadzone*: below this deflection the output is zero, and the rest is rescaled. 0 passes
   the raw stick through, so the game applies its own deadzone.
@@ -131,6 +131,13 @@ and the *Full pull*, which reads as fully pressed and fires `LTFull` / `RTFull` 
 The bars show the live pull with the press point (blue line), the medium and high zone
 thresholds (faint lines; set in the zone editor) and the output; *Pressed* and *Full pull*
 light up when mappings would fire.
+
+With a shift layer selected in the toolbar, the stick and trigger pages show the settings as
+they are on that layer, and a change applies to that layer only. Everything the layer does
+not change follows *Main*: a note above the settings says whether the layer has settings of
+its own, *Use Main's settings* removes them, and each slider's reset button goes back to
+Main's value. The zone editor in the binding panel works the same way for the zones of the
+selected layer.
 
 **Routes** lists the analog routes of the current layer. *Add route* offers common ones:
 right stick → mouse, gyro → mouse, gyro → right stick while `LT` is held, mouse → right

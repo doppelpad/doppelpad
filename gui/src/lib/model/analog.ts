@@ -1,12 +1,13 @@
-// Pure helpers for the analog settings: stick and trigger shaping (profile-wide) and
-// analog routes (per layer). The shaping functions mirror dp-core's engine/analog.rs and
-// the route rules engine/routes.rs and engine/compile.rs, so the editors show what the
-// engine does.
+// Pure helpers for the analog settings: stick and trigger shaping (per config, and the
+// fields a layer changes) and analog routes (per layer). The shaping functions mirror
+// dp-core's engine/analog.rs and the route rules engine/routes.rs and engine/compile.rs,
+// so the editors show what the engine does.
 
 import type {
   AnalogMapping,
   AnalogSource,
   AnalogTarget,
+  Layer,
   Profile,
   StickConfig,
   Sticks,
@@ -25,14 +26,26 @@ const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v));
 
 // ----- stick and trigger settings ----------------------------------------------------------
 
-/** A stick's settings with the defaults filled in. */
-export function stickConfig(p: Profile, side: Side, def: Required<StickConfig>): Required<StickConfig> {
-  return { ...def, ...p.sticks?.[side] };
+/** Stick and trigger settings are per config; a layer may change some of their fields. */
+export type AnalogKind = 'sticks' | 'triggers';
+
+function declared(p: Profile, layer: number): Layer | undefined {
+  return layer === 0 ? undefined : p.layers?.find((l) => l.id === layer);
 }
 
-/** A trigger's settings with the defaults filled in. */
-export function triggerConfig(p: Profile, side: Side, def: Required<TriggerConfig>): Required<TriggerConfig> {
-  return { ...def, ...p.triggers?.[side] };
+/** A stick's settings with the defaults filled in, as they are on `layer` (Main by default). */
+export function stickConfig(p: Profile, side: Side, def: Required<StickConfig>, layer = 0): Required<StickConfig> {
+  return { ...def, ...p.sticks?.[side], ...declared(p, layer)?.sticks?.[side] };
+}
+
+/** A trigger's settings with the defaults filled in, as they are on `layer`. */
+export function triggerConfig(p: Profile, side: Side, def: Required<TriggerConfig>, layer = 0): Required<TriggerConfig> {
+  return { ...def, ...p.triggers?.[side], ...declared(p, layer)?.triggers?.[side] };
+}
+
+/** The fields a layer sets itself for one stick or trigger (none on Main). */
+export function layerOverrides(p: Profile, layer: number, kind: AnalogKind, side: Side): string[] {
+  return Object.keys(declared(p, layer)?.[kind]?.[side] ?? {});
 }
 
 function isDefault(v: object, def: object): boolean {
@@ -54,14 +67,69 @@ function setPair<T extends object>(
   return isDefault(next.left, def) && isDefault(next.right, def) ? undefined : next;
 }
 
-export function setStick(p: Profile, side: Side, patch: Partial<StickConfig>, def: Required<StickConfig>): Profile {
+/**
+ * Change a layer's own fields for one stick or trigger. A field that ends up equal to Main's
+ * value (`main`) is dropped, so the layer follows Main for it again. Declares the layer if
+ * needed.
+ */
+export function setLayerPart(
+  p: Profile,
+  layer: number,
+  kind: AnalogKind,
+  side: Side,
+  patch: object,
+  main: object,
+): Profile {
+  const layers = [...(p.layers ?? [])];
+  const i = layers.findIndex((l) => l.id === layer);
+  const l: Layer = i >= 0 ? { ...layers[i] } : { id: layer, inherit: true };
+  const group = { ...(l[kind] ?? {}) } as Record<string, Record<string, unknown>>;
+  const own: Record<string, unknown> = { ...(group[side] ?? {}) };
+  for (const [k, v] of Object.entries(patch)) {
+    if (JSON.stringify(v) === JSON.stringify((main as Record<string, unknown>)[k])) delete own[k];
+    else own[k] = clone(v);
+  }
+  if (Object.keys(own).length > 0) group[side] = own;
+  else delete group[side];
+  if (Object.keys(group).length > 0) l[kind] = group;
+  else delete l[kind];
+  if (i >= 0) layers[i] = l;
+  else layers.push(l);
+  return { ...p, layers };
+}
+
+/** Let a layer follow Main again for one stick or trigger. */
+export function resetLayerPart(p: Profile, layer: number, kind: AnalogKind, side: Side): Profile {
+  if (layerOverrides(p, layer, kind, side).length === 0) return p;
+  const layers = (p.layers ?? []).map((l) => {
+    if (l.id !== layer) return l;
+    const group: Partial<Record<Side, unknown>> = { ...l[kind] };
+    delete group[side];
+    const next = { ...l, [kind]: group };
+    if (Object.keys(group).length === 0) delete next[kind];
+    return next;
+  });
+  return { ...p, layers };
+}
+
+/** Change a stick's settings on Main, or only on `layer`. */
+export function setStick(p: Profile, side: Side, patch: Partial<StickConfig>, def: Required<StickConfig>, layer = 0): Profile {
+  if (layer !== 0) return setLayerPart(p, layer, 'sticks', side, patch, stickConfig(p, side, def));
   const sticks: Sticks | undefined = setPair(p.sticks, side, patch, def);
   const out = { ...p, sticks };
   if (!sticks) delete out.sticks;
   return out;
 }
 
-export function setTrigger(p: Profile, side: Side, patch: Partial<TriggerConfig>, def: Required<TriggerConfig>): Profile {
+/** Change a trigger's settings on Main, or only on `layer`. */
+export function setTrigger(
+  p: Profile,
+  side: Side,
+  patch: Partial<TriggerConfig>,
+  def: Required<TriggerConfig>,
+  layer = 0,
+): Profile {
+  if (layer !== 0) return setLayerPart(p, layer, 'triggers', side, patch, triggerConfig(p, side, def));
   const triggers: Triggers | undefined = setPair(p.triggers, side, patch, def);
   const out = { ...p, triggers };
   if (!triggers) delete out.triggers;
