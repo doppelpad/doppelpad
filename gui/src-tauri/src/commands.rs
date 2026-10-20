@@ -17,8 +17,8 @@ use dp_core::profile::{
 use dp_ipc::Request;
 use dp_service::{LiveState, ServiceCmd, ServiceHandle};
 use serde::Serialize;
-use tauri::State;
 use tauri::ipc::Channel;
+use tauri::{AppHandle, Manager, State};
 
 use crate::settings::GuiSettings;
 
@@ -42,11 +42,15 @@ impl AppState {
     pub fn call(&self, cmd: ServiceCmd) -> CmdResult<String> {
         self.service.lock().unwrap().call(cmd).into_result()
     }
+}
 
-    /// Ask the service to re-read games/configs (process lists may have changed).
-    fn reload_service(&self) {
-        let _ = self.call(ServiceCmd::Ipc(Request::Reload));
-    }
+/// Games or configs changed on disk: the service re-reads them (process lists may have
+/// changed) and the tray relabels its slots.
+fn library_changed(app: &AppHandle) {
+    let _ = app
+        .state::<AppState>()
+        .call(ServiceCmd::Ipc(Request::Reload));
+    crate::tray::refresh(app);
 }
 
 // ----- catalog -----------------------------------------------------------------------
@@ -102,23 +106,23 @@ pub fn library_scan(state: State<AppState>) -> Library {
 }
 
 #[tauri::command]
-pub fn game_create(state: State<AppState>, name: String) -> CmdResult<Game> {
+pub fn game_create(app: AppHandle, state: State<AppState>, name: String) -> CmdResult<Game> {
     let g = library::create_game(&state.profiles_dir, &name).map_err(err)?;
-    state.reload_service();
+    library_changed(&app);
     Ok(g)
 }
 
 #[tauri::command]
-pub fn game_update(state: State<AppState>, dir: PathBuf, meta: GameMeta) -> CmdResult<()> {
+pub fn game_update(app: AppHandle, dir: PathBuf, meta: GameMeta) -> CmdResult<()> {
     library::update_game_meta(&dir, &meta).map_err(err)?;
-    state.reload_service();
+    library_changed(&app);
     Ok(())
 }
 
 #[tauri::command]
-pub fn game_delete(state: State<AppState>, dir: PathBuf) -> CmdResult<()> {
+pub fn game_delete(app: AppHandle, dir: PathBuf) -> CmdResult<()> {
     library::delete_game(&dir).map_err(err)?;
-    state.reload_service();
+    library_changed(&app);
     Ok(())
 }
 
@@ -165,17 +169,13 @@ pub fn config_load(path: PathBuf) -> CmdResult<LoadedConfig> {
 
 /// Validate and save; returns the validation diagnostics (errors block saving).
 #[tauri::command]
-pub fn config_save(
-    state: State<AppState>,
-    path: PathBuf,
-    profile: Profile,
-) -> CmdResult<Vec<DiagMsg>> {
+pub fn config_save(app: AppHandle, path: PathBuf, profile: Profile) -> CmdResult<Vec<DiagMsg>> {
     let diags = dp_config::validate(&profile);
     if diags.has_errors() {
         return Ok(diag_msgs(&diags));
     }
     library::save_profile_atomic(&path, &profile).map_err(err)?;
-    state.reload_service();
+    library_changed(&app);
     Ok(diag_msgs(&diags))
 }
 
@@ -190,14 +190,16 @@ pub fn config_duplicate(path: PathBuf) -> CmdResult<PathBuf> {
 }
 
 #[tauri::command]
-pub fn config_rename(path: PathBuf, name: String) -> CmdResult<()> {
-    library::rename_config(&path, &name).map_err(err)
+pub fn config_rename(app: AppHandle, path: PathBuf, name: String) -> CmdResult<()> {
+    library::rename_config(&path, &name).map_err(err)?;
+    library_changed(&app);
+    Ok(())
 }
 
 #[tauri::command]
-pub fn config_delete(state: State<AppState>, path: PathBuf) -> CmdResult<()> {
+pub fn config_delete(app: AppHandle, path: PathBuf) -> CmdResult<()> {
     library::delete_config(&path).map_err(err)?;
-    state.reload_service();
+    library_changed(&app);
     Ok(())
 }
 
@@ -386,7 +388,7 @@ pub fn settings_get(state: State<AppState>) -> GuiSettings {
 
 #[tauri::command]
 pub fn settings_set(
-    app: tauri::AppHandle,
+    app: AppHandle,
     state: State<AppState>,
     settings: GuiSettings,
 ) -> CmdResult<()> {
