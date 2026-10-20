@@ -42,13 +42,6 @@ const MOUSE_DIR_THRESHOLD: f32 = 200.0;
 const GYRO_DIR_THRESHOLD: f32 = 60.0;
 /// Touchpad: distance from the centre (fraction of half-size) before a direction region counts.
 const TOUCH_CENTER_RADIUS: f32 = 0.35;
-/// Emergency stop: holding all of these stops every macro and releases all outputs.
-const STOP_COMBO: [PadButton; 4] = [
-    PadButton::Back,
-    PadButton::Start,
-    PadButton::LB,
-    PadButton::RB,
-];
 
 /// One engine tick's input.
 pub struct Input<'a> {
@@ -267,7 +260,6 @@ pub struct Engine {
 
     prev_controls: HashSet<Control>,
     cur_controls: HashSet<Control>,
-    stop_combo_held: bool,
 
     pending: Vec<(Control, u64)>,
     combo_deadline: Option<u64>,
@@ -317,7 +309,6 @@ impl Engine {
             gyro_enabled: true,
             prev_controls: HashSet::new(),
             cur_controls: HashSet::new(),
-            stop_combo_held: false,
             pending: Vec::new(),
             combo_deadline: None,
             consumed: HashSet::new(),
@@ -936,7 +927,8 @@ impl Engine {
 
     // ----- lifecycle -----------------------------------------------------------------
 
-    /// Stop every macro, release every output (emergency stop / unapply).
+    /// Stop every macro, turbo and toggle and release every output (stop-macros and
+    /// emergency-stop hotkeys, unapply).
     pub fn stop_all(&mut self) {
         for act in &mut self.acts {
             self.outs.release_all(&mut act.owned);
@@ -996,16 +988,6 @@ impl Engine {
             self.started = true;
         }
         self.cur_controls = controls;
-
-        // Emergency stop combo.
-        let stop = STOP_COMBO
-            .iter()
-            .all(|b| self.cur_controls.contains(&Control::Button(*b)));
-        if stop && !self.stop_combo_held {
-            tracing::info!("stop combo: releasing all outputs");
-            self.stop_all();
-        }
-        self.stop_combo_held = stop;
 
         let mut released: Vec<Control> = self
             .prev_controls

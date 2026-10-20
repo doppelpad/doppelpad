@@ -19,6 +19,8 @@ pub fn run(profiles_dir: PathBuf, initial: Option<PathBuf>, auto_switch: bool) -
     let mut service = ServiceOptions::new(profiles_dir);
     service.initial_profile = initial;
     service.auto_switch = Some(auto_switch);
+    // Controller hotkeys set up in the app work here too.
+    service.hotkeys_path = Some(dp_config::config_dir().join("hotkeys.toml"));
     let mut handle = dp_service::spawn(HostOptions { service, ipc: true })?;
     tracing::info!("daemon running; control it with `doppelpad apply|stop|status`");
 

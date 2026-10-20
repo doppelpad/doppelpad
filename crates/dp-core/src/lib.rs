@@ -4,6 +4,7 @@
 pub mod control;
 pub mod engine;
 pub mod event;
+pub mod hotkeys;
 pub mod keys;
 pub mod pad;
 pub mod profile;

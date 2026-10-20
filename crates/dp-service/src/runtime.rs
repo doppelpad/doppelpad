@@ -10,6 +10,7 @@ use anyhow::{Context, Result};
 use crossbeam_channel::Receiver;
 use dp_core::control::{Control, mouse_button_name, pad_button_name};
 use dp_core::engine::{Engine, Input, Output};
+use dp_core::hotkeys::{HotkeyAction, HotkeyDetector, Hotkeys};
 use dp_core::pad::{PadButton, PadState, Rgb, Rumble, Trigger};
 use dp_core::profile::{AnalogSource, Command, Profile, VirtualPadType};
 use dp_platform::{
@@ -83,6 +84,10 @@ pub struct Runtime {
     echo: Option<Echo>,
     suspended: bool,
     remap_off_requested: bool,
+    hotkeys: Hotkeys,
+    hotkey_detector: HotkeyDetector,
+    hotkeys_paused: bool,
+    hotkey_actions: Vec<HotkeyAction>,
 }
 
 /// Human-readable log of inputs and the actions they caused (for `doppelpad run`).
@@ -218,6 +223,10 @@ impl Runtime {
             echo: None,
             suspended: false,
             remap_off_requested: false,
+            hotkeys: Hotkeys::default(),
+            hotkey_detector: HotkeyDetector::new(),
+            hotkeys_paused: false,
+            hotkey_actions: Vec::new(),
         }
     }
 
@@ -519,17 +528,36 @@ impl Runtime {
         if let Some(rx) = &self.kbm_rx {
             self.kbm_buf.extend(rx.try_iter());
         }
+        let mut pad = self
+            .primary
+            .as_ref()
+            .and_then(|id| self.snapshots.iter().find(|s| &s.info.id == id))
+            .map(|s| s.state);
+        if let Some(action) = self.detect_hotkey(pad.as_mut(), now) {
+            tracing::info!(?action, "hotkey");
+            if let Some(echo) = &mut self.echo {
+                echo.events.push(format!("hotkey      {action:?}"));
+            }
+            match action {
+                HotkeyAction::StopMacros => {
+                    if let Some(engine) = &mut self.engine {
+                        engine.stop_all();
+                    }
+                }
+                HotkeyAction::EmergencyStop => {
+                    self.stop();
+                    self.remap_off_requested = true;
+                    return;
+                }
+                other => self.hotkey_actions.push(other),
+            }
+        }
         if self.suspended {
             return;
         }
         let Some(engine) = &mut self.engine else {
             return;
         };
-        let pad = self
-            .primary
-            .as_ref()
-            .and_then(|id| self.snapshots.iter().find(|s| &s.info.id == id))
-            .map(|s| s.state);
         let out = engine.tick(Input {
             now_ms: now,
             pad: pad.as_ref(),
@@ -578,6 +606,41 @@ impl Runtime {
                 }
             }
         }
+    }
+
+    /// Run the hotkey detector on the controller in use and withhold the buttons of a
+    /// complete hotkey from the engine.
+    fn detect_hotkey(&mut self, pad: Option<&mut PadState>, now: u64) -> Option<HotkeyAction> {
+        if self.hotkeys_paused || self.suspended {
+            self.hotkey_detector.reset();
+            return None;
+        }
+        let buttons = pad.as_ref().map_or(0, |p| p.buttons);
+        let fired = self.hotkey_detector.update(&self.hotkeys, buttons, now);
+        if let Some(p) = pad {
+            p.buttons &= !self.hotkey_detector.withheld();
+        }
+        fired
+    }
+
+    /// The controller hotkeys in effect.
+    pub fn hotkeys(&self) -> &Hotkeys {
+        &self.hotkeys
+    }
+
+    pub fn set_hotkeys(&mut self, hotkeys: Hotkeys) {
+        self.hotkeys = hotkeys;
+        self.hotkey_detector.reset();
+    }
+
+    /// Ignore hotkeys for a while (the app is recording a new one).
+    pub fn set_hotkeys_paused(&mut self, on: bool) {
+        self.hotkeys_paused = on;
+    }
+
+    /// Hotkeys that fired and that the service has to carry out (slots, remap toggle).
+    pub fn take_hotkey_actions(&mut self) -> Vec<HotkeyAction> {
+        std::mem::take(&mut self.hotkey_actions)
     }
 
     /// Show the light bar colour the game set on the virtual pad on the controller in use.
@@ -771,6 +834,7 @@ pub(crate) mod testing {
 
 #[cfg(test)]
 mod tests {
+    use dp_core::hotkeys::Hotkeys;
     use dp_core::profile::VirtualPadType;
     use dp_platform::PadFamily;
 
@@ -781,6 +845,34 @@ mod tests {
         let mut p = Profile::default();
         p.output.virtual_pad = VirtualPadType::DualShock4;
         p
+    }
+
+    #[test]
+    fn hotkey_buttons_do_not_reach_the_game() {
+        use dp_core::pad::PadButton::*;
+        let (platform, world) = testing::platform();
+        world
+            .lock()
+            .unwrap()
+            .pads
+            .push(pad("pad1", PadFamily::Xbox));
+        let mut rt = Runtime::with_platform(platform);
+        rt.set_hotkeys(Hotkeys {
+            hold_ms: 50,
+            ..Default::default()
+        });
+        rt.apply(Profile::default(), None).unwrap();
+        let mut press = |buttons: u32| {
+            world.lock().unwrap().pads[0].state.buttons = buttons;
+            rt.tick();
+            world.lock().unwrap().virtual_pads[0].1.unwrap().buttons
+        };
+        assert_eq!(press(LB.bit()), LB.bit(), "a partial press passes through");
+        let combo = LB.bit() | RB.bit() | X.bit();
+        assert_eq!(press(combo | DpadUp.bit()), DpadUp.bit(), "hotkey withheld");
+        assert_eq!(press(LB.bit() | RB.bit()), 0, "until released");
+        assert_eq!(press(0), 0);
+        assert_eq!(press(X.bit()), X.bit(), "free again");
     }
 
     #[test]

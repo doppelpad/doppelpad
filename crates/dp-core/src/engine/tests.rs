@@ -555,7 +555,7 @@ fn mouse_to_stick_route_mutes_cursor() {
 }
 
 #[test]
-fn stop_combo_releases_everything() {
+fn stop_all_releases_latched_outputs() {
     let mut p = Profile::default();
     let mut m = map(b(PadButton::X), vec![key(Key::LeftShift)]);
     m.mode = Mode::Toggle;
@@ -564,12 +564,11 @@ fn stop_combo_releases_everything() {
     h.btn(PadButton::X, true);
     h.btn(PadButton::X, false);
     assert!(h.e.is_output_down(Key::LeftShift));
-    for btn in STOP_COMBO {
-        h.pad.set(btn, true);
-    }
+    h.e.stop_all();
     h.t += 1;
     h.tick();
     assert!(!h.e.is_output_down(Key::LeftShift));
+    assert_eq!(h.key_events(Key::LeftShift).last(), Some(&(h.t, false)));
 }
 
 #[test]

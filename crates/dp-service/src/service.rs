@@ -5,6 +5,7 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;
+use dp_core::hotkeys::{HotkeyAction, Hotkeys};
 use dp_core::profile::Profile;
 use dp_ipc::{Device, Request, Response, Status};
 
@@ -23,6 +24,8 @@ pub struct ServiceOptions {
     pub profiles_dir: PathBuf,
     /// Where slots and switches are persisted; `None` keeps them in memory only.
     pub state_path: Option<PathBuf>,
+    /// Where the controller hotkeys are persisted; `None` uses the defaults in memory.
+    pub hotkeys_path: Option<PathBuf>,
     /// Profile to apply at start, independent of the slots.
     pub initial_profile: Option<PathBuf>,
     /// Override the persisted auto-switch setting.
@@ -35,6 +38,7 @@ impl ServiceOptions {
         ServiceOptions {
             profiles_dir,
             state_path: None,
+            hotkeys_path: None,
             initial_profile: None,
             auto_switch: None,
             foreground_poll_ms: FOREGROUND_POLL_MS,
@@ -62,6 +66,12 @@ pub enum ServiceCmd {
     RefreshDrivers,
     /// Look for controllers now, e.g. after another program released them.
     RescanDevices,
+    /// The controller hotkeys in effect ([`ServiceReply::Hotkeys`]).
+    GetHotkeys,
+    /// Replace the controller hotkeys and persist them.
+    SetHotkeys(Hotkeys),
+    /// Ignore hotkeys while the app records a new one.
+    PauseHotkeys(bool),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -69,6 +79,7 @@ pub enum ServiceReply {
     Ipc(Response),
     Ok(String),
     Err(String),
+    Hotkeys(Hotkeys),
 }
 
 impl ServiceReply {
@@ -77,6 +88,7 @@ impl ServiceReply {
             ServiceReply::Ok(m) | ServiceReply::Ipc(Response::Ok { message: m }) => Ok(m),
             ServiceReply::Err(m) | ServiceReply::Ipc(Response::Error { message: m }) => Err(m),
             ServiceReply::Ipc(other) => Ok(format!("{other:?}")),
+            ServiceReply::Hotkeys(h) => Ok(format!("{h:?}")),
         }
     }
 }
@@ -128,7 +140,7 @@ pub fn ipc_devices(rt: &Runtime) -> Vec<Device> {
 
 impl Service {
     /// Create the service and apply the initial profile (or the active slot).
-    pub fn new(rt: Runtime, opts: ServiceOptions) -> Result<Service> {
+    pub fn new(mut rt: Runtime, opts: ServiceOptions) -> Result<Service> {
         let mut state = opts
             .state_path
             .as_deref()
@@ -136,6 +148,9 @@ impl Service {
             .unwrap_or_default();
         if let Some(a) = opts.auto_switch {
             state.auto_switch = a;
+        }
+        if let Some(path) = &opts.hotkeys_path {
+            rt.set_hotkeys(crate::hotkeys::load(path));
         }
         let mut svc = Service {
             rt,
@@ -416,12 +431,59 @@ impl Service {
                 self.rt.rescan_devices();
                 ServiceReply::Ok("looking for controllers".into())
             }
+            ServiceCmd::GetHotkeys => ServiceReply::Hotkeys(self.rt.hotkeys().clone()),
+            ServiceCmd::SetHotkeys(h) => {
+                let problems = h.problems();
+                if !problems.is_empty() {
+                    return ServiceReply::Err(problems.join("; "));
+                }
+                if let Some(path) = &self.opts.hotkeys_path
+                    && let Err(e) = crate::hotkeys::save(path, &h)
+                {
+                    return ServiceReply::Err(format!("cannot save {}: {e}", path.display()));
+                }
+                self.rt.set_hotkeys(h);
+                ServiceReply::Ok("hotkeys saved".into())
+            }
+            ServiceCmd::PauseHotkeys(on) => {
+                self.rt.set_hotkeys_paused(on);
+                ServiceReply::Ok(format!("hotkeys {}", if on { "paused" } else { "on" }))
+            }
+        }
+    }
+
+    /// Carry out the hotkeys the runtime reported (slots and the remap switch).
+    fn run_hotkeys(&mut self) {
+        for action in self.rt.take_hotkey_actions() {
+            match action {
+                HotkeyAction::Slot(n)
+                    if self
+                        .state
+                        .slots
+                        .get(n as usize)
+                        .is_some_and(Option::is_some) =>
+                {
+                    if let ServiceReply::Err(e) = self.handle(ServiceCmd::SelectSlot(n as usize)) {
+                        tracing::warn!("slot hotkey: {e}");
+                    }
+                }
+                HotkeyAction::Slot(n) => tracing::info!("slot {} is empty", n + 1),
+                HotkeyAction::ToggleRemap => {
+                    let on = !self.state.remap_on;
+                    if let ServiceReply::Err(e) = self.handle(ServiceCmd::SetRemap(on)) {
+                        tracing::warn!("remap hotkey: {e}");
+                    }
+                }
+                // The runtime handles these itself.
+                HotkeyAction::StopMacros | HotkeyAction::EmergencyStop => {}
+            }
         }
     }
 
     /// One loop iteration: engine tick, remap-off handling, auto-switch, driver probing.
     pub fn tick(&mut self) {
         self.rt.tick();
+        self.run_hotkeys();
         if self.rt.take_remap_off_request() {
             self.state.remap_on = false;
             self.oneoff = None;
@@ -743,6 +805,74 @@ mod tests {
         *fg.lock().unwrap() = Some("racer.exe".into());
         s.tick();
         assert_eq!(active_name(&s).as_deref(), Some("Default"));
+    }
+
+    #[test]
+    fn hotkeys_select_slots_and_switch_remapping() {
+        use dp_core::pad::PadButton::{self, *};
+        use dp_platform::PadFamily;
+
+        let dir = tempfile::tempdir().unwrap();
+        let a = write_profile(dir.path(), "a.toml", "A", &[]);
+        let b = write_profile(dir.path(), "b.toml", "B", &[]);
+        let (platform, world) = crate::runtime::testing::platform();
+        world
+            .lock()
+            .unwrap()
+            .pads
+            .push(crate::runtime::testing::pad("pad", PadFamily::Xbox));
+        let mut opts = ServiceOptions::new(dir.path().join("profiles"));
+        opts.hotkeys_path = Some(dir.path().join("hotkeys.toml"));
+        let mut s = Service::new(Runtime::with_platform(platform), opts).unwrap();
+        s.handle(ServiceCmd::ApplyToSlot { slot: 0, path: a });
+        s.handle(ServiceCmd::ApplyToSlot { slot: 1, path: b });
+        assert_eq!(active_name(&s).as_deref(), Some("B"));
+        let hk = Hotkeys {
+            hold_ms: 50,
+            remap: vec![Guide],
+            ..Default::default()
+        };
+        assert!(
+            s.handle(ServiceCmd::SetHotkeys(hk.clone()))
+                .into_result()
+                .is_ok()
+        );
+        assert_eq!(s.handle(ServiceCmd::GetHotkeys), ServiceReply::Hotkeys(hk));
+
+        let hold = |s: &mut Service, buttons: &[PadButton]| {
+            world.lock().unwrap().pads[0].state.buttons =
+                buttons.iter().fold(0, |m, b| m | b.bit());
+            s.tick();
+            std::thread::sleep(std::time::Duration::from_millis(70));
+            s.tick();
+            world.lock().unwrap().pads[0].state.buttons = 0;
+            s.tick();
+        };
+        hold(&mut s, &[LB, RB, X]);
+        assert_eq!(active_name(&s).as_deref(), Some("A"), "slot 1 hotkey");
+        hold(&mut s, &[LB, RB, B]);
+        assert_eq!(active_name(&s).as_deref(), Some("A"), "slot 3 is empty");
+        hold(&mut s, &[Guide]);
+        assert!(!s.live().remap_on);
+        assert_eq!(active_name(&s), None, "remap hotkey turns remapping off");
+        hold(&mut s, &[Guide]);
+        assert_eq!(active_name(&s).as_deref(), Some("A"), "and on again");
+        hold(&mut s, &[Back, Start, LB, RB]);
+        assert!(!s.live().remap_on, "emergency stop");
+
+        s.handle(ServiceCmd::PauseHotkeys(true));
+        hold(&mut s, &[Guide]);
+        assert!(!s.live().remap_on, "paused while recording");
+        assert!(
+            s.handle(ServiceCmd::SetHotkeys(Hotkeys {
+                hold_ms: 5,
+                ..Default::default()
+            }))
+            .into_result()
+            .is_err()
+        );
+        let saved = crate::hotkeys::load(&dir.path().join("hotkeys.toml"));
+        assert_eq!(saved.remap, vec![Guide], "settings persisted");
     }
 
     #[test]
