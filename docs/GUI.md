@@ -86,6 +86,11 @@ them), and the game's rumble and light bar colour come back to the physical cont
 (after half a second, about 30 times per second), *Fast*, *Slow*, *Never* or a custom
 interval. Only the last pressed key repeats.
 
+**Turns** sets how the game turns with mouse motion, for flick stick routes and turn actions
+(*Turn left 90°*, *Turn right 90°*, *Turn around 180°* in the mouse tab of the action picker):
+*Counts per 360°* and *Turn time*. *Test a full turn* turns once around after 3 seconds, so you
+can switch to the game and tune the counts until the turn is exact.
+
 **Shake** sets the *Strength* (in g) and *Length* of motion shake actions, which rock the
 accelerometer of a virtual DualShock 4 along one axis.
 
@@ -160,8 +165,10 @@ layer to limit it, e.g. to aiming.
 
 **Routes** lists the analog routes of the current layer. *Add route* offers common ones:
 right stick → mouse, gyro → mouse, gyro → right stick while `LT` is held, mouse → right
-stick, touchpad → mouse. Each route can then take any source (left or right stick, gyro,
-mouse, touchpad) and target (mouse, left or right stick; the mouse cannot drive the mouse).
+stick, touchpad → mouse, right stick → flick stick. Each route can then take any source (left or right stick, gyro,
+mouse, touchpad) and target (mouse, left or right stick, or *Flick stick* for stick sources; the
+mouse cannot drive the mouse). A flick stick route turns the view to face where the stick
+points once it passes *Flick at*, then turns with the stick; it has no vertical settings.
 A route shows only the settings it uses:
 
 | Setting | Used by |

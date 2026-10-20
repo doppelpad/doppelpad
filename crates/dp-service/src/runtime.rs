@@ -135,6 +135,17 @@ pub struct Runtime {
     detectors: HashMap<DeviceId, HotkeyDetector>,
     hotkeys_paused: bool,
     hotkey_actions: Vec<(DeviceId, HotkeyAction)>,
+    /// A calibration turn: counts to send, start, length and how much was sent.
+    test_turn: Option<TestTurn>,
+}
+
+/// One full in-game turn sent as mouse motion, so the user can check `counts_per_turn`.
+#[derive(Clone, Copy, Debug)]
+struct TestTurn {
+    counts: f32,
+    start: u64,
+    ms: u64,
+    sent: f32,
 }
 
 /// Human-readable log of inputs and the actions they caused (for `doppelpad run`).
@@ -341,6 +352,7 @@ impl Runtime {
             hotkeys: Hotkeys::default(),
             detectors: HashMap::new(),
             hotkeys_paused: false,
+            test_turn: None,
             hotkey_actions: Vec::new(),
         }
     }
@@ -753,8 +765,38 @@ impl Runtime {
     }
 
     /// Run one engine step for every session. Call about once per millisecond.
+    /// Send `counts` of horizontal mouse motion over `ms`, starting after `delay_ms` (time to
+    /// switch to the game): one full turn when `counts` matches the game.
+    pub fn test_turn(&mut self, counts: f32, delay_ms: u64, ms: u64) {
+        self.test_turn = Some(TestTurn {
+            counts,
+            start: self.now_ms() + delay_ms,
+            ms: ms.max(1),
+            sent: 0.0,
+        });
+    }
+
+    fn send_test_turn(&mut self, now: u64) {
+        let Some(t) = &mut self.test_turn else {
+            return;
+        };
+        if now < t.start {
+            return;
+        }
+        let done = ((now - t.start) as f32 / t.ms as f32).min(1.0);
+        let step = t.counts * done - t.sent;
+        if step != 0.0 {
+            self.platform.kbm_out.mouse_move(step, 0.0);
+            t.sent += step;
+        }
+        if done >= 1.0 {
+            self.test_turn = None;
+        }
+    }
+
     pub fn tick(&mut self) {
         let now = self.now_ms();
+        self.send_test_turn(now);
         self.poll_devices();
         self.kbm_buf.clear();
         if let Some(rx) = &self.kbm_rx {

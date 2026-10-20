@@ -85,7 +85,11 @@ describe('stick and trigger settings', () => {
   });
 
   it('include how buttons push the virtual sticks', () => {
-    const kept = { keyboard: { repeat: 40 }, motion: { shake_g: 3, shake_ms: 200 } };
+    const kept = {
+      keyboard: { repeat: 40 },
+      motion: { shake_g: 3, shake_ms: 200 },
+      mouse: { counts_per_turn: 14400, turn_ms: 150 },
+    };
     let p: Profile = { ...empty(), virtual: kept };
     p = setVirtualStick(p, 'left', { initial: 0.25, speed: 1, acceleration: 0.5, multiplier_y: 2 }, def.virtual_stick);
     const jitter = { ...def.virtual_stick.jitter, enabled: true, pattern: 'cross' as const, min: 0.02, max: 0.05, delay_max_ms: 60 };
@@ -215,6 +219,9 @@ describe('analog routes', () => {
     expect(routeFields('gyro', 'mouse')).toEqual(['smoothing_ms']);
     expect(routeFields('touchpad', 'mouse')).toEqual(['trackball_friction']);
     expect(routeTargets('mouse')).toEqual(['right_stick', 'left_stick']);
+    expect(routeTargets('right_stick')).toContain('flick');
+    expect(routeTargets('gyro')).not.toContain('flick');
+    expect(routeFields('right_stick', 'flick')).toEqual(['deadzone', 'smoothing_ms', 'consume']);
     expect(sourcePatch({ target: 'mouse' }, 'mouse')).toEqual({ source: 'mouse', target: 'right_stick' });
     expect(sourcePatch({ target: 'mouse' }, 'gyro')).toEqual({ source: 'gyro' });
   });

@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { Gamepad2, Keyboard, TriangleAlert } from '@lucide/svelte';
+  import { Gamepad2, Keyboard, RotateCw, TriangleAlert } from '@lucide/svelte';
+  import { api } from '../lib/api';
   import { t } from '../lib/i18n/index.svelte';
   import { setProfileTiming, setVirtualDevice, type TimingField } from '../lib/model/profile';
   import { app } from '../lib/state/app.svelte';
@@ -15,6 +16,28 @@
   function setRepeat(r: KeyRepeat) {
     if (!app.profile) return;
     app.update(setVirtualDevice(app.profile, 'keyboard', r === 'native' ? undefined : { repeat: r }));
+  }
+
+  /** How the game turns with mouse motion: flick stick and turn actions. */
+  const TURN = { counts_per_turn: 18000, turn_ms: 100 };
+  const turn = $derived({ ...TURN, ...app.profile?.virtual?.mouse });
+
+  function setTurn(field: keyof typeof TURN, raw: string) {
+    if (!app.profile) return;
+    const n = Math.round(Number(raw.replace(',', '.')));
+    const ok = field === 'turn_ms' ? n >= 0 && n <= 5000 : n > 0;
+    const next = { ...turn, [field]: Number.isFinite(n) && ok ? n : TURN[field] };
+    const isDefault = next.counts_per_turn === TURN.counts_per_turn && next.turn_ms === TURN.turn_ms;
+    app.update(setVirtualDevice(app.profile, 'mouse', isDefault ? undefined : next));
+  }
+
+  async function testTurn() {
+    try {
+      await api.testTurn(turn.counts_per_turn);
+      app.toast(t('output.test_turn_started'), 'ok');
+    } catch (e) {
+      app.toast(String(e), 'error');
+    }
   }
 
   /** Shake actions: strength and length (the virtual controller's accelerometer). */
@@ -136,6 +159,39 @@
     {/if}
   </label>
   <p class="hint">{t(`output.repeat_hint.${typeof repeat === 'number' ? 'custom' : repeat}`)}</p>
+
+  <div class="label timing-label">{t('output.turns')}</div>
+  <p class="hint">{t('output.turns_hint')}</p>
+  <div class="timing">
+    <label class="field">
+      <span class="fl">{t('output.counts_per_turn')}</span>
+      <input
+        type="number"
+        min="1"
+        step="100"
+        value={turn.counts_per_turn}
+        disabled={app.readOnly}
+        onchange={(e) => setTurn('counts_per_turn', e.currentTarget.value)}
+      />
+    </label>
+    <label class="field">
+      <span class="fl">{t('output.turn_ms')}</span>
+      <input
+        type="number"
+        min="0"
+        max="5000"
+        step="10"
+        value={turn.turn_ms}
+        disabled={app.readOnly}
+        onchange={(e) => setTurn('turn_ms', e.currentTarget.value)}
+      />
+      <span class="unit">{t('common.ms')}</span>
+    </label>
+  </div>
+  <div class="test-turn">
+    <button class="btn" onclick={testTurn}><RotateCw size={14} /> {t('output.test_turn')}</button>
+    <span class="hint">{t('output.test_turn_hint')}</span>
+  </div>
 
   <div class="label timing-label">{t('output.shake')}</div>
   <p class="hint">{t('output.shake_hint')}</p>
@@ -266,6 +322,16 @@
     margin: -6px 0 0;
     color: var(--text-dim);
     font-size: 12px;
+  }
+  .test-turn {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 12px;
+    margin-top: 10px;
+  }
+  .test-turn .hint {
+    margin: 0;
   }
   .timing {
     display: grid;

@@ -338,6 +338,12 @@ pub fn hotkeys_pause(state: State<AppState>, on: bool) -> CmdResult<String> {
     state.call(ServiceCmd::PauseHotkeys(on))
 }
 
+/// Send one full in-game turn of `counts` mouse counts after a short delay (calibration).
+#[tauri::command]
+pub fn test_turn(state: State<AppState>, counts: f32) -> CmdResult<String> {
+    state.call(ServiceCmd::TestTurn { counts })
+}
+
 // ----- reWASD ------------------------------------------------------------------------
 
 /// What of reWASD is running. reWASD keeps the controllers to itself while it runs.

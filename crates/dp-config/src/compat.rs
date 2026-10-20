@@ -12,7 +12,7 @@ use dp_core::profile::{
     Action, Activator, AnalogMapping, AnalogSource, AnalogTarget, Combo, Command, JitterPattern,
     Jump, JumpMode, KeyRepeat, Layer, LayerSticks, LayerTriggers, LayerVirtualSticks, Mapping,
     Mode, Press, Profile, ShakeAxis, StickPatch, Sticks, TriggerPatch, Triggers, VirtualMotion,
-    VirtualPadType, VirtualStick, VirtualStickPatch, VirtualSticks, ZoneRadius,
+    VirtualMouse, VirtualPadType, VirtualStick, VirtualStickPatch, VirtualSticks, ZoneRadius,
 };
 use serde_json::Value;
 
@@ -397,6 +397,8 @@ struct Importer<'a> {
     zoned: Vec<(Combo, Combo)>,
     /// Per-layer stick and trigger settings by layer id, with where they came from.
     layer_analog: HashMap<i64, ((LayerSticks, LayerTriggers), String)>,
+    /// Turn calibration from a stick's mouse settings (flick values).
+    turn: Option<VirtualMouse>,
 }
 
 /// Recognize the format's encoding of shift keys and fold each pair into one
@@ -465,6 +467,7 @@ pub fn import(json: &str) -> Result<(Profile, Diagnostics), ImportError> {
         commands: HashMap::new(),
         zoned: Vec::new(),
         layer_analog: HashMap::new(),
+        turn: None,
     };
     let profile = imp.run();
     Ok((profile, imp.diags))
@@ -520,6 +523,9 @@ impl<'a> Importer<'a> {
         }
         fold_jump_pairs(&mut p.mappings);
         self.virtual_sticks(&mut p);
+        if let Some(turn) = self.turn.take() {
+            p.virtual_devices.mouse = turn;
+        }
         // A mask a layer does not inherit stays uninherited in its zone form too.
         for l in &mut p.layers {
             for (mask, zoned) in &self.zoned {
@@ -836,6 +842,29 @@ impl<'a> Importer<'a> {
         seen
     }
 
+    /// Flick values in a stick's mouse settings: the turn calibration (sensitivity is
+    /// counts per degree × 10) and the flick length.
+    fn flick_settings(&mut self, mc: &Value, path: &str) {
+        let sens = int(mc, "flickSensitivity");
+        let ms = int(mc, "flickDuration");
+        if sens.is_none() && ms.is_none() {
+            return;
+        }
+        let turn = self.turn.get_or_insert_with(VirtualMouse::default);
+        if let Some(v) = sens {
+            turn.counts_per_turn = 36.0 * v.clamp(1, 2000) as f32;
+        }
+        if let Some(v) = ms {
+            turn.turn_ms = v.clamp(0, 1500) as u32;
+        }
+        if get(mc, "flickThreshold").is_some() || get(mc, "flickSmoothing").is_some() {
+            self.diags.info(
+                path,
+                "flick threshold and smoothing are set on a flick route; add one to use them",
+            );
+        }
+    }
+
     /// Gamepad stick/trigger/touchpad settings.
     fn analog_settings(
         &mut self,
@@ -893,6 +922,9 @@ impl<'a> Importer<'a> {
                     let ratio = parts.iter().sum::<f32>() / parts.len() as f32;
                     cfg.direction_width = ratio.atan().to_degrees().clamp(1.0, 44.0);
                 }
+            }
+            if let Some(mc) = get(s, "mouse") {
+                self.flick_settings(mc, &format!("{path}.sticks"));
             }
             if let Some(r) = int(s, "rotation") {
                 cfg.rotation = r.clamp(-90, 90) as f32;
@@ -1333,9 +1365,10 @@ impl<'a> Importer<'a> {
                     Dir::Down => Dir::Up,
                     other => other,
                 };
-                if boolean(ms, "flick") {
-                    self.diags
-                        .info(path, "flick-stick turns are approximated as mouse movement");
+                // A flick item turns a quarter to that side.
+                if boolean(ms, "flick") && matches!(d, Dir::Left | Dir::Right) {
+                    let turn = if d == Dir::Left { -90.0 } else { 90.0 };
+                    return Some(Action::Turn { turn });
                 }
                 return Some(Action::MouseMove {
                     mouse_move: screen,
@@ -2016,6 +2049,25 @@ mod tests {
             ),
             "{a:?}"
         );
+    }
+
+    #[test]
+    fn flick_items_and_calibration() {
+        let doc = r#"{ "schemaVersion": 3.0, "config": { "appName": "x" },
+          "devices": { "hardware": [ { "id": 1, "name": "gamepad", "default": { "sticks": [
+              { "name": "right", "mouse": { "flickSensitivity": 400, "flickDuration": 150, "flickThreshold": 20000 } } ] } },
+            { "id": 11, "name": "keyboard" } ] },
+          "masks": [ { "id": 1, "set": [ { "deviceId": 11, "buttonId": 16, "description": "DIK_Q" } ] } ],
+          "mappings": [ { "condition": { "mask": { "id": 1, "activator": { "type": "single", "mode": "hold_until_release" } } },
+                          "macros": [ { "mouse": { "direction": "left", "flick": true } } ] } ] }"#;
+        let (p, diags) = import(doc).unwrap();
+        assert!(!diags.has_errors(), "{diags:?}");
+        assert_eq!(p.mappings[0].actions, vec![Action::Turn { turn: -90.0 }]);
+        assert_eq!(p.virtual_devices.mouse.counts_per_turn, 14400.0);
+        assert_eq!(p.virtual_devices.mouse.turn_ms, 150);
+        assert!(diags.iter().any(|d| d.message.contains("flick threshold")));
+        let toml = crate::to_toml(&p);
+        assert_eq!(crate::parse_toml(&toml).unwrap(), p, "{toml}");
     }
 
     #[test]

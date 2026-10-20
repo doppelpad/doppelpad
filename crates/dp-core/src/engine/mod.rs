@@ -168,6 +168,8 @@ struct Outputs {
     rng: Rng,
     /// Accelerometer shakes and when each started.
     shakes: Vec<(ShakeAxis, u64)>,
+    /// Turn actions in progress: total and remaining degrees.
+    turns: Vec<(f32, f32)>,
 }
 
 impl Outputs {
@@ -301,6 +303,7 @@ fn step(act: &mut Activation, program: &[Step], outs: &mut Outputs, until: u64) 
                 outs.shakes.retain(|(a, _)| a != axis);
                 outs.shakes.push((*axis, t));
             }
+            Step::Turn(deg) => outs.turns.push((*deg, *deg)),
         }
         act.pc += 1;
     }
@@ -1144,6 +1147,7 @@ impl Engine {
         self.combo_deadline = None;
         self.outs.rumble = None;
         self.outs.shakes.clear();
+        self.outs.turns.clear();
     }
 
     /// Release everything and return the final output (call before unloading the profile).
@@ -1347,6 +1351,20 @@ impl Engine {
             }
         }
         out.mouse_move = (mouse_v.0 * dt, mouse_v.1 * dt);
+        // Turn actions: horizontal mouse motion spread over the turn time.
+        let turn = &self.profile.virtual_devices.mouse;
+        let secs = turn.turn_ms as f32 / 1000.0;
+        for (total, left) in &mut self.outs.turns {
+            let step = if secs > 0.0 {
+                (total.abs() * dt / secs).min(left.abs())
+            } else {
+                left.abs()
+            };
+            let step = step.copysign(*left);
+            *left -= step;
+            out.mouse_move.0 += step * turn.counts_per_turn / 360.0;
+        }
+        self.outs.turns.retain(|(_, left)| left.abs() > 1e-4);
         for s in [Stick::Left, Stick::Right] {
             let axis = |[pos, neg]: [f32; 2]| {
                 if pos > 0.0 && neg > 0.0 {
@@ -1379,6 +1397,7 @@ impl Engine {
             dt,
             now,
             gyro_enabled: self.gyro_enabled,
+            turn: &self.profile.virtual_devices.mouse,
         };
         for &i in &routes {
             let r = &self.c.routes[i];

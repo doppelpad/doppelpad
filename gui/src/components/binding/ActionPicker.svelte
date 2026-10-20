@@ -53,6 +53,8 @@
   const MOUSE_BUTTONS: MouseButtonName[] = ['left', 'right', 'middle', 'x1', 'x2'];
   const DIRS: Dir[] = ['up', 'down', 'left', 'right'];
   const SHAKES: ShakeAxis[] = ['+x', '-x', '+y', '-y', '+z', '-z'];
+  /** Turn actions offered: a quarter left or right, or around. */
+  const TURNS = [-90, 90, 180];
   const PAD_BUTTONS = $derived((app.catalog?.pad_buttons ?? []) as PadButtonName[]);
 
   function stickAction(stick: StickName, d: Dir): Action {
@@ -145,6 +147,12 @@
       <div class="grid">
         {#each DIRS as d (d)}
           <button class="chip" onclick={() => onpick({ mouse_move: d })}>{t(`dirs.${d}`)}</button>
+        {/each}
+      </div>
+      <div class="group">{t('picker.turn')}</div>
+      <div class="grid">
+        {#each TURNS as deg (deg)}
+          <button class="chip" title={t('picker.turn_hint')} onclick={() => onpick({ turn: deg })}>{t(`picker.turn_${deg < 0 ? 'left' : deg === 180 ? 'around' : 'right'}`)}</button>
         {/each}
       </div>
     </div>

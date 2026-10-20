@@ -48,6 +48,8 @@ pub struct VirtualDevices {
     pub sticks: VirtualSticks,
     #[serde(skip_serializing_if = "is_default")]
     pub motion: VirtualMotion,
+    #[serde(skip_serializing_if = "is_default")]
+    pub mouse: VirtualMouse,
 }
 
 /// How mappings push the virtual sticks (`[virtual.sticks.left]`, ...).
@@ -63,6 +65,25 @@ impl VirtualSticks {
         match s {
             Stick::Left => &self.left,
             Stick::Right => &self.right,
+        }
+    }
+}
+
+/// How the game turns with mouse motion, for flick-stick routes and turn actions.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct VirtualMouse {
+    /// Mouse counts for one full 360° turn in the game.
+    pub counts_per_turn: f32,
+    /// How long a flick or turn action takes.
+    pub turn_ms: u32,
+}
+
+impl Default for VirtualMouse {
+    fn default() -> Self {
+        VirtualMouse {
+            counts_per_turn: 18000.0,
+            turn_ms: 100,
         }
     }
 }
@@ -1015,6 +1036,9 @@ pub enum Action {
     /// Shake the virtual controller's accelerometer along one axis (`[virtual.motion]`
     /// sets how hard and how long).
     Shake { shake: ShakeAxis },
+    /// Turn in the game by this many degrees (positive = right) with mouse motion, over
+    /// `[virtual.mouse] turn_ms`.
+    Turn { turn: f32 },
     /// Built-in command.
     Command { command: Command },
     /// Split the sequence into segments (`{ break = true }`): each activation plays the
@@ -1233,6 +1257,9 @@ pub enum AnalogTarget {
     Mouse,
     LeftStick,
     RightStick,
+    /// Flick stick: turn to face where the stick points, then turn with it (horizontal
+    /// mouse motion, see `[virtual.mouse]`).
+    Flick,
 }
 
 /// A continuous route from an analog source to an analog target.

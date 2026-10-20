@@ -101,6 +101,13 @@
     "mute_mapped": "Block the original keys and buttons that are remapped",
     "driver_missing": "{driver} is not installed — this config cannot be applied yet.",
     "hide_missing": "HidHide is not installed — games will still see the physical controller.",
+    "turns": "Turns",
+    "turns_hint": "How the game turns with mouse motion, for flick stick and turn actions: the mouse counts for one full turn, and how long a flick or turn takes.",
+    "counts_per_turn": "Counts per 360°",
+    "turn_ms": "Turn time",
+    "test_turn": "Test a full turn",
+    "test_turn_hint": "Switch to the game within 3 seconds: it should turn exactly once around. Adjust the counts until it does.",
+    "test_turn_started": "Turning in 3 seconds — switch to the game.",
     "shake": "Shake",
     "shake_hint": "What a shake action does to the virtual controller's accelerometer. Only controllers with motion sensors (DualShock 4) carry it.",
     "shake_g": "Strength",
@@ -263,6 +270,11 @@
     "pad_triggers": "Triggers",
     "anti_recoil": "Anti-recoil (right stick down 15 %)",
     "anti_recoil_hint": "Pulls the right stick down a little for as long as the mapping is held, e.g. on RT. Set the strength in the action's amount.",
+    "turn": "Turn",
+    "turn_hint": "Turns in the game with mouse motion; the full-turn calibration is in Config settings → Turns.",
+    "turn_left": "Turn left 90°",
+    "turn_right": "Turn right 90°",
+    "turn_around": "Turn around 180°",
     "pad_shake": "Motion shake",
     "pad_shake_hint": "Shakes the virtual controller's accelerometer (DualShock 4); strength and length are in Config settings.",
     "shake_axis": "Shake {axis}",
@@ -311,6 +323,7 @@
   },
   "params": {
     "amount": "Amount",
+    "degrees": "Degrees",
     "absolute": "Set the axis",
     "absolute_hint": "Replace the physical stick on this axis instead of adding to it.",
     "clicks": "Clicks",
@@ -433,7 +446,8 @@
         "gyro_mouse": "Gyro → mouse",
         "gyro_aim": "Gyro → right stick while {control} is held",
         "mouse_stick": "Mouse → right stick",
-        "touchpad_mouse": "Touchpad → mouse"
+        "touchpad_mouse": "Touchpad → mouse",
+        "flick_stick": "Right stick → flick stick"
       },
       "from": "From",
       "to": "To",
@@ -447,7 +461,8 @@
       "targets": {
         "mouse": "Mouse",
         "left_stick": "Left stick",
-        "right_stick": "Right stick"
+        "right_stick": "Right stick",
+        "flick": "Flick stick"
       },
       "inherited": "From Main",
       "inherited_hint": "Routes of Main apply here unless this layer has its own route for the same source.",
@@ -461,13 +476,17 @@
         "gyro>mouse": "1 = 10 pixels per degree",
         "gyro>stick": "1 = full deflection at 100° per second",
         "touchpad>mouse": "1 = 1000 pixels for a swipe across the touchpad",
-        "touchpad>stick": "The finger's distance from the touchpad centre is the deflection"
+        "touchpad>stick": "The finger's distance from the touchpad centre is the deflection",
+        "stick>flick": "1 = exact: you turn as far as the stick's angle changes"
       },
       "vertical_ratio": "Vertical ratio",
       "vertical_ratio_hint": "Vertical speed relative to horizontal.",
       "curve": "Curve",
       "curve_hint": "1 is linear; above 1 is finer near the centre and faster at the edge.",
       "deadzone": "Deadzone",
+      "flick_threshold": "Flick at",
+      "flick_threshold_hint": "How far the stick must be pushed to flick; letting it back in re-arms.",
+      "flick_hint": "Push the stick to face that way, then turn with it. Set how many mouse counts make a full turn in Config settings → Turns.",
       "anti_deadzone": "Anti-deadzone",
       "anti_deadzone_hint": "Smallest stick output, to skip the game's own deadzone.",
       "smoothing_ms": "Smoothing",

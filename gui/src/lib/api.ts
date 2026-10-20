@@ -48,6 +48,8 @@ export const api = {
   hotkeysSet: (hotkeys: Hotkeys) => invoke<string>('hotkeys_set', { hotkeys }),
   /** Pause the hotkeys while recording a new one. */
   hotkeysPause: (on: boolean) => invoke<string>('hotkeys_pause', { on }),
+  /** One full in-game turn of `counts` mouse counts, 3 s from now (calibration). */
+  testTurn: (counts: number) => invoke<string>('test_turn', { counts }),
   /** `null` when reWASD is not installed. */
   rewasdStatus: () => invoke<RewasdStatus | null>('rewasd_status'),
   /** `false` when the user declined the administrator prompt. */
