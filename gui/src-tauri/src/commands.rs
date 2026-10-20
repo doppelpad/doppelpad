@@ -13,11 +13,11 @@ use dp_core::hotkeys::Hotkeys;
 use dp_core::keys::{Key, MouseButton};
 use dp_core::pad::PadButton;
 use dp_core::profile::{
-    AnalogMapping, Crosshair, GyroSettings, Magnifier, Mapping, Output, Profile, RadialMenu,
+    AnalogMapping, Crosshair, GyroSettings, Light, Magnifier, Mapping, Output, Profile, RadialMenu,
     RadialSector, StickConfig, Timing, TouchpadSettings, TriggerConfig, VirtualStick,
 };
 use dp_ipc::Request;
-use dp_service::{LiveState, ServiceCmd, ServiceHandle, ServiceReply};
+use dp_service::{LiveState, PlayerLights, ServiceCmd, ServiceHandle, ServiceReply};
 use serde::Serialize;
 use tauri::ipc::Channel;
 use tauri::{AppHandle, Manager, State};
@@ -76,6 +76,7 @@ pub struct Defaults {
     magnifier: Magnifier,
     radial_menu: RadialMenu,
     radial_sector: RadialSector,
+    light: Light,
 }
 
 #[derive(Serialize)]
@@ -113,6 +114,7 @@ pub fn catalog() -> Catalog {
             magnifier: Magnifier::default(),
             radial_menu: RadialMenu::default(),
             radial_sector: RadialSector::default(),
+            light: Light::default(),
         },
     }
 }
@@ -323,6 +325,12 @@ pub fn set_remap(state: State<AppState>, on: bool) -> CmdResult<String> {
 #[tauri::command]
 pub fn set_auto_switch(state: State<AppState>, on: bool) -> CmdResult<String> {
     state.call(ServiceCmd::SetAutoSwitch(on))
+}
+
+/// What the controllers' player lights and microphone LED show.
+#[tauri::command]
+pub fn set_lights(state: State<AppState>, player: PlayerLights, mic: bool) -> CmdResult<String> {
+    state.call(ServiceCmd::SetLights { player, mic })
 }
 
 #[tauri::command]

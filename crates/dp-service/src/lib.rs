@@ -14,4 +14,4 @@ pub use host::{HostOptions, ServiceHandle, spawn, spawn_with};
 pub use live::{LiveDevice, LiveDeviceSlots, LiveRadial, LiveState};
 pub use runtime::{DriverState, DriverStatus, Runtime, SessionInfo, TimerResolution};
 pub use service::{Service, ServiceCmd, ServiceOptions, ServiceReply, ipc_devices};
-pub use slots::{DeviceSlots, SLOTS, SlotState};
+pub use slots::{DeviceSlots, PlayerLights, SLOTS, SlotState};

@@ -19,11 +19,12 @@ use dp_core::control::{Control, mouse_button_name, pad_button_name};
 use dp_core::engine::radial::RadialView;
 use dp_core::engine::{Engine, Input, Output};
 use dp_core::hotkeys::{HotkeyAction, HotkeyDetector, Hotkeys};
+use dp_core::led;
 use dp_core::pad::{PadButton, PadState, Rgb, Rumble, Trigger};
 use dp_core::profile::{AnalogSource, Command, Crosshair, Profile, RadialMenu, VirtualPadType};
 use dp_core::repeat::KeyRepeater;
 use dp_platform::{
-    CaptureFilter, DeviceId, KbmEvent, PadSnapshot, Platform, PowerAction, VirtualIgnoreList,
+    CaptureFilter, DeviceId, KbmEvent, Leds, PadSnapshot, Platform, PowerAction, VirtualIgnoreList,
     VirtualPad, VirtualPadKind,
 };
 use serde::Serialize;
@@ -201,6 +202,8 @@ pub struct Runtime {
     /// The live controller overlay and the mappings overlay are on.
     pad_overlay: bool,
     mappings_overlay: bool,
+    /// Player lights and microphone LED last sent, per controller.
+    sent_leds: HashMap<DeviceId, Leds>,
 }
 
 /// One full in-game turn sent as mouse motion, so the user can check `counts_per_turn`.
@@ -343,9 +346,23 @@ fn emit(s: &mut Session, platform: &mut Platform, out: &Output, now: u64) {
     }
 }
 
+/// The light bar the profile asks for now: the active layer's, else the base layer's.
+fn profile_light(s: &Session, now: u64) -> Option<Rgb> {
+    let p = s.engine.profile();
+    let layer = s.engine.layer();
+    let light = p
+        .layers
+        .iter()
+        .find(|l| l.id == layer)
+        .and_then(|l| l.lightbar.as_ref())
+        .or(p.lightbar.as_ref())?;
+    let dark = Rgb { r: 0, g: 0, b: 0 };
+    Some(led::color_at(light, now - now % led::STEP_MS).unwrap_or(dark))
+}
+
 /// Rumble for the session's controller: mapping rumble overrides what the game asks the
-/// virtual pad for. Also forwards the light bar colour the game set.
-fn feedback(s: &mut Session, platform: &mut Platform, mapping_rumble: Option<Rumble>) {
+/// virtual pad for. Also sets the light bar: the profile's, else the colour the game set.
+fn feedback(s: &mut Session, platform: &mut Platform, mapping_rumble: Option<Rumble>, now: u64) {
     if let Some(r) = s.vpad.as_mut().and_then(|v| v.take_rumble()) {
         s.game_rumble = r;
     }
@@ -360,7 +377,7 @@ fn feedback(s: &mut Session, platform: &mut Platform, mapping_rumble: Option<Rum
         }
         s.sent_rumble = Some(rumble);
     }
-    let light = (id, s.game_lightbar);
+    let light = (id, profile_light(s, now).or(s.game_lightbar));
     if s.sent_lightbar.as_ref() == Some(&light) {
         return;
     }
@@ -429,6 +446,7 @@ impl Runtime {
             hotkey_actions: Vec::new(),
             pad_overlay: false,
             mappings_overlay: false,
+            sent_leds: HashMap::new(),
         }
     }
 
@@ -537,6 +555,21 @@ impl Runtime {
     /// Whether the live controller overlay and the mappings overlay are on.
     pub fn overlays(&self) -> (bool, bool) {
         (self.pad_overlay, self.mappings_overlay)
+    }
+
+    /// Show `leds(controller)` on every connected controller, sending only changes.
+    pub fn set_indicators(&mut self, leds: impl Fn(&DeviceId) -> Leds) {
+        let ids: Vec<DeviceId> = self.snapshots.iter().map(|s| s.info.id.clone()).collect();
+        self.sent_leds.retain(|id, _| ids.contains(id));
+        for id in ids {
+            let want = leds(&id);
+            if self.sent_leds.get(&id) != Some(&want) {
+                for b in &mut self.platform.gamepads {
+                    b.set_leds(&id, want);
+                }
+                self.sent_leds.insert(id, want);
+            }
+        }
     }
 
     /// The radial menu the default session shows, and its pointed sector.
@@ -959,7 +992,7 @@ impl Runtime {
                 kbm,
             });
             emit(s, &mut self.platform, &out, now);
-            feedback(s, &mut self.platform, out.rumble);
+            feedback(s, &mut self.platform, out.rumble, now);
             if s.owner.is_none()
                 && let Some(echo) = &mut self.echo
             {
@@ -1136,7 +1169,7 @@ pub(crate) mod testing {
 
     use dp_core::pad::{PadState, Rgb, Rumble};
     use dp_platform::{
-        DeviceId, DeviceInfo, GamepadBackend, NullPlatform, PadFamily, PadSnapshot, Platform,
+        DeviceId, DeviceInfo, GamepadBackend, Leds, NullPlatform, PadFamily, PadSnapshot, Platform,
         VirtualPad, VirtualPadFactory, VirtualPadKind,
     };
 
@@ -1146,6 +1179,7 @@ pub(crate) mod testing {
         pub pads: Vec<PadSnapshot>,
         pub rumble: Vec<(DeviceId, Rumble)>,
         pub lightbar: Vec<(DeviceId, Option<Rgb>)>,
+        pub leds: Vec<(DeviceId, Leds)>,
         /// Virtual pads created so far, with the last state each was sent.
         pub virtual_pads: Vec<(VirtualPadKind, Option<PadState>)>,
         /// What the game "sends" to the next virtual pad poll.
@@ -1193,6 +1227,10 @@ pub(crate) mod testing {
         }
         fn set_lightbar(&mut self, id: &DeviceId, color: Option<Rgb>) {
             self.0.lock().unwrap().lightbar.push((id.clone(), color));
+        }
+
+        fn set_leds(&mut self, id: &DeviceId, leds: Leds) {
+            self.0.lock().unwrap().leds.push((id.clone(), leds));
         }
     }
 
@@ -1480,6 +1518,63 @@ mod tests {
         assert_eq!(name(&rt).as_deref(), Some("scope"), "toggle brings it back");
         press(&mut rt, PadButton::B);
         assert_eq!(name(&rt), None);
+    }
+
+    #[test]
+    fn profile_light_bar_follows_the_layer_and_indicators_change_once() {
+        use dp_core::control::Control;
+        use dp_core::pad::PadButton;
+        use dp_core::profile::{Jump, JumpMode, Layer, Light, LightMode, Mapping};
+        let (platform, world) = testing::platform();
+        world
+            .lock()
+            .unwrap()
+            .pads
+            .push(pad("pad1", PadFamily::DualSense));
+        let mut rt = Runtime::with_platform(platform);
+        let mut p = ds4_profile();
+        let solid = |c: &str| Light {
+            mode: LightMode::Solid,
+            colors: vec![c.into()],
+            ..Default::default()
+        };
+        p.lightbar = Some(solid("#ff0000"));
+        p.layers.push(Layer {
+            id: 1,
+            lightbar: Some(solid("#0000ff")),
+            ..Default::default()
+        });
+        let mut m = Mapping::new(Control::Button(PadButton::LB), Vec::new());
+        m.jump = Some(Jump {
+            layer: 1,
+            mode: JumpMode::Hold,
+            delay_ms: None,
+            postpone: false,
+        });
+        p.mappings.push(m);
+        rt.apply(p, None).unwrap();
+        rt.tick();
+        let last = |w: &testing::Shared| w.lock().unwrap().lightbar.last().and_then(|l| l.1);
+        assert_eq!(last(&world), Some(Rgb { r: 255, g: 0, b: 0 }));
+        world.lock().unwrap().pads[0].state.set(PadButton::LB, true);
+        rt.tick();
+        rt.tick();
+        assert_eq!(
+            last(&world),
+            Some(Rgb { r: 0, g: 0, b: 255 }),
+            "the layer's colour"
+        );
+
+        let leds = Leds {
+            player: Some(2),
+            mic: Some(true),
+        };
+        rt.set_indicators(|_| leds);
+        rt.set_indicators(|_| leds);
+        assert_eq!(
+            world.lock().unwrap().leds,
+            [(DeviceId("pad1".into()), leds)]
+        );
     }
 
     #[test]

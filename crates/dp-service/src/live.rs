@@ -8,6 +8,7 @@ use serde::Serialize;
 
 use crate::calibration::CalibrationStatus;
 use crate::runtime::{DriverStatus, SessionInfo};
+use crate::slots::PlayerLights;
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct LiveDevice {
@@ -46,6 +47,8 @@ pub struct LiveState {
     pub active_slot: usize,
     pub remap_on: bool,
     pub auto_switch: bool,
+    pub player_lights: PlayerLights,
+    pub mic_led: bool,
     /// Remapping is paused (the editor has focus).
     pub suspended: bool,
     /// Executable of the foreground application.

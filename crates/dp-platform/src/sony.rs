@@ -10,7 +10,7 @@ use dp_core::pad::{
 };
 
 use crate::padio::{Identity, InitError, PadDriver, ReportIo};
-use crate::{Battery, PadFamily};
+use crate::{Battery, Leds, PadFamily};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum SonyModel {
@@ -218,55 +218,128 @@ pub fn parse_battery(model: SonyModel, r: &[u8]) -> Option<Battery> {
     })
 }
 
-/// Build a USB output report that sets rumble and, if given, the light bar colour.
-/// Bluetooth output needs a CRC'd report and is not implemented yet (returns `None`).
-pub fn output_report(
-    model: SonyModel,
-    bluetooth: bool,
-    rumble: Rumble,
-    lightbar: Option<Rgb>,
-) -> Option<Vec<u8>> {
-    if bluetooth {
-        return None;
-    }
-    let low = (rumble.low.clamp(0.0, 1.0) * 255.0) as u8;
-    let high = (rumble.high.clamp(0.0, 1.0) * 255.0) as u8;
-    Some(match model {
-        SonyModel::DualShock4 => {
-            let mut r = vec![0u8; 32];
-            r[0] = 0x05;
-            r[1] = 0x01; // rumble valid
-            r[4] = high;
-            r[5] = low;
-            if let Some(c) = lightbar {
-                r[1] |= 0x02; // light bar valid
-                r[6..9].copy_from_slice(&[c.r, c.g, c.b]);
-            }
-            r
-        }
-        SonyModel::DualSense | SonyModel::DualSenseEdge => {
-            let mut r = vec![0u8; 48];
-            r[0] = 0x02;
-            r[1] = 0x03; // compatible vibration + haptics select
-            r[3] = high;
-            r[4] = low;
-            if let Some(c) = lightbar {
-                r[2] |= 0x04; // light bar control
-                r[45..48].copy_from_slice(&[c.r, c.g, c.b]);
-            }
-            r
-        }
-    })
+/// What an output report sets.
+#[derive(Copy, Clone, Debug, Default, PartialEq)]
+pub struct SonyOutput {
+    pub rumble: Rumble,
+    /// `None` leaves the light bar as it is.
+    pub lightbar: Option<Rgb>,
+    pub leds: Leds,
+    /// Take the light bar over from the DualSense firmware (once, before the first colour).
+    pub setup: bool,
 }
 
-/// Driver for the raw-HID backends: asks for full reports and forwards rumble and the
-/// light bar colour.
+/// CRC-32 (IEEE) as the Bluetooth reports carry it.
+fn crc32(data: impl IntoIterator<Item = u8>) -> u32 {
+    let mut c = !0u32;
+    for b in data {
+        c ^= b as u32;
+        for _ in 0..8 {
+            c = if c & 1 != 0 {
+                (c >> 1) ^ 0xEDB8_8320
+            } else {
+                c >> 1
+            };
+        }
+    }
+    !c
+}
+
+/// Bluetooth output reports end with a CRC over the 0xA2 header byte and everything before it.
+fn seal(r: &mut [u8]) {
+    let n = r.len() - 4;
+    let crc = crc32(std::iter::once(0xA2).chain(r[..n].iter().copied()));
+    r[n..].copy_from_slice(&crc.to_le_bytes());
+}
+
+/// DualSense player lights for players 1–5 (centre first, then outwards).
+const DUALSENSE_PLAYERS: [u8; 5] = [0x04, 0x0A, 0x15, 0x1B, 0x1F];
+
+/// The common part of a DualShock 4 output report (10 bytes from the first flag byte).
+fn ds4_common(c: &mut [u8], o: &SonyOutput) {
+    c[0] = 0x01; // rumble valid
+    c[3] = (o.rumble.high.clamp(0.0, 1.0) * 255.0) as u8;
+    c[4] = (o.rumble.low.clamp(0.0, 1.0) * 255.0) as u8;
+    if let Some(l) = o.lightbar {
+        c[0] |= 0x02; // light bar valid
+        c[5..8].copy_from_slice(&[l.r, l.g, l.b]);
+    }
+}
+
+/// The common part of a DualSense output report (47 bytes from the first flag byte).
+fn dualsense_common(c: &mut [u8], o: &SonyOutput) {
+    c[0] = 0x03; // compatible vibration + haptics select
+    c[2] = (o.rumble.high.clamp(0.0, 1.0) * 255.0) as u8;
+    c[3] = (o.rumble.low.clamp(0.0, 1.0) * 255.0) as u8;
+    if let Some(on) = o.leds.mic {
+        c[1] |= 0x01; // microphone LED control
+        c[8] = on as u8;
+    }
+    if o.setup {
+        c[38] |= 0x02; // light bar setup control
+        c[41] = 0x02; // light out: the firmware lets go of the light bar
+    }
+    if let Some(p) = o.leds.player {
+        c[1] |= 0x10; // player LED control
+        c[43] = match p {
+            0 => 0,
+            n => DUALSENSE_PLAYERS[(n as usize - 1).min(4)],
+        };
+    }
+    if let Some(l) = o.lightbar {
+        c[1] |= 0x04; // light bar control
+        c[44..47].copy_from_slice(&[l.r, l.g, l.b]);
+    }
+}
+
+/// Build an output report: rumble, light bar and lights. Over Bluetooth `seq` (0–15) counts
+/// DualSense reports.
+pub fn output_report(model: SonyModel, bluetooth: bool, o: &SonyOutput, seq: u8) -> Vec<u8> {
+    match (model, bluetooth) {
+        (SonyModel::DualShock4, false) => {
+            let mut r = vec![0u8; 32];
+            r[0] = 0x05;
+            ds4_common(&mut r[1..11], o);
+            r
+        }
+        (SonyModel::DualShock4, true) => {
+            let mut r = vec![0u8; 78];
+            r[0] = 0x11;
+            r[1] = 0xC0; // HID output with CRC
+            ds4_common(&mut r[3..13], o);
+            seal(&mut r);
+            r
+        }
+        (_, false) => {
+            let mut r = vec![0u8; 48];
+            r[0] = 0x02;
+            dualsense_common(&mut r[1..48], o);
+            r
+        }
+        (_, true) => {
+            let mut r = vec![0u8; 78];
+            r[0] = 0x31;
+            r[1] = (seq & 0x0F) << 4;
+            r[2] = 0x10; // output tag
+            dualsense_common(&mut r[3..50], o);
+            seal(&mut r);
+            r
+        }
+    }
+}
+
+/// Driver for the raw-HID backends: asks for full reports and forwards rumble, the light
+/// bar colour and the player and microphone lights.
 pub struct SonyDriver {
     model: SonyModel,
     bluetooth: bool,
     feature_len: usize,
     lightbar: Option<Rgb>,
-    sent: (Rumble, Option<Rgb>),
+    leds: Leds,
+    sent: Option<SonyOutput>,
+    /// The DualSense light bar has been taken over from the firmware.
+    set_up: bool,
+    seq: u8,
     battery: Option<Battery>,
 }
 
@@ -278,7 +351,10 @@ impl SonyDriver {
             bluetooth,
             feature_len,
             lightbar: None,
-            sent: (Rumble::default(), None),
+            leds: Leds::default(),
+            sent: None,
+            set_up: false,
+            seq: 0,
             battery: None,
         }
     }
@@ -527,7 +603,7 @@ impl PadDriver for SonyDriver {
             joycon: None,
             has_motion: true,
             has_touchpad: true,
-            has_rumble: !self.bluetooth,
+            has_rumble: true,
             notice: None,
         })
     }
@@ -548,16 +624,35 @@ impl PadDriver for SonyDriver {
         self.lightbar = color;
     }
 
+    fn set_leds(&mut self, leds: Leds) {
+        self.leds = leds;
+    }
+
     fn service(&mut self, io: &mut dyn ReportIo, rumble: Rumble) -> std::io::Result<()> {
-        let want = (rumble, self.lightbar);
-        if want == self.sent {
+        let want = SonyOutput {
+            rumble,
+            lightbar: self.lightbar,
+            leds: self.leds,
+            setup: false,
+        };
+        // Nothing to say yet: leave the controller as it is.
+        if self.sent.is_none() && want == SonyOutput::default() {
             return Ok(());
         }
-        self.sent = want;
-        match output_report(self.model, self.bluetooth, rumble, self.lightbar) {
-            Some(report) => io.write(&report),
-            None => Ok(()),
+        if self.sent == Some(want) {
+            return Ok(());
         }
+        self.sent = Some(want);
+        let setup = self.model != SonyModel::DualShock4 && !self.set_up && want.lightbar.is_some();
+        self.set_up |= setup;
+        let report = output_report(
+            self.model,
+            self.bluetooth,
+            &SonyOutput { setup, ..want },
+            self.seq,
+        );
+        self.seq = (self.seq + 1) & 0x0F;
+        io.write(&report)
     }
 
     fn next_deadline(&self) -> Option<Instant> {
@@ -594,12 +689,65 @@ mod tests {
 
     #[test]
     fn ds4_output_report_carries_lightbar() {
-        let red = Some(Rgb { r: 255, g: 0, b: 0 });
-        let r = output_report(SonyModel::DualShock4, false, Rumble::default(), red).unwrap();
+        let red = SonyOutput {
+            lightbar: Some(Rgb { r: 255, g: 0, b: 0 }),
+            ..Default::default()
+        };
+        let r = output_report(SonyModel::DualShock4, false, &red, 0);
         assert_eq!((r[0], r[1], &r[6..9]), (0x05, 0x03, &[255, 0, 0][..]));
-        let r = output_report(SonyModel::DualShock4, false, Rumble::default(), None).unwrap();
+        let r = output_report(SonyModel::DualShock4, false, &SonyOutput::default(), 0);
         assert_eq!(r[1], 0x01);
-        assert!(output_report(SonyModel::DualShock4, true, Rumble::default(), red).is_none());
+        // Bluetooth: the same fields three bytes later, sealed with a CRC.
+        let bt = output_report(SonyModel::DualShock4, true, &red, 0);
+        assert_eq!(
+            (bt.len(), bt[0], bt[1], bt[3], &bt[8..11]),
+            (78, 0x11, 0xC0, 0x03, &[255, 0, 0][..])
+        );
+        let crc = crc32(std::iter::once(0xA2).chain(bt[..74].iter().copied()));
+        assert_eq!(bt[74..], crc.to_le_bytes());
+    }
+
+    #[test]
+    fn crc32_matches_the_standard_check_value() {
+        assert_eq!(crc32(*b"123456789"), 0xCBF4_3926);
+    }
+
+    #[test]
+    fn dualsense_lights() {
+        let o = SonyOutput {
+            lightbar: Some(Rgb { r: 9, g: 8, b: 7 }),
+            leds: Leds {
+                player: Some(2),
+                mic: Some(true),
+            },
+            setup: true,
+            ..Default::default()
+        };
+        let usb = output_report(SonyModel::DualSense, false, &o, 0);
+        assert_eq!(
+            usb[2],
+            0x01 | 0x04 | 0x10,
+            "mic, light bar and player control"
+        );
+        assert_eq!((usb[9], usb[39], usb[42], usb[44]), (1, 0x02, 0x02, 0x0A));
+        assert_eq!(usb[45..48], [9, 8, 7]);
+        let bt = output_report(SonyModel::DualSense, true, &o, 5);
+        assert_eq!((bt.len(), bt[0], bt[1], bt[2]), (78, 0x31, 0x50, 0x10));
+        assert_eq!(bt[3..50], usb[1..48], "the same common part");
+        let off = Leds {
+            player: Some(0),
+            mic: Some(false),
+        };
+        let r = output_report(
+            SonyModel::DualSense,
+            false,
+            &SonyOutput {
+                leds: off,
+                ..Default::default()
+            },
+            0,
+        );
+        assert_eq!((r[2], r[9], r[44]), (0x11, 0, 0));
     }
 
     /// A report as the virtual DS4 sends it, prefixed with its report ID, parses back.

@@ -375,6 +375,28 @@ full_pull = 0.8
 A stick direction or trigger that is held across the switch and no longer reaches the new
 layer's threshold is released at once.
 
+## Light bar
+
+DualShock 4 and DualSense controllers show the profile's light bar, and a layer can have its own
+while it is active:
+
+```toml
+[lightbar]
+mode = "breath"            # off | solid | breath | rainbow | shimmer | heartbeat | strobe
+colors = ["#14b8a6", "#8b5cf6"]   # 1–10
+cycle = true               # one colour per period, in turn
+period_ms = 2000           # 100–10000
+
+[[layers]]
+id = 1
+lightbar = { mode = "solid", colors = ["#f97316"] }
+```
+
+Without a `[lightbar]` the game sets the colour through the virtual DualShock 4. The player
+lights and the DualSense microphone LED are app settings (*Settings → Controller lights*): the
+player lights show the active slot's number (by default only while remapping is on), and the
+microphone LED can show whether remapping is on. Light changes work over USB and Bluetooth.
+
 ## Crosshairs
 
 Up to ten crosshairs can be drawn over the game, in the middle of the primary monitor:

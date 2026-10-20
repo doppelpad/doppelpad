@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 pub use compat::ImportError;
 pub use diag::{Diagnostic, Diagnostics, Severity};
 use dp_core::profile::{
-    Action, AnalogSource, AnalogTarget, Command, JumpMode, Mode, Profile, Sticks, Triggers,
+    Action, AnalogSource, AnalogTarget, Command, JumpMode, Light, Mode, Profile, Sticks, Triggers,
     VirtualSticks,
 };
 
@@ -276,6 +276,14 @@ pub fn validate(p: &Profile) -> Diagnostics {
     }
     check_crosshairs(&mut d, p);
     check_radial(&mut d, p);
+    if let Some(l) = &p.lightbar {
+        check_light(&mut d, "lightbar", l);
+    }
+    for (i, l) in p.layers.iter().enumerate() {
+        if let Some(light) = &l.lightbar {
+            check_light(&mut d, &format!("layers[{i}].lightbar"), light);
+        }
+    }
     for (i, l) in p.layers.iter().enumerate() {
         // Only the sides a layer changes are checked again.
         let changed = [
@@ -308,6 +316,15 @@ pub fn validate(p: &Profile) -> Diagnostics {
 /// `#rrggbb`.
 fn is_hex_color(s: &str) -> bool {
     s.len() == 7 && s.starts_with('#') && s[1..].chars().all(|c| c.is_ascii_hexdigit())
+}
+
+fn check_light(d: &mut Diagnostics, path: &str, l: &Light) {
+    if l.colors.is_empty() || l.colors.len() > 10 || !l.colors.iter().all(|c| is_hex_color(c)) {
+        d.error(path, "a light bar has 1–10 colours written #rrggbb");
+    }
+    if !(100..=10_000).contains(&l.period_ms) {
+        d.error(path, "period_ms must be 100–10000");
+    }
 }
 
 fn check_radial(d: &mut Diagnostics, p: &Profile) {

@@ -103,6 +103,15 @@ fn trigger(pressed: bool) -> f32 {
 }
 
 /// Unpack two 12-bit values from three bytes (`x = b0 | b1.lo << 8`, `y = b1.hi | b2 << 4`).
+/// Player lights for player `n` (1–4) the way the console lights them: LED 1, LEDs 1–2,
+/// 1–3, all four; 0 turns them off.
+pub fn player_mask(n: u8) -> u8 {
+    match n {
+        0 => 0,
+        n => (1u8 << n.min(4)) - 1,
+    }
+}
+
 pub fn unpack12(b: &[u8]) -> (u16, u16) {
     let x = b[0] as u16 | ((b[1] as u16 & 0x0F) << 8);
     let y = (b[1] as u16 >> 4) | ((b[2] as u16) << 4);
@@ -218,6 +227,14 @@ pub fn imu_to_pad([x, y, z]: [f32; 3]) -> [f32; 3] {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn player_lights_fill_up_from_the_first() {
+        assert_eq!(
+            [0, 1, 2, 3, 4, 7].map(player_mask),
+            [0x0, 0x1, 0x3, 0x7, 0xF, 0xF]
+        );
+    }
 
     #[test]
     fn models() {

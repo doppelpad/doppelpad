@@ -264,6 +264,26 @@
       "release": "Löst kurz aus, wenn die Taste losgelassen wird."
     }
   },
+  "light": {
+    "title": "Leuchtleiste",
+    "hint": "Farbe und Effekt der Leuchtleiste von DualShock 4 und DualSense, für die Haupt-Ebene und auf Wunsch je Ebene. Ohne Einstellung setzt das Spiel die Farbe (virtueller DualShock 4).",
+    "layer": "Ebene",
+    "own_main": "Leuchtleiste festlegen",
+    "own_layer": "Eigene Leuchtleiste auf dieser Ebene",
+    "mode": "Effekt",
+    "modes": {
+      "solid": "Leuchten",
+      "breath": "Atmen",
+      "rainbow": "Regenbogen",
+      "shimmer": "Schimmern",
+      "heartbeat": "Herzschlag",
+      "strobe": "Stroboskop",
+      "off": "Aus"
+    },
+    "add_color": "Farbe hinzufügen",
+    "cycle": "Farben nacheinander zeigen",
+    "period": "Dauer eines Durchlaufs"
+  },
   "crosshairs": {
     "title": "Fadenkreuze",
     "hint": "Bis zu zehn Fadenkreuze über dem Spiel, in der Mitte des Hauptmonitors. Belegungen zeigen sie mit „Fadenkreuz N zeigen“, oder sie erscheinen, solange eine ihrer Ebenen aktiv ist.",
@@ -761,6 +781,16 @@
       "scale": "Größe",
       "opacity": "Deckkraft",
       "seconds": "Anzeigedauer"
+    },
+    "lights": {
+      "title": "Controller-Lichter",
+      "player": "Spieler-LEDs",
+      "players": {
+        "while_remapping": "Slot-Nummer, solange Remapping an ist",
+        "always": "Immer die Slot-Nummer",
+        "off": "Dem Controller überlassen"
+      },
+      "mic": "Mikrofon-LED zeigt, ob Remapping an ist (DualSense)"
     },
     "overlays": {
       "title": "Overlays",

@@ -3,7 +3,7 @@
   import { api, errorText } from '../lib/api';
   import { LANGUAGES, t } from '../lib/i18n/index.svelte';
   import { app } from '../lib/state/app.svelte';
-  import type { Corner, MappingsOverlaySettings, OsdSettings, PadOverlaySettings, RewasdChoice } from '../lib/types';
+  import type { Corner, MappingsOverlaySettings, OsdSettings, PadOverlaySettings, PlayerLights, RewasdChoice } from '../lib/types';
   import HotkeySettings from './HotkeySettings.svelte';
   import Slider from './ui/Slider.svelte';
   import Toggle from './ui/Toggle.svelte';
@@ -44,6 +44,16 @@
 
   function setOsd(patch: Partial<OsdSettings>) {
     app.setSettings({ osd: { ...osd, ...patch } });
+  }
+
+  const PLAYER_LIGHTS: PlayerLights[] = ['while_remapping', 'always', 'off'];
+
+  async function setLights(player: PlayerLights, mic: boolean) {
+    try {
+      await api.setLights(player, mic);
+    } catch (e) {
+      app.toast(errorText(e), 'error');
+    }
   }
 
   const padOverlay = $derived(app.settings.pad_overlay);
@@ -173,6 +183,20 @@
         <Slider label={t('settings.osd.seconds')} value={osd.seconds} def={5} min={1} max={30} step={1} unit="s" onchange={(v) => setOsd({ seconds: v })} />
       {/if}
     </div>
+
+    {#if app.live}
+      {@const live = app.live}
+      <div class="section">
+        <div class="section-head"><span>{t('settings.lights.title')}</span></div>
+        <label class="row">
+          <span>{t('settings.lights.player')}</span>
+          <select value={live.player_lights} onchange={(e) => setLights(e.currentTarget.value as PlayerLights, live.mic_led)}>
+            {#each PLAYER_LIGHTS as p (p)}<option value={p}>{t(`settings.lights.players.${p}`)}</option>{/each}
+          </select>
+        </label>
+        <Toggle checked={live.mic_led} label={t('settings.lights.mic')} onchange={(v) => setLights(live.player_lights, v)} />
+      </div>
+    {/if}
 
     <div class="section">
       <div class="section-head"><span>{t('settings.overlays.title')}</span></div>

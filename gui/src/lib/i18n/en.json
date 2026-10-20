@@ -264,6 +264,26 @@
       "release": "Fires briefly when the control is released."
     }
   },
+  "light": {
+    "title": "Light bar",
+    "hint": "Colour and effect of the DualShock 4 and DualSense light bar, for Main and, if you like, per layer. Without a setting the game sets the colour (virtual DualShock 4).",
+    "layer": "Layer",
+    "own_main": "Set the light bar",
+    "own_layer": "Own light bar on this layer",
+    "mode": "Effect",
+    "modes": {
+      "solid": "Solid",
+      "breath": "Breathe",
+      "rainbow": "Rainbow",
+      "shimmer": "Shimmer",
+      "heartbeat": "Heartbeat",
+      "strobe": "Strobe",
+      "off": "Off"
+    },
+    "add_color": "Add a colour",
+    "cycle": "Show the colours one after another",
+    "period": "One cycle"
+  },
   "crosshairs": {
     "title": "Crosshairs",
     "hint": "Up to ten crosshairs over the game, in the middle of the primary monitor. Mappings show them with “Show crosshair N”, or they appear while one of their layers is active.",
@@ -761,6 +781,16 @@
       "scale": "Size",
       "opacity": "Opacity",
       "seconds": "Display time"
+    },
+    "lights": {
+      "title": "Controller lights",
+      "player": "Player lights",
+      "players": {
+        "while_remapping": "Slot number while remapping is on",
+        "always": "Always the slot number",
+        "off": "Leave them to the controller"
+      },
+      "mic": "Microphone LED shows whether remapping is on (DualSense)"
     },
     "overlays": {
       "title": "Overlays",

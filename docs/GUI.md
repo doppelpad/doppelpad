@@ -60,6 +60,9 @@ only edits profiles and sends commands.
    *Config settings* also hold the **crosshairs**: shape, colours, size, line width, outline,
    offset and an optional magnifier, and the layers that show each one; the action picker's
    commands show them (*Show crosshair N*, *Crosshair on/off*).
+   The **light bar** (DualShock 4, DualSense) is set there as well, for *Main* and per layer:
+   an effect, its colours and the speed. *Settings → Controller lights* sets what the player
+   lights and the DualSense microphone LED show.
    **Radial menus** live there too: the layer that opens each one, what points at a sector
    (a stick, the mouse or commands), when the pointed sector runs, and per sector its label,
    icon (a built-in set or an image file), colour and actions or sub-menu.

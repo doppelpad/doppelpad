@@ -124,6 +124,15 @@ pub struct PadSnapshot {
     pub battery: Option<Battery>,
 }
 
+/// Indicator lights besides the light bar. `None` leaves a light to the controller.
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Leds {
+    /// Player number to show, 1–4; 0 turns the player lights off.
+    pub player: Option<u8>,
+    /// The microphone LED (DualSense).
+    pub mic: Option<bool>,
+}
+
 /// A controller's battery as far as it reports it.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Battery {
@@ -152,6 +161,8 @@ pub trait GamepadBackend: Send {
     /// Show a light bar colour on a physical device (if it has one); `None` stops setting
     /// it and leaves the light bar as it is.
     fn set_lightbar(&mut self, _id: &DeviceId, _color: Option<Rgb>) {}
+    /// Show player lights and the microphone LED (if the device has them).
+    fn set_leds(&mut self, _id: &DeviceId, _leds: Leds) {}
     /// Tell the backend which XInput slots / device paths belong to our own virtual pads
     /// so it does not read them back as physical input.
     fn ignore_virtual(&mut self, _ignored: &VirtualIgnoreList) {}
