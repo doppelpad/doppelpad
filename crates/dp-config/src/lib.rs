@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 
 pub use compat::ImportError;
 pub use diag::{Diagnostic, Diagnostics, Severity};
-use dp_core::profile::{Action, Command, Profile};
+use dp_core::profile::{Action, Command, Mode, Profile};
 
 #[derive(Debug, thiserror::Error)]
 pub enum LoadError {
@@ -151,6 +151,19 @@ pub fn validate(p: &Profile) -> Diagnostics {
         }
         if m.actions.len() > 4096 {
             d.error(&path, "macro has more than 4096 steps");
+        }
+        if m.actions.iter().any(Action::is_break) {
+            match m.mode {
+                Mode::Turbo | Mode::Toggle => d.warn(
+                    &path,
+                    "a sequence with break steps cannot use turbo or toggle; it is held instead",
+                ),
+                Mode::Repeat | Mode::WhileHeld => d.warn(
+                    &path,
+                    "a sequence with break steps runs each segment once; repeating is ignored",
+                ),
+                Mode::Hold | Mode::Once => {}
+            }
         }
     }
     for (name, s) in [("left", &p.sticks.left), ("right", &p.sticks.right)] {

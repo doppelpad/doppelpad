@@ -512,6 +512,17 @@ pub enum Action {
     },
     /// Built-in command.
     Command { command: Command },
+    /// Split the sequence into segments (`{ break = true }`): each activation plays the
+    /// next segment, starting over after the last.
+    Break { r#break: bool },
+}
+
+impl Action {
+    pub const BREAK: Action = Action::Break { r#break: true };
+
+    pub fn is_break(&self) -> bool {
+        matches!(self, Action::Break { .. })
+    }
 }
 
 fn is_default<T: Default + PartialEq>(v: &T) -> bool {

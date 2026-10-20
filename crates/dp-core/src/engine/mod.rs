@@ -105,6 +105,8 @@ struct Activation {
     owned: Vec<Out>,
     analog: Vec<AnalogOut>,
     jump_at: Option<(u64, u8)>,
+    /// Which segment of a sequence with break steps this activation plays.
+    segment: usize,
 }
 
 /// Reference-counted output state shared by all activations.
@@ -273,6 +275,8 @@ pub struct Engine {
     acts: Vec<Activation>,
     next_act: ActId,
     toggles: HashMap<BindingId, ActId>,
+    /// Next segment to play, per binding whose sequence has break steps.
+    segment_cursor: HashMap<BindingId, usize>,
     outs: Outputs,
     route_state: Vec<RouteState>,
     layer_changed: bool,
@@ -319,6 +323,7 @@ impl Engine {
             acts: Vec::new(),
             next_act: 0,
             toggles: HashMap::new(),
+            segment_cursor: HashMap::new(),
             outs: Outputs::default(),
             route_state,
             layer_changed: false,
@@ -773,6 +778,15 @@ impl Engine {
         }
         let id = self.next_act;
         self.next_act += 1;
+        let segments = self.c.bindings[bid].segments();
+        let segment = if segments > 1 {
+            let next = self.segment_cursor.entry(bid).or_insert(0);
+            let s = *next % segments;
+            *next = (s + 1) % segments;
+            s
+        } else {
+            0
+        };
         let mut act = Activation {
             id,
             binding: bid,
@@ -790,13 +804,19 @@ impl Engine {
             owned: Vec::new(),
             analog: Vec::new(),
             jump_at: None,
+            segment,
         };
         if let Some((target, delay)) = jump
             && delay.is_some_and(|d| d > 0)
         {
             act.jump_at = Some((t + delay.unwrap_or(0) as u64, target));
         }
-        step(&mut act, self.c.bindings[bid].program(), &mut self.outs, t);
+        step(
+            &mut act,
+            self.c.bindings[bid].program(segment),
+            &mut self.outs,
+            t,
+        );
         self.acts.push(act);
         if mode == Mode::Toggle {
             self.toggles.insert(bid, id);
@@ -812,7 +832,7 @@ impl Engine {
         let Some(i) = self.acts.iter().position(|a| a.id == id) else {
             return;
         };
-        let program = self.c.bindings[self.acts[i].binding].program();
+        let program = self.c.bindings[self.acts[i].binding].program(self.acts[i].segment);
         let act = &mut self.acts[i];
         step(act, program, &mut self.outs, t);
         act.ended = true;
@@ -854,7 +874,7 @@ impl Engine {
     fn advance(&mut self, t: u64) {
         let mut jumps = Vec::new();
         for act in &mut self.acts {
-            let program = self.c.bindings[act.binding].program();
+            let program = self.c.bindings[act.binding].program(act.segment);
             step(act, program, &mut self.outs, t);
             if let Some((at, target)) = act.jump_at
                 && at <= t
@@ -878,6 +898,8 @@ impl Engine {
             return;
         }
         tracing::debug!(from = self.layer, to = target, "layer switch");
+        // Segmented sequences start again from their first segment.
+        self.segment_cursor.clear();
         // Toggle latches belong to the old layer.
         let latched: Vec<ActId> = self.toggles.drain().map(|(_, id)| id).collect();
         for id in latched {
@@ -935,6 +957,7 @@ impl Engine {
         }
         self.acts.clear();
         self.toggles.clear();
+        self.segment_cursor.clear();
         for r in self.recs.values_mut() {
             r.reset();
         }
