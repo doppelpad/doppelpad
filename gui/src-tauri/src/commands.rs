@@ -13,8 +13,8 @@ use dp_core::hotkeys::Hotkeys;
 use dp_core::keys::{Key, MouseButton};
 use dp_core::pad::PadButton;
 use dp_core::profile::{
-    AnalogMapping, Crosshair, GyroSettings, Magnifier, Mapping, Output, Profile, StickConfig,
-    Timing, TouchpadSettings, TriggerConfig, VirtualStick,
+    AnalogMapping, Crosshair, GyroSettings, Magnifier, Mapping, Output, Profile, RadialMenu,
+    RadialSector, StickConfig, Timing, TouchpadSettings, TriggerConfig, VirtualStick,
 };
 use dp_ipc::Request;
 use dp_service::{LiveState, ServiceCmd, ServiceHandle, ServiceReply};
@@ -32,6 +32,9 @@ pub struct AppState {
     pub notices: Mutex<Vec<String>>,
     /// Incremented per live subscription; older streaming threads stop.
     pub live_generation: Arc<AtomicU64>,
+    /// The main window has the focus (window events; the webview inside holds the keyboard
+    /// focus, so the window itself does not report it).
+    pub main_focused: std::sync::atomic::AtomicBool,
 }
 
 type CmdResult<T> = Result<T, String>;
@@ -71,6 +74,8 @@ pub struct Defaults {
     touchpad: TouchpadSettings,
     crosshair: Crosshair,
     magnifier: Magnifier,
+    radial_menu: RadialMenu,
+    radial_sector: RadialSector,
 }
 
 #[derive(Serialize)]
@@ -106,6 +111,8 @@ pub fn catalog() -> Catalog {
             touchpad: TouchpadSettings::default(),
             crosshair: Crosshair::default(),
             magnifier: Magnifier::default(),
+            radial_menu: RadialMenu::default(),
+            radial_sector: RadialSector::default(),
         },
     }
 }

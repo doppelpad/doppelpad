@@ -16,10 +16,11 @@ use std::time::Instant;
 use anyhow::{Context, Result};
 use crossbeam_channel::Receiver;
 use dp_core::control::{Control, mouse_button_name, pad_button_name};
+use dp_core::engine::radial::RadialView;
 use dp_core::engine::{Engine, Input, Output};
 use dp_core::hotkeys::{HotkeyAction, HotkeyDetector, Hotkeys};
 use dp_core::pad::{PadButton, PadState, Rgb, Rumble, Trigger};
-use dp_core::profile::{AnalogSource, Command, Crosshair, Profile, VirtualPadType};
+use dp_core::profile::{AnalogSource, Command, Crosshair, Profile, RadialMenu, VirtualPadType};
 use dp_core::repeat::KeyRepeater;
 use dp_platform::{
     CaptureFilter, DeviceId, KbmEvent, PadSnapshot, Platform, PowerAction, VirtualIgnoreList,
@@ -104,6 +105,8 @@ struct Session {
     /// The cursor clip this session last set.
     clip: Option<[f32; 4]>,
     crosshair: CrosshairChoice,
+    /// The radial menu the engine shows.
+    radial: Option<RadialView>,
 }
 
 /// The crosshair a session's commands chose (an index), and whether they hid it.
@@ -305,6 +308,7 @@ fn needs_capture(p: &Profile) -> bool {
 
 /// Send a session's keyboard/mouse and virtual pad output.
 fn emit(s: &mut Session, platform: &mut Platform, out: &Output, now: u64) {
+    s.radial = out.radial;
     if let (Some(vpad), Some(pad)) = (&mut s.vpad, &out.pad)
         && let Err(e) = vpad.update(pad)
     {
@@ -525,6 +529,13 @@ impl Runtime {
         s.engine.profile().crosshairs.get(s.crosshair_index()?)
     }
 
+    /// The radial menu the default session shows, and its pointed sector.
+    pub fn radial(&self) -> Option<(&RadialMenu, Option<usize>)> {
+        let s = self.session(None)?;
+        let v = s.radial?;
+        Some((s.engine.profile().radial_menus.get(v.menu)?, v.pointed))
+    }
+
     /// Problems of every session; those of a controller's own session name the controller.
     pub fn warnings(&self) -> Vec<String> {
         let mut out = Vec::new();
@@ -640,6 +651,7 @@ impl Runtime {
             key_repeat,
             clip: None,
             crosshair: CrosshairChoice::default(),
+            radial: None,
         };
         for w in &session.warnings {
             tracing::warn!("{w}");
@@ -1007,6 +1019,15 @@ impl Runtime {
                     tracing::warn!("cannot close the window: {e}");
                 }
             }
+            // The engine runs radial menus itself.
+            Command::RadialNext
+            | Command::RadialPrev
+            | Command::RadialUp
+            | Command::RadialDown
+            | Command::RadialLeft
+            | Command::RadialRight
+            | Command::RadialApply
+            | Command::RadialBack => {}
             Command::Crosshair(_) | Command::ToggleCrosshair => {
                 if let Some(s) = self.sessions.get_mut(i) {
                     s.crosshair_command(&c);

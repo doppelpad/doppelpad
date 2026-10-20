@@ -37,6 +37,14 @@ export type Command =
   | 'screenshot'
   | 'close_window'
   | 'toggle_crosshair'
+  | 'radial_next'
+  | 'radial_prev'
+  | 'radial_up'
+  | 'radial_down'
+  | 'radial_left'
+  | 'radial_right'
+  | 'radial_apply'
+  | 'radial_back'
   /** Show crosshair N (1-based), or hide it if it is the one showing. */
   | { crosshair: number }
   | { launch: { path: string; args?: string } }
@@ -158,6 +166,40 @@ export interface Crosshair {
   magnifier?: Magnifier;
   /** Shown while one of these layers is active. */
   layers?: number[];
+}
+
+/** What points at a sector of an open radial menu. */
+export type RadialSelect = 'left_stick' | 'right_stick' | 'mouse' | 'commands';
+
+/** When the pointed sector runs: as the menu's layer ends, or with the apply command. */
+export type RadialApply = 'release' | 'command';
+
+/** A ring of sectors over the game, open while its layer is active. */
+export interface RadialMenu {
+  name?: string;
+  /** 0: only as a sub-menu. */
+  layer?: number;
+  select?: RadialSelect;
+  apply?: RadialApply;
+  delay_ms?: number;
+  /** 0–1. */
+  tint?: number;
+  /** 0.5–2. */
+  scale?: number;
+  offset?: [number, number];
+  sectors: RadialSector[];
+}
+
+export interface RadialSector {
+  label?: string;
+  /** A name of the app's icon set, or an image file. */
+  icon?: string;
+  /** `#rrggbb`. */
+  color?: string;
+  actions?: Action[];
+  /** Open this menu (1-based) instead. */
+  submenu?: number;
+  close?: boolean;
 }
 
 export interface Magnifier {
@@ -330,6 +372,8 @@ export interface Profile {
   layer_change?: { repress?: boolean };
   /** Crosshairs drawn over the game, at most ten. */
   crosshairs?: Crosshair[];
+  /** Radial menus, each shown while its layer is active. */
+  radial_menus?: RadialMenu[];
   mappings: Mapping[];
   analog?: AnalogMapping[];
   virtual?: VirtualDevices;
@@ -416,6 +460,8 @@ export interface LiveState {
   sessions: LiveSession[];
   /** The crosshair drawn over the game. */
   crosshair: Crosshair | null;
+  /** The radial menu open over the game, and the sector pointed at. */
+  radial: { menu: RadialMenu; pointed: number | null } | null;
 }
 
 // ----- library --------------------------------------------------------------------------
@@ -477,6 +523,8 @@ export interface Catalog {
     touchpad: Required<TouchpadSettings>;
     crosshair: Required<Omit<Crosshair, 'magnifier'>>;
     magnifier: Magnifier;
+    radial_menu: Required<Omit<RadialMenu, 'sectors' | 'name'>>;
+    radial_sector: RadialSector;
   };
 }
 

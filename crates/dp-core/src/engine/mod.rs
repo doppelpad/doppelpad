@@ -15,6 +15,7 @@
 pub mod analog;
 pub mod compile;
 pub mod gyro;
+pub mod radial;
 pub mod recognizer;
 pub mod routes;
 pub mod touch;
@@ -37,8 +38,8 @@ use crate::event::KbmEvent;
 use crate::keys::{Key, MouseButton, WheelDir};
 use crate::pad::{Axis, Motion, PadButton, PadState, Rumble, Stick, Trigger};
 use crate::profile::{
-    Activator, AnalogSource, Command, GyroMode, Mode, Profile, ShakeAxis, Sticks, Triggers,
-    VirtualPadType, VirtualStick, VirtualSticks,
+    Activator, AnalogSource, Command, GyroMode, Mode, Profile, RadialSelect, ShakeAxis, Sticks,
+    Triggers, VirtualPadType, VirtualStick, VirtualSticks,
 };
 
 /// Button-driven mouse motion speeds up to at most this many times its speed.
@@ -121,6 +122,8 @@ pub struct Output {
     pub layer: u8,
     /// The active layer changed this tick (mute set may differ).
     pub layer_changed: bool,
+    /// The radial menu to draw.
+    pub radial: Option<radial::RadialView>,
 }
 
 /// Keyboard/mouse inputs to swallow in the current layer.
@@ -382,6 +385,7 @@ pub struct Engine {
     /// Held across a layer change without re-press: they keep their old activations until
     /// released.
     stale: HashSet<MaskId>,
+    radial: Option<radial::RadialState>,
 
     acts: Vec<Activation>,
     next_act: ActId,
@@ -472,6 +476,7 @@ impl Engine {
             mask_down: HashSet::new(),
             jump_owned: HashSet::new(),
             stale: HashSet::new(),
+            radial: None,
             acts: Vec::new(),
             next_act: 0,
             toggles: HashMap::new(),
@@ -1315,21 +1320,143 @@ impl Engine {
         self.expire_combo(now);
         self.poll_recognizers(now);
         self.advance(now);
-        for c in std::mem::take(&mut self.outs.commands) {
+        self.update_radial(now);
+        // Radial commands may play sectors whose own commands join the queue.
+        let mut queue: std::collections::VecDeque<Command> =
+            std::mem::take(&mut self.outs.commands).into();
+        let mut done = Vec::new();
+        while let Some(c) = queue.pop_front() {
             match c {
                 Command::ToggleGyro => self.gyro_enabled = !self.gyro_enabled,
                 Command::GyroOn => self.gyro_enabled = true,
                 Command::GyroOff => self.gyro_enabled = false,
                 Command::ResetTilt => self.gyro.reset(),
                 Command::SwitchGyroAxis => self.gyro.switch_axis(),
+                Command::RadialNext
+                | Command::RadialPrev
+                | Command::RadialUp
+                | Command::RadialDown
+                | Command::RadialLeft
+                | Command::RadialRight
+                | Command::RadialApply
+                | Command::RadialBack => self.radial_command(&c, now),
                 _ => {}
             }
-            self.outs.commands.push(c);
+            done.push(c);
+            if done.len() < 256 {
+                queue.extend(std::mem::take(&mut self.outs.commands));
+            }
         }
+        self.outs.commands = done;
 
-        let out = self.compose(dt, now);
+        let mut out = self.compose(dt, now);
+        out.radial = self
+            .radial
+            .as_ref()
+            .and_then(|r| r.view(&self.profile.radial_menus, now));
         self.prev_controls = self.cur_controls.clone();
         out
+    }
+
+    // ----- radial menus --------------------------------------------------------------
+
+    /// Open the menu of the active layer, close the one whose layer ended (a release menu
+    /// plays its pointed sector) and point with the menu's stick or the mouse.
+    fn update_radial(&mut self, now: u64) {
+        let layer = self.layer;
+        let mut run = None;
+        if let Some(r) = &self.radial
+            && self
+                .profile
+                .radial_menus
+                .get(r.root())
+                .is_none_or(|m| m.layer != layer)
+        {
+            run = r.leave(&self.profile.radial_menus);
+            self.radial = None;
+        }
+        if self.radial.is_none()
+            && layer != 0
+            && let Some(i) = self
+                .profile
+                .radial_menus
+                .iter()
+                .position(|m| m.layer == layer)
+        {
+            self.radial = Some(radial::RadialState::open(i, now));
+        }
+        let stick = self.radial_stick().and_then(|s| {
+            let p = self.pad?;
+            Some(analog::orient(p.stick(s), self.sticks().get(s)))
+        });
+        if let Some(r) = &mut self.radial {
+            r.point(&self.profile.radial_menus, stick, self.mouse_counts);
+        }
+        if let Some(run) = run {
+            self.run_radial(run, now);
+        }
+    }
+
+    /// The stick an open menu points with; it does not reach the game meanwhile.
+    fn radial_stick(&self) -> Option<Stick> {
+        let r = self.radial.as_ref().filter(|r| !r.closed)?;
+        match self.profile.radial_menus.get(r.root())?.select {
+            RadialSelect::LeftStick => Some(Stick::Left),
+            RadialSelect::RightStick => Some(Stick::Right),
+            _ => None,
+        }
+    }
+
+    fn radial_command(&mut self, c: &Command, now: u64) {
+        let Some(r) = &mut self.radial else {
+            return;
+        };
+        let menus = &self.profile.radial_menus;
+        let run = match c {
+            Command::RadialNext => {
+                r.step(menus, 1);
+                None
+            }
+            Command::RadialPrev => {
+                r.step(menus, -1);
+                None
+            }
+            Command::RadialUp => {
+                r.point_dir(menus, 0.0, 1.0);
+                None
+            }
+            Command::RadialDown => {
+                r.point_dir(menus, 0.0, -1.0);
+                None
+            }
+            Command::RadialLeft => {
+                r.point_dir(menus, -1.0, 0.0);
+                None
+            }
+            Command::RadialRight => {
+                r.point_dir(menus, 1.0, 0.0);
+                None
+            }
+            Command::RadialApply => r.apply(menus),
+            Command::RadialBack => {
+                r.back();
+                None
+            }
+            _ => None,
+        };
+        if let Some(run) = run {
+            self.run_radial(run, now);
+        }
+    }
+
+    /// Play a sector's actions once.
+    fn run_radial(&mut self, run: radial::RadialRun, now: u64) {
+        let radial::RadialRun::Sector { menu, sector } = run;
+        let Some(&bid) = self.c.radial.get(menu).and_then(|ids| ids.get(sector)) else {
+            return;
+        };
+        let mask = self.c.bindings[bid].mask;
+        self.begin(bid, mask, Activator::Single, now);
     }
 
     fn compose(&mut self, dt: f32, now: u64) -> Output {
@@ -1362,6 +1489,7 @@ impl Engine {
 
         let table = self.c.layer(self.layer);
         let routes: Vec<usize> = table.routes.clone();
+        let radial_stick = self.radial_stick();
         let route_consumes = |src: AnalogSource| {
             routes
                 .iter()
@@ -1394,7 +1522,10 @@ impl Engine {
                 } else {
                     AnalogSource::RightStick
                 };
-                if Control::of_stick(s).iter().any(hidden) || route_consumes(src) {
+                if Control::of_stick(s).iter().any(hidden)
+                    || route_consumes(src)
+                    || radial_stick == Some(s)
+                {
                     continue;
                 }
                 let cfg = self.sticks().get(s);
@@ -1528,6 +1659,15 @@ impl Engine {
         };
         for &i in &routes {
             let r = &self.c.routes[i];
+            let pointing = match radial_stick {
+                Some(Stick::Left) => r.source == AnalogSource::LeftStick,
+                Some(Stick::Right) => r.source == AnalogSource::RightStick,
+                None => false,
+            };
+            if pointing {
+                self.route_state[i] = RouteState::default();
+                continue;
+            }
             if !r.while_held.iter().all(|c| self.cur_controls.contains(c)) {
                 self.route_state[i] = RouteState::default();
                 continue;

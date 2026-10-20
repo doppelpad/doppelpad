@@ -12,6 +12,17 @@
 
   let { onpick, onclose }: { onpick: (a: Action) => void; onclose: () => void } = $props();
 
+  const RADIAL_COMMANDS = [
+    'radial_next',
+    'radial_prev',
+    'radial_up',
+    'radial_down',
+    'radial_left',
+    'radial_right',
+    'radial_apply',
+    'radial_back',
+  ] as const;
+
   type Tab = 'keyboard' | 'mouse' | 'gamepad' | 'commands';
   let tab = $state<Tab>('keyboard');
   let search = $state('');
@@ -232,6 +243,11 @@
       {/each}
       {#if app.profile?.crosshairs?.length}
         <button class="cmd" onclick={() => onpick({ command: 'toggle_crosshair' })}>{t('picker.toggle_crosshair')}</button>
+      {/if}
+      {#if app.profile?.radial_menus?.length}
+        {#each RADIAL_COMMANDS as c (c)}
+          <button class="cmd" onclick={() => onpick({ command: c })}>{t(`picker.`)}</button>
+        {/each}
       {/if}
       {#each POWER_COMMANDS as c (c)}
         <button class="cmd power" onclick={() => pickPower(c)}>{t(`picker.${c}`)}…</button>

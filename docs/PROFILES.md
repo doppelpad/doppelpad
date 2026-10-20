@@ -280,6 +280,10 @@ Commands:
 | `close_window` | Ask the focused window to close, like its close button |
 | `{ crosshair = N }` | Show crosshair N (1 = the first of `[[crosshairs]]`), or hide it if it is the one showing |
 | `toggle_crosshair` | Hide the crosshair that shows, or bring back the last one |
+| `radial_next`, `radial_prev` | Open radial menu: point at the next / previous sector |
+| `radial_up`, `radial_down`, `radial_left`, `radial_right` | Open radial menu: point at the sector in that direction |
+| `radial_apply` | Run the pointed sector, or open its sub-menu |
+| `radial_back` | Back to the parent menu, or close the menu |
 | `shutdown`, `restart`, `sleep`, `hibernate`, `log_off` | Power commands; applications may still ask to save their work (Linux: `systemctl`, `loginctl`) |
 | `{ launch = { path, args } }` | Start a program |
 
@@ -396,6 +400,47 @@ profile changes. The magnifier enlarges the screen around the crosshair with the
 magnification API (Windows only); the crosshair stays on top of it. Crosshairs are drawn
 by the app, not by `doppelpad daemon`.
 
+## Radial menus
+
+A radial menu is a ring of sectors over the game. It opens while its layer is active, so a
+hold jump makes "hold LB, point, let go" menus:
+
+```toml
+[[mappings]]
+trigger = "LB"
+jump = { layer = 3, mode = "hold" }
+
+[[radial_menus]]
+name = "Weapons"
+layer = 3
+select = "right_stick"      # left_stick | right_stick | mouse | commands
+apply = "release"           # release: the pointed sector runs when the layer ends
+                            # command: only with `radial_apply`
+delay_ms = 0                # show only after this long (quick presses don't flash it)
+tint = 0.0                  # darken the screen behind it, 0–1
+scale = 1.0                 # 0.5–2; 1 is 400 logical pixels across
+offset = [0, 0]             # pixels from the centre of the primary monitor
+
+[[radial_menus.sectors]]
+label = "Rifle"
+icon = "crosshair"          # a name of the app's icon set, or an image file
+color = "#14b8a6"
+actions = [{ key = "Digit1" }]
+
+[[radial_menus.sectors]]
+label = "More"
+submenu = 2                 # opens menu 2 instead of running actions
+```
+
+Sector 1 is at the top, the others follow clockwise. A stick points once it is pushed half
+way and the choice stays when it springs back; the mouse points after a short movement and
+stops moving the cursor while the menu is open. While a stick points, it does not reach the
+game and its analog routes pause. The radial commands (see [Commands](#mappings)) work in any
+mode, for example mapped in the menu's layer. A sector runs its actions once, like a `once`
+mapping; with `apply = "command"` the menu closes afterwards unless the sector says
+`close = false`. A menu whose `layer` is 0 only opens as another menu's sub-menu. Radial
+menus are drawn by the app, not by `doppelpad daemon`.
+
 ## Analog routes
 
 ```toml
@@ -455,8 +500,8 @@ same calibration.
 `doppelpad import file.json -o file.toml` converts JSON profiles (`schemaVersion` 3.0) from
 other remapping tools. Files are recognized by their content, so the extension does not
 matter. The importer reports
-everything it could not represent, as diagnostics with JSON paths. These include radial
-menus, crosshair shapes (each imported crosshair is drawn as a cross), adaptive triggers,
+everything it could not represent, as diagnostics with JSON paths. These include radial-menu
+icons, crosshair shapes (each imported crosshair is drawn as a cross), adaptive triggers,
 LED settings and unsupported commands.
 
 In that format a button that pushes a stick ramps up gradually by default, so imported

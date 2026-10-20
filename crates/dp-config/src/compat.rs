@@ -13,9 +13,10 @@ use dp_core::pad::{PadButton, Stick, Trigger};
 use dp_core::profile::{
     Action, Activator, AnalogMapping, AnalogSource, AnalogTarget, Combo, Command, Crosshair,
     CrosshairShape, GyroMode, JitterPattern, Jump, JumpMode, KeyRepeat, Layer, LayerSticks,
-    LayerTriggers, LayerVirtualSticks, Magnifier, Mapping, Mode, Press, Profile, ShakeAxis,
-    StickPatch, Sticks, TriggerPatch, Triggers, Unlock, VirtualMotion, VirtualMouse,
-    VirtualPadType, VirtualStick, VirtualStickPatch, VirtualSticks, ZoneRadius,
+    LayerTriggers, LayerVirtualSticks, Magnifier, Mapping, Mode, Press, Profile, RadialApply,
+    RadialMenu, RadialSector, RadialSelect, ShakeAxis, StickPatch, Sticks, TriggerPatch, Triggers,
+    Unlock, VirtualMotion, VirtualMouse, VirtualPadType, VirtualStick, VirtualStickPatch,
+    VirtualSticks, ZoneRadius,
 };
 use serde_json::Value;
 
@@ -71,6 +72,15 @@ fn text(v: &Value, key: &str) -> Option<String> {
 
 fn boolean(v: &Value, key: &str) -> bool {
     get(v, key).and_then(Value::as_bool).unwrap_or(false)
+}
+
+/// An `[r, g, b]` colour as `#rrggbb`.
+fn rgb_hex(v: &Value, key: &str) -> Option<String> {
+    let c: Vec<u8> = array(v, key)
+        .iter()
+        .filter_map(|x| x.as_u64().map(|n| n.min(255) as u8))
+        .collect();
+    (c.len() == 3).then(|| format!("#{:02x}{:02x}{:02x}", c[0], c[1], c[2]))
 }
 
 fn array<'a>(v: &'a Value, key: &str) -> &'a [Value] {
@@ -467,6 +477,9 @@ struct Importer<'a> {
     /// Crosshair ids in profile order, and the index of each crosshair GUID.
     crosshair_ids: Vec<i64>,
     crosshair_guids: HashMap<String, usize>,
+    /// Sector id of each radial-menu sector mask, and menu and position of each sector id.
+    radial_masks: HashMap<i64, i64>,
+    radial_sectors: HashMap<i64, (usize, usize)>,
 }
 
 /// Recognize the format's encoding of shift keys and fold each pair into one
@@ -542,6 +555,8 @@ pub fn import(json: &str) -> Result<(Profile, Diagnostics), ImportError> {
         mouse_speed: (1000.0, 4.0),
         crosshair_ids: Vec::new(),
         crosshair_guids: HashMap::new(),
+        radial_masks: HashMap::new(),
+        radial_sectors: HashMap::new(),
     };
     let profile = imp.run();
     Ok((profile, imp.diags))
@@ -589,11 +604,15 @@ impl<'a> Importer<'a> {
         self.split_touch = self.uses_second_trackpad();
         p.touchpad.split = self.split_touch;
         self.crosshairs(&mut p);
+        self.radial_menus(&mut p);
         self.masks(&mut p);
         self.layers(&mut p);
         let mappings = array(self.root, "mappings");
         for (i, m) in mappings.iter().enumerate() {
             let path = format!("mappings[{i}]");
+            if self.radial_sector_mapping(m, &mut p, &path) {
+                continue;
+            }
             if let Some(mapping) = self.mapping(m, &path) {
                 p.mappings.push(mapping);
             }
@@ -616,12 +635,7 @@ impl<'a> Importer<'a> {
                 }
             }
         }
-        for key in ["radialMenuCircles", "radialMenuSectors"] {
-            if !array(self.root, key).is_empty() {
-                self.diags
-                    .warn(key, "radial menus are not supported yet and were ignored");
-            }
-        }
+        self.finish_radial(&mut p);
         p
     }
 
@@ -1177,9 +1191,12 @@ impl<'a> Importer<'a> {
                             .warn(&path, "crosshair mask of an unknown crosshair"),
                     }
                 }
-                if get(m, "radialMenuSet").is_some() {
-                    self.diags
-                        .warn(&path, "radial-menu masks are not supported");
+                // A sector mask: mappings on it are what the sector does.
+                if let Some(s) = array(m, "radialMenuSet")
+                    .first()
+                    .and_then(|s| int(s, "sectorId"))
+                {
+                    self.radial_masks.insert(id, s);
                 }
                 continue;
             }
@@ -1199,16 +1216,135 @@ impl<'a> Importer<'a> {
         }
     }
 
+    /// Circles become radial menus (in id order) and their sectors keep their order. Root
+    /// circles open with the radial-menu layer; the others are sub-menus.
+    fn radial_menus(&mut self, p: &mut Profile) {
+        let mut circles: Vec<&Value> = array(self.root, "radialMenuCircles").iter().collect();
+        if circles.is_empty() {
+            return;
+        }
+        circles.sort_by_key(|c| int(c, "id").unwrap_or(i64::MAX));
+        let sectors = array(self.root, "radialMenuSectors");
+        let layer = array(self.root, "shifts")
+            .iter()
+            .find(|s| enum_str(s, "type").as_deref() == Some("radialmenu"))
+            .and_then(|s| int(s, "id"))
+            .filter(|id| (1..=255).contains(id));
+        let index: HashMap<i64, usize> = circles
+            .iter()
+            .enumerate()
+            .filter_map(|(i, c)| int(c, "id").map(|id| (id, i)))
+            .collect();
+        let mut icons = false;
+        for (i, c) in circles.iter().enumerate() {
+            let root = get(c, "parentSectorId").is_none();
+            let mut menu = RadialMenu {
+                name: format!("Menu {}", i + 1),
+                layer: if root { layer.unwrap_or(0) as u8 } else { 0 },
+                ..Default::default()
+            };
+            if boolean(c, "isDelayBeforeOpening") {
+                menu.delay_ms = int(c, "delayBeforeOpening").unwrap_or(500).clamp(0, 5000) as u32;
+            }
+            if boolean(c, "isTintedBackground") {
+                let t = get(c, "tintBackground")
+                    .and_then(Value::as_f64)
+                    .unwrap_or(40.0);
+                menu.tint = (if t > 1.0 { t / 100.0 } else { t }).clamp(0.0, 1.0) as f32;
+            }
+            for sid in array(c, "sectors").iter().filter_map(Value::as_i64) {
+                let Some(s) = sectors.iter().find(|s| int(s, "id") == Some(sid)) else {
+                    continue;
+                };
+                icons |= get(s, "icon").is_some();
+                self.radial_sectors.insert(sid, (i, menu.sectors.len()));
+                menu.sectors.push(RadialSector {
+                    label: text(s, "description").unwrap_or_default(),
+                    color: rgb_hex(s, "color").unwrap_or_default(),
+                    submenu: int(s, "childCircleId")
+                        .and_then(|c| index.get(&c))
+                        .map(|&m| m as u8 + 1),
+                    close: get(s, "isCloseOnApply")
+                        .and_then(Value::as_bool)
+                        .unwrap_or(true),
+                    ..Default::default()
+                });
+            }
+            p.radial_menus.push(menu);
+        }
+        if layer.is_none() {
+            self.diags.warn(
+                "radialMenuCircles",
+                "no radial-menu layer; the menus only open as sub-menus",
+            );
+        }
+        if icons {
+            self.diags
+                .info("radialMenuSectors", "sector icons are not imported");
+        }
+    }
+
+    /// A mapping on a sector mask: its macro becomes the sector's actions.
+    fn radial_sector_mapping(&mut self, m: &Value, p: &mut Profile, path: &str) -> bool {
+        let Some(&sector) = get(m, "condition")
+            .and_then(|c| get(c, "mask"))
+            .and_then(|k| int(k, "id"))
+            .and_then(|id| self.radial_masks.get(&id))
+        else {
+            return false;
+        };
+        let Some(&(menu, k)) = self.radial_sectors.get(&sector) else {
+            self.diags
+                .warn(path, "mapping of an unknown radial-menu sector");
+            return true;
+        };
+        for (j, item) in array(m, "macros").iter().enumerate() {
+            if let Some(a) = self.macro_item(item, &format!("{path}.macros[{j}]")) {
+                p.radial_menus[menu].sectors[k].actions.push(a);
+            }
+        }
+        true
+    }
+
+    /// Menus no mapping navigates point with the right stick; without an apply command they
+    /// run the pointed sector when their layer ends.
+    fn finish_radial(&self, p: &mut Profile) {
+        let uses = |want: &dyn Fn(&Command) -> bool| {
+            p.mappings
+                .iter()
+                .flat_map(|m| &m.actions)
+                .any(|a| matches!(a, Action::Command { command } if want(command)))
+        };
+        let apply = uses(&|c| *c == Command::RadialApply);
+        let navigate = uses(&|c| {
+            matches!(
+                c,
+                Command::RadialNext
+                    | Command::RadialPrev
+                    | Command::RadialUp
+                    | Command::RadialDown
+                    | Command::RadialLeft
+                    | Command::RadialRight
+            )
+        });
+        for menu in &mut p.radial_menus {
+            menu.apply = if apply {
+                RadialApply::Command
+            } else {
+                RadialApply::Release
+            };
+            menu.select = if navigate {
+                RadialSelect::Commands
+            } else {
+                RadialSelect::RightStick
+            };
+        }
+    }
+
     fn crosshairs(&mut self, p: &mut Profile) {
         let mut items: Vec<&Value> = array(self.root, "crosshairs").iter().collect();
         items.sort_by_key(|c| int(c, "id").unwrap_or(i64::MAX));
-        let rgb = |c: &Value, key: &str| -> Option<String> {
-            let v: Vec<u8> = array(c, key)
-                .iter()
-                .filter_map(|x| x.as_u64().map(|n| n.min(255) as u8))
-                .collect();
-            (v.len() == 3).then(|| format!("#{:02x}{:02x}{:02x}", v[0], v[1], v[2]))
-        };
+        let rgb = rgb_hex;
         let num = |c: &Value, key: &str| get(c, key).and_then(Value::as_f64);
         let mut shapes = false;
         for (i, c) in items.into_iter().enumerate() {
@@ -1276,10 +1412,6 @@ impl<'a> Importer<'a> {
                 Some("radialmenu") => LayerKind::RadialMenu,
                 _ => LayerKind::Common,
             };
-            if kind == LayerKind::RadialMenu {
-                self.diags
-                    .warn(&path, "radial-menu layers are not supported");
-            }
             self.layer_kinds.insert(id, kind);
             let not_inherited = get(s, "unheritableMasks")
                 .and_then(Value::as_array)
@@ -1659,6 +1791,14 @@ impl<'a> Importer<'a> {
                     Command::Crosshair(n as u8)
                 }
                 120 => Command::ToggleCrosshair,
+                130 => Command::RadialPrev,
+                131 => Command::RadialNext,
+                132 => Command::RadialApply,
+                133 => Command::RadialBack,
+                134 => Command::RadialUp,
+                135 => Command::RadialDown,
+                136 => Command::RadialRight,
+                137 => Command::RadialLeft,
                 1000..=1999 => {
                     let params = get(cmd, "params").cloned().unwrap_or(Value::Null);
                     Command::Launch {
@@ -2013,6 +2153,61 @@ mod tests {
         let (p, _) = import(doc).unwrap();
         assert_eq!(p.mappings.len(), 1);
         assert_eq!(p.mappings[0].jump.as_ref().unwrap().mode, JumpMode::Hold);
+    }
+
+    #[test]
+    fn radial_menus_sectors_and_navigation() {
+        let doc = r#"{ "schemaVersion": 3.0, "appVersion": "9.2.0", "config": { "appName": "x", "minTimeUnit": 1 },
+          "devices": { "hardware": [ { "id": 1, "name": "gamepad" } ] },
+          "shifts": [ { "id": 2, "type": "radialMenu" } ],
+          "radialMenuCircles": [ { "id": 1, "sectors": [ 1, 2 ], "isTintedBackground": true, "tintBackground": 40 },
+                                 { "id": 2, "parentSectorId": 2, "sectors": [ 3 ] } ],
+          "radialMenuSectors": [ { "id": 1, "parentCircleId": 1, "description": "Heal", "color": [0, 255, 0] },
+                                 { "id": 2, "parentCircleId": 1, "childCircleId": 2, "description": "More" },
+                                 { "id": 3, "parentCircleId": 2, "description": "Map", "isCloseOnApply": false } ],
+          "masks": [ { "id": 1, "set": [ { "deviceId": 1, "buttonId": 1 } ] },
+                     { "id": 5, "radialMenuSet": [ { "circleId": 1, "sectorId": 1 } ] } ],
+          "commands": [ { "id": 1, "type": 131 }, { "id": 2, "type": 132 } ],
+          "mappings": [
+            { "condition": { "mask": { "id": 5, "activator": { "type": "single", "mode": "onetime" } } },
+              "macros": [ { "keyboard": { "buttonId": 18, "description": "DIK_E" } } ] },
+            { "condition": { "shiftId": 2, "mask": { "id": 1, "activator": { "type": "single", "mode": "onetime" } } },
+              "macros": [ { "command": { "id": 1 } } ] }
+          ] }"#;
+        let (p, diags) = import(doc).unwrap();
+        assert!(!diags.has_errors());
+        assert_eq!(p.radial_menus.len(), 2);
+        let root = &p.radial_menus[0];
+        assert_eq!((root.layer, root.tint), (2, 0.4));
+        assert_eq!(
+            root.select,
+            RadialSelect::Commands,
+            "navigated by a command"
+        );
+        assert_eq!(root.apply, RadialApply::Release, "no apply command mapped");
+        assert_eq!(root.sectors[0].label, "Heal");
+        assert_eq!(root.sectors[0].color, "#00ff00");
+        assert!(matches!(
+            root.sectors[0].actions[..],
+            [Action::Key { key: Key::E, .. }]
+        ));
+        assert_eq!(root.sectors[1].submenu, Some(2));
+        assert_eq!(
+            p.radial_menus[1].layer, 0,
+            "a sub-menu has no layer of its own"
+        );
+        assert!(!p.radial_menus[1].sectors[0].close);
+        assert_eq!(
+            p.mappings.len(),
+            1,
+            "the sector mask has no mapping of its own"
+        );
+        assert_eq!(
+            p.mappings[0].actions,
+            [Action::Command {
+                command: Command::RadialNext
+            }]
+        );
     }
 
     #[test]
