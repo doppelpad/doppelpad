@@ -502,6 +502,39 @@ fn quick_key_tap_within_one_tick_is_not_lost() {
 }
 
 #[test]
+fn touch_and_motion_pass_through_unless_remapped() {
+    use crate::pad::{Motion, TouchPoint};
+    let finger = Some(TouchPoint { x: 0.2, y: 0.7 });
+    let motion = Some(Motion {
+        gyro: [1.0, 2.0, 3.0],
+        accel: [0.0, 1.0, 0.0],
+    });
+
+    let mut h = Harness::new(Profile::default());
+    h.pad.touch[0] = finger;
+    h.pad.motion = motion;
+    h.until(5);
+    assert_eq!(h.virtual_pad().touch[0], finger);
+    assert_eq!(h.virtual_pad().motion, motion);
+
+    // Touchpad → mouse and a gyro direction mapping both hide their source.
+    let mut p = Profile::default();
+    p.analog.push(AnalogMapping {
+        source: AnalogSource::Touchpad,
+        target: AnalogTarget::Mouse,
+        ..Default::default()
+    });
+    p.mappings
+        .push(map(Control::Gyro(Dir::Left), vec![key(Key::Q)]));
+    let mut h = Harness::new(p);
+    h.pad.touch[0] = finger;
+    h.pad.motion = motion;
+    h.until(5);
+    assert_eq!(h.virtual_pad().touch, [None, None]);
+    assert_eq!(h.virtual_pad().motion, None);
+}
+
+#[test]
 fn mouse_to_stick_route_mutes_cursor() {
     let mut p = Profile::default();
     p.analog.push(AnalogMapping {
