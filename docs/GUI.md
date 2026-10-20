@@ -30,13 +30,15 @@ only edits profiles and sends commands.
 2. Choose the **activator** from the six icons: single press, long press, double press,
    triple press, start press and release. A dot under an icon means it is already mapped.
 3. **Add** actions: keyboard (from the list, or *Press a key…* and press it), mouse
-   buttons, wheel and movement, controller buttons, sticks, triggers and motion shakes, or commands
+   buttons, wheel and movement, controller buttons, sticks (including an *Anti-recoil* preset
+   that pulls the right stick down while held), triggers and motion shakes, or commands
    (turn remapping off, gyro on/off/toggle, screenshot, close the active window, shut
    down, restart, sleep, hibernate, sign out, launch a program, pause, rumble; power
    commands ask once before they are added). Several actions
    fire together, as a chord.
 4. Optional:
-   - **Turbo** repeats the actions while the control is held, at the given period.
+   - **Turbo** repeats the actions while the control is held, at the given period; *Random
+     extra* lets each cycle wait up to that much longer, at random (also for repeating macros).
    - **Toggle** makes the first press turn the actions on and the next press turn them off.
    - **Block this control** makes it do nothing, and stops it from passing through.
    - **Layer** switches to another layer *while held*, as a *toggle*, or with *switch*
@@ -63,7 +65,8 @@ The **macro editor** opens from the binding panel. It has four modes:
 
 You can add steps with the pickers, add pauses and rumble, reorder or delete steps, and
 choose *down*, *up* or *tap* for keys and buttons. Steps with parameters show them in their
-row: stick amount and trigger value in %, wheel clicks, mouse speed, rumble length and the
+row: stick amount (and *Set the axis*, which replaces the physical stick on that axis instead
+of adding to it) and trigger value in %, wheel clicks, mouse speed, rumble length and the
 strength of each motor, a program's path and arguments. In the binding panel, click such
 an action to change the same values. **Record** captures keyboard presses together with
 the pauses between them; **Record controller** does the same for the buttons, stick

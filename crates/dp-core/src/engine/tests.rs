@@ -447,6 +447,7 @@ fn keyboard_to_stick_and_mute() {
             stick: Stick::Left,
             x: 0.0,
             y: 1.0,
+            absolute: false,
             action: Press::Auto,
         }],
     ));
@@ -456,6 +457,7 @@ fn keyboard_to_stick_and_mute() {
             stick: Stick::Left,
             x: 1.0,
             y: 0.0,
+            absolute: false,
             action: Press::Auto,
         }],
     ));
@@ -481,6 +483,7 @@ fn push(stick: Stick, x: f32, y: f32) -> Action {
         stick,
         x,
         y,
+        absolute: false,
         action: Press::Auto,
     }
 }
@@ -631,6 +634,66 @@ fn shake_rocks_the_accelerometer() {
     assert_eq!(accel(&h), Some([0.0, 3.0, 0.0]));
     h.until(101);
     assert_eq!(accel(&h), None, "over after shake_ms");
+}
+
+#[test]
+fn absolute_stick_actions_replace_their_axes() {
+    let mut p = Profile::default();
+    let set = |x: f32, y: f32| Action::Stick {
+        stick: Stick::Left,
+        x,
+        y,
+        absolute: true,
+        action: Press::Auto,
+    };
+    p.mappings
+        .push(map(Control::Key(Key::W), vec![set(0.0, 0.3)]));
+    p.mappings
+        .push(map(Control::Key(Key::C), vec![set(0.0, 0.0)]));
+    p.mappings
+        .push(map(Control::Key(Key::R), vec![push(Stick::Left, 0.0, 0.3)]));
+    let mut h = Harness::new(p);
+    h.pad.set_stick(Stick::Left, (0.4, 0.5));
+    h.key(Key::W, true);
+    assert!(
+        near(h.virtual_pad().stick(Stick::Left), (0.4, 0.3)),
+        "y set, x passed through"
+    );
+    h.key(Key::W, false);
+    h.key(Key::R, true);
+    assert!(
+        near(h.virtual_pad().stick(Stick::Left), (0.4, 0.8)),
+        "relative adds"
+    );
+    h.key(Key::R, false);
+    h.key(Key::C, true);
+    assert_eq!(h.virtual_pad().stick(Stick::Left), (0.0, 0.0), "centred");
+}
+
+#[test]
+fn random_ms_spreads_turbo_cycles() {
+    let mut p = Profile::default();
+    let mut m = map(b(PadButton::A), vec![key(Key::F)]);
+    m.mode = Mode::Turbo;
+    m.turbo_ms = Some(50);
+    m.random_ms = Some(20);
+    p.mappings.push(m);
+    let mut h = Harness::new(p);
+    h.btn(PadButton::A, true);
+    h.until(1000);
+    let downs: Vec<u64> = h
+        .key_events(Key::F)
+        .into_iter()
+        .filter(|(_, d)| *d)
+        .map(|(t, _)| t)
+        .collect();
+    let gaps: Vec<u64> = downs.windows(2).map(|w| w[1] - w[0]).collect();
+    assert!(gaps.len() > 10, "{gaps:?}");
+    assert!(gaps.iter().all(|g| (50..=70).contains(g)), "{gaps:?}");
+    assert!(
+        gaps.iter().any(|g| *g != gaps[0]),
+        "not all the same: {gaps:?}"
+    );
 }
 
 #[test]

@@ -174,6 +174,11 @@
           <input type="number" min="0" step="10" value={m?.repeat_pause_ms ?? ''} placeholder="0" disabled={app.readOnly} onchange={(e) => edit((x) => (x.repeat_pause_ms = num(e.currentTarget.value)))} />
           {t('common.ms')}
         </label>
+        <label title={t('binding.random_hint')}>
+          {t('binding.random')}
+          <input type="number" min="0" max="10000" step="10" value={m?.random_ms ?? ''} placeholder="0" disabled={app.readOnly} onchange={(e) => edit((x) => (x.random_ms = num(e.currentTarget.value) || undefined))} />
+          {t('common.ms')}
+        </label>
       {/if}
       <label>
         {t('macro.key_delay')}

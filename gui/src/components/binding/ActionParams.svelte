@@ -1,5 +1,5 @@
 <script lang="ts">
-  // Inline fields for the parameters of one action: stick amount, trigger value, wheel
+  // Inline fields for the parameters of one action: stick amount and mode, trigger value, wheel
   // clicks, mouse speed, rumble length and strength, launch path and arguments.
   import { t } from '../../lib/i18n/index.svelte';
   import { stickAmount, withStickAmount } from '../../lib/model/actions';
@@ -39,6 +39,15 @@
       const v = percent(raw);
       if (v !== null && 'stick' in action) onchange(withStickAmount(action, v));
     })}
+    <label class="param" title={t('params.absolute_hint')}>
+      <input
+        type="checkbox"
+        checked={action.absolute ?? false}
+        {disabled}
+        onchange={(e) => set({ absolute: e.currentTarget.checked || undefined })}
+      />
+      <span>{t('params.absolute')}</span>
+    </label>
   {:else if 'trigger' in action}
     {@render field(t('params.amount'), pct(action.value ?? 1), '%', (raw) => {
       const v = percent(raw);
@@ -94,6 +103,9 @@
   }
   .param input {
     width: 64px;
+  }
+  .param input[type='checkbox'] {
+    width: auto;
   }
   .param.wide input {
     width: 180px;

@@ -186,6 +186,7 @@ jump = { layer = 1, mode = "hold" }   # optional layer change
 turbo_ms = 80             # optional overrides …
 repeat = 3
 repeat_pause_ms = 100
+random_ms = 20            # each turbo or repeat cycle waits up to this much longer, at random
 long_press_ms = 500
 double_tap_ms = 200
 triple_tap_ms = 350
@@ -225,7 +226,7 @@ Several mappings can share a trigger with different activators.
 | Gamepad button | `{ pad = "A" }` |
 | Mouse button | `{ mouse = "left" }` |
 | Wheel | `{ wheel = "up", clicks = 1 }` |
-| Stick deflection | `{ stick = "left", x = 0.0, y = 1.0 }` (up is +y) |
+| Stick deflection | `{ stick = "left", x = 0.0, y = 1.0 }` (up is +y); added to the physical stick. `absolute = true` sets the axes it names (both when centred) instead, so the physical stick and routes do not reach them. Held in a hold mapping, a small relative pull such as `{ stick = "right", x = 0.0, y = -0.15 }` on `RT` works as anti-recoil |
 | Trigger pull | `{ trigger = "right", value = 0.5 }` |
 | Mouse movement | `{ mouse_move = "right", speed = 800 }` (pixels/s while active) |
 | Pause | `{ pause = 250 }` (ms) |

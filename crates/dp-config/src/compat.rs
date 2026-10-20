@@ -378,6 +378,8 @@ fn press_of(v: &Value) -> Press {
     match enum_str(v, "action").as_deref() {
         Some("down" | "single_down") => Press::Down,
         Some("up") => Press::Up,
+        // A pulsed item is a short tap.
+        _ if boolean(v, "pulsation") => Press::Tap,
         _ => Press::Auto,
     }
 }
@@ -1426,6 +1428,7 @@ impl<'a> Importer<'a> {
                 stick: s,
                 x: x * m,
                 y: y * m,
+                absolute: boolean(g, "absolute"),
                 action,
             })
         };
@@ -1975,6 +1978,44 @@ mod tests {
             }]
         );
         assert!(!crate::validate(&p).has_errors());
+    }
+
+    #[test]
+    fn absolute_and_pulsed_items() {
+        let doc = r#"{ "schemaVersion": 3.0, "config": { "appName": "x" },
+          "devices": { "hardware": [ { "id": 1, "name": "gamepad" }, { "id": 11, "name": "keyboard" } ] },
+          "masks": [ { "id": 1, "set": [ { "deviceId": 11, "buttonId": 17, "description": "DIK_W" } ] } ],
+          "mappings": [ { "condition": { "mask": { "id": 1, "activator": { "type": "single", "mode": "hold_until_release" } } },
+                          "macros": [ { "gamepad": { "id": 1, "buttonId": 40, "value": 16383, "absolute": true } },
+                                      { "gamepad": { "id": 1, "buttonId": 1, "pulsation": true } },
+                                      { "keyboard": { "buttonId": 57, "description": "DIK_SPACE", "pulsation": true } } ] } ] }"#;
+        let (p, diags) = import(doc).unwrap();
+        assert!(!diags.has_errors(), "{diags:?}");
+        let a = &p.mappings[0].actions;
+        assert!(
+            matches!(a[0], Action::Stick { absolute: true, y, .. } if (y - 0.5).abs() < 0.001),
+            "{a:?}"
+        );
+        assert!(
+            matches!(
+                a[1],
+                Action::Pad {
+                    action: Press::Tap,
+                    ..
+                }
+            ),
+            "{a:?}"
+        );
+        assert!(
+            matches!(
+                a[2],
+                Action::Key {
+                    action: Press::Tap,
+                    ..
+                }
+            ),
+            "{a:?}"
+        );
     }
 
     #[test]

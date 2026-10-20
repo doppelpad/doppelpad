@@ -50,7 +50,7 @@
   "mappings": [
     { "trigger": "A", "actions": [{ "key": "Space" }] },
     { "trigger": "B", "activator": "long", "actions": [{ "key": "LeftCtrl" }, { "key": "C" }], "long_press_ms": 600 },
-    { "trigger": "X", "mode": "turbo", "turbo_ms": 50, "actions": [{ "mouse": "left" }] },
+    { "trigger": "X", "mode": "turbo", "turbo_ms": 50, "random_ms": 20, "actions": [{ "mouse": "left" }] },
     { "trigger": "Y", "mode": "toggle", "actions": [{ "pad": "A" }] },
     { "trigger": "LB", "jump": { "layer": 1, "mode": "hold" } },
     { "trigger": "RB", "jump": { "layer": 2, "mode": "switch", "delay_ms": 200 }, "description": "Swap weapons" },
@@ -73,7 +73,7 @@
       ]
     },
     { "trigger": "DpadDown", "actions": [{ "wheel": "down" }, { "mouse_move": "left", "speed": 800 }] },
-    { "trigger": "LeftStickUp", "actions": [{ "stick": "right", "x": 0, "y": 1 }] },
+    { "trigger": "LeftStickUp", "actions": [{ "stick": "right", "x": 0, "y": 1, "absolute": true }] },
     { "trigger": "LT", "activator": "start", "actions": [{ "trigger": "right" }] },
     { "trigger": "RTHigh", "actions": [{ "key": "LeftShift" }] },
     { "trigger": "LeftStickUpLow", "activator": "long", "actions": [{ "key": "W" }] },

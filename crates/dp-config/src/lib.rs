@@ -113,6 +113,19 @@ pub fn validate(p: &Profile) -> Diagnostics {
                 "combos with more than four inputs are hard to press reliably",
             );
         }
+        if m.random_ms.is_some_and(|r| r > 10_000) {
+            d.error(&path, "random_ms must be at most 10000");
+        } else if m.random_ms.is_some()
+            && !matches!(
+                m.mode,
+                Mode::Turbo | Mode::Repeat | Mode::WhileHeld | Mode::Toggle
+            )
+        {
+            d.info(
+                &path,
+                "random_ms only spreads turbo and repeat cycles; this mode has none",
+            );
+        }
         if m.layer != 0 && !declared.contains(&m.layer) {
             d.info(
                 &path,

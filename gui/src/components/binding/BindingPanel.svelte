@@ -369,6 +369,19 @@
             />
             {t('common.ms')}
           </label>
+          <label class="inline" title={t('binding.random_hint')}>
+            {t('binding.random')}
+            <input
+              type="number"
+              min="0"
+              max="10000"
+              step="10"
+              value={shown?.random_ms ?? ''}
+              placeholder="0"
+              onchange={(e) => edit((m) => (m.random_ms = num(e.currentTarget.value) || undefined))}
+            />
+            {t('common.ms')}
+          </label>
         {/if}
       </div>
       <div class="mode-row">
