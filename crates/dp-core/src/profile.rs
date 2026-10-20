@@ -939,6 +939,9 @@ pub struct TriggerPatch {
     pub zones: Option<TriggerZones>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub full_pull: Option<f32>,
+    /// `off` turns the base layer's effect off on this layer.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub effect: Option<TriggerEffect>,
 }
 
 impl TriggerPatch {
@@ -947,6 +950,7 @@ impl TriggerPatch {
             deadzone: self.deadzone.unwrap_or(base.deadzone),
             zones: self.zones.clone().unwrap_or_else(|| base.zones.clone()),
             full_pull: self.full_pull.unwrap_or(base.full_pull),
+            effect: self.effect.or(base.effect),
         }
     }
 
@@ -960,6 +964,8 @@ impl TriggerPatch {
             deadzone: (base.deadzone != target.deadzone).then_some(target.deadzone),
             zones: (base.zones != target.zones).then(|| target.zones.clone()),
             full_pull: (base.full_pull != target.full_pull).then_some(target.full_pull),
+            effect: (base.effect != target.effect)
+                .then(|| target.effect.unwrap_or(TriggerEffect::Off)),
         }
     }
 }
@@ -1131,6 +1137,29 @@ pub struct TriggerConfig {
     pub zones: TriggerZones,
     /// Pull at or above this reads as 1 and activates `LTFull`/`RTFull`.
     pub full_pull: f32,
+    /// Resistance or vibration the trigger plays against the finger (DualSense).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub effect: Option<TriggerEffect>,
+}
+
+/// A DualSense trigger effect. Positions count the trigger's travel in tenths (0 = released).
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum TriggerEffect {
+    /// No resistance.
+    Off,
+    /// Resistance from `start` (0–9) to the end of the travel, `strength` 1–8.
+    Resistance { start: u8, strength: u8 },
+    /// A gun trigger: resistance from `start` (2–7) that gives way at `end` (up to 8).
+    Weapon { start: u8, end: u8, strength: u8 },
+    /// Vibration from `start` (0–9) on, `amplitude` 1–8, `frequency` in Hz.
+    Vibration {
+        start: u8,
+        amplitude: u8,
+        frequency: u8,
+    },
+    /// The eleven bytes the controller takes for one trigger.
+    Raw { bytes: [u8; 11] },
 }
 
 impl Default for TriggerConfig {
@@ -1139,6 +1168,7 @@ impl Default for TriggerConfig {
             deadzone: 0.0,
             zones: TriggerZones::default(),
             full_pull: 0.99,
+            effect: None,
         }
     }
 }

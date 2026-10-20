@@ -10,6 +10,7 @@
   import type { TriggerConfig } from '../../lib/types';
   import Slider from '../ui/Slider.svelte';
   import LayerNote from './LayerNote.svelte';
+  import TriggerEffectEditor from './TriggerEffectEditor.svelte';
 
   const SIDES: { side: Side; control: string; axis: number }[] = [
     { side: 'left', control: 'LT', axis: 4 },
@@ -107,6 +108,12 @@
           hint={t('analog.trigger.full_pull_hint', { control: controlLabel(`${s.control}Full`, app.family) })}
           {disabled}
           onchange={(v) => set(s.side, { full_pull: v })}
+        />
+        <TriggerEffectEditor
+          effect={cfg.effect}
+          onlayer={app.layer !== 0}
+          {disabled}
+          onchange={(e) => set(s.side, { effect: e })}
         />
       </section>
     {/each}

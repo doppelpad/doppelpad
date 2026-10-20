@@ -10,8 +10,8 @@ use std::path::{Path, PathBuf};
 pub use compat::ImportError;
 pub use diag::{Diagnostic, Diagnostics, Severity};
 use dp_core::profile::{
-    Action, AnalogSource, AnalogTarget, Command, JumpMode, Light, Mode, Profile, Sticks, Triggers,
-    VirtualSticks,
+    Action, AnalogSource, AnalogTarget, Command, JumpMode, Light, Mode, Profile, Sticks,
+    TriggerEffect, Triggers, VirtualSticks,
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -279,6 +279,21 @@ pub fn validate(p: &Profile) -> Diagnostics {
     if let Some(l) = &p.lightbar {
         check_light(&mut d, "lightbar", l);
     }
+    for (name, t) in [
+        ("triggers.left", &p.triggers.left),
+        ("triggers.right", &p.triggers.right),
+    ] {
+        if let Some(e) = &t.effect {
+            check_effect(&mut d, name, e);
+        }
+    }
+    for (i, l) in p.layers.iter().enumerate() {
+        for (side, t) in [("left", &l.triggers.left), ("right", &l.triggers.right)] {
+            if let Some(e) = &t.effect {
+                check_effect(&mut d, &format!("layers[{i}].triggers.{side}"), e);
+            }
+        }
+    }
     for (i, l) in p.layers.iter().enumerate() {
         if let Some(light) = &l.lightbar {
             check_light(&mut d, &format!("layers[{i}].lightbar"), light);
@@ -316,6 +331,30 @@ pub fn validate(p: &Profile) -> Diagnostics {
 /// `#rrggbb`.
 fn is_hex_color(s: &str) -> bool {
     s.len() == 7 && s.starts_with('#') && s[1..].chars().all(|c| c.is_ascii_hexdigit())
+}
+
+/// Parameter ranges of a trigger effect.
+fn check_effect(d: &mut Diagnostics, path: &str, e: &TriggerEffect) {
+    let ok = match *e {
+        TriggerEffect::Off | TriggerEffect::Raw { .. } => true,
+        TriggerEffect::Resistance { start, strength } => start <= 9 && (1..=8).contains(&strength),
+        TriggerEffect::Weapon {
+            start,
+            end,
+            strength,
+        } => (2..=7).contains(&start) && end > start && end <= 8 && (1..=8).contains(&strength),
+        TriggerEffect::Vibration {
+            start,
+            amplitude,
+            frequency,
+        } => start <= 9 && (1..=8).contains(&amplitude) && frequency >= 1,
+    };
+    if !ok {
+        d.error(
+            path,
+            "trigger effect out of range: start 0–9 (weapon 2–7, end after start up to 8), strength and amplitude 1–8, frequency at least 1",
+        );
+    }
 }
 
 fn check_light(d: &mut Diagnostics, path: &str, l: &Light) {

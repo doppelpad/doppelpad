@@ -15,8 +15,8 @@ use dp_core::profile::{
     CrosshairShape, GyroMode, JitterPattern, Jump, JumpMode, KeyRepeat, Layer, LayerSticks,
     LayerTriggers, LayerVirtualSticks, Light, LightMode, Magnifier, Mapping, Mode, Press, Profile,
     RadialApply, RadialMenu, RadialSector, RadialSelect, ShakeAxis, StickPatch, Sticks,
-    TriggerPatch, Triggers, Unlock, VirtualMotion, VirtualMouse, VirtualPadType, VirtualStick,
-    VirtualStickPatch, VirtualSticks, ZoneRadius,
+    TriggerEffect, TriggerPatch, Triggers, Unlock, VirtualMotion, VirtualMouse, VirtualPadType,
+    VirtualStick, VirtualStickPatch, VirtualSticks, ZoneRadius,
 };
 use serde_json::Value;
 
@@ -72,6 +72,40 @@ fn text(v: &Value, key: &str) -> Option<String> {
 
 fn boolean(v: &Value, key: &str) -> bool {
     get(v, key).and_then(Value::as_bool).unwrap_or(false)
+}
+
+/// An effect like a vendor adaptive-trigger preset: `Some(None)` for presets that only
+/// inherit, `None` for unknown ones.
+fn adaptive_preset(name: &str) -> Option<Option<TriggerEffect>> {
+    let resistance = |start, strength| Some(TriggerEffect::Resistance { start, strength });
+    let vibration = |amplitude, frequency| {
+        Some(TriggerEffect::Vibration {
+            start: 0,
+            amplitude,
+            frequency,
+        })
+    };
+    Some(match name {
+        "none" => Some(TriggerEffect::Off),
+        "donotinherit" | "inherited" => None,
+        "fullpress" => resistance(0, 6),
+        "softpress" => resistance(0, 2),
+        "mediumpress" => resistance(0, 4),
+        "hardpress" => resistance(0, 7),
+        "halfpress" => resistance(5, 6),
+        "rigidsoft" => resistance(0, 3),
+        "rigidmedium" => resistance(0, 5),
+        "rigidmax" => resistance(0, 8),
+        "rifle" => Some(TriggerEffect::Weapon {
+            start: 4,
+            end: 6,
+            strength: 8,
+        }),
+        "pulse" => vibration(4, 10),
+        "choppy" => vibration(8, 5),
+        "vibration" => vibration(6, 40),
+        _ => return None,
+    })
 }
 
 /// A light-bar entry (`mode`, `colors`, `loop`).
@@ -1133,11 +1167,22 @@ impl<'a> Importer<'a> {
                 cfg.zones.med = None;
                 cfg.zones.high = None;
             }
-            if get(t, "adaptiveMode").is_some() || get(t, "adaptiveDescription").is_some() {
-                self.diags.info(
-                    format!("{path}.triggers"),
-                    "adaptive trigger effects are not supported",
-                );
+            if let Some(preset) = enum_str(t, "adaptiveDescription") {
+                match adaptive_preset(&preset) {
+                    Some(effect) => {
+                        cfg.effect = effect;
+                        self.diags.info(
+                            format!("{path}.triggers"),
+                            format!(
+                                "adaptive trigger preset `{preset}` is played as a similar effect"
+                            ),
+                        );
+                    }
+                    None => self.diags.info(
+                        format!("{path}.triggers"),
+                        format!("adaptive trigger preset `{preset}` is not supported"),
+                    ),
+                }
             }
         }
         for tp in array(d, "touchpads") {

@@ -18,6 +18,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 pub use dp_core::event::KbmEvent;
 use dp_core::keys::{Key, MouseButton, WheelDir};
 use dp_core::pad::{PadState, Rgb, Rumble};
+use dp_core::profile::TriggerEffect;
 use serde::{Deserialize, Serialize};
 
 #[cfg(windows)]
@@ -124,6 +125,9 @@ pub struct PadSnapshot {
     pub battery: Option<Battery>,
 }
 
+/// Trigger effects, left then right; `None` leaves a trigger as it is.
+pub type TriggerEffects = [Option<TriggerEffect>; 2];
+
 /// Indicator lights besides the light bar. `None` leaves a light to the controller.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Leds {
@@ -163,6 +167,8 @@ pub trait GamepadBackend: Send {
     fn set_lightbar(&mut self, _id: &DeviceId, _color: Option<Rgb>) {}
     /// Show player lights and the microphone LED (if the device has them).
     fn set_leds(&mut self, _id: &DeviceId, _leds: Leds) {}
+    /// Play trigger effects, left then right (DualSense); `None` leaves a trigger as it is.
+    fn set_trigger_effects(&mut self, _id: &DeviceId, _effects: TriggerEffects) {}
     /// Tell the backend which XInput slots / device paths belong to our own virtual pads
     /// so it does not read them back as physical input.
     fn ignore_virtual(&mut self, _ignored: &VirtualIgnoreList) {}

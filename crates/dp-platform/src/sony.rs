@@ -8,9 +8,10 @@ use std::time::Instant;
 use dp_core::pad::{
     Axis, Motion, PadButton, PadState, Rgb, Rumble, TouchPoint, axis_from_u8, axis_to_u8,
 };
+use dp_core::profile::TriggerEffect;
 
 use crate::padio::{Identity, InitError, PadDriver, ReportIo};
-use crate::{Battery, Leds, PadFamily};
+use crate::{Battery, Leds, PadFamily, TriggerEffects};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum SonyModel {
@@ -225,8 +226,62 @@ pub struct SonyOutput {
     /// `None` leaves the light bar as it is.
     pub lightbar: Option<Rgb>,
     pub leds: Leds,
+    /// Trigger effects, left then right (DualSense).
+    pub triggers: TriggerEffects,
     /// Take the light bar over from the DualSense firmware (once, before the first colour).
     pub setup: bool,
+}
+
+/// Bits `start..=9` set: the trigger zones an effect covers.
+fn zones_from(start: u8) -> u16 {
+    (0x3FF << start.min(9)) & 0x3FF
+}
+
+/// `value` (1–8) as three bits in every zone of `zones`.
+fn per_zone(zones: u16, value: u8) -> u32 {
+    let v = (value.clamp(1, 8) - 1) as u32;
+    (0..10)
+        .filter(|i| zones & (1 << i) != 0)
+        .fold(0, |acc, i| acc | v << (3 * i))
+}
+
+/// The eleven bytes the DualSense takes for one trigger effect.
+pub fn effect_bytes(e: TriggerEffect) -> [u8; 11] {
+    let mut b = [0u8; 11];
+    match e {
+        TriggerEffect::Off => b[0] = 0x05,
+        TriggerEffect::Resistance { start, strength } => {
+            let zones = zones_from(start);
+            b[0] = 0x21;
+            b[1..3].copy_from_slice(&zones.to_le_bytes());
+            b[3..7].copy_from_slice(&per_zone(zones, strength).to_le_bytes());
+        }
+        TriggerEffect::Weapon {
+            start,
+            end,
+            strength,
+        } => {
+            let start = start.clamp(2, 7);
+            let end = end.clamp(start + 1, 8);
+            let zones: u16 = (1 << start) | (1 << end);
+            b[0] = 0x25;
+            b[1..3].copy_from_slice(&zones.to_le_bytes());
+            b[3] = strength.clamp(1, 8) - 1;
+        }
+        TriggerEffect::Vibration {
+            start,
+            amplitude,
+            frequency,
+        } => {
+            let zones = zones_from(start);
+            b[0] = 0x26;
+            b[1..3].copy_from_slice(&zones.to_le_bytes());
+            b[3..7].copy_from_slice(&per_zone(zones, amplitude).to_le_bytes());
+            b[9] = frequency.max(1);
+        }
+        TriggerEffect::Raw { bytes } => b = bytes,
+    }
+    b
 }
 
 /// CRC-32 (IEEE) as the Bluetooth reports carry it.
@@ -290,6 +345,15 @@ fn dualsense_common(c: &mut [u8], o: &SonyOutput) {
         c[1] |= 0x04; // light bar control
         c[44..47].copy_from_slice(&[l.r, l.g, l.b]);
     }
+    let [left, right] = o.triggers;
+    if let Some(e) = right {
+        c[0] |= 0x04; // right trigger effect
+        c[10..21].copy_from_slice(&effect_bytes(e));
+    }
+    if let Some(e) = left {
+        c[0] |= 0x08; // left trigger effect
+        c[21..32].copy_from_slice(&effect_bytes(e));
+    }
 }
 
 /// Build an output report: rumble, light bar and lights. Over Bluetooth `seq` (0–15) counts
@@ -336,6 +400,7 @@ pub struct SonyDriver {
     feature_len: usize,
     lightbar: Option<Rgb>,
     leds: Leds,
+    triggers: TriggerEffects,
     sent: Option<SonyOutput>,
     /// The DualSense light bar has been taken over from the firmware.
     set_up: bool,
@@ -352,6 +417,7 @@ impl SonyDriver {
             feature_len,
             lightbar: None,
             leds: Leds::default(),
+            triggers: [None; 2],
             sent: None,
             set_up: false,
             seq: 0,
@@ -628,11 +694,19 @@ impl PadDriver for SonyDriver {
         self.leds = leds;
     }
 
+    fn set_trigger_effects(&mut self, effects: TriggerEffects) {
+        // The DualShock 4 has no trigger motors.
+        if self.model != SonyModel::DualShock4 {
+            self.triggers = effects;
+        }
+    }
+
     fn service(&mut self, io: &mut dyn ReportIo, rumble: Rumble) -> std::io::Result<()> {
         let want = SonyOutput {
             rumble,
             lightbar: self.lightbar,
             leds: self.leds,
+            triggers: self.triggers,
             setup: false,
         };
         // Nothing to say yet: leave the controller as it is.
@@ -705,6 +779,45 @@ mod tests {
         );
         let crc = crc32(std::iter::once(0xA2).chain(bt[..74].iter().copied()));
         assert_eq!(bt[74..], crc.to_le_bytes());
+    }
+
+    #[test]
+    fn trigger_effects_encode_their_zones() {
+        let r = effect_bytes(TriggerEffect::Resistance {
+            start: 3,
+            strength: 5,
+        });
+        let zones = u16::from_le_bytes([r[1], r[2]]);
+        let force = u32::from_le_bytes([r[3], r[4], r[5], r[6]]);
+        assert_eq!((r[0], zones), (0x21, 0b11_1111_1000));
+        assert_eq!(force >> 9 & 7, 4, "strength 5 in zone 3");
+        assert_eq!(force & 0x1FF, 0, "nothing below the start");
+        let w = effect_bytes(TriggerEffect::Weapon {
+            start: 4,
+            end: 6,
+            strength: 8,
+        });
+        assert_eq!(w[..4], [0x25, 0x50, 0x00, 7]);
+        let v = effect_bytes(TriggerEffect::Vibration {
+            start: 0,
+            amplitude: 1,
+            frequency: 30,
+        });
+        assert_eq!((v[0], v[1], v[2], v[9]), (0x26, 0xFF, 0x03, 30));
+        assert_eq!(effect_bytes(TriggerEffect::Off)[0], 0x05);
+        let raw = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
+        assert_eq!(effect_bytes(TriggerEffect::Raw { bytes: raw }), raw);
+        // In the report: right trigger at 11, left at 22 (USB, after the report ID).
+        let o = SonyOutput {
+            triggers: [
+                Some(TriggerEffect::Off),
+                Some(TriggerEffect::Raw { bytes: raw }),
+            ],
+            ..Default::default()
+        };
+        let r = output_report(SonyModel::DualSense, false, &o, 0);
+        assert_eq!(r[1] & 0x0C, 0x0C);
+        assert_eq!((&r[11..22], r[22]), (&raw[..], 0x05));
     }
 
     #[test]
