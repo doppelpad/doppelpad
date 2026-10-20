@@ -11,7 +11,7 @@ Doppelpad uses only open drivers ([ViGEmBus](https://github.com/nefarius/ViGEmBu
 [HidHide](https://github.com/nefarius/HidHide)) and can import JSON profiles (schema 3.0)
 from other remapping tools.
 
-> **Status: early preview (0.1).** The engine, profile format, importer and Windows
+> **Status: early preview (0.2).** The engine, profile format, importer and Windows
 > backends are implemented and unit-tested, and real DualSense input has been verified.
 > The desktop app (editor + tray service) is new and still being polished. End-to-end
 > testing with ViGEmBus/HidHide in games is the next milestone. A Linux backend

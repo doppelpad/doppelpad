@@ -915,7 +915,7 @@ dependencies = [
 
 [[package]]
 name = "doppelpad"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -932,7 +932,7 @@ dependencies = [
 
 [[package]]
 name = "dp-config"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "dp-core",
  "serde",
@@ -946,7 +946,7 @@ dependencies = [
 
 [[package]]
 name = "dp-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "serde",
  "thiserror 2.0.21",
@@ -956,7 +956,7 @@ dependencies = [
 
 [[package]]
 name = "dp-gui"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "dp-config",
@@ -977,7 +977,7 @@ dependencies = [
 
 [[package]]
 name = "dp-ipc"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "interprocess",
  "serde",
@@ -987,7 +987,7 @@ dependencies = [
 
 [[package]]
 name = "dp-platform"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "crossbeam-channel",
  "dp-core",
@@ -1005,7 +1005,7 @@ dependencies = [
 
 [[package]]
 name = "dp-service"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "crossbeam-channel",
