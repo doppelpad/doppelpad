@@ -926,6 +926,7 @@ dependencies = [
  "dp-ipc",
  "dp-platform",
  "dp-service",
+ "tauri-winres",
  "tracing",
  "tracing-subscriber",
 ]

@@ -59,7 +59,8 @@ cargo build --release
 
 The binary is `target/release/doppelpad.exe`. Both the MSVC and the GNU toolchain work. With
 `x86_64-pc-windows-gnu`, a full MinGW-w64 toolchain (for example WinLibs) must be on `PATH`,
-because `windows-sys` needs `dlltool`/`as` to create import libraries.
+because `windows-sys` needs `dlltool`/`as` to create import libraries and `windres` compiles
+the version information of `doppelpad.exe`.
 
 ## Desktop app
 
