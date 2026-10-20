@@ -78,6 +78,9 @@ export interface Layer {
   name?: string;
   inherit?: boolean;
   not_inherited?: Combo[];
+  /** Stick and trigger fields this layer changes; the rest are Main's. */
+  sticks?: Sticks;
+  triggers?: Triggers;
 }
 
 export interface Output {

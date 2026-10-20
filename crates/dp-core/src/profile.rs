@@ -251,6 +251,165 @@ impl StickConfig {
     }
 }
 
+/// A layer's own settings for one stick; every field left out is the base layer's.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct StickPatch {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deadzone: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub outer: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub anti_deadzone: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sensitivity: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub curve: Option<Vec<[f32; 2]>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub invert_x: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub invert_y: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rotation: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub zones: Option<StickZones>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub diagonals: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub direction_width: Option<f32>,
+}
+
+impl StickPatch {
+    /// The base settings with this patch's fields put over them.
+    pub fn apply(&self, base: &StickConfig) -> StickConfig {
+        StickConfig {
+            deadzone: self.deadzone.unwrap_or(base.deadzone),
+            outer: self.outer.unwrap_or(base.outer),
+            anti_deadzone: self.anti_deadzone.unwrap_or(base.anti_deadzone),
+            sensitivity: self.sensitivity.unwrap_or(base.sensitivity),
+            curve: self.curve.clone().unwrap_or_else(|| base.curve.clone()),
+            invert_x: self.invert_x.unwrap_or(base.invert_x),
+            invert_y: self.invert_y.unwrap_or(base.invert_y),
+            rotation: self.rotation.unwrap_or(base.rotation),
+            zones: self.zones.clone().unwrap_or_else(|| base.zones.clone()),
+            diagonals: self.diagonals.unwrap_or(base.diagonals),
+            direction_width: self.direction_width.unwrap_or(base.direction_width),
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        *self == StickPatch::default()
+    }
+
+    /// The patch that turns `base` into `target` (only the fields that differ).
+    pub fn between(base: &StickConfig, target: &StickConfig) -> StickPatch {
+        fn d<T: PartialEq + Clone>(b: &T, t: &T) -> Option<T> {
+            (b != t).then(|| t.clone())
+        }
+        StickPatch {
+            deadzone: d(&base.deadzone, &target.deadzone),
+            outer: d(&base.outer, &target.outer),
+            anti_deadzone: d(&base.anti_deadzone, &target.anti_deadzone),
+            sensitivity: d(&base.sensitivity, &target.sensitivity),
+            curve: d(&base.curve, &target.curve),
+            invert_x: d(&base.invert_x, &target.invert_x),
+            invert_y: d(&base.invert_y, &target.invert_y),
+            rotation: d(&base.rotation, &target.rotation),
+            zones: d(&base.zones, &target.zones),
+            diagonals: d(&base.diagonals, &target.diagonals),
+            direction_width: d(&base.direction_width, &target.direction_width),
+        }
+    }
+}
+
+/// A layer's own settings for one trigger; every field left out is the base layer's.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct TriggerPatch {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deadzone: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub zones: Option<TriggerZones>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub full_pull: Option<f32>,
+}
+
+impl TriggerPatch {
+    pub fn apply(&self, base: &TriggerConfig) -> TriggerConfig {
+        TriggerConfig {
+            deadzone: self.deadzone.unwrap_or(base.deadzone),
+            zones: self.zones.clone().unwrap_or_else(|| base.zones.clone()),
+            full_pull: self.full_pull.unwrap_or(base.full_pull),
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        *self == TriggerPatch::default()
+    }
+
+    /// The patch that turns `base` into `target`.
+    pub fn between(base: &TriggerConfig, target: &TriggerConfig) -> TriggerPatch {
+        TriggerPatch {
+            deadzone: (base.deadzone != target.deadzone).then_some(target.deadzone),
+            zones: (base.zones != target.zones).then(|| target.zones.clone()),
+            full_pull: (base.full_pull != target.full_pull).then_some(target.full_pull),
+        }
+    }
+}
+
+/// A layer's own stick settings (`[layers.sticks.left]`, ...).
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct LayerSticks {
+    #[serde(skip_serializing_if = "StickPatch::is_empty")]
+    pub left: StickPatch,
+    #[serde(skip_serializing_if = "StickPatch::is_empty")]
+    pub right: StickPatch,
+}
+
+impl LayerSticks {
+    pub fn get(&self, s: Stick) -> &StickPatch {
+        match s {
+            Stick::Left => &self.left,
+            Stick::Right => &self.right,
+        }
+    }
+
+    /// The effective settings on the layer, given the base layer's.
+    pub fn apply(&self, base: &Sticks) -> Sticks {
+        Sticks {
+            left: self.left.apply(&base.left),
+            right: self.right.apply(&base.right),
+        }
+    }
+}
+
+/// A layer's own trigger settings (`[layers.triggers.left]`, ...).
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct LayerTriggers {
+    #[serde(skip_serializing_if = "TriggerPatch::is_empty")]
+    pub left: TriggerPatch,
+    #[serde(skip_serializing_if = "TriggerPatch::is_empty")]
+    pub right: TriggerPatch,
+}
+
+impl LayerTriggers {
+    pub fn get(&self, t: Trigger) -> &TriggerPatch {
+        match t {
+            Trigger::Left => &self.left,
+            Trigger::Right => &self.right,
+        }
+    }
+
+    pub fn apply(&self, base: &Triggers) -> Triggers {
+        Triggers {
+            left: self.left.apply(&base.left),
+            right: self.right.apply(&base.right),
+        }
+    }
+}
+
 /// Threshold of a stick zone as a fraction of full deflection: one value for a
 /// circle, or `[x, y]` for an ellipse with separate horizontal and vertical radii.
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -427,6 +586,12 @@ pub struct Layer {
     /// unless mapped in this layer).
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub not_inherited: Vec<Combo>,
+    /// Stick settings of this layer; whatever they leave out is the base layer's (stick
+    /// and trigger settings always build on the base layer, whatever `inherit` says).
+    #[serde(skip_serializing_if = "is_default")]
+    pub sticks: LayerSticks,
+    #[serde(skip_serializing_if = "is_default")]
+    pub triggers: LayerTriggers,
 }
 
 impl Default for Layer {
@@ -436,6 +601,8 @@ impl Default for Layer {
             name: String::new(),
             inherit: true,
             not_inherited: Vec::new(),
+            sticks: LayerSticks::default(),
+            triggers: LayerTriggers::default(),
         }
     }
 }

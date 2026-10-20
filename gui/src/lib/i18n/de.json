@@ -197,6 +197,8 @@
     "thresholds_hint": "Wo jede Zone beginnt, in % des ganzen Wegs. Leere Felder nutzen den Standard oder teilen den Rest gleichmäßig auf.",
     "shared_stick": "Gilt für alle Richtungen dieses Sticks.",
     "shared_trigger": "Gilt für alle Belegungen dieses Triggers.",
+    "layer_own": "{layer} hat hier eigene Zonen.",
+    "layer_main": "{layer} nutzt die Zonen der Haupt-Ebene; eine Änderung hier gibt {layer} eigene.",
     "separate_axes": "Horizontal und vertikal getrennt einstellen",
     "horizontal": "Horizontal",
     "vertical": "Vertikal",
@@ -324,7 +326,13 @@
       "triggers": "Trigger",
       "routes": "Routen"
     },
-    "all_layers": "Gilt auf allen Ebenen dieser Config.",
+    "all_layers": "Gilt auf allen Ebenen dieser Config, sofern eine Ebene es nicht ändert.",
+    "layer": {
+      "own": "{layer} hat hier eigene Einstellungen.",
+      "follows": "{layer} nutzt hier die Einstellungen der Haupt-Ebene. Eine Änderung gibt {layer} einen eigenen Wert.",
+      "reset": "Einstellungen der Haupt-Ebene nutzen",
+      "reset_field": "Wert der Haupt-Ebene nutzen"
+    },
     "reset": "Auf Standard zurücksetzen",
     "live_hint": "Bewege den Stick, um ihn hier zu sehen.",
     "no_controller": "Schließe einen Controller an, um seine Eingaben hier zu sehen.",

@@ -37,7 +37,13 @@
     "right": { "deadzone": 0, "zones": { "low": 0.125, "med": 0.5 }, "full_pull": 0.875 }
   },
   "layers": [
-    { "id": 1, "name": "Aim", "inherit": true },
+    {
+      "id": 1,
+      "name": "Aim",
+      "inherit": true,
+      "sticks": { "right": { "sensitivity": 0.5, "zones": { "low": 0.125 } } },
+      "triggers": { "right": { "full_pull": 0.75 } }
+    },
     { "id": 2, "inherit": false, "not_inherited": ["B", ["LB", "RB"]] }
   ],
   "mappings": [

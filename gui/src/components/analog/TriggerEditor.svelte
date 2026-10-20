@@ -9,6 +9,7 @@
   import { app } from '../../lib/state/app.svelte';
   import type { TriggerConfig } from '../../lib/types';
   import Slider from '../ui/Slider.svelte';
+  import LayerNote from './LayerNote.svelte';
 
   const SIDES: { side: Side; control: string; axis: number }[] = [
     { side: 'left', control: 'LT', axis: 4 },
@@ -22,18 +23,21 @@
     fullPull: def?.full_pull ?? 0.99,
   });
   const disabled = $derived(app.readOnly);
+  const resetLabel = $derived(app.layer === 0 ? undefined : t('analog.layer.reset_field'));
 
   function set(side: Side, patch: Partial<TriggerConfig>) {
-    if (app.profile && def) app.update(setTrigger(app.profile, side, patch, def));
+    if (app.profile && def) app.update(setTrigger(app.profile, side, patch, def, app.layer));
   }
 
   const pct = (v: number) => `${(Math.min(1, Math.max(0, v)) * 100).toFixed(1)}%`;
 </script>
 
 {#if app.profile && def}
+  <LayerNote kind="triggers" sides={['left', 'right']} />
   <div class="triggers">
     {#each SIDES as s (s.side)}
-      {@const cfg = triggerConfig(app.profile, s.side, def)}
+      {@const cfg = triggerConfig(app.profile, s.side, def, app.layer)}
+      {@const ref = app.layer === 0 ? def : triggerConfig(app.profile, s.side, def)}
       {@const raw = app.primary?.state.axes[s.axis] ?? null}
       {@const name = controlLabel(s.control, app.family)}
       {@const zones = triggerThresholds(cfg.zones, cfg.full_pull, zoneDefaults)}
@@ -65,7 +69,8 @@
         <Slider
           label={t('analog.trigger.deadzone')}
           value={cfg.deadzone}
-          def={def.deadzone}
+          def={ref.deadzone}
+          {resetLabel}
           min={0}
           max={0.9}
           step={0.01}
@@ -78,7 +83,8 @@
         <Slider
           label={t('analog.trigger.press_threshold')}
           value={zones[0]}
-          def={def.zones.low}
+          def={triggerThresholds(ref.zones, ref.full_pull, zoneDefaults)[0]}
+          {resetLabel}
           min={0.01}
           max={1}
           step={0.01}
@@ -91,7 +97,8 @@
         <Slider
           label={t('analog.trigger.full_pull')}
           value={cfg.full_pull}
-          def={def.full_pull}
+          def={ref.full_pull}
+          {resetLabel}
           min={0.05}
           max={1}
           step={0.01}

@@ -247,6 +247,27 @@ When a layer is active, a trigger that has *any* mapping in that layer uses only
 mappings. Otherwise the base layer's mappings apply, unless the trigger is listed in
 `not_inherited`. Buttons held during a switch are re-pressed under the new layer.
 
+A layer can also change stick and trigger settings. Every field it leaves out is the base
+layer's (this does not depend on `inherit`), and the settings change the moment the layer
+becomes active:
+
+```toml
+[[layers]]
+id = 1
+name = "Aim"
+inherit = true
+
+[layers.sticks.right]             # any [sticks.*] field
+sensitivity = 0.5
+zones = { low = 0.15 }
+
+[layers.triggers.right]           # any [triggers.*] field
+full_pull = 0.8
+```
+
+A stick direction or trigger that is held across the switch and no longer reaches the new
+layer's threshold is released at once.
+
 ## Analog routes
 
 ```toml

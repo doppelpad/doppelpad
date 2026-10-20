@@ -10,7 +10,8 @@ use dp_core::keys::{Key, MouseButton, WheelDir};
 use dp_core::pad::{PadButton, Stick, Trigger};
 use dp_core::profile::{
     Action, Activator, AnalogMapping, AnalogSource, AnalogTarget, Combo, Command, Jump, JumpMode,
-    KeyRepeat, Layer, Mapping, Mode, Press, Profile, VirtualPadType, ZoneRadius,
+    KeyRepeat, Layer, LayerSticks, LayerTriggers, Mapping, Mode, Press, Profile, StickPatch,
+    Sticks, TriggerPatch, Triggers, VirtualPadType, ZoneRadius,
 };
 use serde_json::Value;
 
@@ -353,6 +354,8 @@ struct Importer<'a> {
     commands: HashMap<i64, &'a Value>,
     /// Masks that zone activators turned into zone controls: (mask, zoned trigger).
     zoned: Vec<(Combo, Combo)>,
+    /// Per-layer stick and trigger settings by layer id, with where they came from.
+    layer_analog: HashMap<i64, ((LayerSticks, LayerTriggers), String)>,
 }
 
 /// Recognize the format's encoding of shift keys and fold each pair into one
@@ -420,6 +423,7 @@ pub fn import(json: &str) -> Result<(Profile, Diagnostics), ImportError> {
         layer_kinds: HashMap::new(),
         commands: HashMap::new(),
         zoned: Vec::new(),
+        layer_analog: HashMap::new(),
     };
     let profile = imp.run();
     Ok((profile, imp.diags))
@@ -520,10 +524,31 @@ impl<'a> Importer<'a> {
                     p.output.hide_physical = boolean(hw, "hidePhysicalGamepad");
                 }
                 if let Some(d) = get(hw, "default") {
-                    self.analog_settings(p, d, &format!("{path}.default"));
+                    let (mut sticks, mut triggers) = (p.sticks.clone(), p.triggers.clone());
+                    self.analog_settings(&mut sticks, &mut triggers, d, &format!("{path}.default"));
+                    (p.sticks, p.triggers) = (sticks, triggers);
                 }
-                if !array(hw, "shifts").is_empty() {
-                    self.diags.info(format!("{path}.shifts"), "per-layer stick/trigger settings are not supported; base settings apply to all layers");
+                // Per-layer blocks hold the same settings as `default`; a layer keeps only
+                // what differs from the base.
+                for (k, s) in array(hw, "shifts").iter().enumerate() {
+                    let spath = format!("{path}.shifts[{k}]");
+                    let Some(layer) = int(s, "shiftId") else {
+                        self.diags.warn(&spath, "missing shiftId");
+                        continue;
+                    };
+                    let (mut sticks, mut triggers) = (p.sticks.clone(), p.triggers.clone());
+                    self.analog_settings(&mut sticks, &mut triggers, s, &spath);
+                    let patch = (
+                        LayerSticks {
+                            left: StickPatch::between(&p.sticks.left, &sticks.left),
+                            right: StickPatch::between(&p.sticks.right, &sticks.right),
+                        },
+                        LayerTriggers {
+                            left: TriggerPatch::between(&p.triggers.left, &triggers.left),
+                            right: TriggerPatch::between(&p.triggers.right, &triggers.right),
+                        },
+                    );
+                    self.layer_analog.insert(layer, (patch, spath));
                 }
             } else if kind == DeviceKind::Mouse
                 && let Some(stick) = get(hw, "default").and_then(|d| get(d, "stick"))
@@ -592,11 +617,17 @@ impl<'a> Importer<'a> {
     }
 
     /// Gamepad stick/trigger/touchpad settings.
-    fn analog_settings(&mut self, p: &mut Profile, d: &Value, path: &str) {
+    fn analog_settings(
+        &mut self,
+        sticks: &mut Sticks,
+        triggers: &mut Triggers,
+        d: &Value,
+        path: &str,
+    ) {
         for s in array(d, "sticks") {
             let cfg = match enum_str(s, "name").as_deref() {
-                Some("left") => &mut p.sticks.left,
-                Some("right") => &mut p.sticks.right,
+                Some("left") => &mut sticks.left,
+                Some("right") => &mut sticks.right,
                 Some("gyro") => {
                     self.diags.info(
                         format!("{path}.sticks"),
@@ -666,8 +697,8 @@ impl<'a> Importer<'a> {
         }
         for t in array(d, "triggers") {
             let cfg = match enum_str(t, "name").as_deref() {
-                Some("left") => &mut p.triggers.left,
-                Some("right") => &mut p.triggers.right,
+                Some("left") => &mut triggers.left,
+                Some("right") => &mut triggers.right,
                 _ => continue,
             };
             let zones = array(t, "zones");
@@ -796,11 +827,18 @@ impl<'a> Importer<'a> {
                         .collect()
                 })
                 .unwrap_or_default();
+            let (sticks, triggers) = self
+                .layer_analog
+                .remove(&id)
+                .map(|(patch, _)| patch)
+                .unwrap_or_default();
             p.layers.push(Layer {
                 id: id as u8,
                 name: text(s, "description").unwrap_or_else(|| format!("Layer {id}")),
                 inherit: true,
                 not_inherited,
+                sticks,
+                triggers,
             });
 
             // Legacy single-button modifier → synthesized jump mapping.
@@ -826,6 +864,14 @@ impl<'a> Importer<'a> {
                     "multi-button layer modifiers are not supported",
                 );
             }
+        }
+        let mut orphans: Vec<_> = self.layer_analog.drain().collect();
+        orphans.sort_by_key(|(id, _)| *id);
+        for (id, (_, path)) in orphans {
+            self.diags.warn(
+                path,
+                format!("settings for layer {id}, which does not exist"),
+            );
         }
     }
 
@@ -1609,6 +1655,40 @@ mod tests {
                 Combo(vec![Control::TriggerZone(Trigger::Right, Zone::High)])
             ]
         );
+    }
+
+    #[test]
+    fn per_layer_device_settings_become_layer_patches() {
+        let doc = r#"{ "schemaVersion": 3.0, "appVersion": "9.2.0", "config": { "appName": "x" },
+          "devices": { "hardware": [ { "id": 1, "name": "gamepad",
+              "default": { "sticks": [ { "name": "left", "rotation": 10, "zones": [ { "name": "low", "x": 6554 } ] } ] },
+              "shifts": [
+                { "shiftId": 1,
+                  "sticks": [ { "name": "left", "rotation": 10, "zones": [ { "name": "low", "x": 13107 } ] } ],
+                  "triggers": [ { "name": "right", "highZoneMax": 29491 } ] },
+                { "shiftId": 3, "sticks": [ { "name": "right", "rotation": 5 } ] }
+              ] } ] },
+          "shifts": [ { "id": 1, "type": "default" } ] }"#;
+        let (p, diags) = import(doc).unwrap();
+        assert!(!diags.has_errors(), "{diags:?}");
+        assert!(
+            diags.iter().all(|d| !d.message.contains("not supported")),
+            "{diags:?}"
+        );
+        let l = &p.layers[0];
+        let zones = l.sticks.left.zones.as_ref().expect("low zone differs");
+        assert!((zones.low.x - 0.4).abs() < 0.001);
+        assert_eq!(l.sticks.left.rotation, None, "same as the base");
+        assert!(l.sticks.right.is_empty() && l.triggers.left.is_empty());
+        assert!((l.triggers.right.full_pull.unwrap() - 0.9).abs() < 0.001);
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.path == "devices.hardware[0].shifts[1]"
+                    && d.message.contains("does not exist")),
+            "{diags:?}"
+        );
+        assert!(!crate::validate(&p).has_errors());
     }
 
     #[test]

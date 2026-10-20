@@ -15,6 +15,7 @@
     unit = '',
     hint = '',
     disabled = false,
+    resetLabel,
     onchange,
   }: {
     label: string;
@@ -29,6 +30,8 @@
     unit?: string;
     hint?: string;
     disabled?: boolean;
+    /** Title of the reset button (default: "Reset to default"). */
+    resetLabel?: string;
     onchange: (v: number) => void;
   } = $props();
 
@@ -50,7 +53,7 @@
   <div class="top">
     <span class="label">{label}</span>
     {#if def !== undefined && Math.abs(value - def) > 1e-6 && !disabled}
-      <button class="reset" title={t('analog.reset')} onclick={() => onchange(def)}><RotateCcw size={12} /></button>
+      <button class="reset" title={resetLabel ?? t('analog.reset')} onclick={() => onchange(def)}><RotateCcw size={12} /></button>
     {/if}
     <span class="value">
       <input

@@ -2,6 +2,7 @@
 // live value is in, and edits to them. Mirrors dp-core's zone rule.
 
 import type { Profile, StickZones, TriggerZones, ZoneRadius } from '../types';
+import { setLayerPart } from './analog';
 import type { ZoneName, ZoneParts } from './controls';
 
 export type Side = 'left' | 'right';
@@ -119,13 +120,32 @@ export function setTriggerLevel(z: TriggerZones | undefined, level: Level, value
   return out;
 }
 
-/** The profile with new zones for one stick or trigger (empty zones are dropped). */
+/** The zones stored for one stick or trigger as they are on `layer`: its own, else Main's. */
+export function storedZones(
+  p: Profile,
+  source: ZoneParts['source'],
+  layer = 0,
+): StickZones | TriggerZones | undefined {
+  const key = source.kind === 'stick' ? 'sticks' : 'triggers';
+  const own = layer === 0 ? undefined : p.layers?.find((l) => l.id === layer)?.[key]?.[source.side]?.zones;
+  return own ?? p[key]?.[source.side]?.zones;
+}
+
+/**
+ * The profile with new zones for one stick or trigger (empty zones are dropped). On a layer
+ * other than Main only that layer changes; zones equal to Main's are dropped from it.
+ */
 export function withZones(
   p: Profile,
   source: ZoneParts['source'],
   zones: StickZones | TriggerZones,
+  layer = 0,
 ): Profile {
   const key = source.kind === 'stick' ? 'sticks' : 'triggers';
+  if (layer !== 0) {
+    const main = storedZones(p, source) ?? {};
+    return setLayerPart(p, layer, key, source.side, { zones }, { zones: main });
+  }
   const group = { ...(p[key] ?? {}) } as Record<Side, Record<string, unknown> | undefined>;
   const cfg: Record<string, unknown> = { ...(group[source.side] ?? {}) };
   if (Object.keys(zones).length > 0) cfg.zones = zones;

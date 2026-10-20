@@ -1,6 +1,6 @@
 <script lang="ts">
-  // Analog settings: shaping of each stick and of the triggers (for the whole config) and
-  // the analog routes of the current layer.
+  // Analog settings: shaping of each stick and of the triggers (for the whole config, or what
+  // the current layer changes) and the analog routes of the current layer.
   import { t } from '../../lib/i18n/index.svelte';
   import { layerRoutes } from '../../lib/model/analog';
   import { app, type AnalogTab } from '../../lib/state/app.svelte';
@@ -28,7 +28,7 @@
   {#if app.analogTab === 'routes'}
     <RouteEditor />
   {:else}
-    <p class="scope">{t('analog.all_layers')}</p>
+    {#if app.layer === 0}<p class="scope">{t('analog.all_layers')}</p>{/if}
     {#if app.analogTab === 'triggers'}
       <TriggerEditor />
     {:else}

@@ -32,7 +32,9 @@ use crate::control::{Control, Dir, TouchRegion};
 use crate::event::KbmEvent;
 use crate::keys::{Key, MouseButton, WheelDir};
 use crate::pad::{Axis, PadButton, PadState, Rumble, Stick, Trigger};
-use crate::profile::{Activator, AnalogSource, Command, Mode, Profile, VirtualPadType};
+use crate::profile::{
+    Activator, AnalogSource, Command, Mode, Profile, Sticks, Triggers, VirtualPadType,
+};
 
 /// How long one wheel notch counts as "pressed" when used as a trigger.
 const WHEEL_PULSE_MS: u64 = 50;
@@ -272,6 +274,8 @@ pub struct Engine {
     /// tell eight directions apart.
     touch_diagonals: bool,
     mouse_diagonals: bool,
+    /// Effective stick and trigger settings of the layers that change them.
+    layer_analog: HashMap<u8, (Sticks, Triggers)>,
 
     prev_controls: HashSet<Control>,
     cur_controls: HashSet<Control>,
@@ -309,6 +313,15 @@ impl Engine {
             .map(|(i, m)| (m[0], i))
             .collect();
         let route_state = vec![RouteState::default(); c.routes.len()];
+        let layer_analog = profile
+            .layers
+            .iter()
+            .filter(|l| l.sticks != Default::default() || l.triggers != Default::default())
+            .map(|l| {
+                let sticks = l.sticks.apply(&profile.sticks);
+                (l.id, (sticks, l.triggers.apply(&profile.triggers)))
+            })
+            .collect();
         let touch_diagonals = uses(
             &profile,
             |c| matches!(c, Control::Touch(r) if r.is_diagonal()),
@@ -334,6 +347,7 @@ impl Engine {
             gyro_enabled: true,
             touch_diagonals,
             mouse_diagonals,
+            layer_analog,
             prev_controls: HashSet::new(),
             cur_controls: HashSet::new(),
             pending: Vec::new(),
@@ -351,6 +365,20 @@ impl Engine {
             route_state,
             layer_changed: false,
         }
+    }
+
+    /// Stick settings of the active layer.
+    fn sticks(&self) -> &Sticks {
+        self.layer_analog
+            .get(&self.layer)
+            .map_or(&self.profile.sticks, |(s, _)| s)
+    }
+
+    /// Trigger settings of the active layer.
+    fn triggers(&self) -> &Triggers {
+        self.layer_analog
+            .get(&self.layer)
+            .map_or(&self.profile.triggers, |(_, t)| t)
     }
 
     pub fn profile(&self) -> &Profile {
@@ -433,6 +461,38 @@ impl Engine {
         self.taps.dedup();
     }
 
+    /// Stick and trigger controls under the current layer's settings.
+    fn analog_controls(&self, pad: &PadState) -> HashSet<Control> {
+        let mut set = HashSet::new();
+        for s in [Stick::Left, Stick::Right] {
+            let cfg = self.sticks().get(s);
+            let v = orient(pad.stick(s), cfg);
+            let Some(zone) = stick_zone(v, cfg.zone_thresholds()) else {
+                continue;
+            };
+            set.insert(Control::StickZone(s, None, zone));
+            let d = sectors(v, cfg.direction_ratio(), cfg.diagonals);
+            for dir in Dir::ALL8 {
+                if d[dir as usize] {
+                    set.insert(Control::StickDir(s, dir));
+                    set.insert(Control::StickZone(s, Some(dir), zone));
+                }
+            }
+        }
+        for t in [Trigger::Left, Trigger::Right] {
+            let cfg = self.triggers().get(t);
+            let v = pad.axis(t.axis());
+            if let Some(zone) = trigger_zone(v, cfg.zone_thresholds()) {
+                set.insert(Control::TriggerPress(t));
+                set.insert(Control::TriggerZone(t, zone));
+            }
+            if v >= cfg.full_pull {
+                set.insert(Control::TriggerFull(t));
+            }
+        }
+        set
+    }
+
     fn derive_controls(&mut self, now: u64, dt: f32) -> HashSet<Control> {
         let mut set = HashSet::new();
         if let Some(pad) = &self.pad {
@@ -441,32 +501,7 @@ impl Engine {
                     set.insert(Control::Button(b));
                 }
             }
-            for s in [Stick::Left, Stick::Right] {
-                let cfg = self.profile.sticks.get(s);
-                let v = orient(pad.stick(s), cfg);
-                let Some(zone) = stick_zone(v, cfg.zone_thresholds()) else {
-                    continue;
-                };
-                set.insert(Control::StickZone(s, None, zone));
-                let d = sectors(v, cfg.direction_ratio(), cfg.diagonals);
-                for dir in Dir::ALL8 {
-                    if d[dir as usize] {
-                        set.insert(Control::StickDir(s, dir));
-                        set.insert(Control::StickZone(s, Some(dir), zone));
-                    }
-                }
-            }
-            for t in [Trigger::Left, Trigger::Right] {
-                let cfg = self.profile.triggers.get(t);
-                let v = pad.axis(t.axis());
-                if let Some(zone) = trigger_zone(v, cfg.zone_thresholds()) {
-                    set.insert(Control::TriggerPress(t));
-                    set.insert(Control::TriggerZone(t, zone));
-                }
-                if v >= cfg.full_pull {
-                    set.insert(Control::TriggerFull(t));
-                }
-            }
+            set.extend(self.analog_controls(pad));
             if let Some(tp) = pad.touch[0] {
                 let v = ((tp.x - 0.5) * 2.0, (0.5 - tp.y) * 2.0);
                 // Four 90° regions, or eight 45° ones when diagonals are mapped.
@@ -938,8 +973,36 @@ impl Engine {
             }
             self.end_activation(id, t);
         }
+        let analog_differs =
+            self.layer_analog.contains_key(&self.layer) || self.layer_analog.contains_key(&target);
         self.layer = target;
         self.layer_changed = true;
+        // Stick and trigger controls follow the new layer's thresholds at once: what the
+        // new layer does not report is released before anything is re-pressed (what it
+        // newly reports is pressed on the next tick).
+        if analog_differs && let Some(pad) = self.pad {
+            let now_on = self.analog_controls(&pad);
+            let mut off: Vec<Control> = self
+                .cur_controls
+                .iter()
+                .copied()
+                .filter(|c| {
+                    matches!(
+                        c,
+                        Control::StickDir(..)
+                            | Control::StickZone(..)
+                            | Control::TriggerPress(_)
+                            | Control::TriggerZone(..)
+                            | Control::TriggerFull(_)
+                    ) && !now_on.contains(c)
+                })
+                .collect();
+            off.sort();
+            for c in off {
+                self.cur_controls.remove(&c);
+                self.on_release(c, t);
+            }
+        }
 
         if let Some(m) = owner
             && self.mask_down.contains(&m)
@@ -1131,7 +1194,7 @@ impl Engine {
                 if Control::of_stick(s).iter().any(hidden) || route_consumes(src) {
                     continue;
                 }
-                let cfg = self.profile.sticks.get(s);
+                let cfg = self.sticks().get(s);
                 pad.set_stick(s, shape_stick(orient(phys.stick(s), cfg), cfg));
             }
             for t in [Trigger::Left, Trigger::Right] {
@@ -1140,7 +1203,7 @@ impl Engine {
                 }
                 pad.set_axis(
                     t.axis(),
-                    shape_trigger(phys.axis(t.axis()), self.profile.triggers.get(t)),
+                    shape_trigger(phys.axis(t.axis()), self.triggers().get(t)),
                 );
             }
             // A remapped touchpad or gyro no longer reaches the game, like a remapped stick.
@@ -1186,7 +1249,10 @@ impl Engine {
         // Analog routes.
         let input = RouteInput {
             pad: self.pad.as_ref(),
-            sticks: &self.profile.sticks,
+            sticks: self
+                .layer_analog
+                .get(&self.layer)
+                .map_or(&self.profile.sticks, |(s, _)| s),
             mouse: self.mouse_counts,
             dt,
             now,
