@@ -38,6 +38,9 @@ pub struct Profile {
     pub mouse: MouseInput,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub layers: Vec<Layer>,
+    /// What held controls do when the layer changes (`[layer_change]`).
+    #[serde(skip_serializing_if = "is_default")]
+    pub layer_change: LayerChange,
     pub mappings: Vec<Mapping>,
     /// Continuous analog routes (stick → mouse, mouse → stick, gyro → mouse, ...).
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -972,6 +975,48 @@ pub struct Layer {
     /// Virtual stick settings of this layer, on top of the base layer's.
     #[serde(rename = "virtual", skip_serializing_if = "is_default")]
     pub virtual_devices: LayerVirtual,
+    /// Give the physical keyboard and/or mouse back while this layer is active: their input
+    /// is not swallowed and the base layer's keyboard/mouse mappings are not inherited.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub unlock: Option<Unlock>,
+}
+
+/// Which physical inputs an unlock layer gives back.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Unlock {
+    All,
+    Keyboard,
+    Mouse,
+}
+
+impl Unlock {
+    /// True if `c` is a physical input this unlock gives back.
+    pub fn covers(self, c: Control) -> bool {
+        match c {
+            Control::Key(_) => self != Unlock::Mouse,
+            Control::Mouse(_)
+            | Control::Wheel(_)
+            | Control::MouseMove(_)
+            | Control::MouseZone(..) => self != Unlock::Keyboard,
+            _ => false,
+        }
+    }
+}
+
+/// What held controls do when the layer changes.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct LayerChange {
+    /// Release held controls and press them again under the new layer. Off, they keep
+    /// what they do until released and use the new layer from their next press.
+    pub repress: bool,
+}
+
+impl Default for LayerChange {
+    fn default() -> Self {
+        LayerChange { repress: true }
+    }
 }
 
 impl Default for Layer {
@@ -984,6 +1029,7 @@ impl Default for Layer {
             sticks: LayerSticks::default(),
             triggers: LayerTriggers::default(),
             virtual_devices: LayerVirtual::default(),
+            unlock: None,
         }
     }
 }
@@ -1308,6 +1354,9 @@ pub struct Jump {
     /// Wait this long after activation before switching.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub delay_ms: Option<u32>,
+    /// Run the mapping's actions when the jump happens instead of at the press.
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub postpone: bool,
 }
 
 /// One remapping rule: when `trigger` is activated (per `activator`) in `layer`,

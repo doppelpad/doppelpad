@@ -316,9 +316,35 @@ jump = { layer = 1, mode = "hold" }      # hold | toggle | switch
 - `toggle`: each press switches between the layers.
 - `switch`: a permanent jump. Add another mapping to come back.
 
+A jump can wait: `jump = { layer = 1, mode = "hold", delay_ms = 300 }` changes the layer only
+once the trigger has been held for 300 ms. The mapping's own actions still start at the press;
+with `postpone = true` they start at the jump instead, and nothing at all happens if the
+trigger is released before the delay is over.
+
 When a layer is active, a trigger that has *any* mapping in that layer uses only that layer's
 mappings. Otherwise the base layer's mappings apply, unless the trigger is listed in
-`not_inherited`. Buttons held during a switch are re-pressed under the new layer.
+`not_inherited`. Buttons held during a switch are re-pressed under the new layer. To have them
+keep what they do until they are released instead (the new layer applies from their next
+press):
+
+```toml
+[layer_change]
+repress = false
+```
+
+An *unlock* layer gives the physical keyboard and/or mouse back while it is active, for
+example to use the real mouse for a moment in a profile that turns it into a stick:
+
+```toml
+[[layers]]
+id = 2
+name = "Mouse back"
+unlock = "mouse"                  # all | keyboard | mouse
+```
+
+While it is active, keys or mouse input it covers reach other programs unchanged and the base
+layer's keyboard or mouse mappings (including mouse routes) do not apply. The layer's own
+mappings still work. Unlock layers are meant to be held.
 
 A layer can also change stick and trigger settings. Every field it leaves out is the base
 layer's (this does not depend on `inherit`), and the settings change the moment the layer

@@ -144,6 +144,13 @@
       label={t('output.mute_mapped')}
       onchange={(v) => set({ mute_mapped_inputs: v })}
     />
+    <Toggle
+      checked={app.profile?.layer_change?.repress ?? true}
+      disabled={app.readOnly}
+      label={t('output.repress')}
+      onchange={(v) => app.profile && app.update({ ...app.profile, layer_change: v ? undefined : { repress: false } })}
+    />
+    <p class="hint">{t('output.repress_hint')}</p>
   </div>
 
   <label class="field repeat">

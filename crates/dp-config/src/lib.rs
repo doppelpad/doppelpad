@@ -10,7 +10,8 @@ use std::path::{Path, PathBuf};
 pub use compat::ImportError;
 pub use diag::{Diagnostic, Diagnostics, Severity};
 use dp_core::profile::{
-    Action, AnalogSource, AnalogTarget, Command, Mode, Profile, Sticks, Triggers, VirtualSticks,
+    Action, AnalogSource, AnalogTarget, Command, JumpMode, Mode, Profile, Sticks, Triggers,
+    VirtualSticks,
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -146,6 +147,24 @@ pub fn validate(p: &Profile) -> Diagnostics {
                 &path,
                 format!("jumps to layer {} which has no mappings", j.layer),
             );
+        }
+        if let Some(j) = &m.jump {
+            if j.postpone && j.delay_ms.is_none_or(|d| d == 0) {
+                d.info(
+                    &path,
+                    "postpone only matters with a jump delay; the actions start at once",
+                );
+            }
+            if j.mode == JumpMode::Toggle
+                && p.layers
+                    .iter()
+                    .any(|l| l.id == j.layer && l.unlock.is_some())
+            {
+                d.warn(
+                    &path,
+                    "unlock layers are meant to be held; toggled on, the keyboard/mouse stay unmuted until it is toggled off",
+                );
+            }
         }
         for a in &m.actions {
             match a {

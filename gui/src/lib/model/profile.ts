@@ -15,6 +15,7 @@ import type {
   PadButtonName,
   Profile,
   Timing,
+  Unlock,
   VirtualDevices,
   WheelDir,
 } from '../types';
@@ -61,9 +62,17 @@ function declaredLayer(p: Profile, id: number): Layer | undefined {
   return p.layers?.find((l) => l.id === id);
 }
 
+/** Whether an unlock layer gives this physical keyboard/mouse control back. */
+export function unlocks(unlock: Unlock | undefined, c: ControlName): boolean {
+  if (!unlock) return false;
+  if (c.startsWith('Key:')) return unlock !== 'mouse';
+  return /^(Mouse|Wheel|MouseMove):/.test(c) && unlock !== 'keyboard';
+}
+
 /**
  * Mappings that are effective for a trigger on `layer`: the layer's own ones, otherwise the
- * base layer's unless the layer does not inherit or lists the trigger as not inherited.
+ * base layer's unless the layer does not inherit, lists the trigger as not inherited or gives
+ * the trigger's keyboard/mouse back.
  */
 export function effectiveMappings(p: Profile, layer: number, combo: Combo): { mappings: Mapping[]; inherited: boolean } {
   const own = ownMappings(p, layer, combo);
@@ -71,6 +80,7 @@ export function effectiveMappings(p: Profile, layer: number, combo: Combo): { ma
   const decl = declaredLayer(p, layer);
   if (decl && decl.inherit === false) return { mappings: [], inherited: false };
   if (decl?.not_inherited?.some((c) => sameCombo(c, combo))) return { mappings: [], inherited: false };
+  if (comboList(combo).some((c) => unlocks(decl?.unlock, c))) return { mappings: [], inherited: false };
   const base = ownMappings(p, 0, combo);
   return { mappings: base, inherited: base.length > 0 };
 }
@@ -212,6 +222,16 @@ function patchLayer(p: Profile, id: number, patch: (l: Layer) => Layer): Profile
 /** Whether a layer takes over Main's mappings for the controls it does not map itself. */
 export function setLayerInherit(p: Profile, id: number, inherit: boolean): Profile {
   return patchLayer(p, id, (l) => ({ ...l, inherit }));
+}
+
+/** What physical input a layer gives back while it is active (undeclared layers: none). */
+export function layerUnlock(p: Profile, id: number): Unlock | undefined {
+  return declaredLayer(p, id)?.unlock;
+}
+
+/** Give the physical keyboard and/or mouse back while the layer is active, or stop doing so. */
+export function setLayerUnlock(p: Profile, id: number, unlock: Unlock | undefined): Profile {
+  return patchLayer(p, id, ({ unlock: _, ...l }) => (unlock ? { ...l, unlock } : l));
 }
 
 /** Let one trigger of Main reach a layer (or keep it out). */

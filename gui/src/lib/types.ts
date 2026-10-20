@@ -82,6 +82,8 @@ export interface Jump {
   layer: number;
   mode?: JumpMode;
   delay_ms?: number;
+  /** Run the mapping's actions when the delayed jump happens instead of at the press. */
+  postpone?: boolean;
 }
 
 export interface Mapping {
@@ -112,7 +114,11 @@ export interface Layer {
   sticks?: Sticks;
   triggers?: Triggers;
   virtual?: { sticks?: VirtualSticks };
+  /** Give the physical keyboard and/or mouse back while the layer is active. */
+  unlock?: Unlock;
 }
+
+export type Unlock = 'all' | 'keyboard' | 'mouse';
 
 export interface Output {
   virtual_pad?: VirtualPadType;
@@ -273,6 +279,8 @@ export interface Profile {
   /** The physical mouse as a source: speeds (counts/s) where its zones start. */
   mouse?: { zones?: [number, number, number] };
   layers?: Layer[];
+  /** Off: held controls keep their old layer's action until released. */
+  layer_change?: { repress?: boolean };
   mappings: Mapping[];
   analog?: AnalogMapping[];
   virtual?: VirtualDevices;

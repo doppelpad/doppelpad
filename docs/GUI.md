@@ -54,7 +54,12 @@ only edits profiles and sends commands.
    panel says so. Editing such a control creates an override on the current layer.
    **Layer settings** (in the layer menu) turn inheriting off for the whole layer, or keep
    single controls of *Main* out of it: an unticked control does nothing on that layer
-   unless the layer maps it.
+   unless the layer maps it. *Give back while active* turns the layer into an unlock layer:
+   the real keyboard, mouse or both work normally while it is held, and *Main*'s mappings
+   for them do not apply there.
+   A layer change can wait for a **Delay**; *Run the actions at the layer change* then holds
+   the mapping's own actions back until the jump. *Config settings* decide whether held
+   buttons are re-pressed when the layer changes.
 
 **Shortcuts** are mappings that fire when 2–4 controls are pressed together. Open
 *Shortcuts* and choose *New shortcut*. Then click or press the controls, confirm, and edit

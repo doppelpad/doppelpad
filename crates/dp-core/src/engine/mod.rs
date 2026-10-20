@@ -156,6 +156,8 @@ struct Activation {
     /// Analog outputs held by the program, with the time each one started.
     analog: Vec<(AnalogOut, u64)>,
     jump_at: Option<(u64, u8)>,
+    /// The program waits for the delayed jump (postponed actions).
+    deferred: bool,
     /// Which segment of a sequence with break steps this activation plays.
     segment: usize,
     /// A wheel action this held activation repeats: direction, notches, since, repeats sent.
@@ -377,6 +379,9 @@ pub struct Engine {
     recs: HashMap<MaskId, Recognizer>,
     mask_down: HashSet<MaskId>,
     jump_owned: HashSet<MaskId>,
+    /// Held across a layer change without re-press: they keep their old activations until
+    /// released.
+    stale: HashSet<MaskId>,
 
     acts: Vec<Activation>,
     next_act: ActId,
@@ -466,6 +471,7 @@ impl Engine {
             recs: HashMap::new(),
             mask_down: HashSet::new(),
             jump_owned: HashSet::new(),
+            stale: HashSet::new(),
             acts: Vec::new(),
             next_act: 0,
             toggles: HashMap::new(),
@@ -881,6 +887,13 @@ impl Engine {
             }
             return;
         }
+        if self.stale.remove(&m) {
+            if let Some(r) = self.recs.get_mut(&m) {
+                r.reset();
+            }
+            self.end_mask_activations(m, t);
+            return;
+        }
         match self.table().rec.get(&m).copied() {
             Some(cfg) => {
                 let mut ev = Vec::new();
@@ -1014,13 +1027,20 @@ impl Engine {
             owned: Vec::new(),
             analog: Vec::new(),
             jump_at: None,
+            deferred: false,
             segment,
             wheel_held: None,
         };
-        if let Some((target, delay)) = jump
-            && delay.is_some_and(|d| d > 0)
+        if let Some((target, Some(delay), postpone)) = jump
+            && delay > 0
         {
-            act.jump_at = Some((t + delay.unwrap_or(0) as u64, target));
+            let at = t + delay as u64;
+            act.jump_at = Some((at, target));
+            if postpone {
+                act.deferred = true;
+                act.wait_until = at;
+                act.run_start = at;
+            }
         }
         step(
             &mut act,
@@ -1032,7 +1052,7 @@ impl Engine {
         if mode == Mode::Toggle {
             self.toggles.insert(bid, id);
         }
-        if let Some((target, delay)) = jump
+        if let Some((target, delay, _)) = jump
             && delay.is_none_or(|d| d == 0)
         {
             self.switch_layer(target, Some(m), t);
@@ -1048,6 +1068,11 @@ impl Engine {
         step(act, program, &mut self.outs, t);
         act.ended = true;
         act.jump_at = None;
+        if act.deferred {
+            // Released before the delayed jump: neither the jump nor the actions happen.
+            act.finished = true;
+            return;
+        }
         match act.policy {
             Policy::Hold
             | Policy::Loop {
@@ -1091,6 +1116,7 @@ impl Engine {
                 && at <= t
             {
                 act.jump_at = None;
+                act.deferred = false;
                 if !act.ended {
                     jumps.push((target, act.mask, at));
                 }
@@ -1172,11 +1198,19 @@ impl Engine {
             .copied()
             .filter(|m| Some(*m) != owner && !self.jump_owned.contains(m))
             .collect();
+        let repress = self.profile.layer_change.repress;
         for m in busy {
+            if !repress && held.contains(&m) {
+                continue;
+            }
             if let Some(r) = self.recs.get_mut(&m) {
                 r.reset();
             }
             self.end_mask_activations(m, t);
+        }
+        if !repress {
+            self.stale.extend(held);
+            return;
         }
         for m in held {
             if self.table().rec.contains_key(&m) {

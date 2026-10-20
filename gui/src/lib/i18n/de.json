@@ -88,7 +88,15 @@
     "inherit_hint_on": "Tasten, die diese Ebene nicht belegt, tun dasselbe wie auf der Haupt-Ebene.",
     "inherit_hint_off": "Tasten, die diese Ebene nicht belegt, tun nichts, solange sie aktiv ist.",
     "inherited_list": "Von der Haupt-Ebene übernommen",
-    "inherit_none": "Die Haupt-Ebene hat noch keine Belegungen."
+    "inherit_none": "Die Haupt-Ebene hat noch keine Belegungen.",
+    "unlock": "Freigeben, solange aktiv",
+    "unlock_options": {
+      "none": "Nichts",
+      "all": "Tastatur und Maus",
+      "keyboard": "Nur Tastatur",
+      "mouse": "Nur Maus"
+    },
+    "unlock_hint": "Freigegebene Tastatur bzw. Maus erreicht andere Programme wieder unverändert, und die Tastatur- bzw. Maus-Belegungen der Haupt-Ebene gelten hier nicht. Gedacht für Ebenen, die man gedrückt hält, z. B. um kurz die echte Maus zurückzubekommen."
   },
   "output": {
     "title": "Ausgabegerät",
@@ -99,6 +107,8 @@
     "hide_physical": "Echten Controller vor Spielen verstecken",
     "passthrough": "Nicht belegte Tasten durchreichen",
     "mute_mapped": "Original-Tasten und -Buttons blockieren, die umbelegt sind",
+    "repress": "Gehaltene Tasten beim Ebenenwechsel neu drücken",
+    "repress_hint": "An: gehaltene Tasten machen sofort, was sie in der neuen Ebene tun. Aus: sie behalten ihre bisherige Aktion bis zum Loslassen.",
     "driver_missing": "{driver} ist nicht installiert – diese Config lässt sich noch nicht anwenden.",
     "hide_missing": "HidHide ist nicht installiert — Spiele sehen den echten Controller weiterhin.",
     "mouse": "Maus",
@@ -165,6 +175,8 @@
     "jump_toggle": "Umschalten",
     "jump_switch": "Wechseln",
     "jump_delay": "Verzögerung",
+    "jump_postpone": "Aktionen erst beim Wechsel ausführen",
+    "jump_postpone_hint": "Die Aktionen dieser Belegung starten erst, wenn die Verzögerung abgelaufen ist. Lässt du vorher los, passiert nichts.",
     "macro": "Makro-Editor",
     "delete": "Mapping löschen",
     "stick_choose": "Welche Richtung des Sticks?",

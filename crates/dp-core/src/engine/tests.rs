@@ -259,6 +259,7 @@ fn hold_layer_switch() {
         layer: 1,
         mode: JumpMode::Hold,
         delay_ms: None,
+        postpone: false,
     });
     p.mappings.push(shift);
     p.mappings.push(map(b(PadButton::A), vec![key(Key::Space)]));
@@ -300,6 +301,7 @@ fn toggle_layer_switch() {
         layer: 2,
         mode: JumpMode::Toggle,
         delay_ms: None,
+        postpone: false,
     });
     p.mappings.push(shift);
     let mut h = Harness::new(p);
@@ -320,6 +322,7 @@ fn held_button_is_repressed_in_new_layer() {
         layer: 1,
         mode: JumpMode::Hold,
         delay_ms: None,
+        postpone: false,
     });
     p.mappings.push(shift);
     p.mappings.push(map(b(PadButton::A), vec![key(Key::Space)]));
@@ -331,6 +334,142 @@ fn held_button_is_repressed_in_new_layer() {
     h.btn(PadButton::Back, true); // switch: Space up, F5 down
     assert_eq!(h.key_events(Key::Space), vec![(1, true), (2, false)]);
     assert_eq!(h.key_events(Key::F5), vec![(2, true)]);
+}
+
+#[test]
+fn without_repress_held_buttons_keep_their_old_layer_action() {
+    let mut p = Profile::default();
+    p.layer_change.repress = false;
+    let mut shift = map(b(PadButton::Back), vec![]);
+    shift.jump = Some(Jump {
+        layer: 1,
+        mode: JumpMode::Hold,
+        delay_ms: None,
+        postpone: false,
+    });
+    p.mappings.push(shift);
+    p.mappings.push(map(b(PadButton::A), vec![key(Key::Space)]));
+    let mut f5 = map(b(PadButton::A), vec![key(Key::F5)]);
+    f5.layer = 1;
+    p.mappings.push(f5);
+    let mut h = Harness::new(p);
+    h.btn(PadButton::A, true); // Space down
+    h.btn(PadButton::Back, true); // layer 1, Space stays down
+    assert_eq!(h.e.layer(), 1);
+    assert_eq!(h.key_events(Key::Space), vec![(1, true)]);
+    h.btn(PadButton::A, false);
+    assert_eq!(h.key_events(Key::Space), vec![(1, true), (3, false)]);
+    h.until(20);
+    h.btn(PadButton::A, true); // the next press uses layer 1
+    assert_eq!(h.key_events(Key::F5), vec![(21, true)]);
+    assert_eq!(h.key_events(Key::Space).len(), 2);
+}
+
+#[test]
+fn postponed_jump_runs_its_actions_when_it_happens() {
+    let mut p = Profile::default();
+    let mut shift = map(b(PadButton::Back), vec![key(Key::F1)]);
+    shift.jump = Some(Jump {
+        layer: 1,
+        mode: JumpMode::Hold,
+        delay_ms: Some(300),
+        postpone: true,
+    });
+    p.mappings.push(shift);
+    let mut h = Harness::new(p);
+    h.btn(PadButton::Back, true);
+    h.until(250);
+    assert_eq!(h.e.layer(), 0);
+    assert!(h.key_events(Key::F1).is_empty(), "nothing before the jump");
+    h.until(320);
+    assert_eq!(h.e.layer(), 1);
+    assert_eq!(h.key_events(Key::F1), vec![(301, true)]);
+    h.btn(PadButton::Back, false);
+    h.until(340);
+    assert_eq!(h.e.layer(), 0);
+    assert_eq!(h.key_events(Key::F1), vec![(301, true), (321, false)]);
+
+    // Released before the delay: neither the jump nor the actions.
+    h.btn(PadButton::Back, true);
+    h.until(400);
+    h.btn(PadButton::Back, false);
+    h.until(800);
+    assert_eq!(h.e.layer(), 0);
+    assert_eq!(h.key_events(Key::F1).len(), 2);
+}
+
+#[test]
+fn delayed_jump_without_postpone_runs_its_actions_at_the_press() {
+    let mut p = Profile::default();
+    let mut shift = map(b(PadButton::Back), vec![key(Key::F1)]);
+    shift.jump = Some(Jump {
+        layer: 1,
+        mode: JumpMode::Hold,
+        delay_ms: Some(300),
+        postpone: false,
+    });
+    p.mappings.push(shift);
+    let mut h = Harness::new(p);
+    h.btn(PadButton::Back, true);
+    assert_eq!(h.key_events(Key::F1), vec![(1, true)]);
+    h.until(320);
+    assert_eq!(h.e.layer(), 1);
+}
+
+#[test]
+fn unlock_layer_gives_the_keyboard_back() {
+    use crate::profile::Unlock;
+    let mut p = Profile::default();
+    p.layers.push(Layer {
+        id: 1,
+        unlock: Some(Unlock::Keyboard),
+        ..Default::default()
+    });
+    let mut shift = map(b(PadButton::Back), vec![]);
+    shift.jump = Some(Jump {
+        layer: 1,
+        mode: JumpMode::Hold,
+        delay_ms: None,
+        postpone: false,
+    });
+    p.mappings.push(shift);
+    p.mappings
+        .push(map(Control::Key(Key::W), vec![key(Key::Space)]));
+    p.mappings
+        .push(map(b(PadButton::B), vec![key(Key::Escape)]));
+    let mut own = map(Control::Key(Key::E), vec![key(Key::F5)]);
+    own.layer = 1;
+    p.mappings.push(own);
+    let mut h = Harness::new(p);
+    assert_eq!(h.e.mutes().keys, vec![Key::W]);
+
+    h.btn(PadButton::Back, true);
+    assert_eq!(h.e.layer(), 1);
+    assert!(h.e.mutes().keys.is_empty(), "nothing swallowed");
+    h.key(Key::W, true);
+    h.key(Key::W, false);
+    assert!(
+        h.key_events(Key::Space).is_empty(),
+        "base keyboard mapping not inherited"
+    );
+    h.btn(PadButton::B, true);
+    h.btn(PadButton::B, false);
+    assert_eq!(
+        h.key_events(Key::Escape).len(),
+        2,
+        "pad mappings are inherited"
+    );
+    h.key(Key::E, true);
+    h.key(Key::E, false);
+    assert_eq!(
+        h.key_events(Key::F5).len(),
+        2,
+        "the layer's own mappings work"
+    );
+    h.btn(PadButton::Back, false);
+    h.until(50);
+    assert_eq!(h.e.layer(), 0);
+    assert_eq!(h.e.mutes().keys, vec![Key::W]);
 }
 
 #[test]
@@ -566,6 +705,7 @@ fn virtual_stick_curve_and_layer_settings() {
         layer: 1,
         mode: JumpMode::Hold,
         delay_ms: None,
+        postpone: false,
     });
     p.mappings.push(shift);
     p.mappings.push(map(
@@ -1140,6 +1280,7 @@ fn break_cursor_resets_on_layer_change() {
         layer: 1,
         mode: JumpMode::Toggle,
         delay_ms: None,
+        postpone: false,
     });
     p.mappings.push(sw);
     let mut h = Harness::new(p);
@@ -1380,6 +1521,7 @@ fn zone_mappings_follow_layers() {
         layer: 1,
         mode: JumpMode::Hold,
         delay_ms: None,
+        postpone: false,
     });
     p.mappings.push(shift);
     p.mappings.push(map(
@@ -1431,6 +1573,7 @@ fn layers_bring_their_own_stick_and_trigger_settings() {
         layer: 1,
         mode: JumpMode::Hold,
         delay_ms: None,
+        postpone: false,
     });
     p.mappings.push(shift);
     p.mappings.push(map(
