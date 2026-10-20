@@ -916,6 +916,17 @@
       "keep_offline_pads": "Keep the virtual controller when a controller with slots of its own disconnects",
       "locked_hint": "On the lock screen, Ctrl+Alt+Del and administrator prompts Doppelpad always pauses and lets go of everything."
     },
+    "http": {
+      "title": "Local API (HTTP)",
+      "hint": "Stream decks and scripts switch remapping and slots, load configs and read the state: the same requests as the command-line tool, plus an event stream (docs/API.md).",
+      "enabled": "Turn the API on",
+      "lan": "Reachable from the network too (then only with the token)",
+      "token": "Token",
+      "copy": "Copy the token",
+      "copied": "Token copied",
+      "new_token": "New token (the old one stops working)",
+      "status": "Running on http://{address}/api"
+    },
     "dsu": {
       "title": "Motion server (DSU)",
       "hint": "Emulators such as Cemu, Dolphin or Ryujinx read the controllers' buttons, sticks and gyro over the DSU (cemuhook) protocol. The first four controllers take slots 1–4.",

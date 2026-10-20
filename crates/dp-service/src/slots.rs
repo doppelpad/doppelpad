@@ -10,6 +10,7 @@ use dp_platform::groups::DeviceGroup;
 use serde::{Deserialize, Serialize};
 
 use crate::dsu::DsuSettings;
+use crate::httpapi::HttpSettings;
 
 /// Number of slots.
 pub const SLOTS: usize = 4;
@@ -53,6 +54,8 @@ pub struct SlotState {
     /// The DSU motion server for emulators.
     pub dsu: DsuSettings,
     pub runtime: RuntimeOptions,
+    /// The local HTTP API.
+    pub http: HttpSettings,
 }
 
 /// How remapping fits in with the rest of the system (`[runtime]` in state.toml).
@@ -107,6 +110,7 @@ impl Default for SlotState {
             layouts: Vec::new(),
             dsu: DsuSettings::default(),
             runtime: RuntimeOptions::default(),
+            http: HttpSettings::default(),
         }
     }
 }
@@ -132,6 +136,7 @@ struct StateFile {
     layouts: Vec<GenericLayout>,
     dsu: DsuSettings,
     runtime: RuntimeOptions,
+    http: HttpSettings,
 }
 
 #[derive(Default, Serialize, Deserialize)]
@@ -197,6 +202,7 @@ impl SlotState {
             layouts: file.layouts,
             dsu: file.dsu,
             runtime: file.runtime,
+            http: file.http,
         }
     }
 
@@ -226,6 +232,7 @@ impl SlotState {
             layouts: self.layouts.clone(),
             dsu: self.dsu,
             runtime: self.runtime,
+            http: self.http.clone(),
         };
         let text = toml::to_string_pretty(&file).map_err(std::io::Error::other)?;
         if let Some(dir) = path.parent() {

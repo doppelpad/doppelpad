@@ -7,6 +7,7 @@ pub mod calibration;
 pub mod dsu;
 pub mod host;
 pub mod hotkeys;
+pub mod httpapi;
 pub mod live;
 pub mod runtime;
 pub mod service;

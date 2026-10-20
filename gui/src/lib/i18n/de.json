@@ -916,6 +916,17 @@
       "keep_offline_pads": "Virtuellen Controller behalten, wenn ein Controller mit eigenen Slots getrennt wird",
       "locked_hint": "Bei gesperrtem Bildschirm, Strg+Alt+Entf und Administrator-Abfragen pausiert Doppelpad immer und lässt alles los."
     },
+    "http": {
+      "title": "Lokale Schnittstelle (HTTP)",
+      "hint": "Stream Decks und Skripte schalten Remapping und Slots, laden Configs und lesen den Zustand – dieselben Befehle wie das Kommandozeilenprogramm, dazu ein Ereignisstrom (docs/API.md).",
+      "enabled": "Schnittstelle einschalten",
+      "lan": "Auch aus dem Netzwerk erreichbar (dann nur mit Token)",
+      "token": "Token",
+      "copy": "Token kopieren",
+      "copied": "Token kopiert",
+      "new_token": "Neues Token (das alte gilt nicht mehr)",
+      "status": "Läuft auf http://{address}/api"
+    },
     "dsu": {
       "title": "Bewegungsserver (DSU)",
       "hint": "Emulatoren wie Cemu, Dolphin oder Ryujinx lesen über das DSU-Protokoll (cemuhook) Tasten, Sticks und Gyro der Controller. Die ersten vier Controller bekommen die Plätze 1–4.",

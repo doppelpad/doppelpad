@@ -304,6 +304,10 @@ layer's menu can **Save as preset …** (its settings, mappings and routes); pre
 appear in every layer menu as **Insert preset: …**, which adds them as a new layer (layer
 switches to layers the config does not have are dropped).
 
+*Settings → Local API (HTTP)* lets stream decks and scripts switch remapping and slots, load
+configs and follow changes; see [API.md](API.md). It is off by default, answers only this PC
+unless the network is allowed, and then only with its token.
+
 *Settings → While remapping*: Doppelpad keeps the PC awake while a mapping plays input (a
 macro, a toggle that holds a key); it can pause remapping while the config's game is not in
 front (configs of a game folder, or with program names of their own), and a controller with

@@ -5,6 +5,7 @@
   import { app } from '../lib/state/app.svelte';
   import type { Corner, MappingsOverlaySettings, OsdSettings, PadOverlaySettings, PlayerLights, RewasdChoice } from '../lib/types';
   import DeviceSettings from './DeviceSettings.svelte';
+  import ApiSettings from './ApiSettings.svelte';
   import DsuSettings from './DsuSettings.svelte';
   import RuntimeSettings from './RuntimeSettings.svelte';
   import HotkeySettings from './HotkeySettings.svelte';
@@ -203,6 +204,8 @@
     <RuntimeSettings />
 
     <DsuSettings />
+
+    <ApiSettings />
 
     {#if app.live}
       {@const live = app.live}
