@@ -17,6 +17,7 @@ use dp_core::profile::{
     RadialSector, StickConfig, Timing, TouchpadSettings, TriggerConfig, Vibration, VirtualStick,
 };
 use dp_ipc::Request;
+use dp_platform::groups::DeviceGroup;
 use dp_service::{LiveState, PlayerLights, ServiceCmd, ServiceHandle, ServiceReply};
 use serde::Serialize;
 use tauri::ipc::Channel;
@@ -327,6 +328,18 @@ pub fn set_remap(state: State<AppState>, on: bool) -> CmdResult<String> {
 #[tauri::command]
 pub fn set_auto_switch(state: State<AppState>, on: bool) -> CmdResult<String> {
     state.call(ServiceCmd::SetAutoSwitch(on))
+}
+
+/// Ignore a device completely, or use it again.
+#[tauri::command]
+pub fn set_blocked(state: State<AppState>, id: String, blocked: bool) -> CmdResult<String> {
+    state.call(ServiceCmd::SetBlocked { id, blocked })
+}
+
+/// Replace the groups of controllers that act as one.
+#[tauri::command]
+pub fn set_groups(state: State<AppState>, groups: Vec<DeviceGroup>) -> CmdResult<String> {
+    state.call(ServiceCmd::SetGroups(groups))
 }
 
 /// What the controllers' player lights and microphone LED show.

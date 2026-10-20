@@ -4,6 +4,7 @@
   import { LANGUAGES, t } from '../lib/i18n/index.svelte';
   import { app } from '../lib/state/app.svelte';
   import type { Corner, MappingsOverlaySettings, OsdSettings, PadOverlaySettings, PlayerLights, RewasdChoice } from '../lib/types';
+  import DeviceSettings from './DeviceSettings.svelte';
   import HotkeySettings from './HotkeySettings.svelte';
   import Slider from './ui/Slider.svelte';
   import Toggle from './ui/Toggle.svelte';
@@ -183,6 +184,8 @@
         <Slider label={t('settings.osd.seconds')} value={osd.seconds} def={5} min={1} max={30} step={1} unit="s" onchange={(v) => setOsd({ seconds: v })} />
       {/if}
     </div>
+
+    <DeviceSettings />
 
     {#if app.live}
       {@const live = app.live}

@@ -262,6 +262,15 @@ controller while it is connected. The shared slots keep running on the other con
 Keyboard and mouse belong to the shared slots' config. Remap ON/OFF switches all of them;
 *Autodetect* changes the shared slots only. Each config hides only its own controller.
 
+*Settings → Controllers* lists every connected device. Untick one (or choose **Ignore this
+controller** in its menu) and Doppelpad leaves it alone completely: no input, no hiding, no
+hotkeys. **Groups** play several controllers as one, for example a second pad for a friend
+who only presses a few buttons: buttons of either count, each stick and trigger follows
+whichever is pushed further, motion and touch come from the first controller that has them,
+and rumble, lights and trigger effects go to all of them. A group appears as one controller
+with its own name and can have slots of its own. Keyboard and mouse cannot join a group;
+they always count for everyone.
+
 ## Controller hotkeys
 
 *Settings → Controller hotkeys* sets button combos that work in every config, with

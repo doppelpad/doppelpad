@@ -9,8 +9,8 @@
 
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::Arc;
 use std::sync::atomic::Ordering;
+use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 use anyhow::{Context, Result};
@@ -25,6 +25,7 @@ use dp_core::profile::{
     AnalogSource, Command, Crosshair, Profile, RadialMenu, TriggerEffect, VirtualPadType,
 };
 use dp_core::repeat::KeyRepeater;
+use dp_platform::groups::{DevicePolicy, Grouping, SeenDevice};
 use dp_platform::{
     CaptureFilter, DeviceId, KbmEvent, Leds, PadSnapshot, Platform, PowerAction, TriggerEffects,
     VirtualIgnoreList, VirtualPad, VirtualPadKind,
@@ -210,6 +211,10 @@ pub struct Runtime {
     mappings_overlay: bool,
     /// Player lights and microphone LED last sent, per controller.
     sent_leds: HashMap<DeviceId, Leds>,
+    /// Blocked devices and device groups, applied by the wrapper around the backends.
+    policy: Arc<Mutex<DevicePolicy>>,
+    /// Every device the backends report, before blocking and grouping.
+    seen: Arc<Mutex<Vec<SeenDevice>>>,
 }
 
 /// One full in-game turn sent as mouse motion, so the user can check `counts_per_turn`.
@@ -456,9 +461,15 @@ impl Runtime {
     }
 
     /// Runtime on explicit backends (tests use `NullPlatform::platform()`).
-    pub fn with_platform(platform: Platform) -> Self {
+    pub fn with_platform(mut platform: Platform) -> Self {
+        let policy = Arc::new(Mutex::new(DevicePolicy::default()));
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let inner = std::mem::take(&mut platform.gamepads);
+        platform.gamepads = vec![Box::new(Grouping::new(inner, policy.clone(), seen.clone()))];
         Runtime {
             platform,
+            policy,
+            seen,
             sessions: Vec::new(),
             filter: CaptureFilter::new(),
             kbm_rx: None,
@@ -588,6 +599,16 @@ impl Runtime {
     /// Whether the live controller overlay and the mappings overlay are on.
     pub fn overlays(&self) -> (bool, bool) {
         (self.pad_overlay, self.mappings_overlay)
+    }
+
+    /// Ignore the blocked devices and play each group as one controller.
+    pub fn set_device_policy(&mut self, policy: DevicePolicy) {
+        *self.policy.lock().unwrap() = policy;
+    }
+
+    /// Every device the backends report, blocked and grouped ones included.
+    pub fn seen_devices(&self) -> Vec<SeenDevice> {
+        self.seen.lock().unwrap().clone()
     }
 
     /// Show `leds(controller)` on every connected controller, sending only changes.

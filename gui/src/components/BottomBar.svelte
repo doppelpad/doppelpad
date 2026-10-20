@@ -64,6 +64,10 @@
           app.slotDevice = own ? null : d.id;
         },
       },
+      // A group's own id cannot be ignored; its members can, in the settings.
+      ...(d.id.startsWith('group:')
+        ? []
+        : [{ label: t('devices.ignore'), onclick: () => run(api.setBlocked(d.id, true)) }]),
     ];
   }
 

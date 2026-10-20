@@ -159,6 +159,12 @@ export interface Light {
 /** What the controllers' player lights show. */
 export type PlayerLights = 'while_remapping' | 'always' | 'off';
 
+/** Controllers that act as one (`group:<name>`), the first member leading. */
+export interface DeviceGroup {
+  name: string;
+  members: string[];
+}
+
 export type CrosshairShape =
   | 'cross'
   | 'cross_gap'
@@ -492,6 +498,11 @@ export interface LiveState {
   auto_switch: boolean;
   player_lights: PlayerLights;
   mic_led: boolean;
+  /** Every device the backends report, blocked and grouped ones included. */
+  seen_devices: { id: string; name: string }[];
+  /** Devices Doppelpad ignores. */
+  blocked: string[];
+  groups: DeviceGroup[];
   suspended: boolean;
   foreground: string | null;
   virtual_pad: string | null;

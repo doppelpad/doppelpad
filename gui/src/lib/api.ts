@@ -4,6 +4,7 @@ import { Channel, invoke } from '@tauri-apps/api/core';
 import type {
   Catalog,
   DiagMsg,
+  DeviceGroup,
   Game,
   GameMeta,
   GuiSettings,
@@ -72,6 +73,9 @@ export const api = {
   /** Show a sample on-screen notification. */
   /** What the player lights and the microphone LED show. */
   setLights: (player: PlayerLights, mic: boolean) => invoke<string>('set_lights', { player, mic }),
+  /** Ignore a device completely, or use it again. */
+  setBlocked: (id: string, blocked: boolean) => invoke<string>('set_blocked', { id, blocked }),
+  setGroups: (groups: DeviceGroup[]) => invoke<string>('set_groups', { groups }),
   osdTest: () => invoke<void>('osd_test'),
   /** Sizes of the monitors, the primary one first. */
   osdMonitors: () => invoke<string[]>('osd_monitors'),
