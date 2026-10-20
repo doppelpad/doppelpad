@@ -3,6 +3,7 @@
 
 use dp_core::pad::PadState;
 use dp_core::profile::{Crosshair, RadialMenu};
+use dp_platform::groups::{DeviceGroup, SeenDevice};
 use dp_platform::{Battery, PadFamily};
 use serde::Serialize;
 
@@ -49,6 +50,11 @@ pub struct LiveState {
     pub auto_switch: bool,
     pub player_lights: PlayerLights,
     pub mic_led: bool,
+    /// Every device the backends report, blocked and grouped ones included.
+    pub seen_devices: Vec<SeenDevice>,
+    /// Devices Doppelpad ignores.
+    pub blocked: Vec<String>,
+    pub groups: Vec<DeviceGroup>,
     /// Remapping is paused (the editor has focus).
     pub suspended: bool,
     /// Executable of the foreground application.

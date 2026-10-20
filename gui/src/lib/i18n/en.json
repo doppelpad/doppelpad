@@ -755,6 +755,17 @@
     "use": "Use this controller",
     "own_slots": "Own slots for this controller",
     "own_hint": "This controller has slots of its own: its own config and virtual controller",
+    "ignore": "Ignore this controller",
+    "settings": {
+      "title": "Controllers",
+      "hint": "Doppelpad uses the ticked devices and ignores the others completely (no input, no hiding). Groups play several controllers as one: one config, one set of slots.",
+      "ignored": "ignored",
+      "groups": "Groups",
+      "group_name": "Name of the group",
+      "make_group": "Make a group",
+      "ungroup": "Break up the group",
+      "group_hint": "Connect two controllers to group them. Keyboard and mouse always count for everyone."
+    },
     "battery": "Battery {level} %",
     "battery_charging": "Battery {level} %, charging"
   },

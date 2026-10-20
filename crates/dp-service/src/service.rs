@@ -9,6 +9,7 @@ use dp_core::hotkeys::{HotkeyAction, Hotkeys};
 use dp_core::profile::Profile;
 use dp_ipc::{Device, Request, Response, Status};
 use dp_platform::Leds;
+use dp_platform::groups::{DeviceGroup, DevicePolicy};
 
 use crate::live::{LiveDevice, LiveState};
 use crate::runtime::{DriverStatus, Runtime};
@@ -95,6 +96,13 @@ pub enum ServiceCmd {
         player: PlayerLights,
         mic: bool,
     },
+    /// Ignore a device completely, or use it again.
+    SetBlocked {
+        id: String,
+        blocked: bool,
+    },
+    /// Replace the device groups.
+    SetGroups(Vec<DeviceGroup>),
     /// Re-probe ViGEmBus / HidHide now.
     RefreshDrivers,
     /// Look for controllers now, e.g. after another program released them.
@@ -230,6 +238,7 @@ impl Service {
             calibration_saved: None,
             opts,
         };
+        svc.apply_device_policy();
         svc.reload();
         if let Some(p) = svc.oneoff.clone() {
             svc.apply_path(&p)?;
@@ -644,6 +653,31 @@ impl Service {
                 self.set_auto_switch(on);
                 ServiceReply::Ok(format!("auto-switch {}", if on { "on" } else { "off" }))
             }
+            ServiceCmd::SetBlocked { id, blocked } => {
+                self.state.blocked.retain(|b| *b != id);
+                if blocked {
+                    self.state.blocked.push(id);
+                }
+                self.apply_device_policy();
+                self.save_state();
+                ServiceReply::Ok(
+                    if blocked {
+                        "device ignored"
+                    } else {
+                        "device used again"
+                    }
+                    .into(),
+                )
+            }
+            ServiceCmd::SetGroups(groups) => match group_problem(&groups) {
+                Some(e) => ServiceReply::Err(e),
+                None => {
+                    self.state.groups = groups;
+                    self.apply_device_policy();
+                    self.save_state();
+                    ServiceReply::Ok("device groups set".into())
+                }
+            },
             ServiceCmd::SetLights { player, mic } => {
                 self.state.player_lights = player;
                 self.state.mic_led = mic;
@@ -767,6 +801,13 @@ impl Service {
             }
             self.calibration_saved = Some(now);
         }
+    }
+
+    fn apply_device_policy(&mut self) {
+        self.rt.set_device_policy(DevicePolicy {
+            blocked: self.state.blocked.clone(),
+            groups: self.state.groups.clone(),
+        });
     }
 
     /// Player lights and microphone LED of every controller, from the slots and remapping.
@@ -917,6 +958,9 @@ impl Service {
             remap_on: self.state.remap_on,
             player_lights: self.state.player_lights,
             mic_led: self.state.mic_led,
+            seen_devices: self.rt.seen_devices(),
+            blocked: self.state.blocked.clone(),
+            groups: self.state.groups.clone(),
             auto_switch: self.state.auto_switch,
             suspended: self.rt.is_suspended(),
             foreground: self.foreground.clone(),
@@ -962,6 +1006,32 @@ impl Service {
     }
 }
 
+/// What is wrong with a set of device groups, if anything.
+fn group_problem(groups: &[DeviceGroup]) -> Option<String> {
+    for (i, g) in groups.iter().enumerate() {
+        if g.name.trim().is_empty() {
+            return Some("a device group needs a name".into());
+        }
+        if groups[..i].iter().any(|o| o.name == g.name) {
+            return Some(format!("there are two device groups named {}", g.name));
+        }
+        if g.members.len() < 2 {
+            return Some(format!(
+                "device group {} needs at least two controllers",
+                g.name
+            ));
+        }
+        if let Some(m) = g
+            .members
+            .iter()
+            .find(|m| groups[..i].iter().any(|o| o.members.contains(m)))
+        {
+            return Some(format!("{m} is in two device groups"));
+        }
+    }
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use std::sync::{Arc, Mutex};
@@ -969,6 +1039,17 @@ mod tests {
     use dp_platform::{ForegroundWatcher, NullPlatform};
 
     use super::*;
+    #[test]
+    fn device_groups_need_names_and_distinct_members() {
+        let g = |name: &str, members: &[&str]| DeviceGroup {
+            name: name.into(),
+            members: members.iter().map(|m| m.to_string()).collect(),
+        };
+        assert_eq!(group_problem(&[g("Pair", &["a", "b"])]), None);
+        assert!(group_problem(&[g("", &["a", "b"])]).is_some());
+        assert!(group_problem(&[g("Solo", &["a"])]).is_some());
+        assert!(group_problem(&[g("P", &["a", "b"]), g("Q", &["b", "c"])]).is_some());
+    }
 
     struct FakeForeground(Arc<Mutex<Option<String>>>);
 

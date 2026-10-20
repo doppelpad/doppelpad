@@ -755,6 +755,17 @@
     "use": "Diesen Controller verwenden",
     "own_slots": "Eigene Slots für diesen Controller",
     "own_hint": "Dieser Controller hat eigene Slots: eigene Config und eigener virtueller Controller",
+    "ignore": "Diesen Controller ignorieren",
+    "settings": {
+      "title": "Controller",
+      "hint": "Abgehakte Geräte nutzt Doppelpad; die anderen ignoriert es ganz (keine Eingabe, kein Ausblenden). Gruppen spielen mehrere Controller als einen: eine Config, ein Satz Slots.",
+      "ignored": "ignoriert",
+      "groups": "Gruppen",
+      "group_name": "Name der Gruppe",
+      "make_group": "Gruppe bilden",
+      "ungroup": "Gruppe auflösen",
+      "group_hint": "Schließe zwei Controller an, um sie zu gruppieren. Tastatur und Maus gelten immer für alle."
+    },
     "battery": "Akku {level} %",
     "battery_charging": "Akku {level} %, lädt"
   },

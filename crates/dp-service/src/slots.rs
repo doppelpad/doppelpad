@@ -5,6 +5,7 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
+use dp_platform::groups::DeviceGroup;
 use serde::{Deserialize, Serialize};
 
 /// Number of slots.
@@ -38,6 +39,10 @@ pub struct SlotState {
     pub player_lights: PlayerLights,
     /// The DualSense microphone LED shows whether remapping is on.
     pub mic_led: bool,
+    /// Devices Doppelpad ignores completely.
+    pub blocked: Vec<String>,
+    /// Controllers that act as one.
+    pub groups: Vec<DeviceGroup>,
 }
 
 /// What the player lights of a controller show.
@@ -63,6 +68,8 @@ impl Default for SlotState {
             devices: BTreeMap::new(),
             player_lights: PlayerLights::default(),
             mic_led: false,
+            blocked: Vec::new(),
+            groups: Vec::new(),
         }
     }
 }
@@ -79,6 +86,10 @@ struct StateFile {
     devices: BTreeMap<String, DeviceFile>,
     player_lights: PlayerLights,
     mic_led: bool,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    blocked: Vec<String>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    groups: Vec<DeviceGroup>,
 }
 
 #[derive(Default, Serialize, Deserialize)]
@@ -138,6 +149,8 @@ impl SlotState {
                 .collect(),
             player_lights: file.player_lights,
             mic_led: file.mic_led,
+            blocked: file.blocked,
+            groups: file.groups,
         }
     }
 
@@ -161,6 +174,8 @@ impl SlotState {
                 .collect(),
             player_lights: self.player_lights,
             mic_led: self.mic_led,
+            blocked: self.blocked.clone(),
+            groups: self.groups.clone(),
         };
         let text = toml::to_string_pretty(&file).map_err(std::io::Error::other)?;
         if let Some(dir) = path.parent() {

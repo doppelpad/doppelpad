@@ -28,6 +28,7 @@ pub mod windows;
 #[cfg(any(target_os = "linux", test))]
 pub mod linux;
 
+pub mod groups;
 pub mod joycon;
 pub mod nintendo;
 mod null;

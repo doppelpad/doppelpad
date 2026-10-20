@@ -148,6 +148,8 @@ fn main() {
             commands::set_remap,
             commands::set_auto_switch,
             commands::set_lights,
+            commands::set_blocked,
+            commands::set_groups,
             commands::set_preferred_device,
             commands::refresh_drivers,
             commands::hotkeys_get,
