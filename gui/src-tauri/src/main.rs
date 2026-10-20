@@ -10,6 +10,7 @@ mod crosshair;
 mod logging;
 mod osd;
 mod overlay;
+mod radial;
 mod settings;
 #[cfg(test)]
 mod tests;
@@ -88,12 +89,14 @@ fn main() {
                 profiles_dir,
                 notices: Mutex::new(notices),
                 live_generation: Arc::new(AtomicU64::new(0)),
+                main_focused: std::sync::atomic::AtomicBool::new(false),
             });
             app.manage(overlay::Overlays::default());
             app.manage(osd::OsdState::default());
             tray::create(app.handle())?;
             osd::start(app.handle())?;
             crosshair::start(app.handle())?;
+            radial::start(app.handle())?;
 
             // Started with Windows: only the tray icon shows.
             let window = create_main_window(app, !autostart::started_hidden())?;
@@ -103,6 +106,9 @@ fn main() {
                 match event {
                     // Pause remapping while editing so mapped keys don't reach the editor.
                     WindowEvent::Focused(focused) => {
+                        state
+                            .main_focused
+                            .store(*focused, std::sync::atomic::Ordering::Relaxed);
                         let stay_live = state.settings.lock().unwrap().stay_live;
                         let _ = state.call(ServiceCmd::SetSuspended(*focused && !stay_live));
                     }

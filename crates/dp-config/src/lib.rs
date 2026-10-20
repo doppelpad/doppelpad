@@ -275,6 +275,7 @@ pub fn validate(p: &Profile) -> Diagnostics {
         }
     }
     check_crosshairs(&mut d, p);
+    check_radial(&mut d, p);
     for (i, l) in p.layers.iter().enumerate() {
         // Only the sides a layer changes are checked again.
         let changed = [
@@ -307,6 +308,71 @@ pub fn validate(p: &Profile) -> Diagnostics {
 /// `#rrggbb`.
 fn is_hex_color(s: &str) -> bool {
     s.len() == 7 && s.starts_with('#') && s[1..].chars().all(|c| c.is_ascii_hexdigit())
+}
+
+fn check_radial(d: &mut Diagnostics, p: &Profile) {
+    let declared: Vec<u8> = p.layers.iter().map(|l| l.id).collect();
+    for (i, m) in p.radial_menus.iter().enumerate() {
+        let path = format!("radial_menus[{i}]");
+        if m.sectors.is_empty() || m.sectors.len() > 12 {
+            d.error(&path, "a radial menu has 1–12 sectors");
+        }
+        if !(0.0..=1.0).contains(&m.tint) || !(0.5..=2.0).contains(&m.scale) || m.delay_ms > 5000 {
+            d.error(
+                &path,
+                "tint must be 0–1, scale 0.5–2 and delay_ms at most 5000",
+            );
+        }
+        if m.layer == 0 {
+            if !p
+                .radial_menus
+                .iter()
+                .flat_map(|o| &o.sectors)
+                .any(|s| s.submenu == Some(i as u8 + 1))
+            {
+                d.info(
+                    &path,
+                    "layer 0 opens no menu; this one is no one's sub-menu either",
+                );
+            }
+        } else if !declared.contains(&m.layer)
+            && !p
+                .mappings
+                .iter()
+                .any(|o| o.jump.as_ref().is_some_and(|j| j.layer == m.layer))
+        {
+            d.warn(
+                &path,
+                format!(
+                    "nothing activates layer {}, so the menu never opens",
+                    m.layer
+                ),
+            );
+        }
+        if p.radial_menus[..i]
+            .iter()
+            .any(|o| o.layer == m.layer && m.layer != 0)
+        {
+            d.warn(
+                &path,
+                format!(
+                    "another menu already opens with layer {}; this one never does",
+                    m.layer
+                ),
+            );
+        }
+        for (k, s) in m.sectors.iter().enumerate() {
+            let spath = format!("{path}.sectors[{k}]");
+            if !s.color.is_empty() && !is_hex_color(&s.color) {
+                d.error(&spath, "colours are written #rrggbb");
+            }
+            if let Some(n) = s.submenu
+                && (n == 0 || n as usize > p.radial_menus.len() || n as usize == i + 1)
+            {
+                d.error(&spath, format!("there is no other menu {n} to open"));
+            }
+        }
+    }
 }
 
 fn check_crosshairs(d: &mut Diagnostics, p: &Profile) {

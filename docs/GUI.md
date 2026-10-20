@@ -60,6 +60,9 @@ only edits profiles and sends commands.
    *Config settings* also hold the **crosshairs**: shape, colours, size, line width, outline,
    offset and an optional magnifier, and the layers that show each one; the action picker's
    commands show them (*Show crosshair N*, *Crosshair on/off*).
+   **Radial menus** live there too: the layer that opens each one, what points at a sector
+   (a stick, the mouse or commands), when the pointed sector runs, and per sector its label,
+   icon (a built-in set or an image file), colour and actions or sub-menu.
    A layer change can wait for a **Delay**; *Run the actions at the layer change* then holds
    the mapping's own actions back until the jump. *Config settings* decide whether held
    buttons are re-pressed when the layer changes.

@@ -3,6 +3,7 @@
   import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
   import CrosshairOverlay from './CrosshairOverlay.svelte';
   import Osd from './Osd.svelte';
+  import RadialOverlay from './RadialOverlay.svelte';
 
   const kind = getCurrentWebviewWindow().label.replace(/^overlay-/, '');
 </script>
@@ -11,6 +12,8 @@
   <Osd />
 {:else if kind === 'crosshair'}
   <CrosshairOverlay />
+{:else if kind === 'radial'}
+  <RadialOverlay />
 {/if}
 
 <style>

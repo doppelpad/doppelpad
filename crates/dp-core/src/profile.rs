@@ -51,6 +51,104 @@ pub struct Profile {
     /// Crosshairs drawn over the game (`[[crosshairs]]`, at most ten).
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub crosshairs: Vec<Crosshair>,
+    /// Radial menus (`[[radial_menus]]`), each shown while its layer is active.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub radial_menus: Vec<RadialMenu>,
+}
+
+/// A ring of sectors over the game. It opens when its layer becomes active; a stick, the
+/// mouse or commands point at a sector, and leaving the layer (or the apply command) runs it.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct RadialMenu {
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub name: String,
+    /// The menu is open while this layer is active (0: only as a sub-menu).
+    pub layer: u8,
+    pub select: RadialSelect,
+    pub apply: RadialApply,
+    /// Show only after the layer has been active this long, so quick presses don't flash it.
+    pub delay_ms: u32,
+    /// Darken the screen behind the menu this much, 0–1.
+    pub tint: f32,
+    /// Size, 0.5–2 (1: 400 logical pixels across).
+    pub scale: f32,
+    /// Pixels from the centre of the primary monitor, right and down.
+    pub offset: [i16; 2],
+    pub sectors: Vec<RadialSector>,
+}
+
+impl Default for RadialMenu {
+    fn default() -> Self {
+        RadialMenu {
+            name: String::new(),
+            layer: 1,
+            select: RadialSelect::RightStick,
+            apply: RadialApply::Release,
+            delay_ms: 0,
+            tint: 0.0,
+            scale: 1.0,
+            offset: [0, 0],
+            sectors: Vec::new(),
+        }
+    }
+}
+
+/// What points at a sector of an open radial menu.
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RadialSelect {
+    LeftStick,
+    #[default]
+    RightStick,
+    Mouse,
+    /// Only the radial commands (next, previous, up, down, ...).
+    Commands,
+}
+
+/// When the pointed sector runs.
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RadialApply {
+    /// When the menu's layer ends (the opening button is let go).
+    #[default]
+    Release,
+    /// Only with the `radial_apply` command.
+    Command,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct RadialSector {
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub label: String,
+    /// An icon name of the app's set, or the path of an image file.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub icon: String,
+    /// `#rrggbb`; empty for the accent colour.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub color: String,
+    /// What the sector does, played once.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub actions: Vec<Action>,
+    /// Open this menu (1-based) instead.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub submenu: Option<u8>,
+    /// Close the menu after running (with the apply command).
+    pub close: bool,
+}
+
+impl Default for RadialSector {
+    fn default() -> Self {
+        RadialSector {
+            label: String::new(),
+            icon: String::new(),
+            color: String::new(),
+            actions: Vec::new(),
+            submenu: None,
+            close: true,
+        }
+    }
 }
 
 /// A crosshair drawn over the game, shown by a command or while one of its layers is active.
@@ -1414,6 +1512,18 @@ pub enum Command {
     Crosshair(u8),
     /// Hide the crosshair that shows, or bring back the last one.
     ToggleCrosshair,
+    /// Open radial menu: point at the next sector clockwise.
+    RadialNext,
+    RadialPrev,
+    /// Point at the sector in that direction.
+    RadialUp,
+    RadialDown,
+    RadialLeft,
+    RadialRight,
+    /// Run the pointed sector (or open its sub-menu).
+    RadialApply,
+    /// Back to the parent menu, or close the menu.
+    RadialBack,
     /// Launch a program.
     Launch {
         path: String,

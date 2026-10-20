@@ -7,8 +7,8 @@ use crate::control::{Control, TouchGesture};
 use crate::keys::{Key, MouseButton, WheelDir};
 use crate::pad::{PadButton, Stick, Trigger};
 use crate::profile::{
-    Action, Activator, AnalogMapping, AnalogSource, Command, JumpMode, Mapping, Mode, Press,
-    Profile, ShakeAxis,
+    Action, Activator, AnalogMapping, AnalogSource, Combo, Command, JumpMode, Mapping, Mode, Press,
+    Profile, RadialSelect, ShakeAxis,
 };
 
 pub type MaskId = usize;
@@ -242,6 +242,8 @@ pub struct Compiled {
     pub layers: BTreeMap<u8, LayerTable>,
     pub routes: Vec<AnalogMapping>,
     pub warnings: Vec<String>,
+    /// The binding of every radial menu sector, per menu.
+    pub radial: Vec<Vec<BindingId>>,
 }
 
 impl Compiled {
@@ -486,63 +488,74 @@ impl MaskTable {
     }
 }
 
+/// The binding a mapping compiles to.
+fn make_binding(
+    p: &Profile,
+    m: &Mapping,
+    jump: JumpTarget,
+    mt: &mut MaskTable,
+    warnings: &mut Vec<String>,
+) -> Binding {
+    let key_delay = m.key_delay_ms.unwrap_or(p.timing.key_delay_ms);
+    let turbo_ms = m.turbo_ms.unwrap_or(p.timing.turbo_ms).max(10);
+    let mut mode = m.mode;
+    let mut activator = m.activator;
+    // Release cannot hold/turbo/toggle; Start cannot toggle.
+    if activator == Activator::Release
+        && matches!(
+            mode,
+            Mode::Hold | Mode::Turbo | Mode::Toggle | Mode::WhileHeld
+        )
+    {
+        mode = Mode::Once;
+    }
+    if activator == Activator::Start && mode == Mode::Toggle {
+        mode = Mode::Hold;
+    }
+    if m.trigger.0.iter().any(|c| c.is_momentary()) && matches!(mode, Mode::Toggle) {
+        warnings.push(format!(
+            "{}: toggle on a wheel trigger behaves like hold",
+            m.trigger
+        ));
+        activator = Activator::Single;
+    }
+    // Segments play one per activation, so they cannot pulse, latch or repeat.
+    let segs = segments(&m.actions);
+    if segs.len() > 1 || m.actions.iter().any(Action::is_break) {
+        mode = match mode {
+            Mode::Turbo | Mode::Toggle => Mode::Hold,
+            Mode::Repeat | Mode::WhileHeld => Mode::Once,
+            other => other,
+        };
+    }
+    let mask = mt.id(&m.trigger.0);
+    Binding {
+        mask,
+        layer: m.layer,
+        activator,
+        mode,
+        hold_programs: segs.iter().map(|s| hold_program(s, key_delay)).collect(),
+        run_programs: segs.iter().map(|s| run_program(s, key_delay)).collect(),
+        pulse_program: pulse_program(&m.actions, turbo_ms),
+        holdable: is_holdable(&m.actions),
+        jump,
+        turbo_ms,
+        repeat: m.repeat.unwrap_or(1).clamp(1, 9999),
+        repeat_pause_ms: m.repeat_pause_ms.unwrap_or(0),
+        random_ms: m.random_ms.unwrap_or(0),
+        has_pad_output: has_pad_output(&m.actions),
+        is_unmap: m.actions.is_empty() && jump.is_none(),
+        description: m.description.clone(),
+    }
+}
+
 pub fn compile(p: &Profile) -> Compiled {
     let mut warnings = Vec::new();
     let mut mt = MaskTable::default();
 
     let mut bindings = Vec::new();
     for (m, jump) in expand_jumps(&p.mappings) {
-        let key_delay = m.key_delay_ms.unwrap_or(p.timing.key_delay_ms);
-        let turbo_ms = m.turbo_ms.unwrap_or(p.timing.turbo_ms).max(10);
-        let mut mode = m.mode;
-        let mut activator = m.activator;
-        // Release cannot hold/turbo/toggle; Start cannot toggle.
-        if activator == Activator::Release
-            && matches!(
-                mode,
-                Mode::Hold | Mode::Turbo | Mode::Toggle | Mode::WhileHeld
-            )
-        {
-            mode = Mode::Once;
-        }
-        if activator == Activator::Start && mode == Mode::Toggle {
-            mode = Mode::Hold;
-        }
-        if m.trigger.0.iter().any(|c| c.is_momentary()) && matches!(mode, Mode::Toggle) {
-            warnings.push(format!(
-                "{}: toggle on a wheel trigger behaves like hold",
-                m.trigger
-            ));
-            activator = Activator::Single;
-        }
-        // Segments play one per activation, so they cannot pulse, latch or repeat.
-        let segs = segments(&m.actions);
-        if segs.len() > 1 || m.actions.iter().any(Action::is_break) {
-            mode = match mode {
-                Mode::Turbo | Mode::Toggle => Mode::Hold,
-                Mode::Repeat | Mode::WhileHeld => Mode::Once,
-                other => other,
-            };
-        }
-        let mask = mt.id(&m.trigger.0);
-        bindings.push(Binding {
-            mask,
-            layer: m.layer,
-            activator,
-            mode,
-            hold_programs: segs.iter().map(|s| hold_program(s, key_delay)).collect(),
-            run_programs: segs.iter().map(|s| run_program(s, key_delay)).collect(),
-            pulse_program: pulse_program(&m.actions, turbo_ms),
-            holdable: is_holdable(&m.actions),
-            jump,
-            turbo_ms,
-            repeat: m.repeat.unwrap_or(1).clamp(1, 9999),
-            repeat_pause_ms: m.repeat_pause_ms.unwrap_or(0),
-            random_ms: m.random_ms.unwrap_or(0),
-            has_pad_output: has_pad_output(&m.actions),
-            is_unmap: m.actions.is_empty() && jump.is_none(),
-            description: m.description.clone(),
-        });
+        bindings.push(make_binding(p, &m, jump, &mut mt, &mut warnings));
     }
 
     // Layer ids: 0 plus every declared or referenced layer.
@@ -670,12 +683,32 @@ pub fn compile(p: &Profile) -> Compiled {
         }
     }
 
+    // Radial sectors play like one-shot mappings that no input triggers; a menu pointed by
+    // the mouse keeps the cursor still while it is open.
+    let mut radial = Vec::new();
+    for menu in &p.radial_menus {
+        let mut ids = Vec::new();
+        for s in &menu.sectors {
+            let mut m = Mapping::new(Combo(Vec::new()), s.actions.clone());
+            m.mode = Mode::Once;
+            ids.push(bindings.len());
+            bindings.push(make_binding(p, &m, None, &mut mt, &mut warnings));
+        }
+        radial.push(ids);
+        if menu.select == RadialSelect::Mouse
+            && let Some(t) = layers.get_mut(&menu.layer)
+        {
+            t.muted.insert(Control::MouseMove(crate::control::Dir::Up));
+        }
+    }
+
     Compiled {
         masks: mt.masks,
         bindings,
         layers,
         routes: p.analog.clone(),
         warnings,
+        radial,
     }
 }
 

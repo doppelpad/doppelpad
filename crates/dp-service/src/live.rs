@@ -2,7 +2,7 @@
 //! input, the active profile and layer, slots, switches, warnings and driver status.
 
 use dp_core::pad::PadState;
-use dp_core::profile::Crosshair;
+use dp_core::profile::{Crosshair, RadialMenu};
 use dp_platform::{Battery, PadFamily};
 use serde::Serialize;
 
@@ -22,6 +22,13 @@ pub struct LiveDevice {
     pub gyro_calibration: Option<CalibrationStatus>,
     /// `None` when the controller does not report one.
     pub battery: Option<Battery>,
+}
+
+/// An open radial menu and the sector pointed at.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct LiveRadial {
+    pub menu: RadialMenu,
+    pub pointed: Option<usize>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize)]
@@ -53,6 +60,10 @@ pub struct LiveState {
     pub sessions: Vec<SessionInfo>,
     /// The crosshair to draw over the game.
     pub crosshair: Option<Crosshair>,
+    /// The radial menu open over the game.
+    pub radial: Option<LiveRadial>,
+    /// The running profile has radial menus (their window can be made ready).
+    pub has_radial: bool,
 }
 
 /// The slots of a controller that has its own.

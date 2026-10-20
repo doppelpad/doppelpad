@@ -906,6 +906,17 @@ impl Service {
                 .collect(),
             sessions: self.rt.sessions(),
             crosshair: self.rt.crosshair().cloned(),
+            radial: self
+                .rt
+                .radial()
+                .map(|(menu, pointed)| crate::live::LiveRadial {
+                    menu: menu.clone(),
+                    pointed,
+                }),
+            has_radial: self
+                .rt
+                .profile()
+                .is_some_and(|p| !p.radial_menus.is_empty()),
         }
     }
 

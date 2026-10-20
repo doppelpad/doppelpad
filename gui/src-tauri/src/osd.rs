@@ -242,9 +242,9 @@ fn expire(app: &AppHandle) -> bool {
 }
 
 fn main_focused(app: &AppHandle) -> bool {
-    app.get_webview_window("main")
-        .and_then(|w| w.is_focused().ok())
-        .unwrap_or(false)
+    app.state::<AppState>()
+        .main_focused
+        .load(std::sync::atomic::Ordering::Relaxed)
 }
 
 /// "Game › Config" for a config path.

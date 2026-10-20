@@ -297,6 +297,43 @@
       "brackets": "Corners"
     }
   },
+  "radial": {
+    "title": "Radial menus",
+    "hint": "A ring of sectors over the game. It opens while its layer is active; a stick, the mouse or the radial menu commands point at a sector.",
+    "name": "Name",
+    "remove": "Remove menu",
+    "add": "Add radial menu",
+    "layer": "Opens with layer",
+    "submenu_only": "Only as a sub-menu",
+    "no_layers": "First add a layer that opens the menu (for example while a button is held).",
+    "select": "Point with",
+    "selects": {
+      "right_stick": "Right stick",
+      "left_stick": "Left stick",
+      "mouse": "Mouse",
+      "commands": "Commands only"
+    },
+    "apply": "Run",
+    "applies": {
+      "release": "On release (the layer ends)",
+      "command": "With the “select” command"
+    },
+    "delay": "Delay",
+    "delay_hint": "Show only after this long, so quick presses don't flash it.",
+    "tint": "Darken the background",
+    "scale": "Size",
+    "scale_hint": "{px} pixels across.",
+    "label": "Label",
+    "no_icon": "No icon",
+    "image": "Own image",
+    "pick_image": "Choose an image file…",
+    "submenu": "What the sector does",
+    "actions": "Actions",
+    "opens": "Opens {name}",
+    "add_action": "Action",
+    "add_sector": "Add sector",
+    "remove_sector": "Remove sector"
+  },
   "picker": {
     "keyboard": "Keyboard",
     "mouse": "Mouse",
@@ -314,6 +351,14 @@
     "close_window": "Close the active window",
     "crosshair": "Show crosshair {n}",
     "toggle_crosshair": "Crosshair on/off",
+    "radial_next": "Radial menu: next sector",
+    "radial_prev": "Radial menu: previous sector",
+    "radial_up": "Radial menu: up",
+    "radial_down": "Radial menu: down",
+    "radial_left": "Radial menu: left",
+    "radial_right": "Radial menu: right",
+    "radial_apply": "Radial menu: select",
+    "radial_back": "Radial menu: back",
     "shutdown": "Shut down the PC",
     "restart": "Restart the PC",
     "sleep": "Sleep",

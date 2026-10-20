@@ -348,6 +348,14 @@ const COMMAND_LABELS: Record<string, string> = {
   screenshot: 'Screenshot',
   close_window: 'Close window',
   toggle_crosshair: 'Crosshair on/off',
+  radial_next: 'Radial: next',
+  radial_prev: 'Radial: previous',
+  radial_up: 'Radial: up',
+  radial_down: 'Radial: down',
+  radial_left: 'Radial: left',
+  radial_right: 'Radial: right',
+  radial_apply: 'Radial: select',
+  radial_back: 'Radial: back',
 };
 
 /** Commands that end the session or put the computer to sleep: the editor asks first. */

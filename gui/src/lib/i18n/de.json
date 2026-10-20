@@ -297,6 +297,43 @@
       "brackets": "Ecken"
     }
   },
+  "radial": {
+    "title": "Radialmenüs",
+    "hint": "Ein Ring aus Sektoren über dem Spiel. Er öffnet sich, solange seine Ebene aktiv ist; ein Stick, die Maus oder die Radialmenü-Befehle zeigen auf einen Sektor.",
+    "name": "Name",
+    "remove": "Menü entfernen",
+    "add": "Radialmenü hinzufügen",
+    "layer": "Öffnet mit Ebene",
+    "submenu_only": "Nur als Untermenü",
+    "no_layers": "Lege zuerst eine Ebene an, die das Menü öffnet (z. B. solange eine Taste gehalten wird).",
+    "select": "Zeigen mit",
+    "selects": {
+      "right_stick": "Rechter Stick",
+      "left_stick": "Linker Stick",
+      "mouse": "Maus",
+      "commands": "Nur Befehle"
+    },
+    "apply": "Ausführen",
+    "applies": {
+      "release": "Beim Loslassen (Ebene endet)",
+      "command": "Mit dem Befehl „auswählen“"
+    },
+    "delay": "Verzögerung",
+    "delay_hint": "Erst nach dieser Zeit zeigen, damit kurze Drücke nichts aufblitzen lassen.",
+    "tint": "Hintergrund abdunkeln",
+    "scale": "Größe",
+    "scale_hint": "{px} Pixel Durchmesser.",
+    "label": "Beschriftung",
+    "no_icon": "Kein Symbol",
+    "image": "Eigenes Bild",
+    "pick_image": "Bilddatei wählen…",
+    "submenu": "Was der Sektor tut",
+    "actions": "Aktionen",
+    "opens": "Öffnet {name}",
+    "add_action": "Aktion",
+    "add_sector": "Sektor hinzufügen",
+    "remove_sector": "Sektor entfernen"
+  },
   "picker": {
     "keyboard": "Tastatur",
     "mouse": "Maus",
@@ -314,6 +351,14 @@
     "close_window": "Aktives Fenster schließen",
     "crosshair": "Fadenkreuz {n} zeigen",
     "toggle_crosshair": "Fadenkreuz an/aus",
+    "radial_next": "Radialmenü: nächster Sektor",
+    "radial_prev": "Radialmenü: voriger Sektor",
+    "radial_up": "Radialmenü: oben",
+    "radial_down": "Radialmenü: unten",
+    "radial_left": "Radialmenü: links",
+    "radial_right": "Radialmenü: rechts",
+    "radial_apply": "Radialmenü: auswählen",
+    "radial_back": "Radialmenü: zurück",
     "shutdown": "PC herunterfahren",
     "restart": "PC neu starten",
     "sleep": "Energie sparen",
