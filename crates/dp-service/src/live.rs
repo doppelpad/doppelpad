@@ -29,6 +29,8 @@ pub struct LiveState {
     pub profile: Option<String>,
     pub profile_path: Option<String>,
     pub layer: u8,
+    /// Name of the active layer, if it has one.
+    pub layer_name: Option<String>,
     /// Config file per slot.
     pub slots: Vec<Option<String>>,
     pub active_slot: usize,

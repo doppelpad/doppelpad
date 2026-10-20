@@ -76,7 +76,27 @@ class AppState {
   catalog = $state<Catalog | null>(null);
   library = $state<Library>({ games: [], unsorted: [], errors: [] });
   live = $state<LiveState | null>(null);
-  settings = $state<GuiSettings>({ language: 'en', stay_live: false, hook_buttons: true, rewasd_at_start: 'ask' });
+  /** Placeholder until the app's settings arrive. */
+  settings = $state<GuiSettings>({
+    language: 'en',
+    stay_live: false,
+    hook_buttons: true,
+    rewasd_at_start: 'ask',
+    osd: {
+      enabled: true,
+      remap: true,
+      slot: true,
+      layer: true,
+      keep_layer: false,
+      controller: true,
+      battery: true,
+      monitor: 0,
+      corner: 'bottom_right',
+      scale: 100,
+      opacity: 80,
+      seconds: 5,
+    },
+  });
   /** `null` when reWASD is not installed. */
   rewasd = $state<RewasdStatus | null>(null);
   /** The start-up question whether to quit reWASD is open. */

@@ -9,6 +9,7 @@ mod hid;
 mod hidhide;
 mod hidio;
 mod osinfo;
+pub mod overlay;
 mod process;
 pub mod rewasd;
 mod sendinput;

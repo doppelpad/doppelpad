@@ -68,6 +68,10 @@ export const api = {
 
   settingsGet: () => invoke<GuiSettings>('settings_get'),
   settingsSet: (settings: GuiSettings) => invoke<void>('settings_set', { settings }),
+  /** Show a sample on-screen notification. */
+  osdTest: () => invoke<void>('osd_test'),
+  /** Sizes of the monitors, the primary one first. */
+  osdMonitors: () => invoke<string[]>('osd_monitors'),
   /** Start hidden in the tray when the user signs in; `null` where unsupported (not Windows). */
   autostartGet: () => invoke<boolean | null>('autostart_get'),
   autostartSet: (on: boolean) => invoke<void>('autostart_set', { on }),

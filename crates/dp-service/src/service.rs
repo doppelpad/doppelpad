@@ -868,6 +868,12 @@ impl Service {
             profile: self.rt.profile().map(|p| p.name.clone()),
             profile_path: self.rt.profile_path().map(|p| p.display().to_string()),
             layer: self.rt.layer(),
+            layer_name: self.rt.profile().and_then(|p| {
+                p.layers
+                    .iter()
+                    .find(|l| l.id == self.rt.layer() && !l.name.is_empty())
+                    .map(|l| l.name.clone())
+            }),
             slots: self
                 .state
                 .slots

@@ -119,7 +119,7 @@ fn dimmed(icon: &Image<'_>) -> Image<'static> {
 }
 
 /// "Game › Config", like the slot tooltips in the window.
-fn config_label(lib: &Library, path: &str) -> String {
+pub(crate) fn config_label(lib: &Library, path: &str) -> String {
     let path = Path::new(path);
     lib.games
         .iter()

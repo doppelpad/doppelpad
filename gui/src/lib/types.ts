@@ -339,6 +339,8 @@ export interface LiveState {
   profile: string | null;
   profile_path: string | null;
   layer: number;
+  /** Name of the active layer, if it has one. */
+  layer_name: string | null;
   slots: (string | null)[];
   active_slot: number;
   remap_on: boolean;
@@ -423,7 +425,42 @@ export interface GuiSettings {
   stay_live: boolean;
   hook_buttons: boolean;
   rewasd_at_start: RewasdChoice;
+  osd: OsdSettings;
 }
+
+export type Corner = 'top_left' | 'top_right' | 'bottom_left' | 'bottom_right';
+
+/** On-screen notifications over games. */
+export interface OsdSettings {
+  enabled: boolean;
+  remap: boolean;
+  slot: boolean;
+  layer: boolean;
+  /** Keep the layer message up while a layer other than Main is active. */
+  keep_layer: boolean;
+  controller: boolean;
+  battery: boolean;
+  /** Index into the monitors, the primary one first. */
+  monitor: number;
+  corner: Corner;
+  /** Percent. */
+  scale: number;
+  /** Percent. */
+  opacity: number;
+  seconds: number;
+}
+
+/** What an on-screen notification is about (sent by gui/src-tauri/src/osd.rs). */
+export type OsdEvent =
+  | { kind: 'remap_on' }
+  | { kind: 'remap_off' }
+  | { kind: 'slot'; slot: number; config: string | null }
+  | { kind: 'layer'; layer: number; name: string | null }
+  | { kind: 'connected'; name: string }
+  | { kind: 'disconnected'; name: string }
+  | { kind: 'test' };
+
+export type OsdMessage = OsdEvent & { id: number; lang: string; opacity: number; scale: number; corner: Corner };
 
 /** What of reWASD is running; it keeps the controllers to itself. */
 export interface RewasdStatus {
