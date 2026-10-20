@@ -34,7 +34,7 @@ import type {
 
 export type View = 'front' | 'back' | 'keyboard' | 'mouse' | 'shortcuts' | 'macro' | 'output' | 'analog';
 /** Pages of the analog view. */
-export type AnalogTab = 'left' | 'right' | 'triggers' | 'gyro' | 'routes';
+export type AnalogTab = 'left' | 'right' | 'triggers' | 'gyro' | 'touchpad' | 'routes';
 
 export interface Toast {
   id: number;

@@ -40,6 +40,12 @@ deadzone = 0.0
 zones = { low = 0.03 }       # where LT / RT and the zones start (see Zones)
 full_pull = 0.99             # LTFull / RTFull controls
 
+[touchpad]
+split = false                # left and right halves are two trackpads (Trackpad* controls)
+zones = "radial"             # "radial" (sectors around the centre) | "grid" (3 × 3 cells)
+centre = 0.35                # radial: radius of the centre region (fraction of half the pad)
+click_required = false       # regions only while the pad is clicked
+
 [gyro]
 mode = "motion"              # "motion" (turning) | "tilt" (the controller is a stick)
 steering = "roll"            # what GyroLeft/GyroRight follow: "roll" | "yaw"
@@ -119,6 +125,10 @@ every 25 ms; only a virtual DualShock 4 has motion sensors.
 | `LTLow` `LTMed` `LTHigh` (same for `RT…`) | Trigger pulled within a zone |
 | `TouchUp` `TouchDown` `TouchLeft` `TouchRight` `TouchCenter` | Finger resting in a touchpad region (four 90° regions around the centre) |
 | `TouchUpLeft` `TouchUpRight` `TouchDownLeft` `TouchDownRight` | Corner regions; mapping any of them splits the touchpad into eight 45° regions |
+| `TouchTap` `TouchTapLeft` `TouchTapCenter` `TouchTapRight` `TouchMultiTap` | Quick tap (under 200 ms, barely moving): anywhere, in the left, middle or right third, or with two fingers; a 50 ms press |
+| `TouchSwipeUp` … `TouchSwipeRight`, `TouchSwipe2Up` … | Swipe with one or two fingers across a quarter of the pad within 500 ms; a 50 ms press |
+| `TouchZoomIn` `TouchZoomOut` | Two fingers spreading apart or pinching together by a fifth; a 50 ms press |
+| `TrackpadLeftUp` … `TrackpadRightCenter`, `TrackpadLeftTap`, `TrackpadLeftClick` … | With `[touchpad] split`: the regions, taps and clicks of each half |
 | `GyroUp` `GyroDown` `GyroLeft` `GyroRight` `GyroLeanLeft` `GyroLeanRight` | Controller turned (nose up/down, the steering axis, roll) past the low zone, or in tilt mode tilted past it; see `[gyro]` |
 | `GyroLow` … `GyroUpHigh`, `GyroLeanLeftMed` … | Gyro in a zone, any direction or one; see `[gyro]` |
 | `Key:Space` | Keyboard key (names below) |

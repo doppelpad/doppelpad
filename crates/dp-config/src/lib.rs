@@ -201,6 +201,9 @@ pub fn validate(p: &Profile) -> Diagnostics {
             d.error(field, "low, med and high must be positive and increase");
         }
     }
+    if !(p.touchpad.centre > 0.0 && p.touchpad.centre < 1.0) {
+        d.error("touchpad.centre", "must be in (0, 1)");
+    }
     let mouse = &p.virtual_devices.mouse;
     if !(mouse.counts_per_turn > 0.0 && mouse.counts_per_turn <= 1_000_000.0) {
         d.error("virtual.mouse.counts_per_turn", "must be in (0, 1000000]");
@@ -593,6 +596,15 @@ while_held = ["LT", "Mouse:Right"]
         assert_eq!(parse_toml(&to_toml(&p)).unwrap(), p);
         let bad = parse_toml("[gyro]\nmotion_zones = [60.0, 50.0, 500.0]\n").unwrap();
         assert!(validate(&bad).iter().any(|d| d.path == "gyro.motion_zones"));
+    }
+
+    #[test]
+    fn touchpad_settings_round_trip() {
+        let text = "[touchpad]\nsplit = true\nzones = \"grid\"\nclick_required = true\n\n[[mappings]]\ntrigger = \"TrackpadRightDownLeft\"\nactions = [{ key = \"A\" }]\n\n[[mappings]]\ntrigger = \"TouchZoomIn\"\nactions = [{ key = \"B\" }]\n";
+        let p = parse_toml(text).unwrap();
+        assert!(!validate(&p).has_errors());
+        assert_eq!(parse_toml(&to_toml(&p)).unwrap(), p);
+        assert!(validate(&parse_toml("[touchpad]\ncentre = 1.5\n").unwrap()).has_errors());
     }
 
     #[test]

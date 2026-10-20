@@ -30,6 +30,9 @@ pub struct Profile {
     /// How the motion sensors become gyro controls (`[gyro]`).
     #[serde(skip_serializing_if = "is_default")]
     pub gyro: GyroSettings,
+    /// How the touchpad becomes region and gesture controls (`[touchpad]`).
+    #[serde(skip_serializing_if = "is_default")]
+    pub touchpad: TouchpadSettings,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub layers: Vec<Layer>,
     pub mappings: Vec<Mapping>,
@@ -70,6 +73,40 @@ impl VirtualSticks {
             Stick::Right => &self.right,
         }
     }
+}
+
+/// How the touchpad becomes region controls.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct TouchpadSettings {
+    /// The left and right halves are two trackpads (`Trackpad*` controls) instead of one.
+    pub split: bool,
+    pub zones: TouchZones,
+    /// Radial zones: radius of the centre region, as a fraction of half the pad.
+    pub centre: f32,
+    /// Region controls only while the pad is clicked.
+    pub click_required: bool,
+}
+
+impl Default for TouchpadSettings {
+    fn default() -> Self {
+        TouchpadSettings {
+            split: false,
+            zones: TouchZones::Radial,
+            centre: 0.35,
+            click_required: false,
+        }
+    }
+}
+
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TouchZones {
+    /// Sectors around a centre region.
+    #[default]
+    Radial,
+    /// A 3 × 3 grid of cells.
+    Grid,
 }
 
 /// How the motion sensors become gyro controls and feed gyro routes.

@@ -18,7 +18,16 @@ export const TOUCH_REGIONS = ['Up', 'Down', 'Left', 'Right', 'Center'] as const;
 /** Gyro directions; the controls are `GyroUp` … `GyroLeanRight`, and their zones. */
 export const GYRO_DIRS = [...DIRS, 'LeanLeft', 'LeanRight'] as const;
 
-export const touchControls = (): ControlName[] => [...TOUCH_REGIONS, ...DIAGONALS].map((r) => `Touch${r}`);
+/** Touchpad gestures; the controls are `TouchTap` … `TouchZoomOut`. */
+export const TOUCH_GESTURES = ['Tap', 'TapLeft', 'TapCenter', 'TapRight', 'MultiTap', 'SwipeUp', 'SwipeDown', 'SwipeLeft', 'SwipeRight', 'Swipe2Up', 'Swipe2Down', 'Swipe2Left', 'Swipe2Right', 'ZoomIn', 'ZoomOut'] as const;
+
+/** Touchpad controls: regions (of each half on a split pad), then gestures. */
+export const touchControls = (split = false): ControlName[] => [
+  ...(split
+    ? (['Left', 'Right'] as const).flatMap((h) => [...[...TOUCH_REGIONS, ...DIAGONALS].map((r) => `Trackpad${h}${r}`), `Trackpad${h}Tap`, `Trackpad${h}Click`])
+    : [...TOUCH_REGIONS, ...DIAGONALS].map((r) => `Touch${r}`)),
+  ...TOUCH_GESTURES.map((g) => `Touch${g}`),
+];
 export const gyroControls = (): ControlName[] => GYRO_DIRS.map((d) => `Gyro${d}`);
 
 /** Zones of a stick's deflection or a trigger's pull, in profile syntax. */
@@ -136,6 +145,14 @@ export function controlLabel(c: ControlName, family: PadFamily | null): string {
   if (sd) return `${t(`controls.${sd[0]}`)} ${t(`dirs.${dirKey(sd[1])}`)}`;
   const touch = /^Touch(UpLeft|UpRight|DownLeft|DownRight|Up|Down|Left|Right|Center)$/.exec(c);
   if (touch) return t(`controls.touch.${dirKey(touch[1])}`);
+  const gesture = /^Touch(Tap|TapLeft|TapCenter|TapRight|MultiTap|Swipe2?(?:Up|Down|Left|Right)|ZoomIn|ZoomOut)$/.exec(c);
+  if (gesture) return t(`controls.gesture.${gesture[1]}`);
+  const pad = /^Trackpad(Left|Right)(UpLeft|UpRight|DownLeft|DownRight|Up|Down|Left|Right|Center|Tap|Click)$/.exec(c);
+  if (pad) {
+    const own = ['Tap', 'Click', 'Center'].includes(pad[2]);
+    const part = own ? t(`controls.trackpad_${pad[2].toLowerCase()}`) : t(`dirs.${dirKey(pad[2])}`);
+    return t('controls.trackpad', { half: t(`binding.half_${pad[1].toLowerCase()}`), part });
+  }
   const gyro = /^Gyro(LeanLeft|LeanRight|Up|Down|Left|Right)$/.exec(c);
   if (gyro) return t('controls.gyro', { dir: t(`dirs.${dirKey(gyro[1])}`) });
   const named = familyName(c, family);

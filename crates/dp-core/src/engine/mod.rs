@@ -17,6 +17,7 @@ pub mod compile;
 pub mod gyro;
 pub mod recognizer;
 pub mod routes;
+pub mod touch;
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 
@@ -30,7 +31,8 @@ use self::compile::{
 use self::gyro::{GyroAxes, GyroState, TILT_FULL_DEG};
 use self::recognizer::{RecEvent, Recognizer};
 use self::routes::{RouteInput, RouteOutput, RouteState};
-use crate::control::{Control, Dir, TouchRegion};
+use self::touch::GestureTracker;
+use crate::control::{Control, Dir, Half, TrackpadPart};
 use crate::event::KbmEvent;
 use crate::keys::{Key, MouseButton, WheelDir};
 use crate::pad::{Axis, Motion, PadButton, PadState, Rumble, Stick, Trigger};
@@ -86,8 +88,6 @@ impl Rng {
 const WHEEL_PULSE_MS: u64 = 50;
 /// Mouse speed (counts/s) above which `MouseMove:*` controls are active.
 const MOUSE_DIR_THRESHOLD: f32 = 200.0;
-/// Touchpad: distance from the centre (fraction of half-size) before a direction region counts.
-const TOUCH_CENTER_RADIUS: f32 = 0.35;
 
 /// One engine tick's input.
 pub struct Input<'a> {
@@ -338,6 +338,9 @@ pub struct Engine {
     /// The profile maps diagonal touchpad regions or mouse directions, so those sources
     /// tell eight directions apart.
     touch_diagonals: bool,
+    /// Touchpad gesture recognition, and the gestures pressed until when.
+    gestures: GestureTracker,
+    gesture_until: Vec<(Control, u64)>,
     mouse_diagonals: bool,
     /// Effective stick and trigger settings of the layers that change them.
     layer_analog: HashMap<u8, (Sticks, Triggers)>,
@@ -407,7 +410,7 @@ impl Engine {
         let gyro_enabled = profile.gyro.initially_on;
         let touch_diagonals = uses(
             &profile,
-            |c| matches!(c, Control::Touch(r) if r.is_diagonal()),
+            |c| matches!(c, Control::Touch(r) | Control::Trackpad(_, TrackpadPart::Region(r)) if r.is_diagonal()),
         );
         let mouse_diagonals = uses(
             &profile,
@@ -431,6 +434,8 @@ impl Engine {
             gyro: GyroState::default(),
             gyro_axes: GyroAxes::default(),
             touch_diagonals,
+            gestures: GestureTracker::default(),
+            gesture_until: Vec::new(),
             mouse_diagonals,
             layer_analog,
             layer_virtual,
@@ -597,25 +602,43 @@ impl Engine {
                 }
             }
             set.extend(self.analog_controls(pad));
-            if let Some(tp) = pad.touch[0] {
-                let v = ((tp.x - 0.5) * 2.0, (0.5 - tp.y) * 2.0);
-                // Four 90° regions, or eight 45° ones when diagonals are mapped.
-                let k = if self.touch_diagonals {
-                    DIRECTION_SECTOR
-                } else {
-                    1.0
-                };
-                let d = directions(v, TOUCH_CENTER_RADIUS, k, self.touch_diagonals);
-                let mut any = false;
-                for dir in Dir::ALL8.into_iter().filter(|x| d[*x as usize]) {
-                    set.insert(Control::Touch(TouchRegion::of(dir)));
-                    any = true;
+            let cfg = &self.profile.touchpad;
+            let clicked = pad.pressed(PadButton::Touchpad);
+            let regions_on = !cfg.click_required || clicked;
+            let mut regions = Vec::new();
+            if cfg.split {
+                for p in pad.touch.into_iter().flatten() {
+                    let (half, at) = touch::half_of(p);
+                    if regions_on {
+                        regions.clear();
+                        touch::regions(at, cfg, self.touch_diagonals, &mut regions);
+                        set.extend(
+                            regions
+                                .iter()
+                                .map(|r| Control::Trackpad(half, TrackpadPart::Region(*r))),
+                        );
+                    }
+                    if clicked {
+                        set.insert(Control::Trackpad(half, TrackpadPart::Click));
+                    }
                 }
-                if !any {
-                    set.insert(Control::Touch(TouchRegion::Center));
-                }
+            } else if let Some(p) = pad.touch[0]
+                && regions_on
+            {
+                touch::regions((p.x, p.y), cfg, self.touch_diagonals, &mut regions);
+                set.extend(regions.into_iter().map(Control::Touch));
             }
         }
+        // Gestures: short presses after the tracker recognises them.
+        if let Some(pad) = self.pad {
+            let split = self.profile.touchpad.split;
+            for c in self.gestures.update(pad.touch, now, split) {
+                self.gesture_until.retain(|(g, _)| *g != c);
+                self.gesture_until.push((c, now + touch::GESTURE_PRESS_MS));
+            }
+        }
+        self.gesture_until.retain(|(_, until)| now < *until);
+        set.extend(self.gesture_until.iter().map(|(c, _)| *c));
         self.gyro_axes = Default::default();
         if let Some(m) = self.pad.and_then(|p| p.motion) {
             // The tilt centre is taken even while the gyro is off.
@@ -1273,8 +1296,13 @@ impl Engine {
                     || self.consumed.contains(c)
                     || self.pending.iter().any(|(p, _)| p == c)
             };
+            // A split pad's clicks come from the touchpad button.
+            let click_used = [Half::Left, Half::Right]
+                .iter()
+                .any(|h| hidden(&Control::Trackpad(*h, TrackpadPart::Click)));
             for b in PadButton::ALL {
-                if phys.pressed(b) && !hidden(&Control::Button(b)) {
+                let used = hidden(&Control::Button(b)) || (b == PadButton::Touchpad && click_used);
+                if phys.pressed(b) && !used {
                     pad.set(b, true);
                 }
             }
@@ -1300,8 +1328,8 @@ impl Engine {
                 );
             }
             // A remapped touchpad or gyro no longer reaches the game, like a remapped stick.
-            let touch_used = TouchRegion::ALL.iter().any(|r| hidden(&Control::Touch(*r)))
-                || route_consumes(AnalogSource::Touchpad);
+            let touch_used =
+                Control::of_touchpad().iter().any(hidden) || route_consumes(AnalogSource::Touchpad);
             if !touch_used {
                 pad.touch = phys.touch;
             }

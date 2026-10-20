@@ -5,7 +5,9 @@
 
 use std::collections::HashMap;
 
-use dp_core::control::{Control, Dir, GyroDir, TouchRegion, Zone};
+use dp_core::control::{
+    Control, Dir, GyroDir, Half, TouchGesture, TouchRegion, TrackpadPart, Zone,
+};
 use dp_core::keys::{Key, MouseButton, WheelDir};
 use dp_core::pad::{PadButton, Stick, Trigger};
 use dp_core::profile::{
@@ -80,6 +82,17 @@ fn array<'a>(v: &'a Value, key: &str) -> &'a [Value] {
 
 /// Zone order of the format's zone button ids.
 const ZONES: [Zone; 3] = [Zone::Low, Zone::Med, Zone::High];
+/// Trackpad direction ids in order: up, down, left, right, then the diagonals.
+const TRACKPAD_REGIONS: [TouchRegion; 8] = [
+    TouchRegion::Up,
+    TouchRegion::Down,
+    TouchRegion::Left,
+    TouchRegion::Right,
+    TouchRegion::UpLeft,
+    TouchRegion::UpRight,
+    TouchRegion::DownLeft,
+    TouchRegion::DownRight,
+];
 
 /// Gamepad `buttonId` as an input control.
 fn gamepad_control(id: i64) -> Option<Control> {
@@ -146,7 +159,34 @@ fn gamepad_control(id: i64) -> Option<Control> {
             let lean = [GyroDir::LeanLeft, GyroDir::LeanRight][i % 2];
             GyroZone(Some(lean), ZONES[i / 2])
         }
-        79 => Touch(TouchRegion::Center),
+        // Touchpad gestures: taps left/right/centre, multi-tap, zoom in/out, swipes with one
+        // finger (up/down/left/right), then with two.
+        77..=90 => Gesture(
+            [
+                TouchGesture::TapLeft,
+                TouchGesture::TapRight,
+                TouchGesture::TapCenter,
+                TouchGesture::MultiTap,
+                TouchGesture::ZoomIn,
+                TouchGesture::ZoomOut,
+                TouchGesture::SwipeUp,
+                TouchGesture::SwipeDown,
+                TouchGesture::SwipeLeft,
+                TouchGesture::SwipeRight,
+                TouchGesture::Swipe2Up,
+                TouchGesture::Swipe2Down,
+                TouchGesture::Swipe2Left,
+                TouchGesture::Swipe2Right,
+            ][(id - 77) as usize],
+        ),
+        163 => Gesture(TouchGesture::Tap),
+        // The second trackpad (right half of a split pad): directions, click, tap.
+        100..=107 => Trackpad(
+            Half::Right,
+            TrackpadPart::Region(TRACKPAD_REGIONS[(id - 100) as usize]),
+        ),
+        108 => Trackpad(Half::Right, TrackpadPart::Click),
+        164 => Trackpad(Half::Right, TrackpadPart::Tap),
         91 => Touch(TouchRegion::Up),
         92 => Touch(TouchRegion::Down),
         93 => Touch(TouchRegion::Left),
@@ -412,6 +452,10 @@ struct Importer<'a> {
     turn: Option<VirtualMouse>,
     /// The gyro stick entry asks for tilt mode.
     gyro_tilt: bool,
+    /// The profile uses the second trackpad, so the touchpad is split into halves.
+    split_touch: bool,
+    /// Touchpad regions only while the pad is clicked.
+    touch_click_required: bool,
 }
 
 /// Recognize the format's encoding of shift keys and fold each pair into one
@@ -482,6 +526,8 @@ pub fn import(json: &str) -> Result<(Profile, Diagnostics), ImportError> {
         layer_analog: HashMap::new(),
         turn: None,
         gyro_tilt: false,
+        split_touch: false,
+        touch_click_required: false,
     };
     let profile = imp.run();
     Ok((profile, imp.diags))
@@ -526,6 +572,8 @@ impl<'a> Importer<'a> {
                 self.commands.insert(id, c);
             }
         }
+        self.split_touch = self.uses_second_trackpad();
+        p.touchpad.split = self.split_touch;
         self.masks();
         self.layers(&mut p);
         let mappings = array(self.root, "mappings");
@@ -543,6 +591,7 @@ impl<'a> Importer<'a> {
         if self.gyro_tilt {
             p.gyro.mode = GyroMode::Tilt;
         }
+        p.touchpad.click_required = self.touch_click_required;
         // A mask a layer does not inherit stays uninherited in its zone form too.
         for l in &mut p.layers {
             for (mask, zoned) in &self.zoned {
@@ -987,12 +1036,45 @@ impl<'a> Importer<'a> {
                 );
             }
         }
+        for tp in array(d, "touchpads") {
+            if boolean(tp, "zoneClickRequired") {
+                self.touch_click_required = true;
+            }
+        }
         if !array(d, "touchpads").is_empty() {
             self.diags.info(
                 format!("{path}.touchpads"),
-                "touchpad tuning is imported as region buttons only",
+                "touchpad tuning is imported as region and gesture buttons and the click switch only",
             );
         }
+    }
+
+    /// Whether masks use the second trackpad (right half), which means the touchpad is
+    /// split into two trackpads.
+    fn uses_second_trackpad(&self) -> bool {
+        array(self.root, "masks")
+            .iter()
+            .flat_map(|m| array(m, "set"))
+            .any(|e| {
+                let gamepad = int(e, "deviceId")
+                    .and_then(|d| self.devices.get(&d))
+                    .is_some_and(|k| *k == DeviceKind::Gamepad);
+                gamepad && int(e, "buttonId").is_some_and(|id| matches!(id, 100..=108 | 164))
+            })
+    }
+
+    /// A gamepad control id; on a split touchpad the first trackpad's ids mean the left half.
+    fn pad_control(&self, id: i64) -> Option<Control> {
+        let c = gamepad_control(id)?;
+        if !self.split_touch {
+            return Some(c);
+        }
+        Some(match (id, c) {
+            (91..=98, Control::Touch(r)) => Control::Trackpad(Half::Left, TrackpadPart::Region(r)),
+            (99, _) => Control::Trackpad(Half::Left, TrackpadPart::Click),
+            (163, _) => Control::Trackpad(Half::Left, TrackpadPart::Tap),
+            _ => c,
+        })
     }
 
     /// Resolve one `{deviceId, buttonId, description}` element to a control.
@@ -1009,7 +1091,7 @@ impl<'a> Importer<'a> {
                     self.diags.warn(path, "missing buttonId");
                     return None;
                 }
-                (Some(DeviceKind::Gamepad), Some(id)) => gamepad_control(id),
+                (Some(DeviceKind::Gamepad), Some(id)) => self.pad_control(id),
                 (Some(DeviceKind::Keyboard), Some(_)) => {
                     return keyboard_key(e, &mut self.diags, path).map(Control::Key);
                 }
@@ -2137,6 +2219,40 @@ mod tests {
             vec![Action::Command {
                 command: Command::SwitchGyroAxis
             }]
+        );
+    }
+
+    #[test]
+    fn touchpad_gestures_and_split_trackpads() {
+        let doc = r#"{ "schemaVersion": 3.0, "config": { "appName": "x" },
+          "devices": { "hardware": [ { "id": 1, "name": "gamepad", "default": { "touchpads": [ { "id": 1, "zoneClickRequired": true } ] } } ] },
+          "masks": [
+            { "id": 1, "set": [ { "deviceId": 1, "buttonId": 79 } ] },
+            { "id": 2, "set": [ { "deviceId": 1, "buttonId": 88 } ] },
+            { "id": 3, "set": [ { "deviceId": 1, "buttonId": 91 } ] },
+            { "id": 4, "set": [ { "deviceId": 1, "buttonId": 108 } ] },
+            { "id": 5, "set": [ { "deviceId": 1, "buttonId": 163 } ] }
+          ],
+          "mappings": [
+            { "condition": { "mask": { "id": 1, "activator": { "type": "single", "mode": "hold_until_release" } } }, "macros": [ { "keyboard": { "buttonId": 30, "description": "DIK_A" } } ] },
+            { "condition": { "mask": { "id": 2, "activator": { "type": "single", "mode": "hold_until_release" } } }, "macros": [ { "keyboard": { "buttonId": 31, "description": "DIK_S" } } ] },
+            { "condition": { "mask": { "id": 3, "activator": { "type": "single", "mode": "hold_until_release" } } }, "macros": [ { "keyboard": { "buttonId": 32, "description": "DIK_D" } } ] },
+            { "condition": { "mask": { "id": 4, "activator": { "type": "single", "mode": "hold_until_release" } } }, "macros": [ { "keyboard": { "buttonId": 33, "description": "DIK_F" } } ] },
+            { "condition": { "mask": { "id": 5, "activator": { "type": "single", "mode": "hold_until_release" } } }, "macros": [ { "keyboard": { "buttonId": 34, "description": "DIK_G" } } ] }
+          ] }"#;
+        let (p, diags) = import(doc).unwrap();
+        assert!(!diags.has_errors(), "{diags:?}");
+        assert!(p.touchpad.split && p.touchpad.click_required);
+        let triggers: Vec<String> = p.mappings.iter().map(|m| m.trigger.to_string()).collect();
+        assert_eq!(
+            triggers,
+            [
+                "TouchTapCenter",
+                "TouchSwipe2Down",
+                "TrackpadLeftUp",
+                "TrackpadRightClick",
+                "TrackpadLeftTap"
+            ]
         );
     }
 

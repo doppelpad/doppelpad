@@ -36,6 +36,7 @@
     "left": { "deadzone": 0.05, "zones": { "low": 0.0625 }, "full_pull": 0.9 },
     "right": { "deadzone": 0, "zones": { "low": 0.125, "med": 0.5 }, "full_pull": 0.875 }
   },
+  "touchpad": { "split": true, "zones": "grid", "centre": 0.25, "click_required": true },
   "gyro": {
     "mode": "tilt",
     "steering": "yaw",

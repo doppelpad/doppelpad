@@ -42,7 +42,7 @@
         }),
       },
       { id: 'triggers', controls: ['LT', 'RT', 'LTFull', 'RTFull'] },
-      ...(drawn.has('Touchpad') ? [{ id: 'touchpad', controls: touchControls() }] : []),
+      ...(drawn.has('Touchpad') ? [{ id: 'touchpad', controls: touchControls(!!app.profile?.touchpad?.split) }] : []),
       ...(hasMotion(device) ? [{ id: 'gyro', controls: gyroControls() }] : []),
     ];
   });

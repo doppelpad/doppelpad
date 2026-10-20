@@ -137,7 +137,8 @@ export function nativeAction(combo: Combo): Action | null {
   if (trigger) return { trigger: trigger[1] === 'LT' ? 'left' : 'right' };
   // A stick zone in any direction has no single direction to reproduce.
   if (/^(Left|Right)Stick(Low|Med|High)$/.test(c)) return null;
-  if (/^Touch[A-Z][a-zA-Z]*$/.test(c) && c !== 'Touchpad') return null;
+  if (/^Touch[A-Z][a-zA-Z0-9]*$/.test(c) && c !== 'Touchpad') return null;
+  if (/^Trackpad[A-Z]/.test(c)) return null;
   if (/^Gyro[A-Z]/.test(c)) return null;
   return { pad: c as PadButtonName };
 }

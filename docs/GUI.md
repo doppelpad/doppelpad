@@ -24,7 +24,9 @@ only edits profiles and sends commands.
 
 1. Pick the layer in the toolbar and click the control (or press it). A stick asks for its
    direction (or the click, or *any direction* for zones). The touchpad asks for its click
-   or one of five regions (top, bottom, left, right, centre). Controllers with motion
+   or one of five regions (top, bottom, left, right, centre), or a gesture (taps, swipes with
+   one or two fingers, zoom); with two trackpads, the regions, tap and click of each half.
+   Controllers with motion
    sensors have a **Gyro** chip at the top left of the drawing for the gyro directions, lean
    left/right and *any direction* (zones). A trigger's binding panel offers its zones and
    *Full pull*; a gyro direction's offers its zones, which are set in Analog → Gyro.
@@ -105,7 +107,7 @@ timing wins over these; empty fields use the built-in defaults.
 **Analog** in the toolbar opens the analog settings. The controller drawing leads there
 too: clicking a stick offers *Stick settings* under the direction picker, and the binding
 panel of a stick direction, stick click or trigger links to the matching page. With a
-controller connected, the previews follow its sticks and triggers live. The view has five
+controller connected, the previews follow its sticks and triggers live. The view has six
 tabs.
 
 **Left stick** and **Right stick** shape the physical stick for the whole config (every
@@ -143,6 +145,12 @@ and the *Full pull*, which reads as fully pressed and fires `LTFull` / `RTFull` 
 The bars show the live pull with the press point (blue line), the medium and high zone
 thresholds (faint lines; set in the zone editor) and the output; *Pressed* and *Full pull*
 light up when mappings would fire.
+
+**Touchpad** sets how the touchpad becomes region controls, for the whole config: *Two
+trackpads* makes its left and right halves separate trackpads with their own regions, tap and
+click; *Regions* are sectors *Around the centre* (with the size of the *Centre region*) or a
+*3 × 3 grid*; and *Regions only while the touchpad is clicked*. Gestures (taps, swipes, zoom)
+are always recognised.
 
 **Gyro** sets how the motion sensors become gyro controls, for the whole config: *Turning*
 (directions and zones fire while the controller turns, by how fast) or *Tilting* (the
