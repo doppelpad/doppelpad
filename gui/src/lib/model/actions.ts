@@ -29,6 +29,8 @@ export function hasParameters(a: Action): boolean {
     'rumble' in a ||
     'turn' in a ||
     'touch' in a ||
+    'mouse_to' in a ||
+    'mouse_clip' in a ||
     ('command' in a && typeof a.command === 'object' && 'launch' in a.command)
   );
 }

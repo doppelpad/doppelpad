@@ -19,6 +19,7 @@
 //! | `Mouse:Left`                | mouse button                                   |
 //! | `Wheel:Up`                  | one wheel notch (momentary)                    |
 //! | `MouseMove:Up`              | physical mouse moving in a direction           |
+//! | `MouseMove:UpHigh`, `MouseMove:Low` | mouse moving at a zone's speed        |
 
 use std::fmt;
 use std::str::FromStr;
@@ -380,6 +381,8 @@ pub enum Control {
     Mouse(MouseButton),
     Wheel(WheelDir),
     MouseMove(Dir),
+    /// Physical mouse moving at a zone's speed, in a direction or (`None`) any.
+    MouseZone(Option<Dir>, Zone),
 }
 
 impl Control {
@@ -393,7 +396,11 @@ impl Control {
     pub fn is_pad(self) -> bool {
         !matches!(
             self,
-            Control::Key(_) | Control::Mouse(_) | Control::Wheel(_) | Control::MouseMove(_)
+            Control::Key(_)
+                | Control::Mouse(_)
+                | Control::Wheel(_)
+                | Control::MouseMove(_)
+                | Control::MouseZone(..)
         )
     }
 
@@ -587,6 +594,9 @@ impl fmt::Display for Control {
             Control::Mouse(b) => write!(f, "Mouse:{}", mouse_button_name(b)),
             Control::Wheel(w) => write!(f, "Wheel:{}", wheel_name(w)),
             Control::MouseMove(d) => write!(f, "MouseMove:{}", d.name()),
+            Control::MouseZone(d, z) => {
+                write!(f, "MouseMove:{}{}", d.map_or("", Dir::name), z.name())
+            }
         }
     }
 }
@@ -603,7 +613,18 @@ impl FromStr for Control {
                 "mouse" => parse_mouse_button(rest).map(Control::Mouse).ok_or_else(err),
                 "wheel" => parse_wheel(rest).map(Control::Wheel).ok_or_else(err),
                 "mousemove" | "mouse_move" => {
-                    Dir::parse(rest).map(Control::MouseMove).ok_or_else(err)
+                    if let Some(d) = Dir::parse(rest) {
+                        return Ok(Control::MouseMove(d));
+                    }
+                    let lower = rest.to_ascii_lowercase();
+                    let (rest, z) = Zone::strip_suffix(&lower).ok_or_else(err)?;
+                    if rest.is_empty() {
+                        Ok(Control::MouseZone(None, z))
+                    } else {
+                        Dir::parse(rest)
+                            .map(|d| Control::MouseZone(Some(d), z))
+                            .ok_or_else(err)
+                    }
                 }
                 "pad" => s[4..].parse(),
                 _ => Err(err()),
@@ -720,6 +741,8 @@ mod tests {
             Control::StickZone(Stick::Right, Some(Dir::UpLeft), Zone::Med),
             Control::Touch(TouchRegion::UpLeft),
             Control::MouseMove(Dir::DownLeft),
+            Control::MouseZone(None, Zone::High),
+            Control::MouseZone(Some(Dir::Left), Zone::Med),
             Control::StickZone(Stick::Left, None, Zone::Low),
             Control::StickZone(Stick::Right, Some(Dir::Right), Zone::High),
             Control::StickZone(Stick::Left, Some(Dir::Up), Zone::Med),

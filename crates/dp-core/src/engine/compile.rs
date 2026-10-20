@@ -30,6 +30,10 @@ pub enum AnalogOut {
     Trigger(Trigger, f32),
     /// Mouse velocity in pixels per second (screen coordinates, y down).
     MouseVelocity(f32, f32),
+    /// Mouse velocity that grows by this much of itself per second held (up to 20 ×).
+    MouseAccel(f32, f32, f32),
+    /// Cursor kept inside this rectangle (x1, y1, x2, y2) while held.
+    Clip(f32, f32, f32, f32),
 }
 
 impl AnalogOut {
@@ -40,7 +44,8 @@ impl AnalogOut {
             AnalogOut::Stick(Stick::Right, ..) => 1,
             AnalogOut::Trigger(Trigger::Left, _) => 2,
             AnalogOut::Trigger(Trigger::Right, _) => 3,
-            AnalogOut::MouseVelocity(..) => 4,
+            AnalogOut::MouseVelocity(..) | AnalogOut::MouseAccel(..) => 4,
+            AnalogOut::Clip(..) => 5,
         }
     }
 
@@ -72,6 +77,8 @@ pub enum Step {
     Turn(f32),
     /// Play a gesture on the virtual touchpad for this many ms.
     Touch(TouchGesture, u32),
+    /// Move the cursor to a point of the screen.
+    MouseTo(f32, f32),
 }
 
 impl Step {
@@ -263,14 +270,22 @@ fn press_outputs(a: &Action) -> Option<(Option<Out>, Option<AnalogOut>, Press)> 
             value,
             action,
         } => (None, Some(AnalogOut::Trigger(trigger, value)), action),
-        Action::MouseMove { mouse_move, speed } => {
+        Action::MouseMove {
+            mouse_move,
+            speed,
+            acceleration,
+        } => {
             let (x, y) = mouse_move.vector();
-            (
-                None,
-                Some(AnalogOut::MouseVelocity(x * speed, -y * speed)),
-                Press::Auto,
-            )
+            let out = if acceleration > 0.0 {
+                AnalogOut::MouseAccel(x * speed, -y * speed, acceleration)
+            } else {
+                AnalogOut::MouseVelocity(x * speed, -y * speed)
+            };
+            (None, Some(out), Press::Auto)
         }
+        Action::MouseClip {
+            mouse_clip: [x1, y1, x2, y2],
+        } => (None, Some(AnalogOut::Clip(x1, y1, x2, y2)), Press::Auto),
         _ => return None,
     })
 }
@@ -299,6 +314,7 @@ fn other_steps(a: &Action) -> Option<Step> {
         Action::Command { command } => Step::Command(command.clone()),
         Action::Shake { shake } => Step::Shake(*shake),
         Action::Turn { turn } => Step::Turn(*turn),
+        Action::MouseTo { mouse_to: [x, y] } => Step::MouseTo(*x, *y),
         Action::Touch { touch, ms } => Step::Touch(
             *touch,
             ms.unwrap_or_else(|| super::touch::output_ms(*touch)),

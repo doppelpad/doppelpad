@@ -151,6 +151,15 @@
           <button class="chip" onclick={() => onpick({ mouse_move: d })}>{t(`dirs.${d}`)}</button>
         {/each}
       </div>
+      <div class="group">{t('picker.cursor')}</div>
+      <div class="grid">
+        <button class="chip" title={t('picker.cursor_hint')} onclick={() => onpick({ mouse_to: [0.5, 0.5] })}>
+          {t('picker.cursor_centre')}
+        </button>
+        <button class="chip" title={t('picker.cursor_hint')} onclick={() => onpick({ mouse_clip: [0.25, 0.25, 0.75, 0.75] })}>
+          {t('picker.cursor_clip')}
+        </button>
+      </div>
       <div class="group">{t('picker.turn')}</div>
       <div class="grid">
         {#each TURNS as deg (deg)}

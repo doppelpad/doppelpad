@@ -63,6 +63,28 @@
       const v = positive(raw, 1);
       if (v !== null) set({ speed: Math.round(v) });
     })}
+    {@render field(t('params.acceleration'), action.acceleration ?? 0, '×/s', (raw) => {
+      const v = positive(raw, 0);
+      if (v !== null) set({ acceleration: v > 0 ? Math.min(v, 100) : undefined });
+    })}
+  {:else if 'mouse_to' in action}
+    {@const at = action.mouse_to}
+    {@render field('X', pct(at[0]), '%', (raw) => {
+      const v = percent(raw);
+      if (v !== null) set({ mouse_to: [v, at[1]] });
+    })}
+    {@render field('Y', pct(at[1]), '%', (raw) => {
+      const v = percent(raw);
+      if (v !== null) set({ mouse_to: [at[0], v] });
+    })}
+  {:else if 'mouse_clip' in action}
+    {@const r = action.mouse_clip}
+    {#each ['X1', 'Y1', 'X2', 'Y2'] as name, i (name)}
+      {@render field(name, pct(r[i]), '%', (raw) => {
+        const v = percent(raw);
+        if (v !== null) set({ mouse_clip: r.map((x, j) => (j === i ? v : x)) });
+      })}
+    {/each}
   {:else if 'touch' in action}
     {@render field(t('params.length'), action.ms ?? '', t('common.ms'), (raw) => {
       const v = positive(raw, 10);

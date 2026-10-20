@@ -100,7 +100,7 @@ describe('stick and trigger settings', () => {
     const kept = {
       keyboard: { repeat: 40 },
       motion: { shake_g: 3, shake_ms: 200 },
-      mouse: { counts_per_turn: 14400, turn_ms: 150 },
+      mouse: { counts_per_turn: 14400, turn_ms: 150, wheel_repeat_ms: 0 },
     };
     let p: Profile = { ...empty(), virtual: kept };
     p = setVirtualStick(p, 'left', { initial: 0.25, speed: 1, acceleration: 0.5, multiplier_y: 2 }, def.virtual_stick);
@@ -225,8 +225,8 @@ describe('curve editing', () => {
 
 describe('analog routes', () => {
   it('offer only the fields the engine reads', () => {
-    expect(routeFields('right_stick', 'mouse')).toEqual(['curve', 'deadzone', 'smoothing_ms', 'consume']);
-    expect(routeFields('left_stick', 'right_stick')).toEqual(['deadzone', 'anti_deadzone', 'consume']);
+    expect(routeFields('right_stick', 'mouse')).toEqual(['curve', 'deadzone', 'smoothing_ms', 'acceleration', 'consume']);
+    expect(routeFields('left_stick', 'right_stick')).toEqual(['deadzone', 'anti_deadzone', 'snap', 'consume']);
     expect(routeFields('mouse', 'right_stick')).toContain('decay_ms');
     expect(routeFields('gyro', 'mouse')).toEqual(['smoothing_ms']);
     expect(routeFields('touchpad', 'mouse')).toEqual(['trackball_friction']);
@@ -245,7 +245,7 @@ describe('analog routes', () => {
     p = addRoute(p, newRoute(def.analog, 1, { source: 'gyro', target: 'right_stick', while_held: ['LT'] }));
     p = updateRoute(p, 1, { sensitivity: 2.5, invert_y: true, anti_deadzone: 0.2, consume: false });
     p = addRoute(p, newRoute(def.analog, 2, { source: 'mouse', target: 'left_stick', sensitivity: 1.5 }));
-    p = updateRoute(p, 2, { invert_x: true, anti_deadzone: 0.2, smoothing_ms: 8, decay_ms: 60 });
+    p = updateRoute(p, 2, { invert_x: true, anti_deadzone: 0.2, smoothing_ms: 8, decay_ms: 60, spring: false });
     p = updateRoute(p, 2, { while_held: ['LB', 'Mouse:Right'] });
     p = addRoute(p, newRoute(def.analog, 0, { source: 'touchpad', target: 'mouse', trackball_friction: 0.5 }));
     expect(p.analog).toEqual(fixture.analog);

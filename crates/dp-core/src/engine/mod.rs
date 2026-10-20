@@ -32,7 +32,7 @@ use self::gyro::{GyroAxes, GyroState, TILT_FULL_DEG};
 use self::recognizer::{RecEvent, Recognizer};
 use self::routes::{RouteInput, RouteOutput, RouteState};
 use self::touch::GestureTracker;
-use crate::control::{Control, Dir, Half, TouchGesture, TrackpadPart};
+use crate::control::{Control, Dir, Half, TouchGesture, TrackpadPart, Zone};
 use crate::event::KbmEvent;
 use crate::keys::{Key, MouseButton, WheelDir};
 use crate::pad::{Axis, Motion, PadButton, PadState, Rumble, Stick, Trigger};
@@ -41,6 +41,8 @@ use crate::profile::{
     VirtualPadType, VirtualStick, VirtualSticks,
 };
 
+/// Button-driven mouse motion speeds up to at most this many times its speed.
+const MOUSE_ACCEL_MAX: f32 = 20.0;
 /// A shake flips direction this often.
 const SHAKE_FLIP_MS: u64 = 25;
 
@@ -86,8 +88,6 @@ impl Rng {
 
 /// How long one wheel notch counts as "pressed" when used as a trigger.
 const WHEEL_PULSE_MS: u64 = 50;
-/// Mouse speed (counts/s) above which `MouseMove:*` controls are active.
-const MOUSE_DIR_THRESHOLD: f32 = 200.0;
 
 /// One engine tick's input.
 pub struct Input<'a> {
@@ -109,6 +109,10 @@ pub struct Output {
     pub mouse_buttons: Vec<(MouseButton, bool)>,
     /// Relative mouse motion in pixels (y down).
     pub mouse_move: (f32, f32),
+    /// Move the cursor to this point of the primary screen (0–1) first.
+    pub mouse_to: Option<(f32, f32)>,
+    /// Keep the cursor inside this rectangle of the primary screen (0–1).
+    pub mouse_clip: Option<[f32; 4]>,
     pub wheel: Vec<(WheelDir, f32)>,
     /// Rumble the mapping engine wants on the physical pad (overrides game rumble).
     pub rumble: Option<Rumble>,
@@ -154,6 +158,8 @@ struct Activation {
     jump_at: Option<(u64, u8)>,
     /// Which segment of a sequence with break steps this activation plays.
     segment: usize,
+    /// A wheel action this held activation repeats: direction, notches, since, repeats sent.
+    wheel_held: Option<(WheelDir, f32, u64, u64)>,
 }
 
 /// Reference-counted output state shared by all activations.
@@ -172,6 +178,8 @@ struct Outputs {
     turns: Vec<(f32, f32)>,
     /// A gesture playing on the virtual touchpad: which, since when, how long.
     touch: Option<(TouchGesture, u64, u64)>,
+    /// An absolute cursor move to send.
+    mouse_to: Option<(f32, f32)>,
 }
 
 impl Outputs {
@@ -277,7 +285,12 @@ fn step(act: &mut Activation, program: &[Step], outs: &mut Outputs, until: u64) 
                 act.analog.push((*a, t));
             }
             Step::AnalogUp(a) => act.analog.retain(|(x, _)| !x.same_slot(a)),
-            Step::Wheel(d, n) => outs.wheel.push((*d, *n)),
+            Step::Wheel(d, n) => {
+                outs.wheel.push((*d, *n));
+                if act.policy == Policy::Hold {
+                    act.wheel_held = Some((*d, *n, t, 0));
+                }
+            }
             Step::Wait(ms) => {
                 act.pc += 1;
                 act.wait_until = t + *ms as u64;
@@ -307,6 +320,7 @@ fn step(act: &mut Activation, program: &[Step], outs: &mut Outputs, until: u64) 
             }
             Step::Turn(deg) => outs.turns.push((*deg, *deg)),
             Step::Touch(g, ms) => outs.touch = Some((*g, t, *ms as u64)),
+            Step::MouseTo(x, y) => outs.mouse_to = Some((*x, *y)),
         }
         act.pc += 1;
     }
@@ -417,7 +431,7 @@ impl Engine {
         );
         let mouse_diagonals = uses(
             &profile,
-            |c| matches!(c, Control::MouseMove(d) if d.is_diagonal()),
+            |c| matches!(c, Control::MouseMove(d) | Control::MouseZone(Some(d), _) if d.is_diagonal()),
         );
         Engine {
             profile,
@@ -509,7 +523,7 @@ impl Engine {
                 Control::Key(k) => m.keys.push(k),
                 Control::Mouse(b) => m.mouse_buttons.push(b),
                 Control::Wheel(w) => m.wheel.push(w),
-                Control::MouseMove(_) => m.mouse_move = true,
+                Control::MouseMove(_) | Control::MouseZone(..) => m.mouse_move = true,
                 _ => {}
             }
         }
@@ -684,24 +698,40 @@ impl Engine {
             );
         }
         let (vx, vy) = self.mouse_vel;
+        let [low, med, high] = self.profile.mouse.zones;
+        let mut dirs = Vec::new();
         if self.mouse_diagonals {
             // Screen y grows downwards; directions are y up.
-            let d = directions((vx, -vy), MOUSE_DIR_THRESHOLD, DIRECTION_SECTOR, true);
-            for dir in Dir::ALL8.into_iter().filter(|d8| d[*d8 as usize]) {
-                set.insert(Control::MouseMove(dir));
+            let d = directions((vx, -vy), low, DIRECTION_SECTOR, true);
+            dirs.extend(Dir::ALL8.into_iter().filter(|d8| d[*d8 as usize]));
+        } else {
+            if vx > low {
+                dirs.push(Dir::Right);
+            } else if vx < -low {
+                dirs.push(Dir::Left);
             }
-            return set;
+            if vy > low {
+                dirs.push(Dir::Down);
+            } else if vy < -low {
+                dirs.push(Dir::Up);
+            }
         }
-        if vx > MOUSE_DIR_THRESHOLD {
-            set.insert(Control::MouseMove(Dir::Right));
-        } else if vx < -MOUSE_DIR_THRESHOLD {
-            set.insert(Control::MouseMove(Dir::Left));
+        // Zones by speed, in any direction and in each direction it moves.
+        let speed = vx.hypot(vy);
+        let zone = if speed >= high {
+            Some(Zone::High)
+        } else if speed >= med {
+            Some(Zone::Med)
+        } else if speed >= low {
+            Some(Zone::Low)
+        } else {
+            None
+        };
+        if let Some(z) = zone {
+            set.insert(Control::MouseZone(None, z));
+            set.extend(dirs.iter().map(|d| Control::MouseZone(Some(*d), z)));
         }
-        if vy > MOUSE_DIR_THRESHOLD {
-            set.insert(Control::MouseMove(Dir::Down));
-        } else if vy < -MOUSE_DIR_THRESHOLD {
-            set.insert(Control::MouseMove(Dir::Up));
-        }
+        set.extend(dirs.into_iter().map(Control::MouseMove));
         set
     }
 
@@ -985,6 +1015,7 @@ impl Engine {
             analog: Vec::new(),
             jump_at: None,
             segment,
+            wheel_held: None,
         };
         if let Some((target, delay)) = jump
             && delay.is_some_and(|d| d > 0)
@@ -1274,7 +1305,20 @@ impl Engine {
             ..Default::default()
         };
         self.drain_digital(&mut out);
+        // Held wheel actions repeat at the virtual mouse's interval.
+        let every = self.profile.virtual_devices.mouse.wheel_repeat_ms as u64;
+        for act in &mut self.acts {
+            if let Some((d, n, since, sent)) = &mut act.wheel_held
+                && let Some(due) = now.saturating_sub(*since).checked_div(every)
+            {
+                while *sent < due {
+                    self.outs.wheel.push((*d, *n));
+                    *sent += 1;
+                }
+            }
+        }
         out.wheel = std::mem::take(&mut self.outs.wheel);
+        out.mouse_to = self.outs.mouse_to.take();
         out.commands = std::mem::take(&mut self.outs.commands);
         out.rumble = self
             .outs
@@ -1380,6 +1424,13 @@ impl Engine {
                     AnalogOut::MouseVelocity(x, y) => {
                         mouse_v.0 += x;
                         mouse_v.1 += y;
+                    }
+                    AnalogOut::Clip(x1, y1, x2, y2) => out.mouse_clip = Some([x1, y1, x2, y2]),
+                    AnalogOut::MouseAccel(x, y, accel) => {
+                        let held = now.saturating_sub(since) as f32 / 1000.0;
+                        let k = (1.0 + accel * held).min(MOUSE_ACCEL_MAX);
+                        mouse_v.0 += x * k;
+                        mouse_v.1 += y * k;
                     }
                 }
             }

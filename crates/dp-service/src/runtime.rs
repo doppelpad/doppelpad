@@ -101,6 +101,8 @@ struct Session {
     /// What the controller was last told to show, and which controller.
     sent_lightbar: Option<(DeviceId, Option<Rgb>)>,
     key_repeat: KeyRepeater,
+    /// The cursor clip this session last set.
+    clip: Option<[f32; 4]>,
 }
 
 impl Session {
@@ -266,6 +268,13 @@ fn emit(s: &mut Session, platform: &mut Platform, out: &Output, now: u64) {
     }
     for &(b, down) in &out.mouse_buttons {
         kbm.mouse_button(b, down);
+    }
+    if out.mouse_clip != s.clip {
+        kbm.clip(out.mouse_clip);
+        s.clip = out.mouse_clip;
+    }
+    if let Some((x, y)) = out.mouse_to {
+        kbm.mouse_to(x, y);
     }
     if out.mouse_move != (0.0, 0.0) {
         kbm.mouse_move(out.mouse_move.0, out.mouse_move.1);
@@ -571,6 +580,7 @@ impl Runtime {
             game_lightbar: None,
             sent_lightbar: None,
             key_repeat,
+            clip: None,
         };
         for w in &session.warnings {
             tracing::warn!("{w}");

@@ -8,10 +8,15 @@ use std::mem::size_of;
 use dp_core::keys::{Key, MouseButton, WheelDir};
 use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
     INPUT, INPUT_0, INPUT_KEYBOARD, INPUT_MOUSE, KEYBDINPUT, KEYEVENTF_EXTENDEDKEY,
-    KEYEVENTF_KEYUP, KEYEVENTF_SCANCODE, MOUSEEVENTF_HWHEEL, MOUSEEVENTF_LEFTDOWN,
-    MOUSEEVENTF_LEFTUP, MOUSEEVENTF_MIDDLEDOWN, MOUSEEVENTF_MIDDLEUP, MOUSEEVENTF_MOVE,
-    MOUSEEVENTF_RIGHTDOWN, MOUSEEVENTF_RIGHTUP, MOUSEEVENTF_WHEEL, MOUSEEVENTF_XDOWN,
-    MOUSEEVENTF_XUP, MOUSEINPUT, SendInput, VK_NUMLOCK, VK_PAUSE,
+    KEYEVENTF_KEYUP, KEYEVENTF_SCANCODE, MOUSEEVENTF_ABSOLUTE, MOUSEEVENTF_HWHEEL,
+    MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP, MOUSEEVENTF_MIDDLEDOWN, MOUSEEVENTF_MIDDLEUP,
+    MOUSEEVENTF_MOVE, MOUSEEVENTF_RIGHTDOWN, MOUSEEVENTF_RIGHTUP, MOUSEEVENTF_WHEEL,
+    MOUSEEVENTF_XDOWN, MOUSEEVENTF_XUP, MOUSEINPUT, SendInput, VK_NUMLOCK, VK_PAUSE,
+};
+
+use windows_sys::Win32::Foundation::RECT;
+use windows_sys::Win32::UI::WindowsAndMessaging::{
+    ClipCursor, GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN,
 };
 
 use crate::KbmOutput;
@@ -119,6 +124,39 @@ impl KbmOutput for SendInputOutput {
         self.move_rem.0 -= ix;
         self.move_rem.1 -= iy;
         send(&[mouse(ix as i32, iy as i32, 0, MOUSEEVENTF_MOVE)]);
+    }
+
+    fn mouse_to(&mut self, x: f32, y: f32) {
+        // Absolute coordinates span the primary screen as 0–65535.
+        let to = |v: f32| (v.clamp(0.0, 1.0) * 65535.0).round() as i32;
+        send(&[mouse(
+            to(x),
+            to(y),
+            0,
+            MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE,
+        )]);
+    }
+
+    fn clip(&mut self, rect: Option<[f32; 4]>) {
+        // SAFETY: plain Win32 calls; the RECT outlives the call.
+        unsafe {
+            match rect {
+                None => {
+                    ClipCursor(std::ptr::null());
+                }
+                Some([x1, y1, x2, y2]) => {
+                    let (w, h) = (GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN));
+                    let px = |v: f32, size: i32| (v.clamp(0.0, 1.0) * size as f32).round() as i32;
+                    let r = RECT {
+                        left: px(x1.min(x2), w),
+                        top: px(y1.min(y2), h),
+                        right: px(x1.max(x2), w).max(px(x1.min(x2), w) + 1),
+                        bottom: px(y1.max(y2), h).max(px(y1.min(y2), h) + 1),
+                    };
+                    ClipCursor(&r);
+                }
+            }
+        }
     }
 
     fn wheel(&mut self, dir: WheelDir, detents: f32) {

@@ -36,6 +36,7 @@
     "left": { "deadzone": 0.05, "zones": { "low": 0.0625 }, "full_pull": 0.9 },
     "right": { "deadzone": 0, "zones": { "low": 0.125, "med": 0.5 }, "full_pull": 0.875 }
   },
+  "mouse": { "zones": [150, 900, 2500] },
   "touchpad": { "split": true, "zones": "grid", "centre": 0.25, "click_required": true },
   "gyro": {
     "mode": "tilt",
@@ -80,10 +81,12 @@
         { "rumble": 120, "low": 0.5, "high": 0.25 },
         { "shake": "-z" },
         { "turn": -90 },
-        { "touch": "swipe2_left", "ms": 300 }
+        { "touch": "swipe2_left", "ms": 300 },
+        { "mouse_to": [0.5, 0.25] },
+        { "mouse_clip": [0.25, 0.25, 0.75, 0.75] }
       ]
     },
-    { "trigger": "DpadDown", "actions": [{ "wheel": "down" }, { "mouse_move": "left", "speed": 800 }] },
+    { "trigger": "DpadDown", "actions": [{ "wheel": "down" }, { "mouse_move": "left", "speed": 800, "acceleration": 1.5 }] },
     { "trigger": "LeftStickUp", "actions": [{ "stick": "right", "x": 0, "y": 1, "absolute": true }] },
     { "trigger": "LT", "activator": "start", "actions": [{ "trigger": "right" }] },
     { "trigger": "RTHigh", "actions": [{ "key": "LeftShift" }] },
@@ -117,7 +120,11 @@
       "decay_ms": 40,
       "trackball_friction": 0,
       "while_held": [],
-      "consume": true
+      "consume": true,
+      "spring": true,
+      "noise_filter": 0,
+      "snap": 0,
+      "acceleration": 0
     },
     {
       "layer": 1,
@@ -134,7 +141,11 @@
       "decay_ms": 40,
       "trackball_friction": 0,
       "while_held": ["LT"],
-      "consume": false
+      "consume": false,
+      "spring": true,
+      "noise_filter": 0,
+      "snap": 0,
+      "acceleration": 0
     },
     {
       "layer": 2,
@@ -151,7 +162,11 @@
       "decay_ms": 60,
       "trackball_friction": 0,
       "while_held": ["LB", "Mouse:Right"],
-      "consume": true
+      "consume": true,
+      "spring": false,
+      "noise_filter": 0,
+      "snap": 0,
+      "acceleration": 0
     },
     {
       "layer": 0,
@@ -168,13 +183,17 @@
       "decay_ms": 40,
       "trackball_friction": 0.5,
       "while_held": [],
-      "consume": true
+      "consume": true,
+      "spring": true,
+      "noise_filter": 0,
+      "snap": 0,
+      "acceleration": 0
     }
   ],
   "virtual": {
     "keyboard": { "repeat": 40 },
     "motion": { "shake_g": 3, "shake_ms": 200 },
-    "mouse": { "counts_per_turn": 14400, "turn_ms": 150 },
+    "mouse": { "counts_per_turn": 14400, "turn_ms": 150, "wheel_repeat_ms": 0 },
     "sticks": {
       "left": {
         "initial": 0.25, "max": 1, "speed": 1, "acceleration": 0.5, "multiplier_x": 1, "multiplier_y": 2, "curve": [],

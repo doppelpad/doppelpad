@@ -189,6 +189,16 @@ pub trait KbmOutput: Send {
     fn mouse_move(&mut self, dx: f32, dy: f32);
     /// Wheel motion in detents (fractional amounts are accumulated).
     fn wheel(&mut self, dir: WheelDir, detents: f32);
+    /// Move the cursor to a point of the primary screen (`x`, `y` in 0–1). Not every platform
+    /// can; the default does nothing.
+    fn mouse_to(&mut self, _x: f32, _y: f32) {
+        tracing::debug!("absolute cursor moves are not supported here");
+    }
+    /// Keep the cursor inside a rectangle of the primary screen (`[x1, y1, x2, y2]` in 0–1),
+    /// or (`None`) let it go. The default does nothing.
+    fn clip(&mut self, _rect: Option<[f32; 4]>) {
+        tracing::debug!("cursor clipping is not supported here");
+    }
 }
 
 /// Which physical keyboard/mouse inputs should be swallowed (not reach other apps)

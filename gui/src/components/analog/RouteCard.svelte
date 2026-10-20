@@ -24,7 +24,7 @@
 
   let { index, route }: { index: number; route: AnalogMapping } = $props();
 
-  type SliderField = Exclude<RouteField, 'consume'>;
+  type SliderField = Exclude<RouteField, 'consume' | 'spring'>;
   const SLIDERS: Record<SliderField, { min: number; max: number; step: number; scale?: number; unit?: string; hint?: boolean }> = {
     curve: { min: 0.2, max: 4, step: 0.05, hint: true },
     deadzone: { min: 0, max: 0.9, step: 0.01, scale: 100, unit: '%' },
@@ -32,6 +32,9 @@
     smoothing_ms: { min: 0, max: 100, step: 1, unit: 'ms' },
     decay_ms: { min: 0, max: 500, step: 5, unit: 'ms', hint: true },
     trackball_friction: { min: 0, max: 1, step: 0.01, scale: 100, unit: '%', hint: true },
+    snap: { min: 0, max: 0.5, step: 0.01, scale: 100, unit: '%', hint: true },
+    noise_filter: { min: 0, max: 20, step: 1, hint: true },
+    acceleration: { min: 0, max: 4, step: 0.1, unit: '×/s', hint: true },
   };
 
   const def = $derived(app.catalog?.defaults.analog);
@@ -40,7 +43,7 @@
   const source = $derived<AnalogSource>(sourceOf(route));
   const target = $derived<AnalogTarget>(targetOf(route));
   const fields = $derived(routeFields(source, target));
-  const sliders = $derived(fields.filter((f): f is SliderField => f !== 'consume'));
+  const sliders = $derived(fields.filter((f): f is SliderField => f !== 'consume' && f !== 'spring'));
   const scaleKey = $derived(
     `${source === 'left_stick' || source === 'right_stick' ? 'stick' : source}>${target === 'mouse' || target === 'flick' ? target : 'stick'}`,
   );
@@ -184,6 +187,9 @@
     <Toggle checked={r.invert_x} {disabled} label={t('analog.routes.invert_x')} onchange={(v) => set({ invert_x: v })} />
     {#if !flick}
       <Toggle checked={r.invert_y} {disabled} label={t('analog.routes.invert_y')} onchange={(v) => set({ invert_y: v })} />
+    {/if}
+    {#if fields.includes('spring')}
+      <Toggle checked={r.spring} {disabled} label={t('analog.routes.spring')} onchange={(v) => set({ spring: v })} />
     {/if}
     {#if fields.includes('consume')}
       <Toggle
