@@ -139,6 +139,14 @@ its own, *Use Main's settings* removes them, and each slider's reset button goes
 Main's value. The zone editor in the binding panel works the same way for the zones of the
 selected layer.
 
+Below the stick settings, **Buttons and keys on this stick** sets how mappings push the
+virtual stick from a button or key: *Push at once* (the default) or *Ramp up*, then *Start
+at*, *Stop at*, *Speed*, *Acceleration* and a speed factor per axis. The graph shows the
+deflection over the first two seconds of holding a button. Two buttons pushing in opposite
+directions cancel out. The *Output curve* shapes everything the virtual stick sends, also
+the passed-through stick and analog routes. On a shift layer these settings work like the
+others: the layer keeps only what it changes.
+
 **Routes** lists the analog routes of the current layer. *Add route* offers common ones:
 right stick → mouse, gyro → mouse, gyro → right stick while `LT` is held, mouse → right
 stick, touchpad → mouse. Each route can then take any source (left or right stick, gyro,

@@ -13,6 +13,9 @@ import type {
   Sticks,
   TriggerConfig,
   Triggers,
+  VirtualDevices,
+  VirtualStick,
+  VirtualSticks,
 } from '../types';
 
 export type Side = 'left' | 'right';
@@ -26,8 +29,31 @@ const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v));
 
 // ----- stick and trigger settings ----------------------------------------------------------
 
-/** Stick and trigger settings are per config; a layer may change some of their fields. */
-export type AnalogKind = 'sticks' | 'triggers';
+/**
+ * Stick, trigger and virtual stick settings are per config; a layer may change some of their
+ * fields (`virtual_sticks` is the layer's `virtual.sticks`).
+ */
+export type AnalogKind = 'sticks' | 'triggers' | 'virtual_sticks';
+
+type Group = Partial<Record<Side, Record<string, unknown>>>;
+
+function partOf(l: Layer | undefined, kind: AnalogKind): Group | undefined {
+  return (kind === 'virtual_sticks' ? l?.virtual?.sticks : l?.[kind]) as Group | undefined;
+}
+
+/** The layer with a new group for `kind`; empty groups are dropped. */
+function withPart(l: Layer, kind: AnalogKind, group: Group): Layer {
+  const next: Layer = { ...l };
+  const empty = Object.keys(group).length === 0;
+  if (kind === 'virtual_sticks') {
+    const v: { sticks?: VirtualSticks } = { ...next.virtual, sticks: group as VirtualSticks };
+    if (empty) delete v.sticks;
+    if (Object.keys(v).length > 0) next.virtual = v;
+    else delete next.virtual;
+  } else if (empty) delete next[kind];
+  else next[kind] = group as Sticks & Triggers;
+  return next;
+}
 
 function declared(p: Profile, layer: number): Layer | undefined {
   return layer === 0 ? undefined : p.layers?.find((l) => l.id === layer);
@@ -45,7 +71,7 @@ export function triggerConfig(p: Profile, side: Side, def: Required<TriggerConfi
 
 /** The fields a layer sets itself for one stick or trigger (none on Main). */
 export function layerOverrides(p: Profile, layer: number, kind: AnalogKind, side: Side): string[] {
-  return Object.keys(declared(p, layer)?.[kind]?.[side] ?? {});
+  return Object.keys(partOf(declared(p, layer), kind)?.[side] ?? {});
 }
 
 function isDefault(v: object, def: object): boolean {
@@ -83,7 +109,7 @@ export function setLayerPart(
   const layers = [...(p.layers ?? [])];
   const i = layers.findIndex((l) => l.id === layer);
   const l: Layer = i >= 0 ? { ...layers[i] } : { id: layer, inherit: true };
-  const group = { ...(l[kind] ?? {}) } as Record<string, Record<string, unknown>>;
+  const group: Group = { ...partOf(l, kind) };
   const own: Record<string, unknown> = { ...(group[side] ?? {}) };
   for (const [k, v] of Object.entries(patch)) {
     if (JSON.stringify(v) === JSON.stringify((main as Record<string, unknown>)[k])) delete own[k];
@@ -91,10 +117,8 @@ export function setLayerPart(
   }
   if (Object.keys(own).length > 0) group[side] = own;
   else delete group[side];
-  if (Object.keys(group).length > 0) l[kind] = group;
-  else delete l[kind];
-  if (i >= 0) layers[i] = l;
-  else layers.push(l);
+  if (i >= 0) layers[i] = withPart(l, kind, group);
+  else layers.push(withPart(l, kind, group));
   return { ...p, layers };
 }
 
@@ -103,11 +127,9 @@ export function resetLayerPart(p: Profile, layer: number, kind: AnalogKind, side
   if (layerOverrides(p, layer, kind, side).length === 0) return p;
   const layers = (p.layers ?? []).map((l) => {
     if (l.id !== layer) return l;
-    const group: Partial<Record<Side, unknown>> = { ...l[kind] };
+    const group: Group = { ...partOf(l, kind) };
     delete group[side];
-    const next = { ...l, [kind]: group };
-    if (Object.keys(group).length === 0) delete next[kind];
-    return next;
+    return withPart(l, kind, group);
   });
   return { ...p, layers };
 }
@@ -134,6 +156,39 @@ export function setTrigger(
   const out = { ...p, triggers };
   if (!triggers) delete out.triggers;
   return out;
+}
+
+/** How mappings push a virtual stick, with the defaults filled in, as on `layer`. */
+export function virtualStickConfig(
+  p: Profile,
+  side: Side,
+  def: Required<VirtualStick>,
+  layer = 0,
+): Required<VirtualStick> {
+  return { ...def, ...p.virtual?.sticks?.[side], ...declared(p, layer)?.virtual?.sticks?.[side] };
+}
+
+/** Change how mappings push a virtual stick, on Main or only on `layer`. */
+export function setVirtualStick(
+  p: Profile,
+  side: Side,
+  patch: Partial<VirtualStick>,
+  def: Required<VirtualStick>,
+  layer = 0,
+): Profile {
+  if (layer !== 0) return setLayerPart(p, layer, 'virtual_sticks', side, patch, virtualStickConfig(p, side, def));
+  const sticks: VirtualSticks | undefined = setPair(p.virtual?.sticks, side, patch, def);
+  const v: VirtualDevices = { ...p.virtual, sticks };
+  if (!sticks) delete v.sticks;
+  const out: Profile = { ...p, virtual: v };
+  if (Object.keys(v).length === 0) delete out.virtual;
+  return out;
+}
+
+/** Deflection a button pushing along one axis has reached after `heldS` seconds (engine rule). */
+export function virtualRamp(cfg: Required<VirtualStick>, heldS: number, multiplier: number): number {
+  const grown = (cfg.speed + 0.5 * cfg.acceleration * heldS) * heldS * multiplier;
+  return clamp(Math.min(cfg.initial + grown, cfg.max), 0, 1);
 }
 
 // ----- shaping (engine/analog.rs) -----------------------------------------------------------

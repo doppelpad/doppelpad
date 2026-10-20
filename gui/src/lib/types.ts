@@ -81,6 +81,7 @@ export interface Layer {
   /** Stick and trigger fields this layer changes; the rest are Main's. */
   sticks?: Sticks;
   triggers?: Triggers;
+  virtual?: { sticks?: VirtualSticks };
 }
 
 export interface Output {
@@ -169,8 +170,25 @@ export interface AnalogMapping {
 /** Auto-repeat of keys that mappings hold: a mode or an interval in ms. */
 export type KeyRepeat = 'native' | 'fast' | 'slow' | 'off' | number;
 
+/** How mappings push a virtual stick: start, cap and growth of the deflection, and its curve. */
+export interface VirtualStick {
+  initial?: number;
+  max?: number;
+  speed?: number;
+  acceleration?: number;
+  multiplier_x?: number;
+  multiplier_y?: number;
+  curve?: [number, number][];
+}
+
+export interface VirtualSticks {
+  left?: VirtualStick;
+  right?: VirtualStick;
+}
+
 export interface VirtualDevices {
   keyboard?: { repeat?: KeyRepeat };
+  sticks?: VirtualSticks;
 }
 
 export interface Profile {
@@ -298,6 +316,7 @@ export interface Catalog {
     stick: Required<StickConfig>;
     trigger: Required<TriggerConfig>;
     analog: Required<AnalogMapping>;
+    virtual_stick: Required<VirtualStick>;
   };
 }
 

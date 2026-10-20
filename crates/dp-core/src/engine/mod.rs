@@ -20,8 +20,8 @@ pub mod routes;
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use self::analog::{
-    DIRECTION_SECTOR, directions, orient, sectors, shape_stick, shape_trigger, stick_zone,
-    trigger_zone,
+    DIRECTION_SECTOR, apply_curve, directions, orient, sectors, shape_stick, shape_trigger,
+    stick_zone, trigger_zone,
 };
 use self::compile::{
     AnalogOut, BindingId, Compiled, LayerTable, MaskId, Out, Policy, Step, StopRule, compile,
@@ -34,6 +34,7 @@ use crate::keys::{Key, MouseButton, WheelDir};
 use crate::pad::{Axis, PadButton, PadState, Rumble, Stick, Trigger};
 use crate::profile::{
     Activator, AnalogSource, Command, Mode, Profile, Sticks, Triggers, VirtualPadType,
+    VirtualStick, VirtualSticks,
 };
 
 /// How long one wheel notch counts as "pressed" when used as a trigger.
@@ -105,7 +106,8 @@ struct Activation {
     latched: bool,
     finished: bool,
     owned: Vec<Out>,
-    analog: Vec<AnalogOut>,
+    /// Analog outputs held by the program, with the time each one started.
+    analog: Vec<(AnalogOut, u64)>,
     jump_at: Option<(u64, u8)>,
     /// Which segment of a sequence with break steps this activation plays.
     segment: usize,
@@ -214,10 +216,10 @@ fn step(act: &mut Activation, program: &[Step], outs: &mut Outputs, until: u64) 
             Step::Down(o) => outs.press(&mut act.owned, *o),
             Step::Up(o) => outs.release(&mut act.owned, *o),
             Step::AnalogDown(a) => {
-                act.analog.retain(|x| !x.same_slot(a));
-                act.analog.push(*a);
+                act.analog.retain(|(x, _)| !x.same_slot(a));
+                act.analog.push((*a, t));
             }
-            Step::AnalogUp(a) => act.analog.retain(|x| !x.same_slot(a)),
+            Step::AnalogUp(a) => act.analog.retain(|(x, _)| !x.same_slot(a)),
             Step::Wheel(d, n) => outs.wheel.push((*d, *n)),
             Step::Wait(ms) => {
                 act.pc += 1;
@@ -276,6 +278,8 @@ pub struct Engine {
     mouse_diagonals: bool,
     /// Effective stick and trigger settings of the layers that change them.
     layer_analog: HashMap<u8, (Sticks, Triggers)>,
+    /// Virtual stick settings of layers that change them.
+    layer_virtual: HashMap<u8, VirtualSticks>,
 
     prev_controls: HashSet<Control>,
     cur_controls: HashSet<Control>,
@@ -322,6 +326,19 @@ impl Engine {
                 (l.id, (sticks, l.triggers.apply(&profile.triggers)))
             })
             .collect();
+        let layer_virtual = profile
+            .layers
+            .iter()
+            .filter(|l| l.virtual_devices.sticks != Default::default())
+            .map(|l| {
+                (
+                    l.id,
+                    l.virtual_devices
+                        .sticks
+                        .apply(&profile.virtual_devices.sticks),
+                )
+            })
+            .collect();
         let touch_diagonals = uses(
             &profile,
             |c| matches!(c, Control::Touch(r) if r.is_diagonal()),
@@ -348,6 +365,7 @@ impl Engine {
             touch_diagonals,
             mouse_diagonals,
             layer_analog,
+            layer_virtual,
             prev_controls: HashSet::new(),
             cur_controls: HashSet::new(),
             pending: Vec::new(),
@@ -372,6 +390,14 @@ impl Engine {
         self.layer_analog
             .get(&self.layer)
             .map_or(&self.profile.sticks, |(s, _)| s)
+    }
+
+    /// Virtual stick settings of the active layer.
+    fn virtual_stick(&self, s: Stick) -> &VirtualStick {
+        self.layer_virtual
+            .get(&self.layer)
+            .unwrap_or(&self.profile.virtual_devices.sticks)
+            .get(s)
     }
 
     /// Trigger settings of the active layer.
@@ -1226,12 +1252,20 @@ impl Engine {
             }
         }
         let mut mouse_v = (0.0f32, 0.0f32);
+        // Per stick and axis, the largest push in each direction (opposite pushes cancel).
+        let mut pushes = [[[0.0f32; 2]; 2]; 2];
         for act in &self.acts {
-            for a in &act.analog {
-                match *a {
+            for &(a, since) in &act.analog {
+                match a {
                     AnalogOut::Stick(s, x, y) => {
-                        let (cx, cy) = pad.stick(s);
-                        pad.set_stick(s, ((cx + x).clamp(-1.0, 1.0), (cy + y).clamp(-1.0, 1.0)));
+                        let vs = self.virtual_stick(s);
+                        let held = now.saturating_sub(since) as f32 / 1000.0;
+                        for (axis, v, m) in [(0, x, vs.multiplier_x), (1, y, vs.multiplier_y)] {
+                            let reach = v.abs().min(vs.ramp(held, m));
+                            let dir = usize::from(v < 0.0);
+                            let p = &mut pushes[s as usize][axis][dir];
+                            *p = p.max(reach);
+                        }
                     }
                     AnalogOut::Trigger(t, v) => {
                         let cur = pad.axis(t.axis());
@@ -1245,6 +1279,24 @@ impl Engine {
             }
         }
         out.mouse_move = (mouse_v.0 * dt, mouse_v.1 * dt);
+        for s in [Stick::Left, Stick::Right] {
+            let axis = |[pos, neg]: [f32; 2]| {
+                if pos > 0.0 && neg > 0.0 {
+                    0.0
+                } else {
+                    pos - neg
+                }
+            };
+            let [px, py] = pushes[s as usize];
+            let (cx, cy) = pad.stick(s);
+            pad.set_stick(
+                s,
+                (
+                    (cx + axis(px)).clamp(-1.0, 1.0),
+                    (cy + axis(py)).clamp(-1.0, 1.0),
+                ),
+            );
+        }
 
         // Analog routes.
         let input = RouteInput {
@@ -1274,6 +1326,16 @@ impl Engine {
                     let (cx, cy) = pad.stick(s);
                     pad.set_stick(s, ((cx + x).clamp(-1.0, 1.0), (cy + y).clamp(-1.0, 1.0)));
                 }
+            }
+        }
+        // The virtual stick's own output curve, over every source.
+        for s in [Stick::Left, Stick::Right] {
+            let curve = &self.virtual_stick(s).curve;
+            let (x, y) = pad.stick(s);
+            let mag = x.hypot(y).min(1.0);
+            if !curve.is_empty() && mag > 0.0 {
+                let k = apply_curve(curve, mag) / mag;
+                pad.set_stick(s, ((x * k).clamp(-1.0, 1.0), (y * k).clamp(-1.0, 1.0)));
             }
         }
 

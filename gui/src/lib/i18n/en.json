@@ -327,6 +327,25 @@
       "routes": "Routes"
     },
     "all_layers": "Applies on every layer of this config, unless a layer changes it.",
+    "virtual": {
+      "title": "Buttons and keys on this stick",
+      "hint": "For mappings that push the virtual stick from a button or key.",
+      "preset_instant": "Push at once",
+      "preset_ramp": "Ramp up",
+      "initial": "Start at",
+      "initial_hint": "Deflection the moment the button goes down.",
+      "max": "Stop at",
+      "max_hint": "Largest deflection a held button reaches (a mapping's own deflection can be lower).",
+      "speed": "Speed",
+      "speed_hint": "How fast the deflection grows while the button is held.",
+      "acceleration": "Acceleration",
+      "multiplier_x": "Horizontal speed factor",
+      "multiplier_y": "Vertical speed factor",
+      "multiplier_hint": "Scale speed and acceleration per axis.",
+      "preview": "Deflection over the first two seconds of holding a button.",
+      "curve": "Output curve",
+      "curve_hint": "Shapes everything the virtual stick sends, also the passed-through stick."
+    },
     "layer": {
       "own": "{layer} has its own settings here.",
       "follows": "{layer} uses Main's settings here. Changing one gives {layer} its own value.",

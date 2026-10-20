@@ -10,8 +10,9 @@ use dp_core::keys::{Key, MouseButton, WheelDir};
 use dp_core::pad::{PadButton, Stick, Trigger};
 use dp_core::profile::{
     Action, Activator, AnalogMapping, AnalogSource, AnalogTarget, Combo, Command, Jump, JumpMode,
-    KeyRepeat, Layer, LayerSticks, LayerTriggers, Mapping, Mode, Press, Profile, StickPatch,
-    Sticks, TriggerPatch, Triggers, VirtualPadType, ZoneRadius,
+    KeyRepeat, Layer, LayerSticks, LayerTriggers, LayerVirtualSticks, Mapping, Mode, Press,
+    Profile, StickPatch, Sticks, TriggerPatch, Triggers, VirtualPadType, VirtualStick,
+    VirtualStickPatch, VirtualSticks, ZoneRadius,
 };
 use serde_json::Value;
 
@@ -292,6 +293,44 @@ fn mouse_button(id: i64) -> Option<MouseButton> {
 /// Highest low-zone threshold imported, so the medium and high zones keep some room.
 const MAX_LOW_ZONE: f32 = 0.95;
 
+/// A stick's response curve (`curves.points.horizontal`), sorted by travel.
+fn curve_points(s: &Value) -> Option<Vec<[f32; 2]>> {
+    let points = get(s, "curves")
+        .and_then(|c| get(c, "points"))
+        .map(|p| array(p, "horizontal"))
+        .unwrap_or(&[]);
+    if points.is_empty() {
+        return None;
+    }
+    let mut curve: Vec<[f32; 2]> = points
+        .iter()
+        .filter_map(|pt| {
+            Some([
+                int(pt, "travel")? as f32 / AXIS_MAX,
+                int(pt, "value")? as f32 / AXIS_MAX,
+            ])
+        })
+        .collect();
+    curve.sort_by(|a, b| a[0].total_cmp(&b[0]));
+    Some(curve)
+}
+
+/// The format's virtual stick defaults: buttons start at 7000/32768 and ramp up (initial
+/// speed 8, acceleration 1).
+fn vendor_virtual_stick() -> VirtualStick {
+    VirtualStick {
+        initial: 7000.0 / AXIS_MAX,
+        speed: 8.0 * VIRTUAL_SPEED_UNIT,
+        acceleration: VIRTUAL_ACCEL_UNIT,
+        ..VirtualStick::default()
+    }
+}
+
+/// One step of `initialSpeed`, in deflection per second (4096 / 32768).
+const VIRTUAL_SPEED_UNIT: f32 = 0.125;
+/// One step of `acceleration`, in deflection per second² (16384 / 32768).
+const VIRTUAL_ACCEL_UNIT: f32 = 0.5;
+
 /// One `zones[]` entry as a fraction of full deflection; a missing `y` equals `x`.
 fn zone_entry(zones: &[Value], name: &str) -> Option<ZoneRadius> {
     let z = zones
@@ -478,6 +517,7 @@ impl<'a> Importer<'a> {
             }
         }
         fold_jump_pairs(&mut p.mappings);
+        self.virtual_sticks(&mut p);
         // A mask a layer does not inherit stays uninherited in its zone form too.
         for l in &mut p.layers {
             for (mask, zoned) in &self.zoned {
@@ -616,6 +656,144 @@ impl<'a> Importer<'a> {
         }
     }
 
+    /// How mappings push the virtual sticks (`devices.virtual.gamepads[0]`), on the base
+    /// layer and per layer. Sticks that buttons push follow the format's ramp even without
+    /// settings; the others keep ours.
+    fn virtual_sticks(&mut self, p: &mut Profile) {
+        let path = "devices.virtual.gamepads[0]";
+        let pad = get(self.root, "devices")
+            .and_then(|d| get(d, "virtual"))
+            .and_then(|v| array(v, "gamepads").first());
+        let mut base = VirtualSticks {
+            left: vendor_virtual_stick(),
+            right: vendor_virtual_stick(),
+        };
+        let mut used = [false; 2];
+        if let Some(d) = pad.and_then(|g| get(g, "default")) {
+            used = self.virtual_stick_settings(&mut base, d, &format!("{path}.default"));
+        }
+        let mut layers = Vec::new();
+        for (k, s) in pad
+            .map(|g| array(g, "shifts"))
+            .unwrap_or(&[])
+            .iter()
+            .enumerate()
+        {
+            let spath = format!("{path}.shifts[{k}]");
+            let Some(id) = int(s, "shiftId") else {
+                self.diags.warn(&spath, "missing shiftId");
+                continue;
+            };
+            let mut sticks = base.clone();
+            let seen = self.virtual_stick_settings(&mut sticks, s, &spath);
+            used = [used[0] || seen[0], used[1] || seen[1]];
+            layers.push((id, sticks, spath));
+        }
+        for a in p.mappings.iter().flat_map(|m| &m.actions) {
+            if let Action::Stick { stick, .. } = a {
+                used[*stick as usize] = true;
+            }
+        }
+        let pick = |v: &VirtualStick, i: usize| {
+            if used[i] {
+                v.clone()
+            } else {
+                VirtualStick::default()
+            }
+        };
+        let main = VirtualSticks {
+            left: pick(&base.left, 0),
+            right: pick(&base.right, 1),
+        };
+        for (id, sticks, spath) in layers {
+            let patch = LayerVirtualSticks {
+                left: VirtualStickPatch::between(&main.left, &pick(&sticks.left, 0)),
+                right: VirtualStickPatch::between(&main.right, &pick(&sticks.right, 1)),
+            };
+            match p.layers.iter_mut().find(|l| i64::from(l.id) == id) {
+                Some(l) => l.virtual_devices.sticks = patch,
+                None => self.diags.warn(
+                    spath,
+                    format!("settings for layer {id}, which does not exist"),
+                ),
+            }
+        }
+        p.virtual_devices.sticks = main;
+    }
+
+    /// One block of virtual stick settings; returns which sticks (left, right) it set.
+    fn virtual_stick_settings(
+        &mut self,
+        sticks: &mut VirtualSticks,
+        d: &Value,
+        path: &str,
+    ) -> [bool; 2] {
+        let mut seen = [false; 2];
+        for s in array(d, "sticks") {
+            let (cfg, i) = match enum_str(s, "name").as_deref() {
+                Some("left") => (&mut sticks.left, 0),
+                Some("right") => (&mut sticks.right, 1),
+                Some("gyro") => {
+                    self.diags.info(
+                        format!("{path}.sticks"),
+                        "virtual gyro stick settings are not supported",
+                    );
+                    continue;
+                }
+                _ => continue,
+            };
+            seen[i] = true;
+            let fraction = |v: i64| (v as f32 / AXIS_MAX).clamp(0.0, 1.0);
+            if let Some(v) = int(s, "initialDeflection") {
+                cfg.initial = fraction(v);
+            }
+            if let Some(v) = int(s, "maxDeflection") {
+                cfg.max = fraction(v);
+            }
+            if let Some(v) = int(s, "initialSpeed") {
+                cfg.speed = v.clamp(0, 16) as f32 * VIRTUAL_SPEED_UNIT;
+            }
+            if let Some(v) = int(s, "acceleration") {
+                cfg.acceleration = v.clamp(0, 4) as f32 * VIRTUAL_ACCEL_UNIT;
+            }
+            // A multiplier of 0 means 1.
+            if let Some(v) = int(s, "multiplierX") {
+                cfg.multiplier_x = v.clamp(1, 5) as f32;
+            }
+            if let Some(v) = int(s, "multiplierY") {
+                cfg.multiplier_y = v.clamp(1, 5) as f32;
+            }
+            if let Some(curve) = curve_points(s) {
+                cfg.curve = curve;
+            }
+            let vertical: Vec<&str> = [
+                "initialDeflectionY",
+                "maxDeflectionY",
+                "initialSpeedY",
+                "accelerationY",
+            ]
+            .into_iter()
+            .filter(|k| get(s, k).is_some())
+            .collect();
+            if !vertical.is_empty() {
+                self.diags.info(
+                    format!("{path}.sticks"),
+                    format!(
+                        "separate vertical values ({}) are not supported; the horizontal ones apply",
+                        vertical.join(", ")
+                    ),
+                );
+            }
+            if boolean(s, "jitter") || int(s, "shakingDuration").is_some_and(|v| v > 0) {
+                self.diags.info(
+                    format!("{path}.sticks"),
+                    "stick shake and jitter are not supported yet",
+                );
+            }
+        }
+        seen
+    }
+
     /// Gamepad stick/trigger/touchpad settings.
     fn analog_settings(
         &mut self,
@@ -677,21 +855,7 @@ impl<'a> Importer<'a> {
             if let Some(r) = int(s, "rotation") {
                 cfg.rotation = r.clamp(-90, 90) as f32;
             }
-            let points = get(s, "curves")
-                .and_then(|c| get(c, "points"))
-                .map(|p| array(p, "horizontal"))
-                .unwrap_or(&[]);
-            if !points.is_empty() {
-                let mut curve: Vec<[f32; 2]> = points
-                    .iter()
-                    .filter_map(|pt| {
-                        Some([
-                            int(pt, "travel")? as f32 / AXIS_MAX,
-                            int(pt, "value")? as f32 / AXIS_MAX,
-                        ])
-                    })
-                    .collect();
-                curve.sort_by(|a, b| a[0].total_cmp(&b[0]));
+            if let Some(curve) = curve_points(s) {
                 cfg.curve = curve;
             }
         }
@@ -839,6 +1003,7 @@ impl<'a> Importer<'a> {
                 not_inherited,
                 sticks,
                 triggers,
+                ..Default::default()
             });
 
             // Legacy single-button modifier → synthesized jump mapping.
@@ -1689,6 +1854,49 @@ mod tests {
             "{diags:?}"
         );
         assert!(!crate::validate(&p).has_errors());
+    }
+
+    #[test]
+    fn virtual_stick_ramp_settings() {
+        let doc = r#"{ "schemaVersion": 3.0, "appVersion": "9.2.0", "config": { "appName": "x" },
+          "devices": { "hardware": [ { "id": 1, "name": "gamepad" }, { "id": 11, "name": "keyboard" } ],
+            "virtual": { "gamepads": [ { "id": 1, "type": "360",
+              "default": { "sticks": [ { "name": "right", "initialDeflection": 16384, "initialSpeed": 4,
+                                         "multiplierX": 0, "multiplierY": 3, "initialSpeedY": 2 } ] },
+              "shifts": [ { "shiftId": 1, "sticks": [ { "name": "left", "maxDeflection": 16384 } ] },
+                          { "shiftId": 4, "sticks": [ { "name": "left", "maxDeflection": 100 } ] } ] } ] } },
+          "shifts": [ { "id": 1, "type": "default" } ],
+          "masks": [ { "id": 1, "set": [ { "deviceId": 11, "buttonId": 17, "description": "DIK_W" } ] } ],
+          "mappings": [ { "condition": { "mask": { "id": 1, "activator": { "type": "single", "mode": "hold_until_release" } } },
+                          "macros": [ { "gamepad": { "id": 1, "buttonId": 40 } } ] } ] }"#;
+        let (p, diags) = import(doc).unwrap();
+        assert!(!diags.has_errors(), "{diags:?}");
+        let near = |a: f32, b: f32| (a - b).abs() < 0.001;
+        let vs = &p.virtual_devices.sticks;
+        // The left stick is pushed by W, so it ramps with the format's defaults.
+        assert!(near(vs.left.initial, 7000.0 / 32768.0) && near(vs.left.speed, 1.0));
+        assert!(near(vs.left.acceleration, 0.5) && vs.left.max == 1.0);
+        let r = &vs.right;
+        assert!(near(r.initial, 0.5) && near(r.speed, 0.5));
+        assert_eq!((r.multiplier_x, r.multiplier_y), (1.0, 3.0), "0 means 1");
+        let l = &p.layers[0].virtual_devices.sticks;
+        assert_eq!(l.left.max, Some(0.5));
+        assert!(l.left.initial.is_none() && l.right.is_empty());
+        assert!(
+            diags.iter().any(|d| d.message.contains("initialSpeedY")),
+            "{diags:?}"
+        );
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.path == "devices.virtual.gamepads[0].shifts[1]")
+        );
+        assert!(!crate::validate(&p).has_errors());
+
+        // Without buttons on a stick, nothing is written.
+        let plain = r#"{ "schemaVersion": 3.0, "config": {}, "devices": { "hardware": [ { "id": 1, "name": "gamepad" } ] } }"#;
+        let (p, _) = import(plain).unwrap();
+        assert_eq!(p.virtual_devices.sticks, Default::default());
     }
 
     #[test]
