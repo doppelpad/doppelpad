@@ -289,6 +289,14 @@ trigger and stick direction in turn and records what the controller sends (skip 
 not have). The layout is kept for every controller of that model; the same menu entry can
 discard it again.
 
+*Settings → While remapping*: Doppelpad keeps the PC awake while a mapping plays input (a
+macro, a toggle that holds a key); it can pause remapping while the config's game is not in
+front (configs of a game folder, or with program names of their own), and a controller with
+slots of its own can keep its virtual controller, idle, while it is disconnected. On the lock
+screen, at Ctrl+Alt+Del and during administrator prompts remapping always pauses and lets go of
+everything. While a game with an anti-cheat known to act against automated input is in front
+(Counter-Strike 2, Call of Duty), the warnings bar says so, with the publisher's statement.
+
 *Settings → Motion server (DSU)* lets emulators such as Cemu, Dolphin or Ryujinx read the
 controllers' buttons, sticks and gyro over the DSU (cemuhook) protocol, on port 26760 unless
 you choose another. It is off by default and answers only this PC unless *Reachable from the

@@ -392,6 +392,14 @@ pub trait SystemControl: Send {
     fn screenshot(&mut self) -> Result<std::path::PathBuf>;
     /// Ask the focused window to close, as its close button does.
     fn close_foreground_window(&mut self) -> Result<()>;
+    /// Keep the computer from going to sleep while `on` (played-back input is not user
+    /// activity to the power manager).
+    fn keep_awake(&mut self, _on: bool) {}
+    /// Whether the user's own desktop takes input: `false` while the session is locked or a
+    /// secure desktop (sign-in, Ctrl+Alt+Del, elevation prompt) shows.
+    fn desktop_active(&self) -> bool {
+        true
+    }
 }
 
 /// All backends for the current OS.

@@ -2,6 +2,7 @@
 //! the device/engine runtime, slots, automatic per-application switching, IPC handling
 //! and live snapshots for user interfaces.
 
+pub mod anticheat;
 pub mod calibration;
 pub mod dsu;
 pub mod host;

@@ -790,6 +790,8 @@
     "autodetect": "Autodetect",
     "autodetect_hint": "Switch to a game's config while that game is in the foreground",
     "paused": "Paused while editing",
+    "paused_locked": "Paused: the screen is locked",
+    "paused_focus": "Paused: the game is not in front",
     "applied": "Applied to slot {n}",
     "no_config": "Select a config first"
   },
@@ -840,6 +842,14 @@
       "scale": "Size",
       "opacity": "Opacity",
       "seconds": "Display time"
+    },
+    "runtime": {
+      "title": "While remapping",
+      "prevent_sleep": "Keep the PC awake while a mapping plays input",
+      "pause_unfocused": "Pause while the config's game is not in front",
+      "pause_unfocused_hint": "Applies to configs of a game (from its folder or with program names of their own).",
+      "keep_offline_pads": "Keep the virtual controller when a controller with slots of its own disconnects",
+      "locked_hint": "On the lock screen, Ctrl+Alt+Del and administrator prompts Doppelpad always pauses and lets go of everything."
     },
     "dsu": {
       "title": "Motion server (DSU)",

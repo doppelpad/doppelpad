@@ -151,7 +151,7 @@
       {live?.remap_on ? t('remap.on') : t('remap.off')}
     </button>
     {#if live?.suspended && live?.remap_on && live?.profile}
-      <span class="paused"><Pause size={12} /> {t('remap.paused')}</span>
+      <span class="paused"><Pause size={12} /> {t(live.locked ? 'remap.paused_locked' : live.focus_paused ? 'remap.paused_focus' : 'remap.paused')}</span>
     {/if}
 
     <div class="apply">

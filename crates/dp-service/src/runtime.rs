@@ -212,6 +212,9 @@ pub struct Runtime {
     mappings_overlay: bool,
     /// Player lights and microphone LED last sent, per controller.
     sent_leds: HashMap<DeviceId, Leds>,
+    /// Keep the computer awake while a mapping plays output, and whether it is held awake.
+    prevent_sleep: bool,
+    awake: bool,
     /// Blocked devices and device groups, applied by the wrapper around the backends.
     policy: Arc<Mutex<DevicePolicy>>,
     /// Every device the backends report, before blocking and grouping.
@@ -523,6 +526,8 @@ impl Runtime {
             pad_overlay: false,
             mappings_overlay: false,
             sent_leds: HashMap::new(),
+            prevent_sleep: true,
+            awake: false,
             power_off_after: None,
             idle: HashMap::new(),
         }
@@ -659,6 +664,21 @@ impl Runtime {
             tracing::info!(device = %id, "this controller cannot be turned off");
         }
         done
+    }
+
+    /// Keep the computer from sleeping while macros run or toggles hold output.
+    pub fn set_prevent_sleep(&mut self, on: bool) {
+        self.prevent_sleep = on;
+    }
+
+    fn keep_awake(&mut self) {
+        let busy = self.prevent_sleep
+            && !self.suspended
+            && self.sessions.iter().any(|s| s.engine.emulating());
+        if busy != self.awake {
+            self.awake = busy;
+            self.platform.system.keep_awake(busy);
+        }
     }
 
     /// Turn off the controllers that had no input for the idle timeout.
@@ -1090,6 +1110,7 @@ impl Runtime {
         self.send_test_turn(now);
         self.poll_devices(now);
         self.watch_idle(now);
+        self.keep_awake();
         self.kbm_buf.clear();
         if let Some(rx) = &self.kbm_rx {
             self.kbm_buf.extend(rx.try_iter());
@@ -1457,6 +1478,9 @@ pub(crate) mod testing {
             self.0.lock().unwrap().system.push("CloseWindow".into());
             Ok(())
         }
+        fn keep_awake(&mut self, on: bool) {
+            self.0.lock().unwrap().system.push(format!("awake {on}"));
+        }
     }
 
     struct FakeKbm(Shared);
@@ -1636,6 +1660,52 @@ mod tests {
             std::thread::sleep(std::time::Duration::from_millis(15));
         }
         assert_eq!(rt.overlays(), (true, true));
+    }
+
+    #[test]
+    fn stays_awake_while_a_mapping_holds_output() {
+        use dp_core::control::Control;
+        use dp_core::pad::PadButton;
+        use dp_core::profile::{Action, Mapping};
+        let (platform, world) = testing::platform();
+        world
+            .lock()
+            .unwrap()
+            .pads
+            .push(pad("pad1", PadFamily::Xbox));
+        let mut rt = Runtime::with_platform(platform);
+        let m = Mapping::new(
+            Control::Button(PadButton::A),
+            vec![Action::Key {
+                key: dp_core::keys::Key::Space,
+                action: Default::default(),
+            }],
+        );
+        let mut p = Profile::default();
+        p.output.virtual_pad = VirtualPadType::None;
+        p.mappings.push(m);
+        rt.apply(p, None).unwrap();
+        rt.tick();
+        let mut press = |on: bool| {
+            world.lock().unwrap().pads[0].state.set(PadButton::A, on);
+            for _ in 0..3 {
+                rt.tick();
+                std::thread::sleep(Duration::from_millis(15));
+            }
+        };
+        press(true);
+        let awake = |w: &testing::Shared| {
+            w.lock()
+                .unwrap()
+                .system
+                .iter()
+                .filter(|s| s.starts_with("awake"))
+                .cloned()
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(awake(&world), ["awake true"], "Space is held");
+        press(false);
+        assert_eq!(awake(&world), ["awake true", "awake false"]);
     }
 
     #[test]

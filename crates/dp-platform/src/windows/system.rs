@@ -18,10 +18,15 @@ use windows_sys::Win32::Security::{
     SE_SHUTDOWN_NAME, TOKEN_ADJUST_PRIVILEGES, TOKEN_PRIVILEGES, TOKEN_QUERY,
 };
 use windows_sys::Win32::System::Com::CoTaskMemFree;
-use windows_sys::Win32::System::Power::SetSuspendState;
+use windows_sys::Win32::System::Power::{
+    ES_CONTINUOUS, ES_SYSTEM_REQUIRED, SetSuspendState, SetThreadExecutionState,
+};
 use windows_sys::Win32::System::Shutdown::{
     EWX_LOGOFF, EWX_POWEROFF, EWX_REBOOT, ExitWindowsEx, SHTDN_REASON_FLAG_PLANNED,
     SHTDN_REASON_MAJOR_OTHER,
+};
+use windows_sys::Win32::System::StationsAndDesktops::{
+    CloseDesktop, DESKTOP_READOBJECTS, GetUserObjectInformationW, OpenInputDesktop, UOI_NAME,
 };
 use windows_sys::Win32::System::SystemInformation::GetLocalTime;
 use windows_sys::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
@@ -182,6 +187,42 @@ fn capture(path: &std::path::Path) -> Result<()> {
 }
 
 impl SystemControl for WinSystem {
+    fn keep_awake(&mut self, on: bool) {
+        let flags = if on {
+            ES_CONTINUOUS | ES_SYSTEM_REQUIRED
+        } else {
+            ES_CONTINUOUS
+        };
+        // SAFETY: plain call; the state belongs to this (long-lived) thread.
+        unsafe { SetThreadExecutionState(flags) };
+    }
+
+    fn desktop_active(&self) -> bool {
+        // SAFETY: the desktop handle is closed below; the buffer length is in bytes.
+        unsafe {
+            // The secure desktops refuse ordinary processes.
+            let desk = OpenInputDesktop(0, 0, DESKTOP_READOBJECTS);
+            if desk.is_null() {
+                return false;
+            }
+            let mut name = [0u16; 64];
+            let mut needed = 0u32;
+            let ok = GetUserObjectInformationW(
+                desk,
+                UOI_NAME,
+                name.as_mut_ptr().cast(),
+                (name.len() * 2) as u32,
+                &mut needed,
+            );
+            CloseDesktop(desk);
+            if ok == 0 {
+                return true;
+            }
+            let end = name.iter().position(|&c| c == 0).unwrap_or(name.len());
+            String::from_utf16_lossy(&name[..end]).eq_ignore_ascii_case("Default")
+        }
+    }
+
     fn power(&mut self, action: PowerAction) -> Result<()> {
         let reason = SHTDN_REASON_MAJOR_OTHER | SHTDN_REASON_FLAG_PLANNED;
         // Applications may still ask to save their work; nothing is forced.

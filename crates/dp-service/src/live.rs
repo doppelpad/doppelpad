@@ -11,7 +11,7 @@ use serde::Serialize;
 use crate::calibration::CalibrationStatus;
 use crate::dsu::DsuSettings;
 use crate::runtime::{DriverStatus, SessionInfo};
-use crate::slots::PlayerLights;
+use crate::slots::{PlayerLights, RuntimeOptions};
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct LiveDevice {
@@ -75,6 +75,11 @@ pub struct LiveState {
     /// Generic pad models with a recorded layout (`vvvv:pppp`).
     pub layouts: Vec<String>,
     pub dsu: LiveDsu,
+    pub runtime: RuntimeOptions,
+    /// Remapping is paused because the desktop is locked or a secure desktop shows.
+    pub locked: bool,
+    /// Remapping is paused because the config's game is not in front.
+    pub focus_paused: bool,
     /// Remapping is paused (the editor has focus).
     pub suspended: bool,
     /// Executable of the foreground application.
