@@ -25,8 +25,9 @@ only edits profiles and sends commands.
 1. Pick the layer in the toolbar and click the control (or press it). A stick asks for its
    direction (or the click, or *any direction* for zones). The touchpad asks for its click
    or one of five regions (top, bottom, left, right, centre). Controllers with motion
-   sensors have a **Gyro** chip at the top left of the drawing for the four gyro
-   directions. A trigger's binding panel offers its zones and *Full pull*.
+   sensors have a **Gyro** chip at the top left of the drawing for the gyro directions, lean
+   left/right and *any direction* (zones). A trigger's binding panel offers its zones and
+   *Full pull*; a gyro direction's offers its zones, which are set in Analog → Gyro.
 2. Choose the **activator** from the six icons: single press, long press, double press,
    triple press, start press and release. A dot under an icon means it is already mapped.
 3. **Add** actions: keyboard (from the list, or *Press a key…* and press it), mouse
@@ -104,7 +105,7 @@ timing wins over these; empty fields use the built-in defaults.
 **Analog** in the toolbar opens the analog settings. The controller drawing leads there
 too: clicking a stick offers *Stick settings* under the direction picker, and the binding
 panel of a stick direction, stick click or trigger links to the matching page. With a
-controller connected, the previews follow its sticks and triggers live. The view has four
+controller connected, the previews follow its sticks and triggers live. The view has five
 tabs.
 
 **Left stick** and **Right stick** shape the physical stick for the whole config (every
@@ -142,6 +143,15 @@ and the *Full pull*, which reads as fully pressed and fires `LTFull` / `RTFull` 
 The bars show the live pull with the press point (blue line), the medium and high zone
 thresholds (faint lines; set in the zone editor) and the output; *Pressed* and *Full pull*
 light up when mappings would fire.
+
+**Gyro** sets how the motion sensors become gyro controls, for the whole config: *Turning*
+(directions and zones fire while the controller turns, by how fast) or *Tilting* (the
+controller is a stick: they follow how far it is tilted from its centre, and gyro routes to a
+stick follow the tilt; the *Reset tilt* command sets the centre). *Left and right* follow the
+roll (like a steering wheel) or the turn; *Gyro aiming* in *Player space* turns around
+gravity, however the controller is held. *Gyro on when the config starts* can be switched off
+for configs that turn it on with a command. The zones (low, medium, high) are in degrees per
+second when turning and in degrees when tilting.
 
 With a shift layer selected in the toolbar, the stick and trigger pages show the settings as
 they are on that layer, and a change applies to that layer only. Everything the layer does

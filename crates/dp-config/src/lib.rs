@@ -193,6 +193,14 @@ pub fn validate(p: &Profile) -> Diagnostics {
     if !(10..=2000).contains(&motion.shake_ms) {
         d.error("virtual.motion.shake_ms", "must be 10–2000 ms");
     }
+    for (field, [low, med, high]) in [
+        ("gyro.motion_zones", p.gyro.motion_zones),
+        ("gyro.tilt_zones", p.gyro.tilt_zones),
+    ] {
+        if !(low > 0.0 && low < med && med < high) {
+            d.error(field, "low, med and high must be positive and increase");
+        }
+    }
     let mouse = &p.virtual_devices.mouse;
     if !(mouse.counts_per_turn > 0.0 && mouse.counts_per_turn <= 1_000_000.0) {
         d.error("virtual.mouse.counts_per_turn", "must be in (0, 1000000]");
@@ -575,6 +583,16 @@ while_held = ["LT", "Mouse:Right"]
         assert_eq!(parse_toml(&to_toml(&p)).unwrap(), p);
         let gyro = parse_toml("[[analog]]\nsource = \"gyro\"\ntarget = \"flick\"\n").unwrap();
         assert!(validate(&gyro).iter().any(|d| d.path == "analog[0]"));
+    }
+
+    #[test]
+    fn gyro_settings_round_trip_and_validate() {
+        let text = "[gyro]\nmode = \"tilt\"\nsteering = \"yaw\"\ninitially_on = false\nspace = \"player\"\ntilt_zones = [5.0, 15.0, 30.0]\n\n[[mappings]]\ntrigger = \"GyroLeanLeftHigh\"\nactions = [{ command = \"reset_tilt\" }]\n";
+        let p = parse_toml(text).unwrap();
+        assert!(!validate(&p).has_errors());
+        assert_eq!(parse_toml(&to_toml(&p)).unwrap(), p);
+        let bad = parse_toml("[gyro]\nmotion_zones = [60.0, 50.0, 500.0]\n").unwrap();
+        assert!(validate(&bad).iter().any(|d| d.path == "gyro.motion_zones"));
     }
 
     #[test]

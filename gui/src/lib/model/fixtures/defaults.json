@@ -54,5 +54,21 @@
       "delay_min_ms": 30,
       "delay_max_ms": 40
     }
+  },
+  "gyro": {
+    "mode": "motion",
+    "steering": "roll",
+    "initially_on": true,
+    "space": "local",
+    "motion_zones": [
+      60.0,
+      250.0,
+      550.0
+    ],
+    "tilt_zones": [
+      10.0,
+      22.0,
+      34.0
+    ]
   }
 }

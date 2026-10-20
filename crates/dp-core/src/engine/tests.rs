@@ -1,7 +1,7 @@
 //! Scenario tests: a fake 1 ms clock drives the engine through button timelines.
 
 use super::*;
-use crate::control::Zone;
+use crate::control::{GyroDir, Zone};
 use crate::profile::{
     Action, AnalogMapping, AnalogTarget, Combo, Jump, JumpMode, Layer, Mapping, Press,
 };
@@ -716,6 +716,56 @@ fn turn_action_spreads_over_turn_ms() {
 }
 
 #[test]
+fn tilt_mode_starts_off_and_recentres_on_command() {
+    use crate::pad::Motion;
+    use crate::profile::{GyroMode, GyroSettings};
+    let mut p = Profile {
+        gyro: GyroSettings {
+            mode: GyroMode::Tilt,
+            initially_on: false,
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    p.mappings.push(map(
+        Control::GyroZone(Some(GyroDir::Up), Zone::Med),
+        vec![key(Key::U)],
+    ));
+    p.mappings.push(map(
+        b(PadButton::Y),
+        vec![Action::Command {
+            command: Command::GyroOn,
+        }],
+    ));
+    p.mappings.push(map(
+        b(PadButton::X),
+        vec![Action::Command {
+            command: Command::ResetTilt,
+        }],
+    ));
+    let tilted = |deg: f32| {
+        let r = deg.to_radians();
+        Some(Motion {
+            gyro: [0.0; 3],
+            accel: [0.0, r.cos(), -r.sin()],
+        })
+    };
+    let mut h = Harness::new(p);
+    h.pad.motion = tilted(0.0); // centre pose
+    h.until(5);
+    h.pad.motion = tilted(30.0);
+    h.until(10);
+    assert!(!h.e.is_output_down(Key::U), "gyro starts off");
+    h.btn(PadButton::Y, true);
+    h.btn(PadButton::Y, false);
+    h.until(20);
+    assert!(h.e.is_output_down(Key::U), "30° nose up is the medium zone");
+    h.btn(PadButton::X, true); // this pose is the new centre
+    h.until(30);
+    assert!(!h.e.is_output_down(Key::U));
+}
+
+#[test]
 fn quick_key_tap_within_one_tick_is_not_lost() {
     let mut p = Profile::default();
     p.mappings.push(map(
@@ -764,7 +814,7 @@ fn touch_and_motion_pass_through_unless_remapped() {
         ..Default::default()
     });
     p.mappings
-        .push(map(Control::Gyro(Dir::Left), vec![key(Key::Q)]));
+        .push(map(Control::Gyro(GyroDir::Left), vec![key(Key::Q)]));
     let mut h = Harness::new(p);
     h.pad.touch[0] = finger;
     h.pad.motion = motion;

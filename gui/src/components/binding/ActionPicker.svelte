@@ -202,6 +202,8 @@
       <button class="cmd" onclick={() => onpick({ command: 'toggle_gyro' })}>{t('picker.toggle_gyro')}</button>
       <button class="cmd" onclick={() => onpick({ command: 'gyro_on' })}>{t('picker.gyro_on')}</button>
       <button class="cmd" onclick={() => onpick({ command: 'gyro_off' })}>{t('picker.gyro_off')}</button>
+      <button class="cmd" onclick={() => onpick({ command: 'reset_tilt' })}>{t('picker.reset_tilt')}</button>
+      <button class="cmd" onclick={() => onpick({ command: 'switch_gyro_axis' })}>{t('picker.switch_gyro_axis')}</button>
       <button class="cmd" onclick={() => onpick({ command: 'screenshot' })}>{t('picker.screenshot')}</button>
       <button class="cmd" onclick={() => onpick({ command: 'close_window' })}>{t('picker.close_window')}</button>
       {#each POWER_COMMANDS as c (c)}

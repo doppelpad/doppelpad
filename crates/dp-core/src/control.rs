@@ -11,7 +11,8 @@
 //! | `LTLow`, `RTMed`, ...       | trigger pulled into a zone                     |
 //! | `LTFull`, `RTFull`          | trigger fully pulled                           |
 //! | `TouchUp`, `TouchCenter`... | finger resting in a touchpad region            |
-//! | `GyroUp`, ...               | controller tilted / turned in a direction      |
+//! | `GyroUp`, `GyroLeanLeft`... | controller tilted / turned in a direction      |
+//! | `GyroLow`, `GyroUpHigh`...  | gyro or tilt into a zone (any or one direction) |
 //! | `Key:Space`                 | keyboard key ([`Key`] name)                    |
 //! | `Mouse:Left`                | mouse button                                   |
 //! | `Wheel:Up`                  | one wheel notch (momentary)                    |
@@ -139,6 +140,47 @@ impl Zone {
     }
 }
 
+/// Direction of the controller's motion: nose up or down, the steering axis (roll or yaw, see
+/// the profile's `[gyro]`) to the left or right, or a lean (roll, left grip down = left).
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum GyroDir {
+    Up,
+    Down,
+    Left,
+    Right,
+    LeanLeft,
+    LeanRight,
+}
+
+impl GyroDir {
+    pub const ALL: [GyroDir; 6] = [
+        GyroDir::Up,
+        GyroDir::Down,
+        GyroDir::Left,
+        GyroDir::Right,
+        GyroDir::LeanLeft,
+        GyroDir::LeanRight,
+    ];
+
+    pub fn name(self) -> &'static str {
+        match self {
+            GyroDir::Up => "Up",
+            GyroDir::Down => "Down",
+            GyroDir::Left => "Left",
+            GyroDir::Right => "Right",
+            GyroDir::LeanLeft => "LeanLeft",
+            GyroDir::LeanRight => "LeanRight",
+        }
+    }
+
+    fn parse(s: &str) -> Option<GyroDir> {
+        GyroDir::ALL
+            .into_iter()
+            .find(|d| d.name().eq_ignore_ascii_case(s))
+    }
+}
+
 /// Region of a touchpad, used as a digital input.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -217,7 +259,9 @@ pub enum Control {
     TriggerZone(Trigger, Zone),
     TriggerFull(Trigger),
     Touch(TouchRegion),
-    Gyro(Dir),
+    Gyro(GyroDir),
+    /// Controller moved or tilted into a zone, in a direction or (`None`) in any direction.
+    GyroZone(Option<GyroDir>, Zone),
     Key(Key),
     Mouse(MouseButton),
     Wheel(WheelDir),
@@ -246,6 +290,17 @@ impl Control {
             std::iter::once(None)
                 .chain(Dir::ALL8.map(Some))
                 .map(move |d| Control::StickZone(s, d, z))
+        });
+        dirs.into_iter().chain(zones).collect()
+    }
+
+    /// Every gyro control: directions and zones.
+    pub fn of_gyro() -> Vec<Control> {
+        let dirs = GyroDir::ALL.map(Control::Gyro);
+        let zones = Zone::ALL.into_iter().flat_map(|z| {
+            std::iter::once(None)
+                .chain(GyroDir::ALL.map(Some))
+                .map(move |d| Control::GyroZone(d, z))
         });
         dirs.into_iter().chain(zones).collect()
     }
@@ -393,6 +448,7 @@ impl fmt::Display for Control {
             Control::TriggerFull(t) => write!(f, "{}Full", trigger_name(t)),
             Control::Touch(r) => write!(f, "Touch{}", r.name()),
             Control::Gyro(d) => write!(f, "Gyro{}", d.name()),
+            Control::GyroZone(d, z) => write!(f, "Gyro{}{}", d.map_or("", GyroDir::name), z.name()),
             Control::Key(k) => write!(f, "Key:{}", k.name()),
             Control::Mouse(b) => write!(f, "Mouse:{}", mouse_button_name(b)),
             Control::Wheel(w) => write!(f, "Wheel:{}", wheel_name(w)),
@@ -459,8 +515,18 @@ impl FromStr for Control {
         {
             return Ok(Control::Touch(r));
         }
-        if let Some(d) = lower.strip_prefix("gyro").and_then(Dir::parse) {
-            return Ok(Control::Gyro(d));
+        if let Some(rest) = lower.strip_prefix("gyro") {
+            if let Some(d) = GyroDir::parse(rest) {
+                return Ok(Control::Gyro(d));
+            }
+            if let Some((rest, z)) = Zone::strip_suffix(rest) {
+                if rest.is_empty() {
+                    return Ok(Control::GyroZone(None, z));
+                }
+                if let Some(d) = GyroDir::parse(rest) {
+                    return Ok(Control::GyroZone(Some(d), z));
+                }
+            }
         }
         parse_pad_button(s).map(Control::Button).ok_or_else(err)
     }
@@ -504,7 +570,10 @@ mod tests {
             Control::TriggerZone(Trigger::Right, Zone::High),
             Control::TriggerFull(Trigger::Left),
             Control::Touch(TouchRegion::Center),
-            Control::Gyro(Dir::Down),
+            Control::Gyro(GyroDir::Down),
+            Control::Gyro(GyroDir::LeanRight),
+            Control::GyroZone(None, Zone::Low),
+            Control::GyroZone(Some(GyroDir::LeanLeft), Zone::High),
             Control::Key(Key::Space),
             Control::Mouse(MouseButton::X2),
             Control::Wheel(WheelDir::Down),

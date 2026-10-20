@@ -167,6 +167,9 @@
     "gyro": "Gyro",
     "touch_settings": "Touchpad als Maus",
     "gyro_settings": "Gyro-Zielen",
+    "gyro_controls_settings": "Gyro-Einstellungen",
+    "lean_left": "Nach links neigen",
+    "lean_right": "Nach rechts neigen",
     "click": "Klick",
     "stick_settings": "Stick-Einstellungen",
     "stick_settings_hint": "Deadzone, Kennlinie, Empfindlichkeit, Routen",
@@ -199,6 +202,7 @@
     },
     "any_direction": "{stick}, beliebige Richtung",
     "any_direction_button": "Beliebige Richtung (Zonen)",
+    "gyro_settings": "Gyro-Zonen stellst du unter Analog → Gyro ein",
     "desc": {
       "whole": "Aktiv, sobald das Bedienelement die Totzone verlässt – egal wie weit es bewegt wird.",
       "low": "Aktiv, solange das Bedienelement nur wenig bewegt ist – bis die mittlere Zone beginnt.",
@@ -248,6 +252,8 @@
     "toggle_gyro": "Gyro umschalten",
     "gyro_on": "Gyro an",
     "gyro_off": "Gyro aus",
+    "reset_tilt": "Neigung zurücksetzen (Mitte hier)",
+    "switch_gyro_axis": "Gyro-Lenkachse wechseln",
     "screenshot": "Screenshot aufnehmen",
     "close_window": "Aktives Fenster schließen",
     "shutdown": "PC herunterfahren",
@@ -350,6 +356,7 @@
       "left": "Linker Stick",
       "right": "Rechter Stick",
       "triggers": "Trigger",
+      "gyro": "Gyro",
       "routes": "Routen"
     },
     "all_layers": "Gilt auf allen Ebenen dieser Config, sofern eine Ebene es nicht ändert.",
@@ -379,6 +386,26 @@
       "delay_min": "Kürzester Schritt",
       "delay_max": "Längster Schritt",
       "delay_hint": "Jeder Schritt setzt den Versatz nach einer zufälligen Zeit in diesem Bereich auf den nächsten Punkt des Musters."
+    },
+    "gyro": {
+      "scope": "Gilt für die ganze Config, auf allen Ebenen.",
+      "mode_label": "Gyro-Steuerung",
+      "mode": { "motion": "Drehen", "tilt": "Kippen" },
+      "mode_hint": {
+        "motion": "Gyro-Richtungen und -Zonen lösen aus, während sich der Controller dreht, je nachdem wie schnell.",
+        "tilt": "Der Controller ist ein Stick: Richtungen und Zonen folgen, wie weit er aus seiner Mitte gekippt ist, und Gyro-Routen auf einen Stick folgen der Neigung (45° = voll). „Neigung zurücksetzen“ setzt die Mitte."
+      },
+      "steering_label": "Links und rechts",
+      "steering": { "roll": "Rollen", "yaw": "Drehen" },
+      "steering_hint": "Rollen: wie ein Lenkrad. Drehen: wie beim Zielen nach links und rechts. Links/rechts neigen folgt immer dem Rollen.",
+      "space_label": "Gyro-Zielen",
+      "space": { "local": "Controller-Achsen", "player": "Spieler-Raum" },
+      "space_hint": "Der Spieler-Raum dreht um die Schwerkraft, so funktioniert Zielen nach links und rechts, egal wie du den Controller hältst.",
+      "initially_on": "Gyro beim Start der Config an",
+      "initially_on_hint": "Befehle schalten den Gyro ein und aus, während die Config läuft.",
+      "zones": "Zonen",
+      "zones_hint_motion": "Wo die niedrige, mittlere und hohe Zone beginnen, in Grad pro Sekunde.",
+      "zones_hint_tilt": "Wo die niedrige, mittlere und hohe Zone beginnen, in Grad aus der Mitte."
     },
     "layer": {
       "own": "{layer} hat hier eigene Einstellungen.",
@@ -600,7 +627,9 @@
     "up_left": "hoch-links",
     "up_right": "hoch-rechts",
     "down_left": "runter-links",
-    "down_right": "runter-rechts"
+    "down_right": "runter-rechts",
+    "lean_left": "links neigen",
+    "lean_right": "rechts neigen"
   },
   "controls": {
     "LeftStick": "Linker Stick",
@@ -622,6 +651,7 @@
       "down_right": "Touchpad unten rechts"
     },
     "gyro": "Gyro {dir}",
+    "Gyro": "Gyro",
     "PaddleUL": "Paddle oben links",
     "PaddleUR": "Paddle oben rechts",
     "PaddleLL": "Paddle unten links",

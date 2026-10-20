@@ -7,6 +7,7 @@ import type {
   AnalogMapping,
   AnalogSource,
   AnalogTarget,
+  GyroSettings,
   Layer,
   Profile,
   StickConfig,
@@ -182,6 +183,19 @@ export function setVirtualStick(
   if (!sticks) delete v.sticks;
   const out: Profile = { ...p, virtual: v };
   if (Object.keys(v).length === 0) delete out.virtual;
+  return out;
+}
+
+/** The gyro settings with the defaults filled in. */
+export function gyroConfig(p: Profile, def: Required<GyroSettings>): Required<GyroSettings> {
+  return { ...def, ...p.gyro };
+}
+
+/** Change the gyro settings; like Rust, they are written in full unless all are defaults. */
+export function setGyro(p: Profile, patch: Partial<GyroSettings>, def: Required<GyroSettings>): Profile {
+  const gyro = { ...gyroConfig(p, def), ...patch };
+  const out: Profile = { ...p, gyro };
+  if (isDefault(gyro, def)) delete out.gyro;
   return out;
 }
 

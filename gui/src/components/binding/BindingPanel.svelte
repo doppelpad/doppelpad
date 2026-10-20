@@ -275,7 +275,9 @@
       <div class="act-desc">
         {t(`zones.desc.${fullPull ? 'full' : zp.zone ? zp.zone.toLowerCase() : 'whole'}`)}
       </div>
-      {#if zp.zone}
+      {#if zp.zone && zp.source.kind === 'gyro'}
+        <button class="btn gyro-zones" onclick={() => app.openAnalog('gyro')}>{t('zones.gyro_settings')}</button>
+      {:else if zp.zone}
         <ZoneEditor parts={zp} />
       {/if}
     {/if}

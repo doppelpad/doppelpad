@@ -307,6 +307,15 @@
             {t('binding.touch_settings')}
           </button>
         {:else}
+          <div class="sm-lean">
+            <button onclick={() => choose('GyroLeanLeft')}>{t('binding.lean_left')}</button>
+            <button onclick={() => choose('GyroLeanRight')}>{t('binding.lean_right')}</button>
+          </div>
+          <button class="sm-any" onclick={() => choose('GyroLow')}>{t('zones.any_direction_button')}</button>
+          <button class="sm-settings" onclick={() => app.openAnalog('gyro')}>
+            <SlidersHorizontal size={13} />
+            {t('binding.gyro_controls_settings')}
+          </button>
           <button class="sm-settings" onclick={() => app.openAnalog('routes')}>
             <SlidersHorizontal size={13} />
             {t('binding.gyro_settings')}
@@ -519,6 +528,24 @@
   }
   .sm-any:hover,
   .sm-settings:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .sm-lean {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px;
+    margin-top: 6px;
+  }
+  .sm-lean button {
+    padding: 5px 6px;
+    border-radius: var(--radius-s);
+    background: var(--bg-3);
+    border: 1px solid var(--line);
+    font-size: 11px;
+    white-space: nowrap;
+  }
+  .sm-lean button:hover {
     border-color: var(--accent);
     color: var(--accent);
   }

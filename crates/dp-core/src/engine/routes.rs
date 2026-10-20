@@ -51,6 +51,10 @@ pub struct RouteInput<'a> {
     pub gyro_enabled: bool,
     /// Turn calibration for flick routes.
     pub turn: &'a VirtualMouse,
+    /// Gyro yaw and pitch rates for routes (already in the profile's gyro space).
+    pub gyro_rates: Option<(f32, f32)>,
+    /// In tilt mode: steering and pitch tilt as deflections (left and up positive).
+    pub tilt: Option<(f32, f32)>,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -232,7 +236,7 @@ pub fn run(r: &AnalogMapping, st: &mut RouteState, input: &RouteInput) -> RouteO
             to_stick(r, v)
         }
         AnalogSource::Gyro => {
-            let Some(m) = input.pad.and_then(|p| p.motion) else {
+            let Some((yaw, pitch)) = input.gyro_rates else {
                 return RouteOutput::None;
             };
             if !input.gyro_enabled {
@@ -250,7 +254,14 @@ pub fn run(r: &AnalogMapping, st: &mut RouteState, input: &RouteInput) -> RouteO
                     v
                 }
             };
-            let (yaw, pitch) = (noise(m.gyro[1]), noise(m.gyro[0]));
+            let (yaw, pitch) = (noise(yaw), noise(pitch));
+            // In tilt mode a stick follows how far the controller is tilted.
+            if let Some((steer, up)) = input.tilt
+                && r.target != AnalogTarget::Mouse
+            {
+                let v = shape_vector((-steer * sx, up * sy), r.deadzone, r.curve);
+                return to_stick(r, (v.0 * r.sensitivity, v.1 * r.sensitivity));
+            }
             match r.target {
                 AnalogTarget::Mouse => {
                     let k = scale::GYRO_MOUSE_PX_PER_DEG * r.sensitivity;
@@ -357,6 +368,8 @@ mod tests {
             now,
             gyro_enabled: true,
             turn: &TURN,
+            gyro_rates: pad.and_then(|p| p.motion).map(|m| (m.gyro[1], m.gyro[0])),
+            tilt: None,
         }
     }
 
