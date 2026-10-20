@@ -57,6 +57,49 @@ pub struct Profile {
     /// The controller's light bar (`[lightbar]`); without it the game sets the colour.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub lightbar: Option<Light>,
+    /// How the game's rumble reaches the controller (`[vibration]`).
+    #[serde(skip_serializing_if = "is_default")]
+    pub vibration: Vibration,
+}
+
+/// How the game's rumble reaches the controller. Rumble that mappings play is not changed.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct Vibration {
+    /// Strength of the left (heavy) motor, 0–1; 0 turns it off.
+    pub left: f32,
+    /// Strength of the right (light) motor, 0–1.
+    pub right: f32,
+    /// Give each motor the other one's rumble.
+    pub swap: bool,
+    /// Shortest gap between two rumble commands, 10–200 ms (the latest value wins).
+    pub min_delay_ms: u32,
+}
+
+impl Default for Vibration {
+    fn default() -> Self {
+        Vibration {
+            left: 1.0,
+            right: 1.0,
+            swap: false,
+            min_delay_ms: 20,
+        }
+    }
+}
+
+impl Vibration {
+    /// The game's rumble as the controller should play it.
+    pub fn apply(&self, game: crate::pad::Rumble) -> crate::pad::Rumble {
+        let (low, high) = if self.swap {
+            (game.high, game.low)
+        } else {
+            (game.low, game.high)
+        };
+        crate::pad::Rumble {
+            low: low * self.left.clamp(0.0, 1.0),
+            high: high * self.right.clamp(0.0, 1.0),
+        }
+    }
 }
 
 /// A light-bar setting: a mode, its colours and how fast it animates.
@@ -1807,6 +1850,29 @@ impl Default for AnalogMapping {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn vibration_scales_and_swaps_the_game_rumble() {
+        use crate::pad::Rumble;
+        let game = Rumble {
+            low: 1.0,
+            high: 0.5,
+        };
+        let v = Vibration {
+            left: 0.5,
+            right: 0.0,
+            swap: true,
+            ..Default::default()
+        };
+        assert_eq!(
+            v.apply(game),
+            Rumble {
+                low: 0.25,
+                high: 0.0
+            }
+        );
+        assert_eq!(Vibration::default().apply(game), game);
+    }
 
     #[test]
     fn toml_roundtrip() {

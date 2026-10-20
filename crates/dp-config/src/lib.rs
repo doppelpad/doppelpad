@@ -279,6 +279,16 @@ pub fn validate(p: &Profile) -> Diagnostics {
     if let Some(l) = &p.lightbar {
         check_light(&mut d, "lightbar", l);
     }
+    let v = &p.vibration;
+    if !(0.0..=1.0).contains(&v.left)
+        || !(0.0..=1.0).contains(&v.right)
+        || !(10..=200).contains(&v.min_delay_ms)
+    {
+        d.error(
+            "vibration",
+            "motor strengths must be 0–1 and min_delay_ms 10–200",
+        );
+    }
     for (name, t) in [
         ("triggers.left", &p.triggers.left),
         ("triggers.right", &p.triggers.right),

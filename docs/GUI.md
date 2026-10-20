@@ -60,6 +60,8 @@ only edits profiles and sends commands.
    *Config settings* also hold the **crosshairs**: shape, colours, size, line width, outline,
    offset and an optional magnifier, and the layers that show each one; the action picker's
    commands show them (*Show crosshair N*, *Crosshair on/off*).
+   **Vibration** sets each motor's strength, swaps them and limits how often rumble
+   commands go out.
    The **light bar** (DualShock 4, DualSense) is set there as well, for *Main* and per layer:
    an effect, its colours and the speed. *Settings → Controller lights* sets what the player
    lights and the DualSense microphone LED show.

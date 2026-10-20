@@ -264,6 +264,15 @@
       "release": "Löst kurz aus, wenn die Taste losgelassen wird."
     }
   },
+  "vibration": {
+    "title": "Vibration",
+    "hint": "Wie das Rütteln des Spiels am Controller ankommt. Rütteln aus Belegungen bleibt, wie es ist.",
+    "left": "Linker Motor (schwer)",
+    "right": "Rechter Motor (leicht)",
+    "gap": "Mindestabstand",
+    "gap_hint": "Kürzeste Zeit zwischen zwei Rüttel-Befehlen; der neueste Wert gewinnt.",
+    "swap": "Motoren tauschen"
+  },
   "light": {
     "title": "Leuchtleiste",
     "hint": "Farbe und Effekt der Leuchtleiste von DualShock 4 und DualSense, für die Haupt-Ebene und auf Wunsch je Ebene. Ohne Einstellung setzt das Spiel die Farbe (virtueller DualShock 4).",
