@@ -128,6 +128,38 @@
       "key_delay_ms": "Verzögerung zwischen Tasten"
     }
   },
+  "zones": {
+    "title": "Zone",
+    "whole": "Beliebig",
+    "low": "Niedrig",
+    "med": "Mittel",
+    "high": "Hoch",
+    "in": {
+      "low": "Zone niedrig",
+      "med": "Zone mittel",
+      "high": "Zone hoch"
+    },
+    "any_direction": "{stick}, beliebige Richtung",
+    "any_direction_button": "Beliebige Richtung (Zonen)",
+    "desc": {
+      "whole": "Aktiv, sobald das Bedienelement die Totzone verlässt – egal wie weit es bewegt wird.",
+      "low": "Aktiv, solange das Bedienelement nur wenig bewegt ist – bis die mittlere Zone beginnt.",
+      "med": "Aktiv im mittleren Bereich – zwischen der mittleren und der hohen Schwelle.",
+      "high": "Aktiv, solange das Bedienelement weit bewegt ist – ab der hohen Schwelle bis zum Anschlag."
+    },
+    "thresholds": "Zonenschwellen",
+    "thresholds_hint": "Wo jede Zone beginnt, in % des ganzen Wegs. Leere Felder nutzen den Standard oder teilen den Rest gleichmäßig auf.",
+    "shared_stick": "Gilt für alle Richtungen dieses Sticks.",
+    "shared_trigger": "Gilt für alle Belegungen dieses Triggers.",
+    "separate_axes": "Horizontal und vertikal getrennt einstellen",
+    "horizontal": "Horizontal",
+    "vertical": "Vertikal",
+    "deadzone": "Totzone",
+    "now": "Jetzt: {zone}",
+    "now_none": "Jetzt: in der Totzone",
+    "err_range": "Schwellen müssen über 0 % und höchstens bei 100 % liegen.",
+    "err_order": "Niedrig, mittel und hoch müssen ansteigen."
+  },
   "activators": {
     "single": "Einfacher Druck",
     "long": "Langer Druck",

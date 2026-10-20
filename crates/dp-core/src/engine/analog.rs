@@ -1,10 +1,40 @@
 //! Stick and trigger shaping, and analog → digital derivation.
 
-use crate::control::Dir;
-use crate::profile::{StickConfig, TriggerConfig};
+use crate::control::{Dir, Zone};
+use crate::profile::{StickConfig, TriggerConfig, ZoneRadius};
 
 /// `tan(22.5°)`: with this sector ratio a stick has eight 45° sectors.
 pub const DIRECTION_SECTOR: f32 = 0.414_213_57;
+
+/// Smallest usable zone threshold; a zero threshold would count the resting
+/// control as deflected.
+const MIN_THRESHOLD: f32 = 1e-3;
+
+/// The zone whose test passes highest: `passes[i]` says whether the value reaches
+/// the low (0), medium (1) and high (2) threshold.
+fn band(passes: [bool; 3]) -> Option<Zone> {
+    match passes {
+        [_, _, true] => Some(Zone::High),
+        [_, true, _] => Some(Zone::Med),
+        [true, ..] => Some(Zone::Low),
+        _ => None,
+    }
+}
+
+/// Zone of a trigger pull for its low, medium and high thresholds; `None` below the
+/// low threshold. A pull exactly on a threshold is in the higher zone.
+pub fn trigger_zone(v: f32, t: [f32; 3]) -> Option<Zone> {
+    band(t.map(|t| v >= t.max(MIN_THRESHOLD)))
+}
+
+/// Zone of an oriented stick vector. Each threshold is an ellipse (a circle when
+/// both radii are equal); the stick reaches it when `(x/rx)² + (y/ry)² ≥ 1`.
+pub fn stick_zone((x, y): (f32, f32), t: [ZoneRadius; 3]) -> Option<Zone> {
+    band(t.map(|r| {
+        let (mx, my) = (x / r.x.max(MIN_THRESHOLD), y / r.y.max(MIN_THRESHOLD));
+        mx * mx + my * my >= 1.0
+    }))
+}
 
 /// Rotate a stick vector by `deg` degrees (counter-clockwise, y up).
 pub fn rotate((x, y): (f32, f32), deg: f32) -> (f32, f32) {
@@ -64,13 +94,22 @@ pub fn shape_stick((x, y): (f32, f32), cfg: &StickConfig) -> (f32, f32) {
     (ux * out, uy * out)
 }
 
-/// Which of the four direction controls are active for an oriented stick vector.
+/// Which of the four direction controls are active for a vector, or none while it
+/// is shorter than `threshold`.
+pub fn directions((x, y): (f32, f32), threshold: f32, k: f32) -> [bool; 4] {
+    if (x * x + y * y).sqrt() < threshold.max(1e-4) {
+        return [false; 4];
+    }
+    sectors((x, y), k)
+}
+
+/// Which of the four directions a deflected stick points to.
 ///
 /// Within `atan(k)` of an axis only that cardinal is active; in between, both
 /// cardinals are (4-way behaviour).
-pub fn directions((x, y): (f32, f32), threshold: f32, k: f32) -> [bool; 4] {
+pub fn sectors((x, y): (f32, f32), k: f32) -> [bool; 4] {
     let mut d = [false; 4];
-    if (x * x + y * y).sqrt() < threshold.max(1e-4) {
+    if x == 0.0 && y == 0.0 {
         return d;
     }
     let pure_h = y.abs() <= k * x.abs();
@@ -117,6 +156,70 @@ mod tests {
         assert_eq!(both, vec![Dir::Up, Dir::Right]);
         assert!(dirs((n(5000.0), n(5000.0))).is_empty(), "inside deadzone");
         assert_eq!(dirs((0.0, -1.0)), vec![Dir::Down]);
+    }
+
+    #[test]
+    fn derived_zone_thresholds_match_the_defaults() {
+        let n = |v: f32| v / 32768.0;
+        let trigger = TriggerConfig {
+            zones: crate::profile::TriggerZones {
+                low: n(960.0),
+                ..Default::default()
+            },
+            full_pull: 1.0,
+            ..Default::default()
+        };
+        // The integer defaults round each third down, so they sit up to two steps lower.
+        let [low, med, high] = trigger.zone_thresholds();
+        assert_eq!(low, n(960.0));
+        assert!((med - n(11562.0)).abs() <= n(2.0), "{med}");
+        assert!((high - n(22164.0)).abs() <= n(2.0), "{high}");
+
+        let stick = StickConfig::default();
+        let [low, med, high] = stick.zone_thresholds();
+        let m = |v: f32| v / 32767.0;
+        assert!((low.x - m(7849.0)).abs() < 0.001);
+        assert!((med.x - m(16155.0)).abs() < 0.001, "{med:?}");
+        assert!((high.y - m(24461.0)).abs() < 0.001, "{high:?}");
+    }
+
+    #[test]
+    fn trigger_bands_are_exclusive_and_thresholds_belong_to_the_higher_band() {
+        let t = [0.1, 0.4, 0.7];
+        assert_eq!(trigger_zone(0.0, t), None);
+        assert_eq!(trigger_zone(0.099, t), None);
+        assert_eq!(trigger_zone(0.1, t), Some(Zone::Low));
+        assert_eq!(trigger_zone(0.399, t), Some(Zone::Low));
+        assert_eq!(trigger_zone(0.4, t), Some(Zone::Med));
+        assert_eq!(trigger_zone(0.7, t), Some(Zone::High));
+        assert_eq!(trigger_zone(1.0, t), Some(Zone::High));
+        assert_eq!(
+            trigger_zone(0.0, [0.0, 0.4, 0.7]),
+            None,
+            "a zero threshold does not count a released trigger"
+        );
+    }
+
+    #[test]
+    fn stick_bands_radial_and_elliptic() {
+        let round = StickConfig::default().zone_thresholds();
+        let n = |v: f32| v / 32768.0;
+        assert_eq!(stick_zone((n(5000.0), n(5000.0)), round), None, "m = 0.90");
+        assert_eq!(stick_zone((0.0, round[0].y), round), Some(Zone::Low));
+        assert_eq!(stick_zone((-round[1].x, 0.0), round), Some(Zone::Med));
+        assert_eq!(stick_zone((0.6, -0.6), round), Some(Zone::High));
+
+        let r = |x, y| ZoneRadius { x, y };
+        let ellipse = [r(0.2, 0.5), r(0.4, 0.7), r(0.6, 0.9)];
+        assert_eq!(stick_zone((0.3, 0.0), ellipse), Some(Zone::Low));
+        assert_eq!(
+            stick_zone((0.0, 0.3), ellipse),
+            None,
+            "0.3 < 0.5 vertically"
+        );
+        assert_eq!(stick_zone((0.0, 0.8), ellipse), Some(Zone::Med));
+        assert_eq!(stick_zone((0.45, 0.45), ellipse), Some(Zone::Med));
+        assert_eq!(stick_zone((0.5, 0.5), ellipse), Some(Zone::High));
     }
 
     #[test]

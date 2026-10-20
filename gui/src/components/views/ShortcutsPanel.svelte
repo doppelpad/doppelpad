@@ -5,7 +5,7 @@
   import { Plus, Trash2, Check, X } from '@lucide/svelte';
   import { onDestroy } from 'svelte';
   import { t } from '../../lib/i18n/index.svelte';
-  import { controlLabel } from '../../lib/model/controls';
+  import { ZONES, controlLabel, withZone } from '../../lib/model/controls';
   import { comboKey, comboList, mappingSummary, sameCombo, shortcuts, toCombo } from '../../lib/model/profile';
   import { app } from '../../lib/state/app.svelte';
   import type { Combo, ControlName, Mapping } from '../../lib/types';
@@ -23,7 +23,9 @@
     return [...byKey.values()];
   });
 
-  const controls = $derived([...((app.catalog?.pad_buttons ?? []) as string[]), ...STICKS, 'LT', 'RT']);
+  const TRIGGERS = ['LT', 'RT'].flatMap((tr) => [tr, ...ZONES.map((z) => withZone(tr, z))]);
+
+  const controls = $derived([...((app.catalog?.pad_buttons ?? []) as string[]), ...STICKS, ...TRIGGERS]);
 
   function toggle(c: ControlName) {
     if (!picking) return;

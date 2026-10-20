@@ -128,6 +128,38 @@
       "key_delay_ms": "Delay between keys"
     }
   },
+  "zones": {
+    "title": "Zone",
+    "whole": "Any",
+    "low": "Low",
+    "med": "Medium",
+    "high": "High",
+    "in": {
+      "low": "low zone",
+      "med": "medium zone",
+      "high": "high zone"
+    },
+    "any_direction": "{stick}, any direction",
+    "any_direction_button": "Any direction (zones)",
+    "desc": {
+      "whole": "Active as soon as the control leaves its deadzone, however far it is moved.",
+      "low": "Active while the control is moved only a little, up to where the medium zone starts.",
+      "med": "Active in the middle of the range, between the medium and the high threshold.",
+      "high": "Active while the control is moved far, from the high threshold to the end."
+    },
+    "thresholds": "Zone thresholds",
+    "thresholds_hint": "Where each zone starts, in % of the full range. Empty fields use the default or split the rest evenly.",
+    "shared_stick": "Shared by all directions of this stick.",
+    "shared_trigger": "Shared by all mappings of this trigger.",
+    "separate_axes": "Separate horizontal and vertical thresholds",
+    "horizontal": "Horizontal",
+    "vertical": "Vertical",
+    "deadzone": "Deadzone",
+    "now": "Now: {zone}",
+    "now_none": "Now: in the deadzone",
+    "err_range": "Thresholds must be above 0 % and at most 100 %.",
+    "err_order": "Low, medium and high must increase."
+  },
   "activators": {
     "single": "Single press",
     "long": "Long press",

@@ -20,7 +20,7 @@ deadzone = 0.06
 curve = [[0.3, 0.15], [0.7, 0.55]]   # softer aim near the centre
 
 [triggers.right]
-press_threshold = 0.1
+zones = { low = 0.1 }           # RT counts as pressed from 10 % pull
 
 # --- Combos ------------------------------------------------------------------
 # LB + RB together: melee (B). Pressed alone, LB and RB still work normally.

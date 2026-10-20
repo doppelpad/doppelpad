@@ -4,7 +4,7 @@
   // Live input highlights pressed controls and moves the stick caps.
   import { DEVICE_LAYOUTS, type DeviceId, type LayoutControl } from '../../assets/devices/layouts';
   import { t } from '../../lib/i18n/index.svelte';
-  import { controlShort } from '../../lib/model/controls';
+  import { ZONES, controlShort, withZone, zoneFamily, zoneParts, zoneTag } from '../../lib/model/controls';
   import { effectiveMappings, mappingSummary, shortcutMembers } from '../../lib/model/profile';
   import { app } from '../../lib/state/app.svelte';
   import type { ControlName } from '../../lib/types';
@@ -34,6 +34,28 @@
     return c === 'LS' ? 'LeftStick' : c === 'RS' ? 'RightStick' : null;
   }
 
+  /** Zone tag of a control ("H"), or "" for a control without a zone. */
+  function zoneSuffix(c: ControlName): string {
+    const z = zoneParts(c)?.zone;
+    return z ? zoneTag(z) : '';
+  }
+
+  /**
+   * Controls a chip stands for besides its own, with a tag for its summary: a stick's
+   * directions, their zones and its any-direction zones; a trigger's zones.
+   */
+  function related(c: ControlName): { c: ControlName; tag: string }[] {
+    const stick = stickOf(c);
+    if (stick) {
+      return [
+        ...DIRS.flatMap((d) => zoneFamily(stick + d).map((x) => ({ c: x, tag: ARROW[d] + zoneSuffix(x) }))),
+        ...zoneFamily(stick).map((x) => ({ c: x, tag: '◎' + zoneSuffix(x) })),
+      ];
+    }
+    if (zoneParts(c)) return ZONES.map((z) => ({ c: withZone(c, z), tag: zoneTag(z) }));
+    return [];
+  }
+
   interface Chip {
     lc: LayoutControl;
     label: string;
@@ -49,25 +71,22 @@
     layout.controls.map((lc) => {
       const c = lc.control;
       const own = summaryOf(c);
-      const stick = stickOf(c);
       let summary = own?.text ?? '';
       let mapped = !!own;
       let selected = app.selectedKey === c;
       // app.pressed is also what press-to-select reacts to, so highlight and selection agree.
       let isPressed = app.pressed.has(c);
-      if (stick) {
-        // Stick chips also show the four directions.
-        const parts: string[] = [];
-        for (const d of DIRS) {
-          const s = summaryOf(stick + d);
-          if (s) parts.push(`${ARROW[d]} ${s.text}`);
-          if (app.selectedKey === stick + d) selected = true;
-          if (app.pressed.has(stick + d)) isPressed = true;
-        }
-        if (parts.length) {
-          summary = [own ? `● ${own.text}` : '', ...parts].filter(Boolean).join('  ');
-          mapped = true;
-        }
+      // Stick chips also show the directions and zones, trigger chips the zones.
+      const parts: string[] = [];
+      for (const r of related(c)) {
+        const s = summaryOf(r.c);
+        if (s) parts.push(`${r.tag} ${s.text}`);
+        if (app.selectedKey === r.c) selected = true;
+        if (app.pressed.has(r.c)) isPressed = true;
+      }
+      if (parts.length) {
+        summary = [own ? `● ${own.text}` : '', ...parts].filter(Boolean).join('  ');
+        mapped = true;
       }
       return {
         lc,
@@ -196,6 +215,7 @@
           <button onclick={() => choose(`${name}Down`)}>↓</button>
           <span></span>
         </div>
+        <button class="sm-any" onclick={() => choose(`${name}Low`)}>{t('zones.any_direction_button')}</button>
       </div>
     {/if}
   </div>
@@ -372,5 +392,20 @@
   }
   .sm-grid .click {
     font-size: 10px;
+  }
+  .sm-any {
+    display: block;
+    width: 100%;
+    margin-top: 6px;
+    padding: 5px 8px;
+    border-radius: var(--radius-s);
+    background: var(--bg-3);
+    border: 1px solid var(--line);
+    font-size: 11px;
+    white-space: nowrap;
+  }
+  .sm-any:hover {
+    border-color: var(--accent);
+    color: var(--accent);
   }
 </style>
