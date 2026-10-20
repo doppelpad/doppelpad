@@ -278,6 +278,8 @@ Commands:
 | `switch_gyro_axis` | Swap the gyro steering axis between roll and yaw |
 | `screenshot` | Save the monitor that shows the focused window as PNG in `Pictures\Doppelpad` (Windows; exclusive-fullscreen games may come out black) |
 | `close_window` | Ask the focused window to close, like its close button |
+| `{ crosshair = N }` | Show crosshair N (1 = the first of `[[crosshairs]]`), or hide it if it is the one showing |
+| `toggle_crosshair` | Hide the crosshair that shows, or bring back the last one |
 | `shutdown`, `restart`, `sleep`, `hibernate`, `log_off` | Power commands; applications may still ask to save their work (Linux: `systemctl`, `loginctl`) |
 | `{ launch = { path, args } }` | Start a program |
 
@@ -367,6 +369,33 @@ full_pull = 0.8
 A stick direction or trigger that is held across the switch and no longer reaches the new
 layer's threshold is released at once.
 
+## Crosshairs
+
+Up to ten crosshairs can be drawn over the game, in the middle of the primary monitor:
+
+```toml
+[[crosshairs]]
+name = "Scope"
+shape = "circle_dot"      # cross, cross_gap, dot, circle, circle_dot, circle_cross, x, t,
+                          # chevron, square, brackets
+color = "#00ff66"
+opacity = 1.0
+size = 30                 # logical pixels, 10–200
+thickness = 50            # line width in percent of a fifth of the size, 10–100
+outline = 1               # pixels, 0–10
+outline_color = "#000000"
+offset = [0, 0]           # pixels right and down from the centre
+visible = true            # false: only the magnifier
+magnifier = { zoom = 2.0, size = 0.2 }   # optional; size relative to the screen height
+layers = [1]              # shown while one of these layers is active
+```
+
+A crosshair shows while one of its `layers` is active, or after a `{ crosshair = N }`
+command (see [Commands](#mappings)); a command's choice wins over the layers until the
+profile changes. The magnifier enlarges the screen around the crosshair with the Windows
+magnification API (Windows only); the crosshair stays on top of it. Crosshairs are drawn
+by the app, not by `doppelpad daemon`.
+
 ## Analog routes
 
 ```toml
@@ -427,8 +456,8 @@ same calibration.
 other remapping tools. Files are recognized by their content, so the extension does not
 matter. The importer reports
 everything it could not represent, as diagnostics with JSON paths. These include radial
-menus, crosshairs, right trackpads, adaptive triggers, flick stick, LED settings and
-unsupported commands.
+menus, crosshair shapes (each imported crosshair is drawn as a cross), adaptive triggers,
+LED settings and unsupported commands.
 
 In that format a button that pushes a stick ramps up gradually by default, so imported
 profiles get `[virtual.sticks.*]` settings with that ramp for every stick that buttons push.

@@ -1,12 +1,11 @@
 <script lang="ts">
-  // One on-screen notification. The app (osd.rs) sends each message as an `osd` event and
-  // shows and hides the window; a page that is still loading asks for it with `osd_ready`.
+  // One on-screen notification. The app (osd.rs) sends each message (see lib/overlay.ts) and
+  // shows and hides the window.
   import { onMount } from 'svelte';
   import { fly } from 'svelte/transition';
-  import { invoke } from '@tauri-apps/api/core';
-  import { listen } from '@tauri-apps/api/event';
   import { BatteryLow, BatteryWarning, Bell, Gamepad2, Hash, Layers, Power, PowerOff, Unplug } from '@lucide/svelte';
   import { setLanguage, t } from '../../lib/i18n/index.svelte';
+  import { overlayContent } from '../../lib/overlay';
   import type { OsdMessage } from '../../lib/types';
 
   let msg = $state<OsdMessage | null>(null);
@@ -16,13 +15,7 @@
     msg = m;
   }
 
-  onMount(() => {
-    const off = listen<OsdMessage>('osd', (e) => show(e.payload));
-    invoke<OsdMessage | null>('osd_ready').then(show);
-    return () => {
-      off.then((f) => f());
-    };
-  });
+  onMount(() => overlayContent<OsdMessage>(show));
 
   const layerName = (layer: number, name: string | null) =>
     name ?? (layer === 0 ? t('layers.main') : t('layers.shift', { n: layer }));

@@ -905,6 +905,7 @@ impl Service {
                 })
                 .collect(),
             sessions: self.rt.sessions(),
+            crosshair: self.rt.crosshair().cloned(),
         }
     }
 

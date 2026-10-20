@@ -57,6 +57,9 @@ only edits profiles and sends commands.
    unless the layer maps it. *Give back while active* turns the layer into an unlock layer:
    the real keyboard, mouse or both work normally while it is held, and *Main*'s mappings
    for them do not apply there.
+   *Config settings* also hold the **crosshairs**: shape, colours, size, line width, outline,
+   offset and an optional magnifier, and the layers that show each one; the action picker's
+   commands show them (*Show crosshair N*, *Crosshair on/off*).
    A layer change can wait for a **Delay**; *Run the actions at the layer change* then holds
    the mapping's own actions back until the jump. *Config settings* decide whether held
    buttons are re-pressed when the layer changes.

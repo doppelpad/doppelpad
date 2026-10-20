@@ -48,6 +48,94 @@ pub struct Profile {
     /// Settings of the virtual devices Doppelpad drives (`[virtual.keyboard]`, ...).
     #[serde(rename = "virtual", skip_serializing_if = "is_default")]
     pub virtual_devices: VirtualDevices,
+    /// Crosshairs drawn over the game (`[[crosshairs]]`, at most ten).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub crosshairs: Vec<Crosshair>,
+}
+
+/// A crosshair drawn over the game, shown by a command or while one of its layers is active.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct Crosshair {
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub name: String,
+    pub shape: CrosshairShape,
+    /// `#rrggbb`.
+    pub color: String,
+    /// 0–1.
+    pub opacity: f32,
+    /// Width and height in logical pixels, 10–200.
+    pub size: u16,
+    /// Line width in percent of the widest line (a fifth of the size), 10–100.
+    pub thickness: u8,
+    /// Outline width in pixels, 0 (none) to 10.
+    pub outline: u8,
+    pub outline_color: String,
+    /// Pixels from the centre of the screen, right and down.
+    pub offset: [i16; 2],
+    /// Draw the crosshair; off, the entry only magnifies.
+    pub visible: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub magnifier: Option<Magnifier>,
+    /// Shown while one of these layers is active.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub layers: Vec<u8>,
+}
+
+impl Default for Crosshair {
+    fn default() -> Self {
+        Crosshair {
+            name: String::new(),
+            shape: CrosshairShape::Cross,
+            color: "#00ff66".into(),
+            opacity: 1.0,
+            size: 30,
+            thickness: 50,
+            outline: 0,
+            outline_color: "#000000".into(),
+            offset: [0, 0],
+            visible: true,
+            magnifier: None,
+            layers: Vec::new(),
+        }
+    }
+}
+
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CrosshairShape {
+    #[default]
+    Cross,
+    /// A cross with an open centre.
+    CrossGap,
+    Dot,
+    Circle,
+    CircleDot,
+    CircleCross,
+    X,
+    T,
+    Chevron,
+    Square,
+    Brackets,
+}
+
+/// The screen around the crosshair, enlarged.
+#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct Magnifier {
+    /// 1–16.
+    pub zoom: f32,
+    /// Diameter as a fraction of the screen height, 0.1–1.
+    pub size: f32,
+}
+
+impl Default for Magnifier {
+    fn default() -> Self {
+        Magnifier {
+            zoom: 2.0,
+            size: 0.2,
+        }
+    }
 }
 
 /// Settings of the virtual devices.
@@ -1322,6 +1410,10 @@ pub enum Command {
     Screenshot,
     /// Ask the focused window to close.
     CloseWindow,
+    /// Show crosshair N (1-based), or hide it if it is the one showing.
+    Crosshair(u8),
+    /// Hide the crosshair that shows, or bring back the last one.
+    ToggleCrosshair,
     /// Launch a program.
     Launch {
         path: String,

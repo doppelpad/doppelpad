@@ -19,7 +19,7 @@ use dp_core::control::{Control, mouse_button_name, pad_button_name};
 use dp_core::engine::{Engine, Input, Output};
 use dp_core::hotkeys::{HotkeyAction, HotkeyDetector, Hotkeys};
 use dp_core::pad::{PadButton, PadState, Rgb, Rumble, Trigger};
-use dp_core::profile::{AnalogSource, Command, Profile, VirtualPadType};
+use dp_core::profile::{AnalogSource, Command, Crosshair, Profile, VirtualPadType};
 use dp_core::repeat::KeyRepeater;
 use dp_platform::{
     CaptureFilter, DeviceId, KbmEvent, PadSnapshot, Platform, PowerAction, VirtualIgnoreList,
@@ -103,9 +103,61 @@ struct Session {
     key_repeat: KeyRepeater,
     /// The cursor clip this session last set.
     clip: Option<[f32; 4]>,
+    crosshair: CrosshairChoice,
+}
+
+/// The crosshair a session's commands chose (an index), and whether they hid it.
+#[derive(Clone, Copy, Debug, Default)]
+struct CrosshairChoice {
+    chosen: Option<usize>,
+    hidden: bool,
 }
 
 impl Session {
+    /// Index of the crosshair to draw: the one a command chose, else the first bound to the
+    /// active layer.
+    fn crosshair_index(&self) -> Option<usize> {
+        if self.crosshair.hidden {
+            return None;
+        }
+        let all = &self.engine.profile().crosshairs;
+        match self.crosshair.chosen {
+            Some(i) => (i < all.len()).then_some(i),
+            None => all
+                .iter()
+                .position(|c| c.layers.contains(&self.engine.layer())),
+        }
+    }
+
+    /// Carry out a crosshair command.
+    fn crosshair_command(&mut self, c: &Command) {
+        let count = self.engine.profile().crosshairs.len();
+        let showing = self.crosshair_index();
+        match *c {
+            Command::Crosshair(n) => {
+                let i = (n as usize).saturating_sub(1);
+                if i >= count {
+                    tracing::warn!("there is no crosshair {n}");
+                } else if showing == Some(i) {
+                    self.crosshair.hidden = true;
+                } else {
+                    self.crosshair = CrosshairChoice {
+                        chosen: Some(i),
+                        hidden: false,
+                    };
+                }
+            }
+            Command::ToggleCrosshair if showing.is_some() => self.crosshair.hidden = true,
+            Command::ToggleCrosshair => {
+                self.crosshair.hidden = false;
+                if self.crosshair_index().is_none() && count > 0 {
+                    self.crosshair.chosen = Some(0);
+                }
+            }
+            _ => {}
+        }
+    }
+
     fn info(&self) -> SessionInfo {
         SessionInfo {
             owner: self.owner.as_ref().map(|d| d.0.clone()),
@@ -467,6 +519,12 @@ impl Runtime {
         self.session(None).map_or(0, |s| s.engine.layer())
     }
 
+    /// The crosshair the default session shows.
+    pub fn crosshair(&self) -> Option<&Crosshair> {
+        let s = self.session(None)?;
+        s.engine.profile().crosshairs.get(s.crosshair_index()?)
+    }
+
     /// Problems of every session; those of a controller's own session name the controller.
     pub fn warnings(&self) -> Vec<String> {
         let mut out = Vec::new();
@@ -581,6 +639,7 @@ impl Runtime {
             sent_lightbar: None,
             key_repeat,
             clip: None,
+            crosshair: CrosshairChoice::default(),
         };
         for w in &session.warnings {
             tracing::warn!("{w}");
@@ -948,6 +1007,11 @@ impl Runtime {
                     tracing::warn!("cannot close the window: {e}");
                 }
             }
+            Command::Crosshair(_) | Command::ToggleCrosshair => {
+                if let Some(s) = self.sessions.get_mut(i) {
+                    s.crosshair_command(&c);
+                }
+            }
             Command::Unsupported(name) => {
                 tracing::debug!(session = i, "ignoring unsupported command {name}")
             }
@@ -1293,6 +1357,57 @@ mod tests {
             world.lock().unwrap().system,
             ["Screenshot", "CloseWindow", "Sleep"]
         );
+    }
+
+    #[test]
+    fn crosshair_commands_choose_and_hide() {
+        use dp_core::control::Control;
+        use dp_core::pad::PadButton;
+        use dp_core::profile::{Action, Mapping, Mode};
+        let (platform, world) = testing::platform();
+        world
+            .lock()
+            .unwrap()
+            .pads
+            .push(pad("pad1", PadFamily::Xbox));
+        let mut rt = Runtime::with_platform(platform);
+        let mut p = Profile::default();
+        for name in ["dot", "scope"] {
+            p.crosshairs.push(Crosshair {
+                name: name.into(),
+                ..Default::default()
+            });
+        }
+        p.crosshairs[0].layers = vec![0];
+        for (b, command) in [
+            (PadButton::A, Command::Crosshair(2)),
+            (PadButton::B, Command::ToggleCrosshair),
+        ] {
+            let mut m = Mapping::new(Control::Button(b), vec![Action::Command { command }]);
+            m.mode = Mode::Once;
+            p.mappings.push(m);
+        }
+        rt.apply(p, None).unwrap();
+        rt.tick();
+        let name = |rt: &Runtime| rt.crosshair().map(|c| c.name.clone());
+        assert_eq!(name(&rt).as_deref(), Some("dot"), "bound to the base layer");
+        let press = |rt: &mut Runtime, b: PadButton| {
+            for down in [true, false] {
+                world.lock().unwrap().pads[0].state.set(b, down);
+                for _ in 0..3 {
+                    rt.tick();
+                    std::thread::sleep(std::time::Duration::from_millis(15));
+                }
+            }
+        };
+        press(&mut rt, PadButton::A);
+        assert_eq!(name(&rt).as_deref(), Some("scope"));
+        press(&mut rt, PadButton::A);
+        assert_eq!(name(&rt), None, "the same command again hides it");
+        press(&mut rt, PadButton::B);
+        assert_eq!(name(&rt).as_deref(), Some("scope"), "toggle brings it back");
+        press(&mut rt, PadButton::B);
+        assert_eq!(name(&rt), None);
     }
 
     #[test]

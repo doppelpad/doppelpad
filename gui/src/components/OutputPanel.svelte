@@ -5,6 +5,7 @@
   import { setProfileTiming, setVirtualDevice, type TimingField } from '../lib/model/profile';
   import { app } from '../lib/state/app.svelte';
   import type { KeyRepeat, Output, Profile, VirtualPadType } from '../lib/types';
+  import CrosshairSettings from './crosshair/CrosshairSettings.svelte';
   import Toggle from './ui/Toggle.svelte';
 
   /** Profile-wide timing; mappings can override all but the shortcut window. */
@@ -299,6 +300,8 @@
       </label>
     {/each}
   </div>
+
+  <CrosshairSettings />
 </div>
 
 <style>

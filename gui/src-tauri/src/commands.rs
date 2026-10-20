@@ -13,8 +13,8 @@ use dp_core::hotkeys::Hotkeys;
 use dp_core::keys::{Key, MouseButton};
 use dp_core::pad::PadButton;
 use dp_core::profile::{
-    AnalogMapping, GyroSettings, Mapping, Output, Profile, StickConfig, Timing, TouchpadSettings,
-    TriggerConfig, VirtualStick,
+    AnalogMapping, Crosshair, GyroSettings, Magnifier, Mapping, Output, Profile, StickConfig,
+    Timing, TouchpadSettings, TriggerConfig, VirtualStick,
 };
 use dp_ipc::Request;
 use dp_service::{LiveState, ServiceCmd, ServiceHandle, ServiceReply};
@@ -69,6 +69,8 @@ pub struct Defaults {
     virtual_stick: VirtualStick,
     gyro: GyroSettings,
     touchpad: TouchpadSettings,
+    crosshair: Crosshair,
+    magnifier: Magnifier,
 }
 
 #[derive(Serialize)]
@@ -102,6 +104,8 @@ pub fn catalog() -> Catalog {
             virtual_stick: VirtualStick::default(),
             gyro: GyroSettings::default(),
             touchpad: TouchpadSettings::default(),
+            crosshair: Crosshair::default(),
+            magnifier: Magnifier::default(),
         },
     }
 }

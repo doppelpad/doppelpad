@@ -36,6 +36,9 @@ export type Command =
   | 'log_off'
   | 'screenshot'
   | 'close_window'
+  | 'toggle_crosshair'
+  /** Show crosshair N (1-based), or hide it if it is the one showing. */
+  | { crosshair: number }
   | { launch: { path: string; args?: string } }
   | { unsupported: string };
 
@@ -119,6 +122,50 @@ export interface Layer {
 }
 
 export type Unlock = 'all' | 'keyboard' | 'mouse';
+
+export type CrosshairShape =
+  | 'cross'
+  | 'cross_gap'
+  | 'dot'
+  | 'circle'
+  | 'circle_dot'
+  | 'circle_cross'
+  | 'x'
+  | 't'
+  | 'chevron'
+  | 'square'
+  | 'brackets';
+
+/** A crosshair drawn over the game; whatever it leaves out is the default. */
+export interface Crosshair {
+  name?: string;
+  shape?: CrosshairShape;
+  /** `#rrggbb`. */
+  color?: string;
+  /** 0–1. */
+  opacity?: number;
+  /** Logical pixels, 10–200. */
+  size?: number;
+  /** Percent of the widest line (a fifth of the size), 10–100. */
+  thickness?: number;
+  /** Pixels, 0–10. */
+  outline?: number;
+  outline_color?: string;
+  /** Pixels from the screen centre, right and down. */
+  offset?: [number, number];
+  /** Off: the entry only magnifies. */
+  visible?: boolean;
+  magnifier?: Magnifier;
+  /** Shown while one of these layers is active. */
+  layers?: number[];
+}
+
+export interface Magnifier {
+  /** 1–16. */
+  zoom: number;
+  /** Diameter as a fraction of the screen height. */
+  size: number;
+}
 
 export interface Output {
   virtual_pad?: VirtualPadType;
@@ -281,6 +328,8 @@ export interface Profile {
   layers?: Layer[];
   /** Off: held controls keep their old layer's action until released. */
   layer_change?: { repress?: boolean };
+  /** Crosshairs drawn over the game, at most ten. */
+  crosshairs?: Crosshair[];
   mappings: Mapping[];
   analog?: AnalogMapping[];
   virtual?: VirtualDevices;
@@ -365,6 +414,8 @@ export interface LiveState {
   device_slots: { id: string; slots: (string | null)[]; active_slot: number }[];
   /** Running profiles, the default session (`owner` null) first. */
   sessions: LiveSession[];
+  /** The crosshair drawn over the game. */
+  crosshair: Crosshair | null;
 }
 
 // ----- library --------------------------------------------------------------------------
@@ -424,6 +475,8 @@ export interface Catalog {
     virtual_stick: Required<VirtualStick>;
     gyro: Required<GyroSettings>;
     touchpad: Required<TouchpadSettings>;
+    crosshair: Required<Omit<Crosshair, 'magnifier'>>;
+    magnifier: Magnifier;
   };
 }
 
