@@ -53,6 +53,11 @@ export const api = {
 
   settingsGet: () => invoke<GuiSettings>('settings_get'),
   settingsSet: (settings: GuiSettings) => invoke<void>('settings_set', { settings }),
+  /** Start hidden in the tray when the user signs in; `null` where unsupported (not Windows). */
+  autostartGet: () => invoke<boolean | null>('autostart_get'),
+  autostartSet: (on: boolean) => invoke<void>('autostart_set', { on }),
+  /** Show the window, e.g. when the app started hidden and needs to ask something. */
+  showWindow: () => invoke<void>('window_show'),
   profilesDir: () => invoke<string>('profiles_dir'),
   logFile: () => invoke<string>('log_file'),
   takeNotices: () => invoke<string[]>('take_notices'),

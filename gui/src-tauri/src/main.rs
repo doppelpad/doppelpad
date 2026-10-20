@@ -4,6 +4,7 @@
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod autostart;
 mod commands;
 mod logging;
 mod settings;
@@ -33,8 +34,9 @@ fn take_over_running_service(notices: &mut Vec<String>) {
 
 /// Create the main window from its config entry, with the title bar drawn by the app:
 /// macOS keeps its native traffic lights over the app's header, Windows and Linux get
-/// no system frame and the header draws its own window buttons.
-fn create_main_window(app: &tauri::App) -> tauri::Result<WebviewWindow> {
+/// no system frame and the header draws its own window buttons. A hidden window still
+/// loads the frontend, so its start-up checks run.
+fn create_main_window(app: &tauri::App, visible: bool) -> tauri::Result<WebviewWindow> {
     let config = app
         .config()
         .app
@@ -42,7 +44,7 @@ fn create_main_window(app: &tauri::App) -> tauri::Result<WebviewWindow> {
         .iter()
         .find(|w| w.label == "main")
         .expect("main window config");
-    let builder = WebviewWindowBuilder::from_config(app.handle(), config)?;
+    let builder = WebviewWindowBuilder::from_config(app.handle(), config)?.visible(visible);
     #[cfg(target_os = "macos")]
     let builder = builder
         .title_bar_style(tauri::TitleBarStyle::Overlay)
@@ -84,7 +86,8 @@ fn main() {
             });
             tray::create(app.handle())?;
 
-            let window = create_main_window(app)?;
+            // Started with Windows: only the tray icon shows.
+            let window = create_main_window(app, !autostart::started_hidden())?;
             let app_handle = app.handle().clone();
             window.on_window_event(move |event| {
                 let state = app_handle.state::<AppState>();
@@ -133,6 +136,9 @@ fn main() {
             commands::live_subscribe,
             commands::settings_get,
             commands::settings_set,
+            commands::autostart_get,
+            commands::autostart_set,
+            commands::window_show,
             commands::profiles_dir,
             commands::log_file,
             commands::take_notices,

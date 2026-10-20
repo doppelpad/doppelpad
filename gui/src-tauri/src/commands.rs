@@ -401,6 +401,24 @@ pub fn settings_set(
     Ok(())
 }
 
+/// Whether the app starts hidden in the tray when the user signs in; `None` where it
+/// cannot (not Windows). Read from Windows each time: Task Manager can change it too.
+#[tauri::command]
+pub fn autostart_get() -> Option<bool> {
+    crate::autostart::enabled()
+}
+
+#[tauri::command]
+pub fn autostart_set(on: bool) -> CmdResult<()> {
+    crate::autostart::set(on).map_err(err)
+}
+
+/// Show the window, e.g. to ask something at start-up when the app started hidden.
+#[tauri::command]
+pub fn window_show(app: AppHandle) {
+    crate::tray::show_main(&app);
+}
+
 #[tauri::command]
 pub fn profiles_dir(state: State<AppState>) -> PathBuf {
     state.profiles_dir.clone()

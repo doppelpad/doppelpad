@@ -234,6 +234,7 @@
     "language": "Language",
     "stay_live": "Keep remapping active while this window is focused",
     "hook_buttons": "Select controls by pressing them on the controller",
+    "autostart": "Start with Windows, in the tray",
     "profiles_dir": "Configs are stored in",
     "drivers": "Drivers",
     "recheck": "Check again",

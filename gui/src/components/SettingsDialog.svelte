@@ -12,6 +12,18 @@
   api.profilesDir().then((d) => (profilesDir = d));
   let logFile = $state('');
   api.logFile().then((f) => (logFile = f));
+  /** Read from Windows each time the dialog opens: Task Manager can change it too. */
+  let autostart = $state<boolean | null>(null);
+  api.autostartGet().then((on) => (autostart = on));
+
+  async function setAutostart(on: boolean) {
+    try {
+      await api.autostartSet(on);
+    } catch (e) {
+      app.toast(errorText(e), 'error');
+    }
+    autostart = await api.autostartGet();
+  }
 
   const drivers = $derived(
     app.live
@@ -63,6 +75,11 @@
         onchange={(v) => app.setSettings({ hook_buttons: v })}
       />
     </div>
+    {#if autostart !== null}
+      <div class="row">
+        <Toggle checked={autostart} label={t('settings.autostart')} onchange={setAutostart} />
+      </div>
+    {/if}
 
     {#if app.rewasd}
       <label class="row">

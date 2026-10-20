@@ -1,6 +1,7 @@
 //! Windows backends: XInput + raw HID input, ViGEmBus virtual pads, HidHide device
 //! hiding, `SendInput` output, and low-level hook / raw-input capture.
 
+pub mod autostart;
 mod capture;
 mod devnode;
 mod foreground;

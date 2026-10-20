@@ -84,6 +84,13 @@ turns remapping on or off. The right-click menu has:
 The tray follows every change, whether it comes from the window, from `doppelpad`
 commands, or from a mapping that turns remapping off.
 
+*Settings → Start with Windows, in the tray* (Windows only) starts Doppelpad when you sign
+in, with only the tray icon showing; remapping runs as it was left. The setting is the
+`Doppelpad` entry under `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`, which runs
+`doppelpad-gui.exe --hidden`. Task Manager's *Startup* tab lists it too, and switching it
+off there shows in the settings. If reWASD runs at sign-in and *When reWASD is running at
+start-up* is set to *Ask*, the window opens to ask.
+
 ## reWASD running at start-up
 
 While reWASD runs, its service and driver keep the controllers to themselves, and
@@ -205,7 +212,8 @@ page offers to restart now or later.
 Uninstalling Doppelpad never removes the drivers, because other programs may use them.
 They are listed separately under *Installed apps* as "ViGEm Bus Driver" and "HidHide".
 *Delete the application data* in the uninstaller also deletes `%APPDATA%\doppelpad`
-(profiles and settings) and `%LOCALAPPDATA%\doppelpad\logs`.
+(profiles and settings) and `%LOCALAPPDATA%\doppelpad\logs`. Uninstalling always removes
+the *Start with Windows* entry of the user who uninstalls; updates keep it.
 
 | Command line | Drivers |
 |---|---|
