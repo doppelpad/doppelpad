@@ -289,6 +289,12 @@ trigger and stick direction in turn and records what the controller sends (skip 
 not have). The layout is kept for every controller of that model; the same menu entry can
 discard it again.
 
+*Settings → Motion server (DSU)* lets emulators such as Cemu, Dolphin or Ryujinx read the
+controllers' buttons, sticks and gyro over the DSU (cemuhook) protocol, on port 26760 unless
+you choose another. It is off by default and answers only this PC unless *Reachable from the
+network too* is on. The first four controllers take slots 1–4 and keep them while connected;
+the emulator sees the physical controller, not the remapped output.
+
 Wireless controllers can be turned off from their menu in the bottom bar (**Turn off**), with
 the `power_off` command in a mapping, or by themselves: *Turn wireless controllers off after*
 switches off a controller that had no input for that many minutes (resting sticks with a

@@ -19,6 +19,7 @@ use dp_core::profile::{
 use dp_ipc::Request;
 use dp_platform::generic::GenericLayout;
 use dp_platform::groups::DeviceGroup;
+use dp_service::dsu::DsuSettings;
 use dp_service::{LiveState, PlayerLights, ServiceCmd, ServiceHandle, ServiceReply};
 use serde::Serialize;
 use tauri::ipc::Channel;
@@ -359,6 +360,12 @@ pub fn set_layout(state: State<AppState>, layout: GenericLayout) -> CmdResult<St
 #[tauri::command]
 pub fn forget_layout(state: State<AppState>, device: String) -> CmdResult<String> {
     state.call(ServiceCmd::ForgetLayout(device))
+}
+
+/// Turn the DSU motion server for emulators on or off, or move it.
+#[tauri::command]
+pub fn set_dsu(state: State<AppState>, settings: DsuSettings) -> CmdResult<String> {
+    state.call(ServiceCmd::SetDsu(settings))
 }
 
 /// Turn a wireless controller off now.

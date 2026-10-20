@@ -9,6 +9,7 @@ use dp_platform::{Battery, PadFamily};
 use serde::Serialize;
 
 use crate::calibration::CalibrationStatus;
+use crate::dsu::DsuSettings;
 use crate::runtime::{DriverStatus, SessionInfo};
 use crate::slots::PlayerLights;
 
@@ -27,6 +28,17 @@ pub struct LiveDevice {
     pub battery: Option<Battery>,
     /// Unmapped input of a generic pad, for identifying its buttons.
     pub raw: Option<RawInput>,
+}
+
+/// The DSU motion server.
+#[derive(Clone, Debug, Default, PartialEq, Serialize)]
+pub struct LiveDsu {
+    pub settings: DsuSettings,
+    /// Where it listens while it runs.
+    pub address: Option<String>,
+    /// Emulators subscribed right now.
+    pub clients: usize,
+    pub error: Option<String>,
 }
 
 /// An open radial menu and the sector pointed at.
@@ -62,6 +74,7 @@ pub struct LiveState {
     pub power_off_after_min: u32,
     /// Generic pad models with a recorded layout (`vvvv:pppp`).
     pub layouts: Vec<String>,
+    pub dsu: LiveDsu,
     /// Remapping is paused (the editor has focus).
     pub suspended: bool,
     /// Executable of the foreground application.

@@ -9,6 +9,8 @@ use dp_platform::generic::GenericLayout;
 use dp_platform::groups::DeviceGroup;
 use serde::{Deserialize, Serialize};
 
+use crate::dsu::DsuSettings;
+
 /// Number of slots.
 pub const SLOTS: usize = 4;
 
@@ -48,6 +50,8 @@ pub struct SlotState {
     pub power_off_after_min: u32,
     /// How generic pad models' inputs map to pad controls.
     pub layouts: Vec<GenericLayout>,
+    /// The DSU motion server for emulators.
+    pub dsu: DsuSettings,
 }
 
 /// What the player lights of a controller show.
@@ -77,6 +81,7 @@ impl Default for SlotState {
             groups: Vec::new(),
             power_off_after_min: 0,
             layouts: Vec::new(),
+            dsu: DsuSettings::default(),
         }
     }
 }
@@ -100,6 +105,7 @@ struct StateFile {
     power_off_after_min: u32,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     layouts: Vec<GenericLayout>,
+    dsu: DsuSettings,
 }
 
 #[derive(Default, Serialize, Deserialize)]
@@ -163,6 +169,7 @@ impl SlotState {
             groups: file.groups,
             power_off_after_min: file.power_off_after_min,
             layouts: file.layouts,
+            dsu: file.dsu,
         }
     }
 
@@ -190,6 +197,7 @@ impl SlotState {
             groups: self.groups.clone(),
             power_off_after_min: self.power_off_after_min,
             layouts: self.layouts.clone(),
+            dsu: self.dsu,
         };
         let text = toml::to_string_pretty(&file).map_err(std::io::Error::other)?;
         if let Some(dir) = path.parent() {

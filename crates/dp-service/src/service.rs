@@ -12,6 +12,7 @@ use dp_platform::Leds;
 use dp_platform::generic::GenericLayout;
 use dp_platform::groups::{DeviceGroup, DevicePolicy};
 
+use crate::dsu::{DsuServer, DsuSettings};
 use crate::live::{LiveDevice, LiveState};
 use crate::runtime::{DriverStatus, Runtime};
 use crate::slots::{PlayerLights, SLOTS, SlotState};
@@ -110,6 +111,8 @@ pub enum ServiceCmd {
     SetLayout(GenericLayout),
     /// Go back to the guessed layout for a generic pad model (`vvvv:pppp`).
     ForgetLayout(String),
+    /// Turn the DSU motion server on or off, or move it.
+    SetDsu(DsuSettings),
     /// Turn a wireless controller off now.
     PowerOff(String),
     /// Re-probe ViGEmBus / HidHide now.
@@ -182,6 +185,9 @@ pub struct Service {
     device_errors: std::collections::BTreeMap<String, String>,
     /// Connected controllers when their sessions were last brought in line.
     connected: Vec<String>,
+    /// The DSU motion server while it runs, and why it could not start.
+    dsu: Option<DsuServer>,
+    dsu_error: Option<String>,
     /// When the gyro calibration was last saved.
     calibration_saved: Option<u64>,
 }
@@ -244,10 +250,13 @@ impl Service {
             last_error: None,
             device_errors: Default::default(),
             connected: Vec::new(),
+            dsu: None,
+            dsu_error: None,
             calibration_saved: None,
             opts,
         };
         svc.apply_device_policy();
+        svc.apply_dsu();
         svc.reload();
         if let Some(p) = svc.oneoff.clone() {
             svc.apply_path(&p)?;
@@ -706,6 +715,16 @@ impl Service {
                     ServiceReply::Ok("layout saved".into())
                 }
             },
+            ServiceCmd::SetDsu(settings) => {
+                self.state.dsu = settings;
+                self.apply_dsu();
+                self.save_state();
+                match &self.dsu_error {
+                    Some(e) => ServiceReply::Err(e.clone()),
+                    None if settings.enabled => ServiceReply::Ok("motion server on".into()),
+                    None => ServiceReply::Ok("motion server off".into()),
+                }
+            }
             ServiceCmd::ForgetLayout(device) => {
                 self.state.layouts.retain(|l| l.device != device);
                 self.apply_device_policy();
@@ -846,6 +865,25 @@ impl Service {
         }
     }
 
+    /// Start, stop or move the DSU server to match the settings.
+    fn apply_dsu(&mut self) {
+        let want = self.state.dsu;
+        // Free the port before binding it again.
+        self.dsu = None;
+        self.dsu_error = None;
+        if !want.enabled {
+            return;
+        }
+        match DsuServer::start(want) {
+            Ok(s) => self.dsu = Some(s),
+            Err(e) => {
+                let e = format!("the motion server cannot use port {}: {e}", want.port);
+                tracing::warn!("{e}");
+                self.dsu_error = Some(e);
+            }
+        }
+    }
+
     fn apply_device_policy(&mut self) {
         self.rt.set_device_policy(DevicePolicy {
             blocked: self.state.blocked.clone(),
@@ -876,6 +914,9 @@ impl Service {
 
     pub fn tick(&mut self) {
         self.rt.tick();
+        if let Some(dsu) = &mut self.dsu {
+            dsu.publish(self.rt.devices());
+        }
         self.run_hotkeys();
         self.show_lights();
         self.save_calibration();
@@ -1017,6 +1058,12 @@ impl Service {
                 .iter()
                 .map(|l| l.device.clone())
                 .collect(),
+            dsu: crate::live::LiveDsu {
+                settings: self.state.dsu,
+                address: self.dsu.as_ref().map(|d| d.addr.to_string()),
+                clients: self.dsu.as_ref().map_or(0, DsuServer::clients),
+                error: self.dsu_error.clone(),
+            },
             auto_switch: self.state.auto_switch,
             suspended: self.rt.is_suspended(),
             foreground: self.foreground.clone(),
@@ -1062,7 +1109,6 @@ impl Service {
     }
 }
 
-/// What is wrong with a set of device groups, if anything.
 /// Why a generic pad layout cannot be stored, if it cannot.
 fn layout_problem(l: &GenericLayout) -> Option<String> {
     let hex4 = |s: &str| s.len() == 4 && s.chars().all(|c| c.is_ascii_hexdigit());
@@ -1082,6 +1128,7 @@ fn layout_problem(l: &GenericLayout) -> Option<String> {
     None
 }
 
+/// What is wrong with a set of device groups, if anything.
 fn group_problem(groups: &[DeviceGroup]) -> Option<String> {
     for (i, g) in groups.iter().enumerate() {
         if g.name.trim().is_empty() {
