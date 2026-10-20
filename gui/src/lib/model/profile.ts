@@ -1,7 +1,19 @@
 // Pure helpers for editing a Profile in the GUI. They mirror the engine's rules
 // (one binding per layer + trigger + activator, inheritance from the base layer).
 
-import type { Action, Activator, Combo, ControlName, Layer, Mapping, Mode, Profile } from '../types';
+import type {
+  Action,
+  Activator,
+  Combo,
+  ControlName,
+  Layer,
+  Mapping,
+  Mode,
+  MouseButtonName,
+  PadButtonName,
+  Profile,
+  WheelDir,
+} from '../types';
 
 export const ACTIVATORS: Activator[] = ['single', 'long', 'double', 'triple', 'start', 'release'];
 
@@ -85,6 +97,36 @@ export function newMapping(layer: number, combo: Combo, activator: Activator): M
   if (layer !== 0) m.layer = layer;
   if (activator !== 'single') m.activator = activator;
   return m;
+}
+
+const STICK_DIRS: Record<string, [number, number]> = { Up: [0, 1], Down: [0, -1], Left: [-1, 0], Right: [1, 0] };
+
+/**
+ * The output a single control produces when it is not remapped (pad A → pad A, a key →
+ * that key), or null where there is none to reproduce (touch regions, gyro, mouse motion,
+ * shortcuts of several controls).
+ */
+export function nativeAction(combo: Combo): Action | null {
+  const list = comboList(combo);
+  if (list.length !== 1) return null;
+  const c = list[0];
+  if (c.startsWith('Key:')) return { key: c.slice(4) };
+  if (c.startsWith('Mouse:')) return { mouse: c.slice(6).toLowerCase() as MouseButtonName };
+  if (c.startsWith('Wheel:')) return { wheel: c.slice(6).toLowerCase() as WheelDir };
+  if (c.startsWith('MouseMove:')) return null;
+  const stick = /^(Left|Right)Stick(Up|Down|Left|Right)$/.exec(c);
+  if (stick) {
+    const [x, y] = STICK_DIRS[stick[2]];
+    return { stick: stick[1] === 'Left' ? 'left' : 'right', x, y };
+  }
+  const trigger = /^(LT|RT)(Full)?$/.exec(c);
+  if (trigger) return { trigger: trigger[1] === 'LT' ? 'left' : 'right' };
+  if (/^Touch(Up|Down|Left|Right|Center)$/.test(c) || /^Gyro(Up|Down|Left|Right)$/.test(c)) return null;
+  return { pad: c as PadButtonName };
+}
+
+export function sameAction(a: Action, b: Action): boolean {
+  return JSON.stringify(a) === JSON.stringify(b);
 }
 
 /** Remove fields that equal their default, so saved files stay small and stable. */

@@ -7,6 +7,7 @@ import {
   findMapping,
   layerIds,
   mappingSummary,
+  nativeAction,
   pasteLayer,
   removeLayer,
   removeMapping,
@@ -104,5 +105,23 @@ describe('shortcuts and labels', () => {
     expect(mappingSummary({ trigger: 'A', mode: 'turbo', actions: [{ mouse: 'left' }] }, lbl)).toBe('⚡ Mouse left');
     expect(mappingSummary({ trigger: 'LB', jump: { layer: 1 } }, lbl)).toBe('→ Shift 1');
     expect(mappingSummary({ trigger: 'X' }, lbl)).toBe('⊘');
+  });
+});
+
+describe('native outputs', () => {
+  it('reproduces what a control does unmapped', () => {
+    expect(nativeAction('A')).toEqual({ pad: 'A' });
+    expect(nativeAction('DpadUp')).toEqual({ pad: 'DpadUp' });
+    expect(nativeAction('LeftStickLeft')).toEqual({ stick: 'left', x: -1, y: 0 });
+    expect(nativeAction('RT')).toEqual({ trigger: 'right' });
+    expect(nativeAction('LTFull')).toEqual({ trigger: 'left' });
+    expect(nativeAction('Key:Space')).toEqual({ key: 'Space' });
+    expect(nativeAction('Mouse:X1')).toEqual({ mouse: 'x1' });
+    expect(nativeAction('Wheel:Down')).toEqual({ wheel: 'down' });
+  });
+
+  it('has none for controls without a digital output', () => {
+    for (const c of ['TouchCenter', 'GyroUp', 'MouseMove:Left', ['LB', 'RB']]) expect(nativeAction(c)).toBeNull();
+    expect(nativeAction('Touchpad')).toEqual({ pad: 'Touchpad' });
   });
 });
