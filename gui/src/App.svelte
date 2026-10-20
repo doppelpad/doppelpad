@@ -18,6 +18,7 @@
   import MouseView from './components/views/MouseView.svelte';
   import ShortcutsPanel from './components/views/ShortcutsPanel.svelte';
   import MacroEditor from './components/views/MacroEditor.svelte';
+  import AnalogView from './components/views/AnalogView.svelte';
   import SettingsDialog from './components/SettingsDialog.svelte';
   import PromptDialog from './components/ui/PromptDialog.svelte';
   import RewasdDialog from './components/RewasdDialog.svelte';
@@ -102,6 +103,8 @@
             <ShortcutsPanel />
           {:else if app.view === 'macro'}
             <MacroEditor />
+          {:else if app.view === 'analog'}
+            <AnalogView />
           {/if}
         </div>
         <aside class="side"><BindingPanel /></aside>

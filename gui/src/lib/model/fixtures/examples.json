@@ -1,114 +1,103 @@
 {
   "controller-desktop": {
-    "analog": [
-      {
-        "anti_deadzone": 0.0,
-        "consume": true,
-        "curve": 1.7999999523162842,
-        "deadzone": 0.11999999731779099,
-        "decay_ms": 40,
-        "invert_x": false,
-        "invert_y": false,
-        "layer": 0,
-        "sensitivity": 1.2000000476837158,
-        "smoothing_ms": 10,
-        "source": "right_stick",
-        "target": "mouse",
-        "trackball_friction": 0.0,
-        "vertical_ratio": 1.0,
-        "while_held": []
-      }
-    ],
+    "name": "Controller desktop mode",
+    "output": {
+      "virtual_pad": "none",
+      "hide_physical": false,
+      "passthrough": true,
+      "mute_mapped_inputs": true
+    },
     "mappings": [
       {
+        "trigger": "RT",
         "actions": [
           {
             "mouse": "left"
           }
-        ],
-        "trigger": "RT"
+        ]
       },
       {
+        "trigger": "LT",
         "actions": [
           {
             "mouse": "right"
           }
-        ],
-        "trigger": "LT"
+        ]
       },
       {
+        "trigger": "RS",
         "actions": [
           {
             "mouse": "middle"
           }
-        ],
-        "trigger": "RS"
+        ]
       },
       {
+        "trigger": "A",
         "actions": [
           {
             "key": "Enter"
           }
-        ],
-        "trigger": "A"
+        ]
       },
       {
+        "trigger": "B",
         "actions": [
           {
             "key": "Escape"
           }
-        ],
-        "trigger": "B"
+        ]
       },
       {
+        "trigger": "X",
         "actions": [
           {
             "key": "Backspace"
           }
-        ],
-        "trigger": "X"
+        ]
       },
       {
+        "trigger": "Y",
         "actions": [
           {
             "key": "Space"
           }
-        ],
-        "trigger": "Y"
+        ]
       },
       {
+        "trigger": "DpadUp",
         "actions": [
           {
             "key": "Up"
           }
-        ],
-        "trigger": "DpadUp"
+        ]
       },
       {
+        "trigger": "DpadDown",
         "actions": [
           {
             "key": "Down"
           }
-        ],
-        "trigger": "DpadDown"
+        ]
       },
       {
+        "trigger": "DpadLeft",
         "actions": [
           {
             "key": "Left"
           }
-        ],
-        "trigger": "DpadLeft"
+        ]
       },
       {
+        "trigger": "DpadRight",
         "actions": [
           {
             "key": "Right"
           }
-        ],
-        "trigger": "DpadRight"
+        ]
       },
       {
+        "trigger": "LB",
         "actions": [
           {
             "key": "LeftAlt"
@@ -119,10 +108,10 @@
           {
             "key": "Tab"
           }
-        ],
-        "trigger": "LB"
+        ]
       },
       {
+        "trigger": "RB",
         "actions": [
           {
             "key": "LeftAlt"
@@ -130,308 +119,355 @@
           {
             "key": "Tab"
           }
-        ],
-        "trigger": "RB"
+        ]
       },
       {
+        "trigger": "LeftStickUp",
+        "mode": "while_held",
         "actions": [
           {
             "wheel": "up"
           }
         ],
-        "mode": "while_held",
-        "repeat_pause_ms": 60,
-        "trigger": "LeftStickUp"
+        "repeat_pause_ms": 60
       },
       {
+        "trigger": "LeftStickDown",
+        "mode": "while_held",
         "actions": [
           {
             "wheel": "down"
           }
         ],
-        "mode": "while_held",
-        "repeat_pause_ms": 60,
-        "trigger": "LeftStickDown"
+        "repeat_pause_ms": 60
       },
       {
+        "trigger": "Start",
         "actions": [
           {
             "key": "LeftMeta"
           }
-        ],
-        "trigger": "Start"
+        ]
       },
       {
+        "trigger": "Back",
+        "activator": "long",
+        "mode": "once",
         "actions": [
           {
             "command": {
               "launch": {
-                "args": "",
-                "path": "osk.exe"
+                "path": "osk.exe",
+                "args": ""
               }
             }
           }
-        ],
-        "activator": "long",
-        "mode": "once",
-        "trigger": "Back"
+        ]
       }
     ],
-    "name": "Controller desktop mode",
-    "output": {
-      "hide_physical": false,
-      "mute_mapped_inputs": true,
-      "passthrough": true,
-      "virtual_pad": "none"
-    }
-  },
-  "keyboard-mouse-to-xbox": {
     "analog": [
       {
-        "anti_deadzone": 0.20000000298023224,
-        "consume": true,
-        "curve": 1.0,
-        "deadzone": 0.10000000149011612,
-        "decay_ms": 40,
+        "layer": 0,
+        "source": "right_stick",
+        "target": "mouse",
+        "sensitivity": 1.2,
+        "vertical_ratio": 1.0,
+        "curve": 1.8,
         "invert_x": false,
         "invert_y": false,
-        "layer": 0,
-        "sensitivity": 1.5,
-        "smoothing_ms": 8,
-        "source": "mouse",
-        "target": "right_stick",
+        "deadzone": 0.12,
+        "anti_deadzone": 0.0,
+        "smoothing_ms": 10,
+        "decay_ms": 40,
         "trackball_friction": 0.0,
-        "vertical_ratio": 1.0,
-        "while_held": []
+        "while_held": [],
+        "consume": true
       }
-    ],
+    ]
+  },
+  "keyboard-mouse-to-xbox": {
+    "name": "Keyboard & mouse → Xbox controller",
+    "output": {
+      "virtual_pad": "xbox360",
+      "hide_physical": false,
+      "passthrough": true,
+      "mute_mapped_inputs": true
+    },
     "mappings": [
       {
+        "trigger": "Key:W",
         "actions": [
           {
             "stick": "left",
             "x": 0.0,
             "y": 1.0
           }
-        ],
-        "trigger": "Key:W"
+        ]
       },
       {
+        "trigger": "Key:S",
         "actions": [
           {
             "stick": "left",
             "x": 0.0,
             "y": -1.0
           }
-        ],
-        "trigger": "Key:S"
+        ]
       },
       {
+        "trigger": "Key:A",
         "actions": [
           {
             "stick": "left",
             "x": -1.0,
             "y": 0.0
           }
-        ],
-        "trigger": "Key:A"
+        ]
       },
       {
+        "trigger": "Key:D",
         "actions": [
           {
             "stick": "left",
             "x": 1.0,
             "y": 0.0
           }
-        ],
-        "trigger": "Key:D"
+        ]
       },
       {
+        "trigger": [
+          "Key:LeftAlt",
+          "Key:W"
+        ],
         "actions": [
           {
             "stick": "left",
             "x": 0.0,
             "y": 0.5
           }
-        ],
-        "trigger": [
-          "Key:LeftAlt",
-          "Key:W"
         ]
       },
       {
+        "trigger": "Key:Space",
         "actions": [
           {
             "pad": "A"
           }
-        ],
-        "trigger": "Key:Space"
+        ]
       },
       {
+        "trigger": "Key:LeftCtrl",
         "actions": [
           {
             "pad": "B"
           }
-        ],
-        "trigger": "Key:LeftCtrl"
+        ]
       },
       {
+        "trigger": "Key:R",
         "actions": [
           {
             "pad": "X"
           }
-        ],
-        "trigger": "Key:R"
+        ]
       },
       {
+        "trigger": "Key:F",
         "actions": [
           {
             "pad": "Y"
           }
-        ],
-        "trigger": "Key:F"
+        ]
       },
       {
+        "trigger": "Key:Q",
         "actions": [
           {
             "pad": "LB"
           }
-        ],
-        "trigger": "Key:Q"
+        ]
       },
       {
+        "trigger": "Key:E",
         "actions": [
           {
             "pad": "RB"
           }
-        ],
-        "trigger": "Key:E"
+        ]
       },
       {
+        "trigger": "Key:LeftShift",
         "actions": [
           {
             "pad": "LS"
           }
-        ],
-        "trigger": "Key:LeftShift"
+        ]
       },
       {
+        "trigger": "Key:V",
         "actions": [
           {
             "pad": "RS"
           }
-        ],
-        "trigger": "Key:V"
+        ]
       },
       {
+        "trigger": "Key:Tab",
         "actions": [
           {
             "pad": "Back"
           }
-        ],
-        "trigger": "Key:Tab"
+        ]
       },
       {
+        "trigger": "Key:Escape",
         "actions": [
           {
             "pad": "Start"
           }
-        ],
-        "trigger": "Key:Escape"
+        ]
       },
       {
+        "trigger": "Key:Up",
         "actions": [
           {
             "pad": "DpadUp"
           }
-        ],
-        "trigger": "Key:Up"
+        ]
       },
       {
+        "trigger": "Key:Down",
         "actions": [
           {
             "pad": "DpadDown"
           }
-        ],
-        "trigger": "Key:Down"
+        ]
       },
       {
+        "trigger": "Key:Left",
         "actions": [
           {
             "pad": "DpadLeft"
           }
-        ],
-        "trigger": "Key:Left"
+        ]
       },
       {
+        "trigger": "Key:Right",
         "actions": [
           {
             "pad": "DpadRight"
           }
-        ],
-        "trigger": "Key:Right"
+        ]
       },
       {
+        "trigger": "Mouse:Left",
         "actions": [
           {
             "trigger": "right"
           }
-        ],
-        "trigger": "Mouse:Left"
+        ]
       },
       {
+        "trigger": "Mouse:Right",
         "actions": [
           {
             "trigger": "left"
           }
-        ],
-        "trigger": "Mouse:Right"
+        ]
       },
       {
+        "trigger": "Wheel:Up",
         "actions": [
           {
-            "action": "tap",
-            "pad": "Y"
+            "pad": "Y",
+            "action": "tap"
           }
-        ],
-        "trigger": "Wheel:Up"
-      }
-    ],
-    "name": "Keyboard & mouse → Xbox controller",
-    "output": {
-      "hide_physical": false,
-      "mute_mapped_inputs": true,
-      "passthrough": true,
-      "virtual_pad": "xbox360"
-    }
-  },
-  "shooter-advanced": {
-    "analog": [
-      {
-        "anti_deadzone": 0.0,
-        "consume": false,
-        "curve": 1.0,
-        "deadzone": 0.10000000149011612,
-        "decay_ms": 40,
-        "invert_x": false,
-        "invert_y": false,
-        "layer": 0,
-        "sensitivity": 2.5,
-        "smoothing_ms": 0,
-        "source": "gyro",
-        "target": "right_stick",
-        "trackball_friction": 0.0,
-        "vertical_ratio": 1.0,
-        "while_held": [
-          "LT"
         ]
       }
     ],
+    "analog": [
+      {
+        "layer": 0,
+        "source": "mouse",
+        "target": "right_stick",
+        "sensitivity": 1.5,
+        "vertical_ratio": 1.0,
+        "curve": 1.0,
+        "invert_x": false,
+        "invert_y": false,
+        "deadzone": 0.1,
+        "anti_deadzone": 0.2,
+        "smoothing_ms": 8,
+        "decay_ms": 40,
+        "trackball_friction": 0.0,
+        "while_held": [],
+        "consume": true
+      }
+    ]
+  },
+  "shooter-advanced": {
+    "name": "Shooter (advanced example)",
+    "processes": [
+      "MyShooter.exe"
+    ],
+    "timing": {
+      "long_press_ms": 350,
+      "double_tap_ms": 150,
+      "triple_tap_ms": 300,
+      "key_delay_ms": 10,
+      "turbo_ms": 200,
+      "combo_window_ms": 50
+    },
+    "sticks": {
+      "left": {
+        "deadzone": 0.08,
+        "outer": 1.0,
+        "anti_deadzone": 0.15,
+        "sensitivity": 1.0,
+        "curve": [],
+        "invert_x": false,
+        "invert_y": false,
+        "rotation": 0.0,
+        "direction_threshold": 0.24
+      },
+      "right": {
+        "deadzone": 0.06,
+        "outer": 1.0,
+        "anti_deadzone": 0.0,
+        "sensitivity": 1.0,
+        "curve": [
+          [
+            0.3,
+            0.15
+          ],
+          [
+            0.7,
+            0.55
+          ]
+        ],
+        "invert_x": false,
+        "invert_y": false,
+        "rotation": 0.0,
+        "direction_threshold": 0.24
+      }
+    },
+    "triggers": {
+      "left": {
+        "deadzone": 0.0,
+        "press_threshold": 0.03,
+        "full_pull": 0.99
+      },
+      "right": {
+        "deadzone": 0.0,
+        "press_threshold": 0.1,
+        "full_pull": 0.99
+      }
+    },
     "layers": [
       {
         "id": 1,
-        "inherit": true,
         "name": "Back held",
+        "inherit": true,
         "not_inherited": [
           "DpadUp"
         ]
@@ -439,103 +475,105 @@
     ],
     "mappings": [
       {
+        "trigger": [
+          "LB",
+          "RB"
+        ],
         "actions": [
           {
             "pad": "B"
           }
-        ],
-        "trigger": [
-          "LB",
-          "RB"
         ]
       },
       {
+        "trigger": "Y",
         "actions": [
           {
             "pad": "Y"
           }
-        ],
-        "trigger": "Y"
+        ]
       },
       {
+        "trigger": "Y",
+        "activator": "long",
         "actions": [
           {
             "pad": "DpadUp"
           }
-        ],
-        "activator": "long",
-        "trigger": "Y"
+        ]
       },
       {
+        "trigger": "X",
         "actions": [
           {
             "pad": "X"
           }
-        ],
-        "trigger": "X"
+        ]
       },
       {
+        "trigger": "X",
+        "activator": "double",
         "actions": [
           {
             "pad": "DpadDown"
           }
-        ],
-        "activator": "double",
-        "trigger": "X"
+        ]
       },
       {
+        "trigger": "PaddleLR",
+        "mode": "turbo",
         "actions": [
           {
             "trigger": "right"
           }
         ],
-        "mode": "turbo",
-        "trigger": "PaddleLR",
         "turbo_ms": 80
       },
       {
+        "trigger": "Start",
         "actions": [
           {
             "pad": "Start"
           }
-        ],
-        "trigger": "Start"
+        ]
       },
       {
+        "trigger": "Start",
+        "activator": "long",
+        "mode": "once",
         "actions": [
           {
-            "action": "tap",
-            "pad": "DpadLeft"
+            "pad": "DpadLeft",
+            "action": "tap"
           },
           {
             "pause": 250
           },
           {
-            "action": "tap",
-            "pad": "A"
+            "pad": "A",
+            "action": "tap"
           }
-        ],
-        "activator": "long",
-        "mode": "once",
-        "trigger": "Start"
+        ]
       },
       {
+        "trigger": "Back",
         "jump": {
           "layer": 1,
           "mode": "hold"
-        },
-        "trigger": "Back"
+        }
       },
       {
+        "layer": 1,
+        "trigger": "A",
         "actions": [
           {
             "key": "F13"
           }
-        ],
-        "layer": 1,
-        "trigger": "A"
+        ]
       },
       {
+        "layer": 1,
+        "trigger": "B",
         "actions": [
           {
             "key": "LeftCtrl"
@@ -546,78 +584,40 @@
           {
             "key": "M"
           }
-        ],
-        "layer": 1,
-        "trigger": "B"
+        ]
       },
       {
+        "layer": 1,
+        "trigger": "Y",
+        "mode": "once",
         "actions": [
           {
-            "action": "tap",
-            "key": "PrintScreen"
+            "key": "PrintScreen",
+            "action": "tap"
           }
-        ],
-        "layer": 1,
-        "mode": "once",
-        "trigger": "Y"
+        ]
       }
     ],
-    "name": "Shooter (advanced example)",
-    "processes": [
-      "MyShooter.exe"
-    ],
-    "sticks": {
-      "left": {
-        "anti_deadzone": 0.15000000596046448,
-        "curve": [],
-        "deadzone": 0.07999999821186066,
-        "direction_threshold": 0.23999999463558197,
+    "analog": [
+      {
+        "layer": 0,
+        "source": "gyro",
+        "target": "right_stick",
+        "sensitivity": 2.5,
+        "vertical_ratio": 1.0,
+        "curve": 1.0,
         "invert_x": false,
         "invert_y": false,
-        "outer": 1.0,
-        "rotation": 0.0,
-        "sensitivity": 1.0
-      },
-      "right": {
+        "deadzone": 0.1,
         "anti_deadzone": 0.0,
-        "curve": [
-          [
-            0.30000001192092896,
-            0.15000000596046448
-          ],
-          [
-            0.699999988079071,
-            0.550000011920929
-          ]
+        "smoothing_ms": 0,
+        "decay_ms": 40,
+        "trackball_friction": 0.0,
+        "while_held": [
+          "LT"
         ],
-        "deadzone": 0.05999999865889549,
-        "direction_threshold": 0.23999999463558197,
-        "invert_x": false,
-        "invert_y": false,
-        "outer": 1.0,
-        "rotation": 0.0,
-        "sensitivity": 1.0
+        "consume": false
       }
-    },
-    "timing": {
-      "combo_window_ms": 50,
-      "double_tap_ms": 150,
-      "key_delay_ms": 10,
-      "long_press_ms": 350,
-      "triple_tap_ms": 300,
-      "turbo_ms": 200
-    },
-    "triggers": {
-      "left": {
-        "deadzone": 0.0,
-        "full_pull": 0.9900000095367432,
-        "press_threshold": 0.029999999329447746
-      },
-      "right": {
-        "deadzone": 0.0,
-        "full_pull": 0.9900000095367432,
-        "press_threshold": 0.10000000149011612
-      }
-    }
+    ]
   }
 }

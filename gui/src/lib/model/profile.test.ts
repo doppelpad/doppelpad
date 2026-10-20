@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import type { Mapping, Profile } from '../types';
 import {
   addLayer,
+  clearLayer,
   comboKey,
+  copyLayer,
   effectiveMappings,
   findMapping,
   layerIds,
@@ -88,9 +90,25 @@ describe('layers', () => {
     const removed = removeLayer(base(), 1);
     expect(layerIds(removed)).toEqual([0]);
     expect(removed.mappings.find((m) => m.trigger === 'LB')).toEqual({ trigger: 'LB' });
-    const copied = base().mappings.filter((m) => !m.layer);
-    const pasted = pasteLayer(profile, copied, 2);
+    const pasted = pasteLayer(profile, copyLayer(base(), 0), 2);
     expect(pasted.mappings.filter((m) => m.layer === 2)).toHaveLength(4);
+  });
+
+  it('takes analog routes along', () => {
+    const p: Profile = {
+      ...base(),
+      analog: [
+        { layer: 0, source: 'right_stick', target: 'mouse' },
+        { layer: 3, source: 'gyro', target: 'mouse' },
+      ],
+    };
+    expect(layerIds(p)).toEqual([0, 1, 3]);
+    expect(removeLayer(p, 3).analog).toEqual([{ layer: 0, source: 'right_stick', target: 'mouse' }]);
+    expect(clearLayer(p, 3).analog).toHaveLength(1);
+    expect('analog' in clearLayer(clearLayer(p, 3), 0)).toBe(false);
+    const pasted = pasteLayer(p, copyLayer(p, 0), 1);
+    expect(pasted.analog?.filter((r) => r.layer === 1)).toEqual([{ layer: 1, source: 'right_stick', target: 'mouse' }]);
+    expect(pasted.analog).toHaveLength(3);
   });
 });
 

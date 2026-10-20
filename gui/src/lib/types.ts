@@ -104,10 +104,23 @@ export interface TriggerConfig {
   full_pull?: number;
 }
 
+export interface Sticks {
+  left?: StickConfig;
+  right?: StickConfig;
+}
+
+export interface Triggers {
+  left?: TriggerConfig;
+  right?: TriggerConfig;
+}
+
+export type AnalogSource = 'left_stick' | 'right_stick' | 'mouse' | 'gyro' | 'touchpad';
+export type AnalogTarget = 'mouse' | 'left_stick' | 'right_stick';
+
 export interface AnalogMapping {
   layer?: number;
-  source?: 'left_stick' | 'right_stick' | 'mouse' | 'gyro' | 'touchpad';
-  target?: 'mouse' | 'left_stick' | 'right_stick';
+  source?: AnalogSource;
+  target?: AnalogTarget;
   sensitivity?: number;
   vertical_ratio?: number;
   curve?: number;
@@ -128,8 +141,8 @@ export interface Profile {
   processes?: string[];
   output?: Output;
   timing?: Timing;
-  sticks?: { left?: StickConfig; right?: StickConfig };
-  triggers?: { left?: TriggerConfig; right?: TriggerConfig };
+  sticks?: Sticks;
+  triggers?: Triggers;
   layers?: Layer[];
   mappings: Mapping[];
   analog?: AnalogMapping[];
