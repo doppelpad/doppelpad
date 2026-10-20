@@ -80,24 +80,30 @@ layer):
 - *Sensitivity*: output multiplier; the output never exceeds full deflection.
 - *Rotation* (degrees, counter-clockwise) and *Invert horizontal* / *Invert vertical*.
 - *Direction threshold*: deflection at which the stick's directions (`LeftStickUp`, …)
-  count as pressed for mappings.
+  count as pressed for mappings, which is where the low zone starts (`zones.low`). The
+  medium and high zones, and separate horizontal and vertical thresholds, are set under
+  *Zone thresholds* in the binding panel once a zone (*Low*, *Medium*, *High*) of a stick
+  direction is selected. While the low zone has separate axes, this slider shows the
+  horizontal value and is locked.
 - *Response curve*: points between the deadzone and full deflection, linear in between.
   Drag a point to move it, double-click the graph to add one (up to eight), double-click a
   point to remove it. A focused point also moves with the arrow keys (Shift for bigger
   steps) and is removed with Delete. Presets: *Linear*, *Precise*, *Very precise*, *Fast*.
 
-The top view shows the deadzone (grey disc), full deflection (dashed ring), the direction
-threshold (dotted ring), where pushing the stick up ends up after rotation or inversion
+The top view shows the deadzone (grey disc), full deflection (dashed ring), the zone
+thresholds (dotted; the low one, which is the direction threshold, the most visible), where
+pushing the stick up ends up after rotation or inversion
 (orange), the stick (ring) and the output (dot). The graph draws the complete response from
 stick to output, and a dashed line follows the stick. Inversion and rotation also apply to
 analog routes that read the stick; the other settings only shape what the virtual
 controller receives, because routes have their own deadzone and curve.
 
 **Triggers** sets, per trigger, the *Deadzone* (pulls below it read as zero, the rest is
-rescaled), the *Press point* at which `LT` / `RT` mappings fire, and the *Full pull*, which
-reads as fully pressed and fires `LTFull` / `RTFull` mappings. The bars show the live pull
-with the press point (blue line) and the output; *Pressed* and *Full pull* light up when
-mappings would fire.
+rescaled), the *Press point* at which `LT` / `RT` mappings fire (where the low zone starts),
+and the *Full pull*, which reads as fully pressed and fires `LTFull` / `RTFull` mappings.
+The bars show the live pull with the press point (blue line), the medium and high zone
+thresholds (faint lines; set in the zone editor) and the output; *Pressed* and *Full pull*
+light up when mappings would fire.
 
 **Routes** lists the analog routes of the current layer. *Add route* offers common ones:
 right stick → mouse, gyro → mouse, gyro → right stick while `LT` is held, mouse → right

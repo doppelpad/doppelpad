@@ -136,9 +136,8 @@ pub struct StickConfig {
     pub invert_y: bool,
     /// Rotation in degrees (positive = counter-clockwise).
     pub rotation: f32,
-    /// Deflection at which `LeftStickUp`-style direction controls activate
-    /// (the deadzone for digital mappings).
-    pub direction_threshold: f32,
+    /// Where direction controls and the zone controls activate.
+    pub zones: StickZones,
 }
 
 impl Default for StickConfig {
@@ -152,8 +151,97 @@ impl Default for StickConfig {
             invert_x: false,
             invert_y: false,
             rotation: 0.0,
-            direction_threshold: 0.24,
+            zones: StickZones::default(),
         }
+    }
+}
+
+/// Threshold of a stick zone as a fraction of full deflection: one value for a
+/// circle, or `[x, y]` for an ellipse with separate horizontal and vertical radii.
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub struct ZoneRadius {
+    pub x: f32,
+    pub y: f32,
+}
+
+impl ZoneRadius {
+    pub const fn round(r: f32) -> Self {
+        ZoneRadius { x: r, y: r }
+    }
+
+    pub fn is_round(&self) -> bool {
+        self.x == self.y
+    }
+}
+
+impl Serialize for ZoneRadius {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        if self.is_round() {
+            self.x.serialize(s)
+        } else {
+            [self.x, self.y].serialize(s)
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for ZoneRadius {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum Repr {
+            Round(f32),
+            Axes([f32; 2]),
+        }
+        Ok(match Repr::deserialize(d)? {
+            Repr::Round(r) => ZoneRadius::round(r),
+            Repr::Axes([x, y]) => ZoneRadius { x, y },
+        })
+    }
+}
+
+/// `low` plus `k` of the way from `low` to `max`; unset zone thresholds split the
+/// range above the low threshold into thirds.
+fn zone_split(low: f32, max: f32, k: f32) -> f32 {
+    low + (max - low) * k
+}
+
+/// Zone thresholds of a stick. Each zone reaches from its threshold to the next
+/// one; `low` is also where the stick leaves its deadzone for digital mappings.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct StickZones {
+    pub low: ZoneRadius,
+    /// Start of the medium zone (default: a third of the way from `low` to full deflection).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub med: Option<ZoneRadius>,
+    /// Start of the high zone (default: two thirds of the way from `low` to full deflection).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub high: Option<ZoneRadius>,
+}
+
+impl Default for StickZones {
+    fn default() -> Self {
+        StickZones {
+            low: ZoneRadius::round(0.24),
+            med: None,
+            high: None,
+        }
+    }
+}
+
+impl StickConfig {
+    /// Effective low, medium and high thresholds.
+    pub fn zone_thresholds(&self) -> [ZoneRadius; 3] {
+        let z = &self.zones;
+        let at = |k: f32| ZoneRadius {
+            x: zone_split(z.low.x, 1.0, k),
+            y: zone_split(z.low.y, 1.0, k),
+        };
+        [
+            z.low,
+            z.med.unwrap_or(at(1.0 / 3.0)),
+            z.high.unwrap_or(at(2.0 / 3.0)),
+        ]
     }
 }
 
@@ -178,8 +266,8 @@ impl Triggers {
 pub struct TriggerConfig {
     /// Output deadzone: pulls below this read as 0 and the rest is rescaled.
     pub deadzone: f32,
-    /// Pull at which the digital `LT`/`RT` controls activate.
-    pub press_threshold: f32,
+    /// Where `LT`/`RT` and the zone controls activate.
+    pub zones: TriggerZones,
     /// Pull at or above this reads as 1 and activates `LTFull`/`RTFull`.
     pub full_pull: f32,
 }
@@ -188,8 +276,45 @@ impl Default for TriggerConfig {
     fn default() -> Self {
         TriggerConfig {
             deadzone: 0.0,
-            press_threshold: 0.03,
+            zones: TriggerZones::default(),
             full_pull: 0.99,
+        }
+    }
+}
+
+impl TriggerConfig {
+    /// Effective low, medium and high thresholds.
+    pub fn zone_thresholds(&self) -> [f32; 3] {
+        let z = &self.zones;
+        let at = |k: f32| zone_split(z.low, self.full_pull, k);
+        [
+            z.low,
+            z.med.unwrap_or(at(1.0 / 3.0)),
+            z.high.unwrap_or(at(2.0 / 3.0)),
+        ]
+    }
+}
+
+/// Zone thresholds of a trigger as fractions of a full pull. Each zone reaches from
+/// its threshold to the next one; `low` is also where the digital `LT`/`RT` press.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct TriggerZones {
+    pub low: f32,
+    /// Start of the medium zone (default: a third of the way from `low` to `full_pull`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub med: Option<f32>,
+    /// Start of the high zone (default: two thirds of the way from `low` to `full_pull`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub high: Option<f32>,
+}
+
+impl Default for TriggerZones {
+    fn default() -> Self {
+        TriggerZones {
+            low: 0.03,
+            med: None,
+            high: None,
         }
     }
 }
@@ -656,6 +781,45 @@ sensitivity = 2.0
         assert!(p.output.hide_physical, "defaults fill in");
 
         let again: Profile = toml::from_str(&toml::to_string(&p).unwrap()).unwrap();
+        assert_eq!(again, p);
+    }
+
+    #[test]
+    fn zones_in_toml() {
+        let src = r#"
+[sticks.left]
+zones = { low = 0.2, med = [0.4, 0.6] }
+
+[triggers.right]
+zones = { low = 0.1, high = 0.8 }
+full_pull = 0.95
+
+[[mappings]]
+trigger = ["LB", "LeftStickUpHigh"]
+actions = [{ key = "LeftShift" }]
+"#;
+        let p: Profile = toml::from_str(src).unwrap();
+        let left = &p.sticks.left;
+        assert_eq!(left.zones.low, ZoneRadius::round(0.2));
+        assert_eq!(left.zones.med, Some(ZoneRadius { x: 0.4, y: 0.6 }));
+        let [_, _, high] = left.zone_thresholds();
+        assert!((high.x - (0.2 + 0.8 * 2.0 / 3.0)).abs() < 1e-6, "derived");
+        let [low, med, high] = p.triggers.right.zone_thresholds();
+        assert_eq!((low, high), (0.1, 0.8));
+        assert!(
+            (med - (0.1 + 0.85 / 3.0)).abs() < 1e-6,
+            "derived from full_pull"
+        );
+        assert_eq!(p.triggers.left.zones, TriggerZones::default());
+
+        let text = toml::to_string(&p).unwrap();
+        assert!(text.contains("med = [0.4, 0.6]"), "{text}");
+        assert_eq!(
+            text.matches("\nhigh = ").count(),
+            1,
+            "unset zones stay unset: {text}"
+        );
+        let again: Profile = toml::from_str(&text).unwrap();
         assert_eq!(again, p);
     }
 

@@ -3,7 +3,7 @@
   // jump, description and timing overrides.
   import { Plus, X, Trash2, Info, ChevronRight, Zap, Repeat, Ban, Clapperboard, SlidersHorizontal } from '@lucide/svelte';
   import { t } from '../../lib/i18n/index.svelte';
-  import { controlLabel } from '../../lib/model/controls';
+  import { ZONES, controlLabel, isAnyDirection, withZone, zoneParts, type ZoneName } from '../../lib/model/controls';
   import {
     ACTIVATORS,
     activatorOf,
@@ -24,6 +24,7 @@
   import Toggle from '../ui/Toggle.svelte';
   import ActionPicker from './ActionPicker.svelte';
   import ActivatorIcon from './ActivatorIcon.svelte';
+  import ZoneEditor from './ZoneEditor.svelte';
 
   let picking = $state(false);
   let showTiming = $state(false);
@@ -53,15 +54,30 @@
 
   const title = $derived(combo ? comboList(combo).map((c) => controlLabel(c, app.family)).join(' + ') : '');
 
-  /** The analog settings page of a selected stick or trigger control. */
+  /** The analog settings page of a selected stick or trigger control (including its zones). */
   const analogTab = $derived.by<AnalogTab | null>(() => {
     const list = combo ? comboList(combo) : [];
     if (list.length !== 1) return null;
     const c = list[0];
     if (c === 'LS' || c.startsWith('LeftStick')) return 'left';
     if (c === 'RS' || c.startsWith('RightStick')) return 'right';
-    if (/^(LT|RT)(Full)?$/.test(c)) return 'triggers';
+    if (/^(LT|RT)(Full|Low|Med|High)?$/.test(c)) return 'triggers';
     return null;
+  });
+
+  /** A stick direction, trigger or one of their zones: the panel offers its zones. */
+  const zone = $derived.by(() => {
+    const list = combo ? comboList(combo) : [];
+    return list.length === 1 ? zoneParts(list[0]) : null;
+  });
+  /** Zones (and the whole range, `null`) that have a mapping on this layer. */
+  const usedZones = $derived.by(() => {
+    const used = new Set<ZoneName | null>();
+    if (!profile || !zone) return used;
+    for (const z of [null, ...ZONES]) {
+      if (effectiveMappings(profile, app.layer, withZone(zone.base, z)).mappings.length > 0) used.add(z);
+    }
+    return used;
   });
 
   const defaults = $derived(app.catalog?.defaults.timing);
@@ -207,6 +223,31 @@
         </span>
         <ChevronRight size={14} />
       </button>
+    {/if}
+
+    {#if zone}
+      {@const zp = zone}
+      <div class="zones" role="tablist" aria-label={t('zones.title')}>
+        {#each [null, ...ZONES] as z (z ?? 'whole')}
+          {#if z !== null || !isAnyDirection(zp.base)}
+            <button
+              role="tab"
+              aria-selected={zp.zone === z}
+              class:active={zp.zone === z}
+              class:used={usedZones.has(z)}
+              title={t(`zones.desc.${z ? z.toLowerCase() : 'whole'}`)}
+              onclick={() => app.select(withZone(zp.base, z))}
+            >
+              {t(z ? `zones.${z.toLowerCase()}` : 'zones.whole')}
+              <span class="dot"></span>
+            </button>
+          {/if}
+        {/each}
+      </div>
+      <div class="act-desc">{t(`zones.desc.${zp.zone ? zp.zone.toLowerCase() : 'whole'}`)}</div>
+      {#if zp.zone}
+        <ZoneEditor parts={zp} />
+      {/if}
     {/if}
 
     <div class="activators" role="tablist">
@@ -494,6 +535,43 @@
   .al-hint {
     font-size: 11.5px;
     color: var(--text-faint);
+  }
+  .zones {
+    display: grid;
+    grid-auto-columns: 1fr;
+    grid-auto-flow: column;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-s);
+    overflow: hidden;
+  }
+  .zones button {
+    position: relative;
+    padding: 6px 4px 8px;
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+  .zones button + button {
+    border-left: 1px solid var(--line);
+  }
+  .zones button:hover {
+    color: var(--text);
+    background: var(--bg-2);
+  }
+  .zones button.active {
+    background: var(--accent-soft);
+    color: var(--accent);
+  }
+  .zones .dot {
+    position: absolute;
+    left: 50%;
+    bottom: 3px;
+    width: 4px;
+    height: 4px;
+    margin-left: -2px;
+    border-radius: 50%;
+  }
+  .zones .used .dot {
+    background: var(--accent);
   }
   .activators {
     display: grid;

@@ -133,6 +133,38 @@
       "key_delay_ms": "Verzögerung zwischen Tasten"
     }
   },
+  "zones": {
+    "title": "Zone",
+    "whole": "Beliebig",
+    "low": "Niedrig",
+    "med": "Mittel",
+    "high": "Hoch",
+    "in": {
+      "low": "Zone niedrig",
+      "med": "Zone mittel",
+      "high": "Zone hoch"
+    },
+    "any_direction": "{stick}, beliebige Richtung",
+    "any_direction_button": "Beliebige Richtung (Zonen)",
+    "desc": {
+      "whole": "Aktiv, sobald das Bedienelement die Totzone verlässt – egal wie weit es bewegt wird.",
+      "low": "Aktiv, solange das Bedienelement nur wenig bewegt ist – bis die mittlere Zone beginnt.",
+      "med": "Aktiv im mittleren Bereich – zwischen der mittleren und der hohen Schwelle.",
+      "high": "Aktiv, solange das Bedienelement weit bewegt ist – ab der hohen Schwelle bis zum Anschlag."
+    },
+    "thresholds": "Zonenschwellen",
+    "thresholds_hint": "Wo jede Zone beginnt, in % des ganzen Wegs. Leere Felder nutzen den Standard oder teilen den Rest gleichmäßig auf.",
+    "shared_stick": "Gilt für alle Richtungen dieses Sticks.",
+    "shared_trigger": "Gilt für alle Belegungen dieses Triggers.",
+    "separate_axes": "Horizontal und vertikal getrennt einstellen",
+    "horizontal": "Horizontal",
+    "vertical": "Vertikal",
+    "deadzone": "Totzone",
+    "now": "Jetzt: {zone}",
+    "now_none": "Jetzt: in der Totzone",
+    "err_range": "Schwellen müssen über 0 % und höchstens bei 100 % liegen.",
+    "err_order": "Niedrig, mittel und hoch müssen ansteigen."
+  },
   "activators": {
     "single": "Einfacher Druck",
     "long": "Langer Druck",
@@ -227,7 +259,7 @@
     "no_controller": "Schließe einen Controller an, um seine Eingaben hier zu sehen.",
     "legend_stick": "Stick",
     "legend_output": "Ausgabe",
-    "legend_directions": "Richtungen",
+    "legend_directions": "Zonen",
     "stick": {
       "deadzone": "Deadzone",
       "deadzone_hint": "Unterhalb dieser Auslenkung bleibt die Ausgabe bei null. 0 reicht den Stick unverändert durch, dann wirkt die Deadzone des Spiels.",
@@ -239,7 +271,8 @@
       "rotation": "Drehung",
       "rotation_hint": "Dreht den Stick gegen den Uhrzeigersinn.",
       "direction_threshold": "Richtungsschwelle",
-      "direction_threshold_hint": "Auslenkung, ab der die Richtungen des Sticks (hoch, links, …) für Mappings als gedrückt gelten.",
+      "direction_threshold_hint": "Auslenkung, ab der die Richtungen des Sticks (hoch, links, …) für Mappings als gedrückt gelten; hier beginnt die niedrige Zone.",
+      "direction_threshold_elliptic": "Horizontal und vertikal sind verschieden – ändere sie unter „Zonenschwellen“ bei einer Zone dieses Sticks.",
       "invert_x": "Horizontal umkehren",
       "invert_y": "Vertikal umkehren",
       "curve": "Kennlinie",
@@ -259,7 +292,7 @@
       "deadzone": "Deadzone",
       "deadzone_hint": "Weniger Zug zählt als null, der Rest wird neu skaliert.",
       "press_threshold": "Druckpunkt",
-      "press_threshold_hint": "Zug, ab dem Mappings von {control} auslösen.",
+      "press_threshold_hint": "Zug, ab dem Mappings von {control} auslösen; hier beginnt die niedrige Zone.",
       "full_pull": "Voll durchgezogen",
       "full_pull_hint": "Zug, der als ganz gedrückt gilt und Mappings von {control} auslöst.",
       "pull": "Zug",

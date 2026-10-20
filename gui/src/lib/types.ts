@@ -2,7 +2,7 @@
 // GUI commands. Fields that Rust skips when they hold their default are optional here;
 // missing fields get Rust's defaults again when a profile is saved.
 
-/** A control in profile syntax: `A`, `LeftStickUp`, `LT`, `Key:Space`, `Mouse:Left`, … */
+/** A control in profile syntax: `A`, `LeftStickUp`, `LT`, `RTHigh`, `Key:Space`, `Mouse:Left`, … */
 export type ControlName = string;
 /** One control, or several that must be held together. */
 export type Combo = ControlName | ControlName[];
@@ -86,6 +86,22 @@ export interface Timing {
   combo_window_ms?: number;
 }
 
+/** A stick zone threshold: one value for a circle, `[x, y]` for an ellipse. */
+export type ZoneRadius = number | [number, number];
+
+/** Where each zone starts (fraction of full travel); unset med/high are evenly spaced. */
+export interface StickZones {
+  low?: ZoneRadius;
+  med?: ZoneRadius;
+  high?: ZoneRadius;
+}
+
+export interface TriggerZones {
+  low?: number;
+  med?: number;
+  high?: number;
+}
+
 export interface StickConfig {
   deadzone?: number;
   outer?: number;
@@ -95,12 +111,12 @@ export interface StickConfig {
   invert_x?: boolean;
   invert_y?: boolean;
   rotation?: number;
-  direction_threshold?: number;
+  zones?: StickZones;
 }
 
 export interface TriggerConfig {
   deadzone?: number;
-  press_threshold?: number;
+  zones?: TriggerZones;
   full_pull?: number;
 }
 

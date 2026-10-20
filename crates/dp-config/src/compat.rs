@@ -5,12 +5,12 @@
 
 use std::collections::HashMap;
 
-use dp_core::control::{Control, Dir, TouchRegion};
+use dp_core::control::{Control, Dir, TouchRegion, Zone};
 use dp_core::keys::{Key, MouseButton, WheelDir};
 use dp_core::pad::{PadButton, Stick, Trigger};
 use dp_core::profile::{
     Action, Activator, AnalogMapping, AnalogSource, AnalogTarget, Combo, Command, Jump, JumpMode,
-    Layer, Mapping, Mode, Press, Profile, VirtualPadType,
+    Layer, Mapping, Mode, Press, Profile, VirtualPadType, ZoneRadius,
 };
 use serde_json::Value;
 
@@ -75,11 +75,25 @@ fn array<'a>(v: &'a Value, key: &str) -> &'a [Value] {
         .unwrap_or(&[])
 }
 
+/// Zone order of the format's zone button ids.
+const ZONES: [Zone; 3] = [Zone::Low, Zone::Med, Zone::High];
+
 /// Gamepad `buttonId` as an input control.
 fn gamepad_control(id: i64) -> Option<Control> {
     use Control::*;
     use PadButton as P;
+    let zone = |first: i64| ZONES[(id - first) as usize];
     Some(match id {
+        37..=39 => StickZone(Stick::Left, None, zone(37)),
+        44..=46 => StickZone(Stick::Right, None, zone(44)),
+        52..=54 => TriggerZone(Trigger::Left, zone(52)),
+        56..=58 => TriggerZone(Trigger::Right, zone(56)),
+        // Zone × direction: low up/down/left/right, then med, then high; left stick first.
+        109..=132 => {
+            let i = (id - 109) as usize;
+            let stick = if i < 12 { Stick::Left } else { Stick::Right };
+            StickZone(stick, Some(Dir::ALL[i % 4]), ZONES[i % 12 / 4])
+        }
         1 => Button(P::A),
         2 => Button(P::B),
         3 => Button(P::X),
@@ -262,6 +276,32 @@ fn mouse_button(id: i64) -> Option<MouseButton> {
     }
 }
 
+/// Highest low-zone threshold imported, so the medium and high zones keep some room.
+const MAX_LOW_ZONE: f32 = 0.95;
+
+/// One `zones[]` entry as a fraction of full deflection; a missing `y` equals `x`.
+fn zone_entry(zones: &[Value], name: &str) -> Option<ZoneRadius> {
+    let z = zones
+        .iter()
+        .find(|z| enum_str(z, "name").as_deref() == Some(name))?;
+    let x = int(z, "x")?;
+    let y = int(z, "y").unwrap_or(x);
+    let frac = |v: i64| (v as f32 / AXIS_MAX).clamp(0.001, 1.0);
+    Some(ZoneRadius {
+        x: frac(x),
+        y: frac(y),
+    })
+}
+
+/// The zone control of a stick direction or trigger press, for zone activators.
+fn in_zone(c: Control, z: Zone) -> Option<Control> {
+    match c {
+        Control::StickDir(s, d) => Some(Control::StickZone(s, Some(d), z)),
+        Control::TriggerPress(t) => Some(Control::TriggerZone(t, z)),
+        _ => None,
+    }
+}
+
 fn dir_of(s: &str) -> Option<Dir> {
     match s {
         "up" => Some(Dir::Up),
@@ -299,6 +339,8 @@ struct Importer<'a> {
     masks: HashMap<i64, Combo>,
     layer_kinds: HashMap<i64, LayerKind>,
     commands: HashMap<i64, &'a Value>,
+    /// Masks that zone activators turned into zone controls: (mask, zoned trigger).
+    zoned: Vec<(Combo, Combo)>,
 }
 
 /// Recognize the format's encoding of shift keys and fold each pair into one
@@ -365,6 +407,7 @@ pub fn import(json: &str) -> Result<(Profile, Diagnostics), ImportError> {
         masks: HashMap::new(),
         layer_kinds: HashMap::new(),
         commands: HashMap::new(),
+        zoned: Vec::new(),
     };
     let profile = imp.run();
     Ok((profile, imp.diags))
@@ -419,6 +462,14 @@ impl<'a> Importer<'a> {
             }
         }
         fold_jump_pairs(&mut p.mappings);
+        // A mask a layer does not inherit stays uninherited in its zone form too.
+        for l in &mut p.layers {
+            for (mask, zoned) in &self.zoned {
+                if l.not_inherited.contains(mask) && !l.not_inherited.contains(zoned) {
+                    l.not_inherited.push(zoned.clone());
+                }
+            }
+        }
         for key in ["radialMenuCircles", "radialMenuSectors", "crosshairs"] {
             if !array(self.root, key).is_empty() {
                 self.diags.warn(
@@ -528,11 +579,34 @@ impl<'a> Importer<'a> {
                 }
                 _ => continue,
             };
-            if let Some(low) = array(s, "zones")
-                .iter()
-                .find(|z| enum_str(z, "name").as_deref() == Some("low"))
+            // The low zone is the deadzone of digital mappings; an output deadzone, if
+            // any, is part of the curve.
+            let zones = array(s, "zones");
+            if let Some(low) = zone_entry(zones, "low") {
+                cfg.zones.low = ZoneRadius {
+                    x: low.x.min(MAX_LOW_ZONE),
+                    y: low.y.min(MAX_LOW_ZONE),
+                };
+            }
+            cfg.zones.med = zone_entry(zones, "med");
+            cfg.zones.high = zone_entry(zones, "high");
+            let [low, med, high] = cfg.zone_thresholds();
+            if crate::zone_problem([low.x, med.x, high.x])
+                .or(crate::zone_problem([low.y, med.y, high.y]))
+                .is_some()
             {
-                cfg.deadzone = (int(low, "x").unwrap_or(0) as f32 / AXIS_MAX).clamp(0.0, 0.95);
+                self.diags.warn(
+                    format!("{path}.sticks"),
+                    "stick zones are out of order; the medium and high zones use their defaults",
+                );
+                cfg.zones.med = None;
+                cfg.zones.high = None;
+            }
+            if boolean(s, "diagonalZones") {
+                self.diags.info(
+                    format!("{path}.sticks"),
+                    "separate diagonal directions are not supported; a diagonal presses both of its directions",
+                );
             }
             if let Some(r) = int(s, "rotation") {
                 cfg.rotation = r.clamp(-90, 90) as f32;
@@ -561,14 +635,26 @@ impl<'a> Importer<'a> {
                 Some("right") => &mut p.triggers.right,
                 _ => continue,
             };
-            if let Some(low) = array(t, "zones")
-                .iter()
-                .find(|z| enum_str(z, "name").as_deref() == Some("low"))
-            {
-                cfg.deadzone = (int(low, "x").unwrap_or(0) as f32 / AXIS_MAX).clamp(0.0, 0.9);
+            let zones = array(t, "zones");
+            if let Some(low) = zone_entry(zones, "low") {
+                cfg.zones.low = low.x.min(MAX_LOW_ZONE);
+            }
+            cfg.zones.med = zone_entry(zones, "med").map(|r| r.x);
+            cfg.zones.high = zone_entry(zones, "high").map(|r| r.x);
+            // Zones shape the trigger's output only when they apply at hardware level.
+            if boolean(t, "affectHardware") {
+                cfg.deadzone = cfg.zones.low;
             }
             if let Some(max) = int(t, "highZoneMax") {
-                cfg.full_pull = (max as f32 / AXIS_MAX).clamp(cfg.deadzone + 0.01, 1.0);
+                cfg.full_pull = (max as f32 / AXIS_MAX).clamp(cfg.zones.low + 0.01, 1.0);
+            }
+            if crate::zone_problem(cfg.zone_thresholds()).is_some() {
+                self.diags.warn(
+                    format!("{path}.triggers"),
+                    "trigger zones are out of order; the medium and high zones use their defaults",
+                );
+                cfg.zones.med = None;
+                cfg.zones.high = None;
             }
             if get(t, "adaptiveMode").is_some() || get(t, "adaptiveDescription").is_some() {
                 self.diags.info(
@@ -728,7 +814,7 @@ impl<'a> Importer<'a> {
         let act = get(mask, "activator").cloned().unwrap_or(Value::Null);
         let params = get(&act, "params").cloned().unwrap_or(Value::Null);
 
-        let mut out = Mapping::new(combo, Vec::new());
+        let mut out = Mapping::new(combo.clone(), Vec::new());
         out.layer = layer;
         out.description = text(m, "description").unwrap_or_default();
         out.activator = match enum_str(&act, "type").as_deref() {
@@ -739,10 +825,31 @@ impl<'a> Importer<'a> {
             Some("start") => Activator::Start,
             Some("release") => Activator::Release,
             Some(z @ ("zonelow" | "zonemed" | "zonehigh")) => {
-                self.diags.warn(
-                    path,
-                    format!("analog zone activator `{z}` approximated as an ordinary press"),
-                );
+                // The zone applies to the mask's stick directions and triggers, which
+                // become their zone controls (`RT` → `RTHigh`).
+                let zone = match z {
+                    "zonelow" => Zone::Low,
+                    "zonemed" => Zone::Med,
+                    _ => Zone::High,
+                };
+                let mut zoned = false;
+                for c in &mut out.trigger.0 {
+                    if let Some(zc) = in_zone(*c, zone) {
+                        *c = zc;
+                        zoned = true;
+                    }
+                }
+                if zoned {
+                    self.zoned.push((combo.clone(), out.trigger.clone()));
+                } else {
+                    self.diags.warn(
+                        path,
+                        format!(
+                            "zone activator `{z}` on {} is not supported; imported as an ordinary press",
+                            out.trigger
+                        ),
+                    );
+                }
                 Activator::Single
             }
             Some(other) => {
@@ -1148,7 +1255,11 @@ mod tests {
         assert_eq!(p.name, "Lizard");
         assert_eq!(p.processes, vec!["game.exe"]);
         assert_eq!(p.output.virtual_pad, VirtualPadType::DualShock4);
-        assert!((p.triggers.left.deadzone - 0.1).abs() < 0.01);
+        assert!((p.triggers.left.zones.low - 0.1).abs() < 0.01);
+        assert_eq!(
+            p.triggers.left.deadzone, 0.0,
+            "zones shape the output only with affectHardware"
+        );
         assert_eq!(p.mappings.len(), 4);
 
         let a = &p.mappings[0];
@@ -1280,6 +1391,154 @@ mod tests {
             }]
         );
         assert_eq!((m.double_tap_ms, m.triple_tap_ms), (Some(200), Some(400)));
+    }
+
+    #[test]
+    fn imports_zones_and_zone_activators() {
+        let doc = r#"{ "schemaVersion": 3.0, "appVersion": "9.2.0", "config": { "appName": "x", "minTimeUnit": 1 },
+          "devices": { "hardware": [ { "id": 1, "name": "gamepad", "default": {
+              "sticks": [ { "name": "left", "zones": [ { "name": "low", "x": 6554, "y": 9830 }, { "name": "med", "x": 16384 },
+                                                      { "name": "high", "x": 26214, "y": 29491 } ] },
+                          { "name": "right", "zones": [ { "name": "low", "x": 9830 }, { "name": "med", "x": 6554 } ] } ],
+              "triggers": [ { "name": "right", "zones": [ { "name": "low", "x": 3277 }, { "name": "high", "x": 22938 } ],
+                              "highZoneMax": 32768, "affectHardware": true } ] } } ] },
+          "shifts": [ { "id": 1, "type": "default", "unheritableMasks": [ 1 ] } ],
+          "masks": [
+            { "id": 1, "set": [ { "deviceId": 1, "buttonId": 55 } ] },
+            { "id": 2, "set": [ { "deviceId": 1, "buttonId": 40 } ] },
+            { "id": 3, "set": [ { "deviceId": 1, "buttonId": 5 }, { "deviceId": 1, "buttonId": 51 } ] },
+            { "id": 4, "set": [ { "deviceId": 1, "buttonId": 38 } ] },
+            { "id": 5, "set": [ { "deviceId": 1, "buttonId": 130 } ] },
+            { "id": 6, "set": [ { "deviceId": 1, "buttonId": 1 } ] }
+          ],
+          "mappings": [
+            { "condition": { "mask": { "id": 1, "activator": { "type": "zoneHigh", "mode": "hold_until_release" } } },
+              "macros": [ { "keyboard": { "buttonId": 46, "description": "DIK_C" } } ] },
+            { "condition": { "mask": { "id": 1, "activator": { "type": "single", "mode": "hold_until_release" } } },
+              "macros": [ { "keyboard": { "buttonId": 25, "description": "DIK_P" } } ] },
+            { "condition": { "mask": { "id": 2, "activator": { "type": "zonelow", "mode": "hold_until_release" } } },
+              "macros": [ { "keyboard": { "buttonId": 17, "description": "DIK_W" } } ] },
+            { "condition": { "mask": { "id": 3, "activator": { "type": "zoneMed", "mode": "hold_until_release" } } },
+              "macros": [ { "keyboard": { "buttonId": 50, "description": "DIK_M" } } ] },
+            { "condition": { "mask": { "id": 4, "activator": { "type": "single", "mode": "hold_until_release" } } },
+              "macros": [ { "keyboard": { "buttonId": 30, "description": "DIK_A" } } ] },
+            { "condition": { "mask": { "id": 5, "activator": { "type": "single", "mode": "hold_until_release" } } },
+              "macros": [ { "keyboard": { "buttonId": 31, "description": "DIK_S" } } ] },
+            { "condition": { "mask": { "id": 6, "activator": { "type": "zoneHigh", "mode": "hold_until_release" } } },
+              "macros": [ { "keyboard": { "buttonId": 32, "description": "DIK_D" } } ] }
+          ] }"#;
+        let (p, diags) = import(doc).unwrap();
+        assert!(!diags.has_errors(), "{diags:?}");
+        let near = |a: f32, b: f32| (a - b).abs() < 0.001;
+
+        let left = &p.sticks.left.zones;
+        assert!(near(left.low.x, 0.2) && near(left.low.y, 0.3), "{left:?}");
+        let med = left.med.unwrap();
+        assert!(near(med.x, 0.5) && near(med.y, 0.5), "missing y equals x");
+        assert!(near(left.high.unwrap().y, 0.9));
+        assert_eq!(
+            p.sticks.left.deadzone, 0.0,
+            "the low zone is no output deadzone"
+        );
+        let right = &p.sticks.right.zones;
+        assert!(
+            near(right.low.x, 0.3) && right.med.is_none(),
+            "out-of-order medium zone falls back to its default"
+        );
+        assert!(diags.0.iter().any(|d| d.message.contains("out of order")));
+
+        let rt = &p.triggers.right;
+        assert!(near(rt.zones.low, 0.1) && near(rt.zones.high.unwrap(), 0.7));
+        assert_eq!(rt.zones.med, None);
+        assert_eq!(rt.full_pull, 1.0);
+        assert!(
+            near(rt.deadzone, 0.1),
+            "affectHardware applies the low zone to the output"
+        );
+
+        let trig = |i: usize| p.mappings[i].trigger.0.clone();
+        let all = |i: usize| (p.mappings[i].activator, p.mappings[i].mode);
+        assert_eq!(
+            trig(0),
+            vec![Control::TriggerZone(Trigger::Right, Zone::High)]
+        );
+        assert_eq!(all(0), (Activator::Single, Mode::Hold));
+        assert_eq!(trig(1), vec![Control::TriggerPress(Trigger::Right)]);
+        assert_eq!(
+            trig(2),
+            vec![Control::StickZone(Stick::Left, Some(Dir::Up), Zone::Low)]
+        );
+        assert_eq!(
+            trig(3),
+            vec![
+                Control::Button(PadButton::LB),
+                Control::TriggerZone(Trigger::Left, Zone::Med)
+            ]
+        );
+        assert_eq!(
+            trig(4),
+            vec![Control::StickZone(Stick::Left, None, Zone::Med)]
+        );
+        assert_eq!(
+            trig(5),
+            vec![Control::StickZone(
+                Stick::Right,
+                Some(Dir::Down),
+                Zone::High
+            )]
+        );
+        assert_eq!(trig(6), vec![Control::Button(PadButton::A)]);
+        assert!(
+            diags
+                .0
+                .iter()
+                .any(|d| d.path == "mappings[6]" && d.message.contains("ordinary press"))
+        );
+
+        assert_eq!(
+            p.layers[0].not_inherited,
+            vec![
+                Combo(vec![Control::TriggerPress(Trigger::Right)]),
+                Combo(vec![Control::TriggerZone(Trigger::Right, Zone::High)])
+            ]
+        );
+    }
+
+    #[test]
+    fn zone_button_ids() {
+        use Control::StickZone;
+        assert_eq!(
+            gamepad_control(37),
+            Some(StickZone(Stick::Left, None, Zone::Low))
+        );
+        assert_eq!(
+            gamepad_control(46),
+            Some(StickZone(Stick::Right, None, Zone::High))
+        );
+        assert_eq!(
+            gamepad_control(54),
+            Some(Control::TriggerZone(Trigger::Left, Zone::High))
+        );
+        assert_eq!(
+            gamepad_control(56),
+            Some(Control::TriggerZone(Trigger::Right, Zone::Low))
+        );
+        assert_eq!(
+            gamepad_control(109),
+            Some(StickZone(Stick::Left, Some(Dir::Up), Zone::Low))
+        );
+        assert_eq!(
+            gamepad_control(116),
+            Some(StickZone(Stick::Left, Some(Dir::Right), Zone::Med))
+        );
+        assert_eq!(
+            gamepad_control(123),
+            Some(StickZone(Stick::Right, Some(Dir::Left), Zone::Low))
+        );
+        assert_eq!(
+            gamepad_control(132),
+            Some(StickZone(Stick::Right, Some(Dir::Right), Zone::High))
+        );
     }
 
     #[test]

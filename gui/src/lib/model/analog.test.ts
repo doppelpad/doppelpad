@@ -29,12 +29,19 @@ import {
   triggerConfig,
   updateRoute,
 } from './analog';
+import { setStickLevel, setTriggerLevel, type ZoneDefaults } from './zones';
 
 // Rust's defaults, as the catalog command sends them.
 const def = defaultsJson as unknown as {
   stick: Required<StickConfig>;
   trigger: Required<TriggerConfig>;
   analog: Required<AnalogMapping>;
+};
+
+const zd: ZoneDefaults = {
+  stickLow: def.stick.zones.low ?? 0.24,
+  triggerLow: def.trigger.zones.low ?? 0.03,
+  fullPull: def.trigger.full_pull,
 };
 
 const empty = (): Profile => ({ name: 'Test', mappings: [] });
@@ -45,18 +52,30 @@ describe('stick and trigger settings', () => {
     expect(stickConfig(empty(), 'left', def.stick)).toEqual(def.stick);
     const shooter = examples['shooter-advanced'] as unknown as Profile;
     expect(stickConfig(shooter, 'right', def.stick).curve).toEqual([[0.3, 0.15], [0.7, 0.55]]);
-    expect(triggerConfig(shooter, 'right', def.trigger).press_threshold).toBe(0.1);
+    expect(triggerConfig(shooter, 'right', def.trigger).zones.low).toBe(0.1);
   });
 
-  it('are written like Rust writes them', () => {
+  it('are written like Rust writes them, zones included', () => {
     let p = empty();
     p = setStick(p, 'left', { deadzone: 0.08, outer: 0.95, anti_deadzone: 0.15, sensitivity: 1.2 }, def.stick);
-    p = setStick(p, 'left', { invert_y: true, rotation: 45, direction_threshold: 0.3 }, def.stick);
-    p = setStick(p, 'right', { deadzone: 0.06, curve: [[0.3, 0.15], [0.7, 0.55]] }, def.stick);
-    p = setTrigger(p, 'left', { deadzone: 0.05, full_pull: 0.9 }, def.trigger);
-    p = setTrigger(p, 'right', { press_threshold: 0.1 }, def.trigger);
+    let left = setStickLevel(def.stick.zones, 'low', 0, 0.25, zd);
+    left = setStickLevel(left, 'low', 1, 0.375, zd);
+    left = setStickLevel(left, 'high', 'both', 0.75, zd);
+    p = setStick(p, 'left', { invert_y: true, rotation: 45, zones: left }, def.stick);
+    const right = setStickLevel(def.stick.zones, 'low', 'both', 0.25, zd);
+    p = setStick(p, 'right', { deadzone: 0.06, curve: [[0.3, 0.15], [0.7, 0.55]], zones: right }, def.stick);
+    p = setTrigger(p, 'left', { deadzone: 0.05, full_pull: 0.9, zones: setTriggerLevel(def.trigger.zones, 'low', 0.0625) }, def.trigger);
+    const rt = setTriggerLevel(setTriggerLevel(def.trigger.zones, 'low', 0.125), 'med', 0.5);
+    p = setTrigger(p, 'right', { full_pull: 0.875, zones: rt }, def.trigger);
     expect(p.sticks).toEqual(fixture.sticks);
     expect(p.triggers).toEqual(fixture.triggers);
+  });
+
+  it('drop a low zone set back to its default', () => {
+    let p = setStick(empty(), 'left', { zones: setStickLevel(def.stick.zones, 'low', 'both', 0.3, zd) }, def.stick);
+    expect(p.sticks?.left?.zones).toEqual({ low: 0.3 });
+    p = setStick(p, 'left', { zones: setStickLevel(p.sticks?.left?.zones, 'low', 'both', 0.24, zd) }, def.stick);
+    expect('sticks' in p).toBe(false);
   });
 
   it('are left out once both sides are back at their defaults', () => {

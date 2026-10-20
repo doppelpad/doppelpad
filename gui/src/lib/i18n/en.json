@@ -133,6 +133,38 @@
       "key_delay_ms": "Delay between keys"
     }
   },
+  "zones": {
+    "title": "Zone",
+    "whole": "Any",
+    "low": "Low",
+    "med": "Medium",
+    "high": "High",
+    "in": {
+      "low": "low zone",
+      "med": "medium zone",
+      "high": "high zone"
+    },
+    "any_direction": "{stick}, any direction",
+    "any_direction_button": "Any direction (zones)",
+    "desc": {
+      "whole": "Active as soon as the control leaves its deadzone, however far it is moved.",
+      "low": "Active while the control is moved only a little, up to where the medium zone starts.",
+      "med": "Active in the middle of the range, between the medium and the high threshold.",
+      "high": "Active while the control is moved far, from the high threshold to the end."
+    },
+    "thresholds": "Zone thresholds",
+    "thresholds_hint": "Where each zone starts, in % of the full range. Empty fields use the default or split the rest evenly.",
+    "shared_stick": "Shared by all directions of this stick.",
+    "shared_trigger": "Shared by all mappings of this trigger.",
+    "separate_axes": "Separate horizontal and vertical thresholds",
+    "horizontal": "Horizontal",
+    "vertical": "Vertical",
+    "deadzone": "Deadzone",
+    "now": "Now: {zone}",
+    "now_none": "Now: in the deadzone",
+    "err_range": "Thresholds must be above 0 % and at most 100 %.",
+    "err_order": "Low, medium and high must increase."
+  },
   "activators": {
     "single": "Single press",
     "long": "Long press",
@@ -227,7 +259,7 @@
     "no_controller": "Connect a controller to see its input here.",
     "legend_stick": "Stick",
     "legend_output": "Output",
-    "legend_directions": "Directions",
+    "legend_directions": "Zones",
     "stick": {
       "deadzone": "Deadzone",
       "deadzone_hint": "The output stays at zero below this deflection. 0 passes the raw stick through, so the game applies its own deadzone.",
@@ -239,7 +271,8 @@
       "rotation": "Rotation",
       "rotation_hint": "Turns the stick counter-clockwise.",
       "direction_threshold": "Direction threshold",
-      "direction_threshold_hint": "Deflection at which the stick's directions (up, left, …) count as pressed for mappings.",
+      "direction_threshold_hint": "Deflection at which the stick's directions (up, left, …) count as pressed for mappings; the low zone starts here.",
+      "direction_threshold_elliptic": "Horizontal and vertical differ — change them under “Zone thresholds” of one of this stick's zones.",
       "invert_x": "Invert horizontal",
       "invert_y": "Invert vertical",
       "curve": "Response curve",
@@ -259,7 +292,7 @@
       "deadzone": "Deadzone",
       "deadzone_hint": "Pulls below this read as zero; the rest is rescaled.",
       "press_threshold": "Press point",
-      "press_threshold_hint": "Pull at which mappings of {control} fire.",
+      "press_threshold_hint": "Pull at which mappings of {control} fire; the low zone starts here.",
       "full_pull": "Full pull",
       "full_pull_hint": "Pull that reads as fully pressed and fires mappings of {control}.",
       "pull": "Pull",

@@ -8,11 +8,15 @@
     "invert_x": false,
     "invert_y": false,
     "rotation": 0.0,
-    "direction_threshold": 0.24
+    "zones": {
+      "low": 0.24
+    }
   },
   "trigger": {
     "deadzone": 0.0,
-    "press_threshold": 0.03,
+    "zones": {
+      "low": 0.03
+    },
     "full_pull": 0.99
   },
   "analog": {

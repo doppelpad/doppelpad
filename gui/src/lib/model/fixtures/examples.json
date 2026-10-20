@@ -132,6 +132,16 @@
         "repeat_pause_ms": 60
       },
       {
+        "trigger": "LeftStickUpHigh",
+        "mode": "while_held",
+        "actions": [
+          {
+            "wheel": "up"
+          }
+        ],
+        "repeat_pause_ms": 20
+      },
+      {
         "trigger": "LeftStickDown",
         "mode": "while_held",
         "actions": [
@@ -140,6 +150,16 @@
           }
         ],
         "repeat_pause_ms": 60
+      },
+      {
+        "trigger": "LeftStickDownHigh",
+        "mode": "while_held",
+        "actions": [
+          {
+            "wheel": "down"
+          }
+        ],
+        "repeat_pause_ms": 20
       },
       {
         "trigger": "Start",
@@ -428,7 +448,9 @@
         "invert_x": false,
         "invert_y": false,
         "rotation": 0.0,
-        "direction_threshold": 0.24
+        "zones": {
+          "low": 0.24
+        }
       },
       "right": {
         "deadzone": 0.06,
@@ -448,18 +470,24 @@
         "invert_x": false,
         "invert_y": false,
         "rotation": 0.0,
-        "direction_threshold": 0.24
+        "zones": {
+          "low": 0.24
+        }
       }
     },
     "triggers": {
       "left": {
         "deadzone": 0.0,
-        "press_threshold": 0.03,
+        "zones": {
+          "low": 0.03
+        },
         "full_pull": 0.99
       },
       "right": {
         "deadzone": 0.0,
-        "press_threshold": 0.1,
+        "zones": {
+          "low": 0.1
+        },
         "full_pull": 0.99
       }
     },

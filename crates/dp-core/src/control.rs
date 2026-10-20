@@ -5,7 +5,10 @@
 //! |-----------------------------|------------------------------------------------|
 //! | `A`, `LB`, `DpadUp`, ...    | gamepad button ([`PadButton`] name)            |
 //! | `LeftStickUp`, ...          | stick pushed past its deadzone in a direction  |
+//! | `LeftStickLow`, ...         | stick deflected into a zone, any direction     |
+//! | `LeftStickUpHigh`, ...      | stick deflected into a zone in a direction     |
 //! | `LT`, `RT`                  | trigger pulled past its deadzone               |
+//! | `LTLow`, `RTMed`, ...       | trigger pulled into a zone                     |
 //! | `LTFull`, `RTFull`          | trigger fully pulled                           |
 //! | `TouchUp`, `TouchCenter`... | finger resting in a touchpad region            |
 //! | `GyroUp`, ...               | controller tilted / turned in a direction      |
@@ -61,6 +64,41 @@ impl Dir {
     }
 }
 
+/// Band of a stick's deflection or a trigger's pull. Bands are exclusive: a
+/// control is in at most one zone at a time.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Zone {
+    Low,
+    Med,
+    High,
+}
+
+impl Zone {
+    pub const ALL: [Zone; 3] = [Zone::Low, Zone::Med, Zone::High];
+
+    pub fn name(self) -> &'static str {
+        match self {
+            Zone::Low => "Low",
+            Zone::Med => "Med",
+            Zone::High => "High",
+        }
+    }
+
+    /// Split a trailing zone name off a lowercase control name (`"rthigh"` →
+    /// `("rt", High)`).
+    fn strip_suffix(lower: &str) -> Option<(&str, Zone)> {
+        [
+            ("low", Zone::Low),
+            ("medium", Zone::Med),
+            ("med", Zone::Med),
+            ("high", Zone::High),
+        ]
+        .into_iter()
+        .find_map(|(suffix, z)| lower.strip_suffix(suffix).map(|rest| (rest, z)))
+    }
+}
+
 /// Region of a touchpad, used as a digital input.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -97,7 +135,10 @@ impl TouchRegion {
 pub enum Control {
     Button(PadButton),
     StickDir(Stick, Dir),
+    /// Stick deflected into a zone, in a direction or (`None`) in any direction.
+    StickZone(Stick, Option<Dir>, Zone),
     TriggerPress(Trigger),
+    TriggerZone(Trigger, Zone),
     TriggerFull(Trigger),
     Touch(TouchRegion),
     Gyro(Dir),
@@ -120,6 +161,26 @@ impl Control {
             self,
             Control::Key(_) | Control::Mouse(_) | Control::Wheel(_) | Control::MouseMove(_)
         )
+    }
+
+    /// Every digital control derived from a stick: directions and zones.
+    pub fn of_stick(s: Stick) -> Vec<Control> {
+        let dirs = Dir::ALL.map(|d| Control::StickDir(s, d));
+        let zones = Zone::ALL.into_iter().flat_map(move |z| {
+            std::iter::once(None)
+                .chain(Dir::ALL.map(Some))
+                .map(move |d| Control::StickZone(s, d, z))
+        });
+        dirs.into_iter().chain(zones).collect()
+    }
+
+    /// Every digital control derived from a trigger: press, zones and full pull.
+    pub fn of_trigger(t: Trigger) -> Vec<Control> {
+        let zones = Zone::ALL.map(|z| Control::TriggerZone(t, z));
+        [Control::TriggerPress(t), Control::TriggerFull(t)]
+            .into_iter()
+            .chain(zones)
+            .collect()
     }
 }
 
@@ -244,7 +305,15 @@ impl fmt::Display for Control {
         match *self {
             Control::Button(b) => f.write_str(pad_button_name(b)),
             Control::StickDir(s, d) => write!(f, "{}Stick{}", stick_name(s), d.name()),
+            Control::StickZone(s, d, z) => write!(
+                f,
+                "{}Stick{}{}",
+                stick_name(s),
+                d.map_or("", Dir::name),
+                z.name()
+            ),
             Control::TriggerPress(t) => f.write_str(trigger_name(t)),
+            Control::TriggerZone(t, z) => write!(f, "{}{}", trigger_name(t), z.name()),
             Control::TriggerFull(t) => write!(f, "{}Full", trigger_name(t)),
             Control::Touch(r) => write!(f, "Touch{}", r.name()),
             Control::Gyro(d) => write!(f, "Gyro{}", d.name()),
@@ -275,18 +344,36 @@ impl FromStr for Control {
             };
         }
         let lower = s.to_ascii_lowercase();
-        match lower.as_str() {
-            "lt" | "l2" | "zl" | "lefttrigger" => return Ok(Control::TriggerPress(Trigger::Left)),
-            "rt" | "r2" | "zr" | "righttrigger" => {
-                return Ok(Control::TriggerPress(Trigger::Right));
-            }
-            "ltfull" | "l2full" | "zlfull" => return Ok(Control::TriggerFull(Trigger::Left)),
-            "rtfull" | "r2full" | "zrfull" => return Ok(Control::TriggerFull(Trigger::Right)),
-            _ => {}
+        let trigger = |name: &str| match name {
+            "lt" | "l2" | "zl" | "lefttrigger" => Some(Trigger::Left),
+            "rt" | "r2" | "zr" | "righttrigger" => Some(Trigger::Right),
+            _ => None,
+        };
+        if let Some(t) = trigger(&lower) {
+            return Ok(Control::TriggerPress(t));
+        }
+        if let Some(t) = lower.strip_suffix("full").and_then(trigger) {
+            return Ok(Control::TriggerFull(t));
+        }
+        if let Some((rest, z)) = Zone::strip_suffix(&lower)
+            && let Some(t) = trigger(rest)
+        {
+            return Ok(Control::TriggerZone(t, z));
         }
         for (prefix, stick) in [("leftstick", Stick::Left), ("rightstick", Stick::Right)] {
-            if let Some(d) = lower.strip_prefix(prefix).and_then(Dir::parse) {
+            let Some(rest) = lower.strip_prefix(prefix) else {
+                continue;
+            };
+            if let Some(d) = Dir::parse(rest) {
                 return Ok(Control::StickDir(stick, d));
+            }
+            if let Some((rest, z)) = Zone::strip_suffix(rest) {
+                if rest.is_empty() {
+                    return Ok(Control::StickZone(stick, None, z));
+                }
+                if let Some(d) = Dir::parse(rest) {
+                    return Ok(Control::StickZone(stick, Some(d), z));
+                }
             }
         }
         if let Some(rest) = lower.strip_prefix("touch")
@@ -329,7 +416,12 @@ mod tests {
             Control::Button(PadButton::Misc2),
             Control::StickDir(Stick::Left, Dir::Up),
             Control::StickDir(Stick::Right, Dir::Left),
+            Control::StickZone(Stick::Left, None, Zone::Low),
+            Control::StickZone(Stick::Right, Some(Dir::Right), Zone::High),
+            Control::StickZone(Stick::Left, Some(Dir::Up), Zone::Med),
             Control::TriggerPress(Trigger::Right),
+            Control::TriggerZone(Trigger::Left, Zone::Med),
+            Control::TriggerZone(Trigger::Right, Zone::High),
             Control::TriggerFull(Trigger::Left),
             Control::Touch(TouchRegion::Center),
             Control::Gyro(Dir::Down),
@@ -371,5 +463,40 @@ mod tests {
         assert_eq!(parse("GL"), Control::Button(PadButton::PaddleUL));
         assert_eq!(parse("gr"), Control::Button(PadButton::PaddleUR));
         assert_eq!(parse("capture"), Control::Button(PadButton::Misc));
+    }
+
+    #[test]
+    fn zone_names() {
+        let parse = |s: &str| s.parse::<Control>().unwrap();
+        assert_eq!(
+            Control::StickZone(Stick::Left, Some(Dir::Up), Zone::High).to_string(),
+            "LeftStickUpHigh"
+        );
+        assert_eq!(
+            Control::TriggerZone(Trigger::Right, Zone::Med).to_string(),
+            "RTMed"
+        );
+        assert_eq!(
+            parse("leftstickmedium"),
+            Control::StickZone(Stick::Left, None, Zone::Med)
+        );
+        assert_eq!(
+            parse("RightStickRightLow"),
+            Control::StickZone(Stick::Right, Some(Dir::Right), Zone::Low)
+        );
+        assert_eq!(
+            parse("R2High"),
+            Control::TriggerZone(Trigger::Right, Zone::High)
+        );
+        assert_eq!(
+            parse("ZLLow"),
+            Control::TriggerZone(Trigger::Left, Zone::Low)
+        );
+        assert_eq!(
+            parse("LeftTriggerFull"),
+            Control::TriggerFull(Trigger::Left)
+        );
+        assert!("LeftStickHighUp".parse::<Control>().is_err());
+        assert!("AHigh".parse::<Control>().is_err());
     }
 }

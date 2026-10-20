@@ -1,9 +1,11 @@
 <script lang="ts">
-  // Shaping of both triggers: output deadzone, the press point of the LT/RT controls and the
-  // full pull, with the live pull and output of the controller in use.
+  // Shaping of both triggers: output deadzone, the press point of the LT/RT controls (the low
+  // zone) and the full pull, with the live pull and output of the controller in use. The
+  // medium and high zones are edited in the binding panel's zone editor.
   import { t } from '../../lib/i18n/index.svelte';
   import { controlLabel } from '../../lib/model/controls';
   import { setTrigger, shapeTrigger, triggerConfig, type Side } from '../../lib/model/analog';
+  import { setTriggerLevel, triggerThresholds, type ZoneDefaults } from '../../lib/model/zones';
   import { app } from '../../lib/state/app.svelte';
   import type { TriggerConfig } from '../../lib/types';
   import Slider from '../ui/Slider.svelte';
@@ -14,6 +16,11 @@
   ];
 
   const def = $derived(app.catalog?.defaults.trigger);
+  const zoneDefaults = $derived<ZoneDefaults>({
+    stickLow: app.catalog?.defaults.stick.zones.low ?? 0.24,
+    triggerLow: def?.zones.low ?? 0.03,
+    fullPull: def?.full_pull ?? 0.99,
+  });
   const disabled = $derived(app.readOnly);
 
   function set(side: Side, patch: Partial<TriggerConfig>) {
@@ -29,6 +36,7 @@
       {@const cfg = triggerConfig(app.profile, s.side, def)}
       {@const raw = app.primary?.state.axes[s.axis] ?? null}
       {@const name = controlLabel(s.control, app.family)}
+      {@const zones = triggerThresholds(cfg.zones, cfg.full_pull, zoneDefaults)}
       <section class="card">
         <h3>{name}</h3>
 
@@ -38,7 +46,8 @@
             {#if cfg.deadzone > 0}<div class="zone dz" style:width={pct(cfg.deadzone)}></div>{/if}
             <div class="zone full" style:left={pct(cfg.full_pull)}></div>
             {#if raw !== null}<div class="fill raw" style:width={pct(raw)}></div>{/if}
-            <div class="mark" style:left={pct(cfg.press_threshold)}></div>
+            {#each [zones[1], zones[2]] as z, i (i)}<div class="mark zone" style:left={pct(z)}></div>{/each}
+            <div class="mark" style:left={pct(zones[0])}></div>
           </div>
           <span class="ml">{t('analog.trigger.output')}</span>
           <div class="bar">
@@ -46,7 +55,7 @@
           </div>
         </div>
         <div class="states">
-          <span class="state" class:on={raw !== null && raw >= Math.max(cfg.press_threshold, 0.001)}>
+          <span class="state" class:on={raw !== null && raw >= Math.max(zones[0], 0.001)}>
             {t('analog.trigger.pressed')}
           </span>
           <span class="state" class:on={raw !== null && raw >= cfg.full_pull}>{t('analog.trigger.full')}</span>
@@ -68,8 +77,8 @@
         />
         <Slider
           label={t('analog.trigger.press_threshold')}
-          value={cfg.press_threshold}
-          def={def.press_threshold}
+          value={zones[0]}
+          def={def.zones.low}
           min={0.01}
           max={1}
           step={0.01}
@@ -77,7 +86,7 @@
           unit="%"
           hint={t('analog.trigger.press_threshold_hint', { control: name })}
           {disabled}
-          onchange={(v) => set(s.side, { press_threshold: v })}
+          onchange={(v) => set(s.side, { zones: setTriggerLevel(cfg.zones, 'low', v) })}
         />
         <Slider
           label={t('analog.trigger.full_pull')}
@@ -168,6 +177,9 @@
     width: 2px;
     margin-left: -1px;
     background: var(--layer-2);
+  }
+  .mark.zone {
+    opacity: 0.4;
   }
   .states {
     display: flex;

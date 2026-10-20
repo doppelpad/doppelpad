@@ -1,11 +1,22 @@
 <script lang="ts">
-  // Top view of a stick: deadzone, full-deflection ring and direction threshold, with the
-  // live stick position and what the engine outputs for it.
+  // Top view of a stick: deadzone, full-deflection ring and the zone thresholds (the low one
+  // is where direction controls start), with the live stick position and what the engine
+  // outputs for it.
   import { t } from '../../lib/i18n/index.svelte';
   import { orient, shapeStick } from '../../lib/model/analog';
+  import type { Triple } from '../../lib/model/zones';
   import type { StickConfig } from '../../lib/types';
 
-  let { cfg, raw }: { cfg: Required<StickConfig>; raw: [number, number] | null } = $props();
+  let {
+    cfg,
+    raw,
+    zones,
+  }: {
+    cfg: Required<StickConfig>;
+    raw: [number, number] | null;
+    /** Effective low, medium and high thresholds per axis. */
+    zones: { x: Triple; y: Triple };
+  } = $props();
 
   const outer = $derived(Math.max(cfg.outer, cfg.deadzone + 0.01));
   const out = $derived(raw ? shapeStick(orient(raw, cfg), cfg) : null);
@@ -25,7 +36,10 @@
     <circle class="outer" r={outer} />
     <line class="axis" x1="-1" y1="0" x2="1" y2="0" />
     <line class="axis" x1="0" y1="-1" x2="0" y2="1" />
-    <circle class="threshold" r={cfg.direction_threshold} />
+    {#each [2, 1] as i (i)}
+      <ellipse class="zone" rx={zones.x[i]} ry={zones.y[i]} />
+    {/each}
+    <ellipse class="threshold" rx={zones.x[0]} ry={zones.y[0]} />
     {#if cfg.deadzone > 0}<circle class="deadzone" r={cfg.deadzone} />{/if}
     {#if turned}
       <line class="up" x1="0" y1="0" x2={sx(up[0] * 1.04)} y2={sy(up[1] * 1.04)} />
@@ -77,11 +91,15 @@
     stroke: var(--line);
     stroke-width: 0.008;
   }
-  .threshold {
+  .threshold,
+  .zone {
     fill: none;
     stroke: var(--layer-2);
     stroke-width: 0.01;
     stroke-dasharray: 0.015 0.025;
+  }
+  .zone {
+    stroke-opacity: 0.35;
   }
   .deadzone {
     fill: var(--text-faint);
