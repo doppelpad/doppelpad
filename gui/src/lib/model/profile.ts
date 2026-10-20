@@ -344,6 +344,7 @@ export function actionLabel(a: Action): string {
   if ('pause' in a) return `${a.pause} ms`;
   if ('rumble' in a) return `Rumble ${a.rumble} ms`;
   if ('shake' in a) return `Shake ${a.shake.toUpperCase()}`;
+  if ('turn' in a) return `Turn ${a.turn > 0 ? '+' : ''}${a.turn}°`;
   if ('break' in a) return '⦀';
   if ('command' in a) {
     const c = a.command;

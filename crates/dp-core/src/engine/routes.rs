@@ -3,7 +3,9 @@
 
 use super::analog::{orient, shape_stick};
 use crate::pad::{PadState, Stick};
-use crate::profile::{AnalogMapping, AnalogSource, AnalogTarget, StickConfig, Sticks};
+use crate::profile::{
+    AnalogMapping, AnalogSource, AnalogTarget, StickConfig, Sticks, VirtualMouse,
+};
 
 /// Calibration constants: what `sensitivity = 1.0` means for each route.
 pub mod scale {
@@ -30,6 +32,12 @@ pub struct RouteState {
     last_touch: Option<(f32, f32)>,
     touch_vel: (f32, f32),
     glide: Option<((f32, f32), u64, f32)>,
+    /// Flick stick: out past the threshold, the last stick angle, and the flick turn still
+    /// to send (counts) with its speed (counts per second).
+    flick_out: bool,
+    flick_angle: f32,
+    flick_left: f32,
+    flick_rate: f32,
 }
 
 pub struct RouteInput<'a> {
@@ -41,6 +49,8 @@ pub struct RouteInput<'a> {
     pub dt: f32,
     pub now: u64,
     pub gyro_enabled: bool,
+    /// Turn calibration for flick routes.
+    pub turn: &'a VirtualMouse,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -83,7 +93,7 @@ fn to_stick(r: &AnalogMapping, (x, y): (f32, f32)) -> RouteOutput {
     let stick = match r.target {
         AnalogTarget::LeftStick => Stick::Left,
         AnalogTarget::RightStick => Stick::Right,
-        AnalogTarget::Mouse => return RouteOutput::None,
+        AnalogTarget::Mouse | AnalogTarget::Flick => return RouteOutput::None,
     };
     let (mut x, mut y) = (x, y * r.vertical_ratio);
     let mag = (x * x + y * y).sqrt();
@@ -106,6 +116,58 @@ fn stick_source(s: Stick, input: &RouteInput) -> Option<(f32, f32)> {
     Some(orient(pad.stick(s), cfg))
 }
 
+/// Flick stick: when the stick is pushed out past the threshold, turn to face where it
+/// points (spread over the turn time); while it stays out, turn with its rotation.
+fn flick(
+    r: &AnalogMapping,
+    st: &mut RouteState,
+    (x, y): (f32, f32),
+    input: &RouteInput,
+) -> RouteOutput {
+    let threshold = r.deadzone.clamp(0.05, 0.99);
+    let mag = x.hypot(y);
+    let dir = if r.invert_x { -1.0 } else { 1.0 };
+    let per_deg = input.turn.counts_per_turn / 360.0 * r.sensitivity * dir;
+    // Angle from "up", clockwise positive.
+    let angle = x.atan2(y).to_degrees();
+    let mut counts = 0.0;
+    if !st.flick_out && mag >= threshold {
+        st.flick_out = true;
+        st.flick_angle = angle;
+        st.flick_left = angle * per_deg;
+        let secs = input.turn.turn_ms as f32 / 1000.0;
+        st.flick_rate = if secs > 0.0 {
+            st.flick_left.abs() / secs
+        } else {
+            f32::INFINITY
+        };
+    } else if st.flick_out && mag >= threshold * 0.9 {
+        let mut d = angle - st.flick_angle;
+        if d > 180.0 {
+            d -= 360.0;
+        } else if d < -180.0 {
+            d += 360.0;
+        }
+        st.flick_angle = angle;
+        counts += if input.dt > 0.0 {
+            smooth(st, (d * per_deg / input.dt, 0.0), r.smoothing_ms, input.dt).0 * input.dt
+        } else {
+            d * per_deg
+        };
+    } else if st.flick_out {
+        st.flick_out = false;
+        st.ema = (0.0, 0.0);
+    }
+    if st.flick_left != 0.0 {
+        let step = (st.flick_rate * input.dt).min(st.flick_left.abs());
+        let step = if input.dt > 0.0 { step } else { 0.0 };
+        let step = step.copysign(st.flick_left);
+        counts += step;
+        st.flick_left -= step;
+    }
+    RouteOutput::Mouse(counts, 0.0)
+}
+
 pub fn run(r: &AnalogMapping, st: &mut RouteState, input: &RouteInput) -> RouteOutput {
     let sx = if r.invert_x { -1.0 } else { 1.0 };
     let sy = if r.invert_y { -1.0 } else { 1.0 };
@@ -120,6 +182,7 @@ pub fn run(r: &AnalogMapping, st: &mut RouteState, input: &RouteInput) -> RouteO
                 return RouteOutput::None;
             };
             match r.target {
+                AnalogTarget::Flick => flick(r, st, raw, input),
                 AnalogTarget::Mouse => {
                     let (x, y) = shape_vector(raw, r.deadzone, r.curve);
                     let speed = scale::STICK_MOUSE_PX_PER_S * r.sensitivity;
@@ -143,7 +206,7 @@ pub fn run(r: &AnalogMapping, st: &mut RouteState, input: &RouteInput) -> RouteO
             }
         }
         AnalogSource::Mouse => {
-            if r.target == AnalogTarget::Mouse || input.dt <= 0.0 {
+            if matches!(r.target, AnalogTarget::Mouse | AnalogTarget::Flick) || input.dt <= 0.0 {
                 return RouteOutput::None;
             }
             let (dx, dy) = input.mouse;
@@ -293,8 +356,14 @@ mod tests {
             dt: 0.01,
             now,
             gyro_enabled: true,
+            turn: &TURN,
         }
     }
+
+    const TURN: VirtualMouse = VirtualMouse {
+        counts_per_turn: 3600.0,
+        turn_ms: 100,
+    };
 
     #[test]
     fn stick_to_mouse_full_deflection_speed() {
@@ -311,6 +380,51 @@ mod tests {
             &input(Some(&pad), &sticks, (0.0, 0.0), 0),
         );
         assert_eq!(out, RouteOutput::Mouse(10.0, 0.0), "1000 px/s for 10 ms");
+    }
+
+    #[test]
+    fn flick_turns_to_the_stick_then_with_it() {
+        let sticks = Sticks::default();
+        let r = AnalogMapping {
+            target: AnalogTarget::Flick,
+            deadzone: 0.6,
+            ..Default::default()
+        };
+        let mut st = RouteState::default();
+        let mut pad = PadState::default();
+        let turn = |pad: &PadState, ticks: u64, st: &mut RouteState| {
+            (0..ticks)
+                .map(
+                    |t| match run(&r, st, &input(Some(pad), &sticks, (0.0, 0.0), t)) {
+                        RouteOutput::Mouse(x, y) => {
+                            assert_eq!(y, 0.0);
+                            x
+                        }
+                        other => panic!("{other:?}"),
+                    },
+                )
+                .sum::<f32>()
+        };
+        // 10 counts per degree; a flick takes 100 ms (10 ticks of 10 ms).
+        pad.set_stick(Stick::Right, (1.0, 0.0));
+        let first = turn(&pad, 1, &mut st);
+        assert!(
+            (first - 90.0).abs() < 0.01,
+            "a tenth of the flick per tick: {first}"
+        );
+        assert!(
+            (first + turn(&pad, 20, &mut st) - 900.0).abs() < 0.01,
+            "flick right: 90°"
+        );
+        pad.set_stick(Stick::Right, (0.0, -1.0));
+        assert!(
+            (turn(&pad, 1, &mut st) - 900.0).abs() < 0.01,
+            "rotate a quarter more"
+        );
+        pad.set_stick(Stick::Right, (0.0, 0.0));
+        assert_eq!(turn(&pad, 1, &mut st), 0.0, "released: re-armed");
+        pad.set_stick(Stick::Right, (-0.7, 0.0));
+        assert!((turn(&pad, 20, &mut st) + 900.0).abs() < 0.01, "flick left");
     }
 
     #[test]

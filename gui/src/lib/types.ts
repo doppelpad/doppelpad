@@ -51,6 +51,7 @@ export type Action =
   | { pause: number }
   | { rumble: number; low?: number; high?: number }
   | { shake: ShakeAxis }
+  | { turn: number }
   | { command: Command }
   | { break: true };
 
@@ -153,7 +154,7 @@ export interface Triggers {
 }
 
 export type AnalogSource = 'left_stick' | 'right_stick' | 'mouse' | 'gyro' | 'touchpad';
-export type AnalogTarget = 'mouse' | 'left_stick' | 'right_stick';
+export type AnalogTarget = 'mouse' | 'left_stick' | 'right_stick' | 'flick';
 
 export interface AnalogMapping {
   layer?: number;
@@ -207,6 +208,8 @@ export interface VirtualDevices {
   keyboard?: { repeat?: KeyRepeat };
   sticks?: VirtualSticks;
   motion?: { shake_g?: number; shake_ms?: number };
+  /** How the game turns with mouse motion: counts for 360° and how long a turn takes. */
+  mouse?: { counts_per_turn?: number; turn_ms?: number };
 }
 
 export interface Profile {

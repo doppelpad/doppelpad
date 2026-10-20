@@ -46,6 +46,11 @@ impl ServiceOptions {
     }
 }
 
+/// A test turn starts this long after it is asked for (time to switch to the game) ...
+pub const TEST_TURN_DELAY_MS: u64 = 3000;
+/// ... and takes this long.
+pub const TEST_TURN_MS: u64 = 1000;
+
 /// Commands beyond the IPC protocol, used by the GUI.
 #[derive(Clone, Debug, PartialEq)]
 pub enum ServiceCmd {
@@ -86,6 +91,11 @@ pub enum ServiceCmd {
     SetHotkeys(Hotkeys),
     /// Ignore hotkeys while the app records a new one.
     PauseHotkeys(bool),
+    /// Send one full in-game turn (`counts` of mouse motion) after a short delay, to check a
+    /// profile's turn calibration.
+    TestTurn {
+        counts: f32,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -626,6 +636,10 @@ impl Service {
             ServiceCmd::PauseHotkeys(on) => {
                 self.rt.set_hotkeys_paused(on);
                 ServiceReply::Ok(format!("hotkeys {}", if on { "paused" } else { "on" }))
+            }
+            ServiceCmd::TestTurn { counts } => {
+                self.rt.test_turn(counts, TEST_TURN_DELAY_MS, TEST_TURN_MS);
+                ServiceReply::Ok(format!("turning {counts} counts in 3 s"))
             }
         }
     }

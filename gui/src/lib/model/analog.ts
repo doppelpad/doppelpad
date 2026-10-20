@@ -303,7 +303,7 @@ export function removeCurvePoint(points: CurvePoint[], i: number): CurvePoint[] 
 // ----- analog routes (engine/routes.rs) -------------------------------------------------------
 
 export const ROUTE_SOURCES: AnalogSource[] = ['right_stick', 'left_stick', 'gyro', 'mouse', 'touchpad'];
-export const ROUTE_TARGETS: AnalogTarget[] = ['mouse', 'right_stick', 'left_stick'];
+export const ROUTE_TARGETS: AnalogTarget[] = ['mouse', 'right_stick', 'left_stick', 'flick'];
 
 /** Route settings that only some routes use; sensitivity, vertical ratio, invert and while-held apply to all. */
 export type RouteField =
@@ -324,6 +324,7 @@ const ROUTE_FIELDS: Record<string, RouteField[]> = {
   'gyro>stick': ['anti_deadzone', 'smoothing_ms'],
   'touchpad>mouse': ['trackball_friction'],
   'touchpad>stick': ['curve', 'deadzone', 'anti_deadzone'],
+  'stick>flick': ['deadzone', 'smoothing_ms', 'consume'],
 };
 
 export const sourceOf = (r: AnalogMapping): AnalogSource => r.source ?? 'right_stick';
@@ -332,13 +333,14 @@ export const routeLayer = (r: AnalogMapping) => r.layer ?? 0;
 
 export function routeFields(source: AnalogSource, target: AnalogTarget): RouteField[] {
   const s = source === 'left_stick' || source === 'right_stick' ? 'stick' : source;
-  const t = target === 'mouse' ? 'mouse' : 'stick';
+  const t = target === 'mouse' || target === 'flick' ? target : 'stick';
   return ROUTE_FIELDS[`${s}>${t}`] ?? [];
 }
 
-/** Targets a source can drive (the mouse cannot drive the mouse). */
+/** Targets a source can drive (the mouse cannot drive the mouse; flick stick needs a stick). */
 export function routeTargets(source: AnalogSource): AnalogTarget[] {
-  return ROUTE_TARGETS.filter((t) => !(source === 'mouse' && t === 'mouse'));
+  const stick = source === 'left_stick' || source === 'right_stick';
+  return ROUTE_TARGETS.filter((t) => !(source === 'mouse' && t === 'mouse') && (t !== 'flick' || stick));
 }
 
 /** The change for a new source; a target the source cannot drive becomes the right stick. */
@@ -374,6 +376,7 @@ export const ROUTE_PRESETS: { id: string; patch: Partial<AnalogMapping> }[] = [
   { id: 'gyro_aim', patch: { source: 'gyro', target: 'right_stick', while_held: ['LT'] } },
   { id: 'mouse_stick', patch: { source: 'mouse', target: 'right_stick' } },
   { id: 'touchpad_mouse', patch: { source: 'touchpad', target: 'mouse' } },
+  { id: 'flick_stick', patch: { source: 'right_stick', target: 'flick', deadzone: 0.6 } },
 ];
 
 /** A new route on a layer, with every field written like Rust does. */

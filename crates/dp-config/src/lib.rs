@@ -9,7 +9,9 @@ use std::path::{Path, PathBuf};
 
 pub use compat::ImportError;
 pub use diag::{Diagnostic, Diagnostics, Severity};
-use dp_core::profile::{Action, Command, Mode, Profile, Sticks, Triggers, VirtualSticks};
+use dp_core::profile::{
+    Action, AnalogSource, AnalogTarget, Command, Mode, Profile, Sticks, Triggers, VirtualSticks,
+};
 
 #[derive(Debug, thiserror::Error)]
 pub enum LoadError {
@@ -159,6 +161,9 @@ pub fn validate(p: &Profile) -> Diagnostics {
                 Action::Stick { x, y, .. } if x.abs() > 1.0 || y.abs() > 1.0 => {
                     d.warn(&path, "stick deflection outside [-1, 1] is clamped")
                 }
+                Action::Turn { turn } if !turn.is_finite() || turn.abs() > 3600.0 => {
+                    d.error(&path, "a turn must be within ±3600 degrees")
+                }
                 _ => {}
             }
         }
@@ -187,6 +192,22 @@ pub fn validate(p: &Profile) -> Diagnostics {
     }
     if !(10..=2000).contains(&motion.shake_ms) {
         d.error("virtual.motion.shake_ms", "must be 10–2000 ms");
+    }
+    let mouse = &p.virtual_devices.mouse;
+    if !(mouse.counts_per_turn > 0.0 && mouse.counts_per_turn <= 1_000_000.0) {
+        d.error("virtual.mouse.counts_per_turn", "must be in (0, 1000000]");
+    }
+    if mouse.turn_ms > 5000 {
+        d.error("virtual.mouse.turn_ms", "must be at most 5000 ms");
+    }
+    for (i, r) in p.analog.iter().enumerate() {
+        let stick = matches!(r.source, AnalogSource::LeftStick | AnalogSource::RightStick);
+        if r.target == AnalogTarget::Flick && !stick {
+            d.warn(
+                format!("analog[{i}]"),
+                "flick stick reads a stick; this route does nothing",
+            );
+        }
     }
     for (i, l) in p.layers.iter().enumerate() {
         // Only the sides a layer changes are checked again.
@@ -544,6 +565,16 @@ while_held = ["LT", "Mouse:Right"]
         assert_eq!(parse_toml(&to_toml(&p)).unwrap(), p);
         let bad = parse_toml("[virtual.sticks.left.jitter]\nmin = 0.2\nmax = 0.1\n").unwrap();
         assert!(validate(&bad).has_errors());
+    }
+
+    #[test]
+    fn flick_routes_and_turns() {
+        let text = "[virtual.mouse]\ncounts_per_turn = 12000.0\n\n[[analog]]\nsource = \"right_stick\"\ntarget = \"flick\"\ndeadzone = 0.6\n\n[[mappings]]\ntrigger = \"Y\"\nactions = [{ turn = 180.0 }]\n";
+        let p = parse_toml(text).unwrap();
+        assert!(validate(&p).iter().next().is_none(), "{:?}", validate(&p));
+        assert_eq!(parse_toml(&to_toml(&p)).unwrap(), p);
+        let gyro = parse_toml("[[analog]]\nsource = \"gyro\"\ntarget = \"flick\"\n").unwrap();
+        assert!(validate(&gyro).iter().any(|d| d.path == "analog[0]"));
     }
 
     #[test]

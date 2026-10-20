@@ -697,6 +697,25 @@ fn random_ms_spreads_turbo_cycles() {
 }
 
 #[test]
+fn turn_action_spreads_over_turn_ms() {
+    let mut p = Profile::default();
+    p.virtual_devices.mouse.counts_per_turn = 3600.0;
+    p.mappings.push(map(
+        Control::Key(Key::T),
+        vec![Action::Turn { turn: -90.0 }],
+    ));
+    let mut h = Harness::new(p);
+    h.key(Key::T, true);
+    h.key(Key::T, false);
+    h.until(50);
+    let half = h.mouse_moved.0;
+    assert!(half < -300.0 && half > -600.0, "about half way: {half}");
+    h.until(200);
+    assert!((h.mouse_moved.0 + 900.0).abs() < 0.5, "{}", h.mouse_moved.0);
+    assert_eq!(h.mouse_moved.1, 0.0);
+}
+
+#[test]
 fn quick_key_tap_within_one_tick_is_not_lost() {
     let mut p = Profile::default();
     p.mappings.push(map(

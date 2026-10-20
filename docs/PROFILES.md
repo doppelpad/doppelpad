@@ -231,6 +231,7 @@ Several mappings can share a trigger with different activators.
 | Mouse movement | `{ mouse_move = "right", speed = 800 }` (pixels/s while active) |
 | Pause | `{ pause = 250 }` (ms) |
 | Rumble | `{ rumble = 150, low = 0.8, high = 0.8 }` |
+| Turn | `{ turn = -90.0 }`: turns in the game by that many degrees with mouse motion (positive = right), see `[virtual.mouse]` |
 | Motion shake | `{ shake = "+y" }` (`+x` `-x` `+y` `-y` `+z` `-z`): shakes the virtual DualShock 4's accelerometer, see `[virtual.motion]` |
 | Command | `{ command = "remap_off" }`, `{ command = "toggle_gyro" }`, `{ command = { launch = { path = "osk.exe", args = "" } } }` (all commands below) |
 | Break | `{ break = true }` (splits the sequence into segments, see below) |
@@ -312,7 +313,7 @@ layer's threshold is released at once.
 [[analog]]
 layer = 0
 source = "right_stick"   # left_stick | right_stick | mouse | gyro | touchpad
-target = "mouse"         # mouse | left_stick | right_stick
+target = "mouse"         # mouse | left_stick | right_stick | flick
 sensitivity = 1.0
 vertical_ratio = 1.0
 curve = 1.0              # exponent on the normalized magnitude
@@ -337,6 +338,23 @@ What `sensitivity = 1.0` means for each route:
 | gyro → stick | 100 °/s give full deflection |
 | touchpad → mouse | a full-width swipe moves 1000 px |
 | touchpad → stick | finger position relative to the pad centre |
+| stick → flick | 1 = exact: the turn follows the stick's angle one to one |
+
+With `target = "flick"` (flick stick, stick sources only), pushing the stick past `deadzone`
+turns the view to face where the stick points, spread over `turn_ms`; while it stays out,
+turning the stick turns the view by the same angle (smoothed by `smoothing_ms`). Letting the
+stick back in re-arms it. `invert_x` turns the other way. The turn uses the calibration
+below:
+
+```toml
+[virtual.mouse]
+counts_per_turn = 18000.0   # mouse counts for one full 360° turn in this game
+turn_ms = 100               # how long a flick or turn action takes
+```
+
+The GUI's *Test a full turn* sends `counts_per_turn` after 3 seconds; tune it until the game
+turns exactly once around. A turn action `{ turn = 90.0 }` (degrees, positive = right) uses the
+same calibration.
 
 ## Importing JSON profiles
 

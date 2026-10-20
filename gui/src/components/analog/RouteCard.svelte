@@ -42,9 +42,11 @@
   const fields = $derived(routeFields(source, target));
   const sliders = $derived(fields.filter((f): f is SliderField => f !== 'consume'));
   const scaleKey = $derived(
-    `${source === 'left_stick' || source === 'right_stick' ? 'stick' : source}>${target === 'mouse' ? 'mouse' : 'stick'}`,
+    `${source === 'left_stick' || source === 'right_stick' ? 'stick' : source}>${target === 'mouse' || target === 'flick' ? target : 'stick'}`,
   );
   const disabled = $derived(app.readOnly);
+  /** Flick stick turns only horizontally; its threshold is the route's deadzone. */
+  const flick = $derived(target === 'flick');
   const noGyro = $derived(source === 'gyro' && !!app.primary && !app.primary.state.motion);
 
   /** Controls offered for "only while held": controller buttons, triggers, mouse buttons. */
@@ -126,6 +128,9 @@
     {/if}
   </header>
 
+  {#if flick}
+    <p class="flick-note">{t('analog.routes.flick_hint')}</p>
+  {/if}
   {#if noGyro}
     <div class="warn"><TriangleAlert size={14} /> {t('analog.routes.no_gyro')}</div>
   {/if}
@@ -143,22 +148,24 @@
       {disabled}
       onchange={(v) => set({ sensitivity: v })}
     />
-    <Slider
-      label={t('analog.routes.vertical_ratio')}
-      value={r.vertical_ratio}
-      def={def?.vertical_ratio}
-      min={0.1}
-      max={3}
-      step={0.05}
-      unit="×"
-      hint={t('analog.routes.vertical_ratio_hint')}
-      {disabled}
-      onchange={(v) => set({ vertical_ratio: v })}
-    />
+    {#if !flick}
+      <Slider
+        label={t('analog.routes.vertical_ratio')}
+        value={r.vertical_ratio}
+        def={def?.vertical_ratio}
+        min={0.1}
+        max={3}
+        step={0.05}
+        unit="×"
+        hint={t('analog.routes.vertical_ratio_hint')}
+        {disabled}
+        onchange={(v) => set({ vertical_ratio: v })}
+      />
+    {/if}
     {#each sliders as f (f)}
       {@const s = SLIDERS[f]}
       <Slider
-        label={t(`analog.routes.${f}`)}
+        label={t(flick && f === 'deadzone' ? 'analog.routes.flick_threshold' : `analog.routes.${f}`)}
         value={r[f]}
         def={def?.[f]}
         min={s.min}
@@ -166,7 +173,7 @@
         step={s.step}
         scale={s.scale}
         unit={s.unit}
-        hint={s.hint ? t(`analog.routes.${f}_hint`) : ''}
+        hint={flick && f === 'deadzone' ? t('analog.routes.flick_threshold_hint') : s.hint ? t(`analog.routes.${f}_hint`) : ''}
         {disabled}
         onchange={(v) => set({ [f]: v })}
       />
@@ -175,7 +182,9 @@
 
   <div class="toggles">
     <Toggle checked={r.invert_x} {disabled} label={t('analog.routes.invert_x')} onchange={(v) => set({ invert_x: v })} />
-    <Toggle checked={r.invert_y} {disabled} label={t('analog.routes.invert_y')} onchange={(v) => set({ invert_y: v })} />
+    {#if !flick}
+      <Toggle checked={r.invert_y} {disabled} label={t('analog.routes.invert_y')} onchange={(v) => set({ invert_y: v })} />
+    {/if}
     {#if fields.includes('consume')}
       <Toggle
         checked={r.consume}
@@ -262,6 +271,11 @@
   }
   .del:hover {
     color: var(--danger);
+  }
+  .flick-note {
+    margin: 0;
+    color: var(--text-dim);
+    font-size: 12px;
   }
   .warn {
     display: flex;

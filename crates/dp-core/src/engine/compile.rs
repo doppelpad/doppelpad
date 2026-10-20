@@ -68,6 +68,8 @@ pub enum Step {
     Command(Command),
     /// Shake the virtual accelerometer.
     Shake(ShakeAxis),
+    /// Turn in the game by this many degrees with mouse motion.
+    Turn(f32),
 }
 
 impl Step {
@@ -294,6 +296,7 @@ fn other_steps(a: &Action) -> Option<Step> {
         },
         Action::Command { command } => Step::Command(command.clone()),
         Action::Shake { shake } => Step::Shake(*shake),
+        Action::Turn { turn } => Step::Turn(*turn),
         _ => return None,
     })
 }

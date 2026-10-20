@@ -63,6 +63,11 @@
       const v = positive(raw, 1);
       if (v !== null) set({ speed: Math.round(v) });
     })}
+  {:else if 'turn' in action}
+    {@render field(t('params.degrees'), action.turn, '°', (raw) => {
+      const n = parseFloat(raw.replace(',', '.'));
+      if (Number.isFinite(n) && Math.abs(n) <= 3600) set({ turn: n });
+    })}
   {:else if 'rumble' in action}
     {@render field(t('params.length'), action.rumble, t('common.ms'), (raw) => {
       const v = positive(raw, 1);

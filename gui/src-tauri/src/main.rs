@@ -136,6 +136,7 @@ fn main() {
             commands::hotkeys_get,
             commands::hotkeys_set,
             commands::hotkeys_pause,
+            commands::test_turn,
             commands::rewasd_status,
             commands::rewasd_quit,
             commands::live_subscribe,

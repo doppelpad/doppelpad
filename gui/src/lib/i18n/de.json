@@ -101,6 +101,13 @@
     "mute_mapped": "Original-Tasten und -Buttons blockieren, die umbelegt sind",
     "driver_missing": "{driver} ist nicht installiert – diese Config lässt sich noch nicht anwenden.",
     "hide_missing": "HidHide ist nicht installiert — Spiele sehen den echten Controller weiterhin.",
+    "turns": "Drehungen",
+    "turns_hint": "Wie sich das Spiel mit Mausbewegung dreht, für Flick-Stick und Dreh-Aktionen: die Maus-Counts für eine volle Drehung und wie lange ein Flick oder eine Drehung dauert.",
+    "counts_per_turn": "Counts pro 360°",
+    "turn_ms": "Drehdauer",
+    "test_turn": "Volle Drehung testen",
+    "test_turn_hint": "Wechsle innerhalb von 3 Sekunden ins Spiel: Es sollte sich genau einmal im Kreis drehen. Passe die Counts an, bis es stimmt.",
+    "test_turn_started": "Drehung in 3 Sekunden — wechsle ins Spiel.",
     "shake": "Schütteln",
     "shake_hint": "Was eine Schüttel-Aktion mit dem Beschleunigungssensor des virtuellen Controllers macht. Nur Controller mit Bewegungssensoren (DualShock 4) geben es weiter.",
     "shake_g": "Stärke",
@@ -263,6 +270,11 @@
     "pad_triggers": "Trigger",
     "anti_recoil": "Rückstoßausgleich (rechter Stick 15 % nach unten)",
     "anti_recoil_hint": "Zieht den rechten Stick etwas nach unten, solange die Belegung gehalten wird, z. B. auf RT. Die Stärke stellst du bei der Aktion ein.",
+    "turn": "Drehen",
+    "turn_hint": "Dreht dich im Spiel per Mausbewegung; die Kalibrierung für eine volle Drehung steht in den Config-Einstellungen unter Drehungen.",
+    "turn_left": "90° nach links drehen",
+    "turn_right": "90° nach rechts drehen",
+    "turn_around": "180° umdrehen",
     "pad_shake": "Schütteln (Bewegungssensor)",
     "pad_shake_hint": "Schüttelt den Beschleunigungssensor des virtuellen Controllers (DualShock 4); Stärke und Dauer stehen in den Config-Einstellungen.",
     "shake_axis": "Schütteln {axis}",
@@ -311,6 +323,7 @@
   },
   "params": {
     "amount": "Stärke",
+    "degrees": "Grad",
     "absolute": "Achse setzen",
     "absolute_hint": "Ersetzt den echten Stick auf dieser Achse, statt etwas dazuzuzählen.",
     "clicks": "Rasten",
@@ -433,7 +446,8 @@
         "gyro_mouse": "Gyro → Maus",
         "gyro_aim": "Gyro → rechter Stick, solange {control} gehalten wird",
         "mouse_stick": "Maus → rechter Stick",
-        "touchpad_mouse": "Touchpad → Maus"
+        "touchpad_mouse": "Touchpad → Maus",
+        "flick_stick": "Rechter Stick → Flick-Stick"
       },
       "from": "Von",
       "to": "Nach",
@@ -447,7 +461,8 @@
       "targets": {
         "mouse": "Maus",
         "left_stick": "Linker Stick",
-        "right_stick": "Rechter Stick"
+        "right_stick": "Rechter Stick",
+        "flick": "Flick-Stick"
       },
       "inherited": "Von Haupt",
       "inherited_hint": "Routen der Haupt-Ebene gelten hier, solange diese Ebene keine eigene Route für dieselbe Quelle hat.",
@@ -461,13 +476,17 @@
         "gyro>mouse": "1 = 10 Pixel pro Grad",
         "gyro>stick": "1 = volle Auslenkung bei 100° pro Sekunde",
         "touchpad>mouse": "1 = 1000 Pixel für eine Wischbewegung über das ganze Touchpad",
-        "touchpad>stick": "Der Abstand des Fingers von der Touchpad-Mitte ist die Auslenkung"
+        "touchpad>stick": "Der Abstand des Fingers von der Touchpad-Mitte ist die Auslenkung",
+        "stick>flick": "1 = genau: du drehst dich so weit, wie sich der Winkel des Sticks ändert"
       },
       "vertical_ratio": "Vertikal-Verhältnis",
       "vertical_ratio_hint": "Vertikale Geschwindigkeit im Verhältnis zur horizontalen.",
       "curve": "Kurve",
       "curve_hint": "1 ist linear; über 1 feiner nahe der Mitte und schneller am Rand.",
       "deadzone": "Deadzone",
+      "flick_threshold": "Flick ab",
+      "flick_threshold_hint": "So weit muss der Stick gedrückt werden, um zu flicken; zurück in die Mitte macht ihn wieder bereit.",
+      "flick_hint": "Drück den Stick, um dich in diese Richtung zu drehen, und dreh dich dann mit ihm. Wie viele Maus-Counts eine volle Drehung sind, stellst du in den Config-Einstellungen unter Drehungen ein.",
       "anti_deadzone": "Anti-Deadzone",
       "anti_deadzone_hint": "Kleinste Stick-Ausgabe – überspringt die Deadzone des Spiels.",
       "smoothing_ms": "Glättung",
