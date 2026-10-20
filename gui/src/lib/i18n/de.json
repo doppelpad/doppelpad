@@ -54,7 +54,7 @@
   },
   "views": {
     "front": "Controller",
-    "back": "Rücktasten",
+    "back": "Rückseite",
     "keyboard": "Tastatur",
     "mouse": "Maus",
     "shortcuts": "Tastenkombis",
@@ -64,7 +64,7 @@
       "buttons": "Tasten",
       "sticks": "Sticks",
       "triggers": "Trigger",
-      "back": "Rücktasten"
+      "back": "Schulter- und Rücktasten"
     },
     "as_list": "Als Liste anzeigen",
     "as_drawing": "Zeichnung anzeigen"
@@ -477,7 +477,11 @@
       "Back": "Create",
       "Start": "Options",
       "Guide": "PS",
-      "Misc": "Stumm"
+      "Misc": "Stumm",
+      "PaddleUL": "Fn links",
+      "PaddleUR": "Fn rechts",
+      "PaddleLL": "Rücktaste links",
+      "PaddleLR": "Rücktaste rechts"
     },
     "nintendo": {
       "A": "B",

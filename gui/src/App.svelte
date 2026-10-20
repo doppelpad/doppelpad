@@ -3,6 +3,7 @@
   import { Gamepad2, List, PenTool } from '@lucide/svelte';
   import { api, errorText } from './lib/api';
   import { t } from './lib/i18n/index.svelte';
+  import { drawingsFor } from './lib/model/devices';
   import { app } from './lib/state/app.svelte';
   import { win } from './lib/state/window.svelte';
   import ProfilePanel from './components/ProfilePanel.svelte';
@@ -27,20 +28,9 @@
   let settingsOpen = $state(false);
   let listMode = $state(false);
 
-  /** Drawing for the current controller family. */
-  const frontDevice = $derived(
-    app.family === 'dual_sense' || app.family === 'dual_shock4'
-      ? 'dualsense'
-      : app.family === 'switch_pro'
-        ? 'switchpro'
-        : app.family === 'joy_con'
-          ? 'joycon'
-          : app.family === 'game_cube'
-            ? 'gamecube'
-            : app.family === 'generic'
-              ? 'generic'
-              : 'xbox',
-  );
+  /** Front and back drawings for the connected controller model. */
+  const drawings = $derived(drawingsFor(app.primary));
+  const drawing = $derived(app.view === 'back' ? drawings.back : drawings.front);
 
   onMount(() => {
     app.init();
@@ -91,9 +81,9 @@
               {#if listMode}<PenTool size={16} />{:else}<List size={16} />{/if}
             </button>
             {#if listMode}
-              <ControlList back={app.view === 'back'} />
+              <ControlList back={app.view === 'back'} device={drawing} />
             {:else}
-              <ControllerView device={app.view === 'back' ? 'paddles' : frontDevice} />
+              <ControllerView device={drawing} />
             {/if}
           {:else if app.view === 'keyboard'}
             <KeyboardView />

@@ -29,7 +29,6 @@ export const joycon: DeviceLayout = {
     { control: 'Misc', anchor: [449, 490.5], side: 'bottom', labelAt: [180.1, 604.4], via: [[449, 556.8]] },
     { control: 'PaddleLL', anchor: [474.2, 486.8], side: 'bottom', labelAt: [339.9, 604.4], via: [[474.2, 584]] },
     { control: 'PaddleLR', anchor: [525.8, 486.8], side: 'bottom', labelAt: [500, 604.4], via: [[525.8, 584]] },
-    { control: 'Misc2', anchor: [551, 515.3], side: 'bottom', labelAt: [660.1, 604.4], via: [[551, 563.6]] },
     { control: 'Guide', anchor: [560.6, 475.3], side: 'bottom', labelAt: [819.9, 604.4], via: [[615.6, 536.4]] },
   ],
 };

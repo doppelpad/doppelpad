@@ -109,11 +109,7 @@
   <g data-control="Guide">
     <circle class="hit" fill="currentColor" fill-opacity="0" stroke="none" cx="551" cy="471.8" r="14.3"/>
     <circle cx="551" cy="471.8" r="10.2"/>
-  </g>
-  <g data-control="Misc2">
-    <circle class="hit" fill="currentColor" fill-opacity="0" stroke="none" cx="551" cy="505.8" r="13.3"/>
-    <circle cx="551" cy="505.8" r="9.5"/>
-    <path stroke-width="2" d="M554.6 501.6A5.5 5.5 0 1 0 554.6 510"/>
+    <path stroke-width="2" d="M546.8 476.5L546.8 471.1L551 467.1L555.2 471.1L555.2 476.5Z"/>
   </g>
   <g data-control="PaddleUR">
     <path class="hit" fill="currentColor" fill-opacity="0" stroke="none" d="M517 284.8L517 322.2A8.8 8.8 0 0 0 534.7 322.2L534.7 284.8A8.8 8.8 0 0 0 517 284.8Z"/>

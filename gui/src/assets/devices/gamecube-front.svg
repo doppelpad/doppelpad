@@ -56,6 +56,7 @@
   <g data-control="Guide">
     <circle class="hit" fill="currentColor" fill-opacity="0" stroke="none" cx="530.6" cy="267.6" r="13.6"/>
     <circle cx="530.6" cy="267.6" r="9.5"/>
+    <path stroke-width="2" d="M526.7 272L526.7 266.9L530.6 263.2L534.5 266.9L534.5 272Z"/>
   </g>
   <g data-control="Start">
     <circle class="hit" fill="currentColor" fill-opacity="0" stroke="none" cx="500" cy="305" r="14.3"/>

@@ -1,22 +1,27 @@
 <script lang="ts">
   // Plain list of controls with their mapping on the current layer. Used for controllers
   // without a drawing, and as an accessible alternative to the drawing.
+  import { DEVICE_LAYOUTS, type DeviceId } from '../../assets/devices/layouts';
   import { t } from '../../lib/i18n/index.svelte';
   import { controlLabel, zoneBaseLabel, zoneFamily, zoneParts, zoneTag } from '../../lib/model/controls';
   import { effectiveMappings, mappingSummary } from '../../lib/model/profile';
   import { app } from '../../lib/state/app.svelte';
   import type { ControlName } from '../../lib/types';
 
-  let { back = false }: { back?: boolean } = $props();
+  /** `device`: the drawing this list stands in for; it lists the buttons that drawing has. */
+  let { back = false, device }: { back?: boolean; device: DeviceId } = $props();
 
-  const PADDLES = ['PaddleUL', 'PaddleUR', 'PaddleLL', 'PaddleLR'];
   const STICK_DIRS = ['Up', 'Down', 'Left', 'Right'];
 
   const groups = $derived.by(() => {
     const buttons = (app.catalog?.pad_buttons ?? []) as string[];
-    if (back) return [{ id: 'back', controls: PADDLES }];
+    const drawn = new Set(DEVICE_LAYOUTS[device].controls.map((c) => c.control));
+    if (back) {
+      const paddles = buttons.filter((b) => b.startsWith('Paddle'));
+      return [{ id: 'back', controls: ['LB', 'RB', 'LT', 'RT', ...paddles].filter((c) => drawn.has(c)) }];
+    }
     return [
-      { id: 'buttons', controls: buttons.filter((b) => !PADDLES.includes(b)) },
+      { id: 'buttons', controls: buttons.filter((b) => drawn.has(b)) },
       {
         id: 'sticks',
         // Each direction, then the stick in any direction (which exists only per zone).
