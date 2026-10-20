@@ -39,6 +39,24 @@ export type Command =
   | { launch: { path: string; args?: string } }
   | { unsupported: string };
 
+/** A gesture a touch action plays on the virtual touchpad. */
+export type TouchOutput =
+  | 'tap'
+  | 'tap_left'
+  | 'tap_center'
+  | 'tap_right'
+  | 'multi_tap'
+  | 'swipe_up'
+  | 'swipe_down'
+  | 'swipe_left'
+  | 'swipe_right'
+  | 'swipe2_up'
+  | 'swipe2_down'
+  | 'swipe2_left'
+  | 'swipe2_right'
+  | 'zoom_in'
+  | 'zoom_out';
+
 /** Accelerometer axis and the direction a shake starts in. */
 export type ShakeAxis = '+x' | '-x' | '+y' | '-y' | '+z' | '-z';
 
@@ -54,6 +72,7 @@ export type Action =
   | { rumble: number; low?: number; high?: number }
   | { shake: ShakeAxis }
   | { turn: number }
+  | { touch: TouchOutput; ms?: number }
   | { command: Command }
   | { break: true };
 

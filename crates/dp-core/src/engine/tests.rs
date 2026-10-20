@@ -808,6 +808,29 @@ fn touchpad_gestures_and_split_trackpads() {
 }
 
 #[test]
+fn touch_actions_play_on_the_virtual_touchpad() {
+    let mut p = Profile::default();
+    p.output.virtual_pad = VirtualPadType::DualShock4;
+    p.mappings.push(map(
+        Control::Key(Key::S),
+        vec![Action::Touch {
+            touch: TouchGesture::SwipeRight,
+            ms: Some(100),
+        }],
+    ));
+    let mut h = Harness::new(p);
+    h.key(Key::S, true); // 1
+    let x = |h: &Harness| h.virtual_pad().touch[0].map(|f| (f.x * 100.0).round() / 100.0);
+    assert_eq!(x(&h), Some(0.2), "starts at a fifth");
+    h.until(51);
+    assert_eq!(x(&h), Some(0.5));
+    h.until(100);
+    assert!(x(&h).unwrap() > 0.75);
+    h.until(102);
+    assert_eq!(x(&h), None, "done after 100 ms");
+}
+
+#[test]
 fn quick_key_tap_within_one_tick_is_not_lost() {
     let mut p = Profile::default();
     p.mappings.push(map(

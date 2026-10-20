@@ -8,7 +8,7 @@
   import { controlLabel } from '../../lib/model/controls';
   import { POWER_COMMANDS } from '../../lib/model/profile';
   import { app } from '../../lib/state/app.svelte';
-  import type { Action, Dir, MouseButtonName, PadButtonName, ShakeAxis, StickName, TriggerName } from '../../lib/types';
+  import type { Action, Dir, MouseButtonName, PadButtonName, ShakeAxis, StickName, TouchOutput, TriggerName } from '../../lib/types';
 
   let { onpick, onclose }: { onpick: (a: Action) => void; onclose: () => void } = $props();
 
@@ -55,6 +55,8 @@
   const SHAKES: ShakeAxis[] = ['+x', '-x', '+y', '-y', '+z', '-z'];
   /** Turn actions offered: a quarter left or right, or around. */
   const TURNS = [-90, 90, 180];
+  /** Gestures a touch action can play on the virtual touchpad. */
+  const TOUCH_OUTPUTS: TouchOutput[] = ['swipe_up', 'swipe_down', 'swipe_left', 'swipe_right', 'swipe2_up', 'swipe2_down', 'swipe2_left', 'swipe2_right', 'zoom_in', 'zoom_out', 'tap', 'tap_left', 'tap_right', 'multi_tap'];
   const PAD_BUTTONS = $derived((app.catalog?.pad_buttons ?? []) as PadButtonName[]);
 
   function stickAction(stick: StickName, d: Dir): Action {
@@ -184,6 +186,14 @@
         {#each ['left', 'right'] as const as tr (tr)}
           <button class="chip" onclick={() => onpick({ trigger: tr as TriggerName })}>
             {t(tr === 'left' ? 'controls.LT' : 'controls.RT')}
+          </button>
+        {/each}
+      </div>
+      <div class="group">{t('picker.pad_touch')}</div>
+      <div class="grid">
+        {#each TOUCH_OUTPUTS as g (g)}
+          <button class="chip" title={t('picker.pad_touch_hint')} onclick={() => onpick({ touch: g })}>
+            {t(`picker.touch_out.${g}`)}
           </button>
         {/each}
       </div>

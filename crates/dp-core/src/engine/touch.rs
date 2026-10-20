@@ -80,6 +80,64 @@ pub fn regions(
     }
 }
 
+/// How long a touch action plays when it gives no length.
+pub fn output_ms(g: TouchGesture) -> u32 {
+    match g {
+        TouchGesture::Tap
+        | TouchGesture::TapLeft
+        | TouchGesture::TapCenter
+        | TouchGesture::TapRight
+        | TouchGesture::MultiTap => 60,
+        _ => 250,
+    }
+}
+
+/// Fingers on the virtual touchpad `t` (0–1) of the way through a played gesture.
+pub fn output_fingers(g: TouchGesture, t: f32) -> [Option<TouchPoint>; 2] {
+    use TouchGesture::*;
+    let t = t.clamp(0.0, 1.0);
+    let lerp = |a: f32, b: f32| a + (b - a) * t;
+    let p = |x: f32, y: f32| Some(TouchPoint { x, y });
+    // Swipes run from 20 % to 80 % of the pad; two fingers sit 0.2 apart across the path.
+    let swipe = |dir: Dir, two: bool| {
+        let (from, to) = match dir {
+            Dir::Up | Dir::Left => (0.8, 0.2),
+            _ => (0.2, 0.8),
+        };
+        let along = lerp(from, to);
+        let vertical = matches!(dir, Dir::Up | Dir::Down);
+        let at = |across: f32| {
+            if vertical {
+                p(across, along)
+            } else {
+                p(along, across)
+            }
+        };
+        if two {
+            [at(0.4), at(0.6)]
+        } else {
+            [at(0.5), None]
+        }
+    };
+    match g {
+        Tap | TapCenter => [p(0.5, 0.5), None],
+        TapLeft => [p(1.0 / 6.0, 0.5), None],
+        TapRight => [p(5.0 / 6.0, 0.5), None],
+        MultiTap => [p(0.4, 0.5), p(0.6, 0.5)],
+        SwipeUp => swipe(Dir::Up, false),
+        SwipeDown => swipe(Dir::Down, false),
+        SwipeLeft => swipe(Dir::Left, false),
+        SwipeRight => swipe(Dir::Right, false),
+        Swipe2Up => swipe(Dir::Up, true),
+        Swipe2Down => swipe(Dir::Down, true),
+        Swipe2Left => swipe(Dir::Left, true),
+        Swipe2Right => swipe(Dir::Right, true),
+        // Pinching moves the fingers from the edges toward the middle; zooming in the reverse.
+        ZoomOut => [p(lerp(0.1, 0.4), 0.5), p(lerp(0.9, 0.6), 0.5)],
+        ZoomIn => [p(lerp(0.4, 0.1), 0.5), p(lerp(0.6, 0.9), 0.5)],
+    }
+}
+
 /// Which half of the pad a finger is on, and where within it (0–1 again).
 pub fn half_of(p: TouchPoint) -> (Half, (f32, f32)) {
     if p.x < 0.5 {

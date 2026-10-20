@@ -63,6 +63,11 @@
       const v = positive(raw, 1);
       if (v !== null) set({ speed: Math.round(v) });
     })}
+  {:else if 'touch' in action}
+    {@render field(t('params.length'), action.ms ?? '', t('common.ms'), (raw) => {
+      const v = positive(raw, 10);
+      set({ ms: v === null ? undefined : Math.min(Math.round(v), 10000) });
+    })}
   {:else if 'turn' in action}
     {@render field(t('params.degrees'), action.turn, '°', (raw) => {
       const n = parseFloat(raw.replace(',', '.'));

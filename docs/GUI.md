@@ -34,7 +34,8 @@ only edits profiles and sends commands.
    triple press, start press and release. A dot under an icon means it is already mapped.
 3. **Add** actions: keyboard (from the list, or *Press a key…* and press it), mouse
    buttons, wheel and movement, controller buttons, sticks (including an *Anti-recoil* preset
-   that pulls the right stick down while held), triggers and motion shakes, or commands
+   that pulls the right stick down while held), triggers, touchpad gestures and motion shakes
+   (both for a virtual DualShock 4), or commands
    (turn remapping off, gyro on/off/toggle, screenshot, close the active window, shut
    down, restart, sleep, hibernate, sign out, launch a program, pause, rumble; power
    commands ask once before they are added). Several actions
