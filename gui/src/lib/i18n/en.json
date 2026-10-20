@@ -617,7 +617,9 @@
     "in_use": "In use",
     "use": "Use this controller",
     "own_slots": "Own slots for this controller",
-    "own_hint": "This controller has slots of its own: its own config and virtual controller"
+    "own_hint": "This controller has slots of its own: its own config and virtual controller",
+    "battery": "Battery {level} %",
+    "battery_charging": "Battery {level} %, charging"
   },
   "remap": {
     "on": "Remap ON",
@@ -663,6 +665,7 @@
       "layer": "Layer changed",
       "keep_layer": "Keep it up while the layer is active",
       "controller": "Controller connected or disconnected",
+      "battery": "Controller battery low (40 %) or critical (20 %)",
       "monitor": "Monitor",
       "primary": "Primary monitor ({size})",
       "monitor_n": "Monitor {n} ({size})",
@@ -873,6 +876,8 @@
     "layer": "Layer",
     "connected": "Connected",
     "disconnected": "Disconnected",
-    "test": "Notifications look like this."
+    "test": "Notifications look like this.",
+    "battery_low": "Battery low: {level} %",
+    "battery_critical": "Battery critical: {level} %"
   }
 }

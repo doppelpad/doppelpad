@@ -37,7 +37,7 @@
   );
 
   const osd = $derived(app.settings.osd);
-  const OSD_EVENTS = ['remap', 'slot', 'layer', 'controller'] as const;
+  const OSD_EVENTS = ['remap', 'slot', 'layer', 'controller', 'battery'] as const;
   const CORNERS: Corner[] = ['top_left', 'top_right', 'bottom_left', 'bottom_right'];
   let monitors = $state<string[]>([]);
   api.osdMonitors().then((m) => (monitors = m));

@@ -9,8 +9,8 @@ use dp_core::pad::{
     Axis, Motion, PadButton, PadState, Rgb, Rumble, TouchPoint, axis_from_u8, axis_to_u8,
 };
 
-use crate::PadFamily;
 use crate::padio::{Identity, InitError, PadDriver, ReportIo};
+use crate::{Battery, PadFamily};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum SonyModel {
@@ -193,6 +193,31 @@ pub fn parse_report(model: SonyModel, r: &[u8]) -> Option<PadState> {
     Some(s)
 }
 
+/// The battery from a full input report (including its report-ID byte).
+pub fn parse_battery(model: SonyModel, r: &[u8]) -> Option<Battery> {
+    let status = match (model, r.first()?) {
+        (_, 0x01) if r.len() < 32 => return None,
+        // Low nibble 0–10 (11 on the cable when full), bit 4 the cable.
+        (SonyModel::DualShock4, &id @ (0x01 | 0x11)) => {
+            let s = *r.get(if id == 0x11 { 32 } else { 30 })?;
+            let (n, cable) = (s & 0x0F, s & 0x10 != 0);
+            return Some(Battery {
+                level: (n * 10 + 5).min(100),
+                charging: cable && n < 10,
+                wired: false,
+            });
+        }
+        (_, &id @ (0x01 | 0x31)) => *r.get(if id == 0x31 { 54 } else { 53 })?,
+        _ => return None,
+    };
+    // Low nibble 0–10; high nibble 0 discharging, 1 charging, 2 full, others errors.
+    Some(Battery {
+        level: ((status & 0x0F) * 10 + 5).min(100),
+        charging: status >> 4 == 1,
+        wired: false,
+    })
+}
+
 /// Build a USB output report that sets rumble and, if given, the light bar colour.
 /// Bluetooth output needs a CRC'd report and is not implemented yet (returns `None`).
 pub fn output_report(
@@ -242,6 +267,7 @@ pub struct SonyDriver {
     feature_len: usize,
     lightbar: Option<Rgb>,
     sent: (Rumble, Option<Rgb>),
+    battery: Option<Battery>,
 }
 
 impl SonyDriver {
@@ -253,6 +279,7 @@ impl SonyDriver {
             feature_len,
             lightbar: None,
             sent: (Rumble::default(), None),
+            battery: None,
         }
     }
 }
@@ -506,7 +533,15 @@ impl PadDriver for SonyDriver {
     }
 
     fn parse(&mut self, report: &[u8], _now: Instant) -> Option<PadState> {
-        parse_report(self.model, report)
+        let state = parse_report(self.model, report)?;
+        if let Some(b) = parse_battery(self.model, report) {
+            self.battery = Some(b);
+        }
+        Some(state)
+    }
+
+    fn battery(&self) -> Option<Battery> {
+        self.battery
     }
 
     fn set_lightbar(&mut self, color: Option<Rgb>) {
@@ -763,5 +798,31 @@ mod tests {
         assert_eq!(model_for(0x054C, 0x09CC), Some(SonyModel::DualShock4));
         assert_eq!(model_for(0x054C, 0x0CE6), Some(SonyModel::DualSense));
         assert_eq!(model_for(0x045E, 0x0CE6), None);
+    }
+
+    #[test]
+    fn battery_from_status_bytes() {
+        // DualShock 4 over USB: level 6, no cable; over Bluetooth on the cable at level 4.
+        let mut usb = vec![0u8; 64];
+        usb[0] = 0x01;
+        usb[30] = 0x06;
+        let b = parse_battery(SonyModel::DualShock4, &usb).unwrap();
+        assert_eq!((b.level, b.charging), (65, false));
+        let mut bt = vec![0u8; 78];
+        bt[0] = 0x11;
+        bt[32] = 0x14;
+        let b = parse_battery(SonyModel::DualShock4, &bt).unwrap();
+        assert_eq!((b.level, b.charging), (45, true));
+        bt[32] = 0x1B; // full on the cable
+        let b = parse_battery(SonyModel::DualShock4, &bt).unwrap();
+        assert_eq!((b.level, b.charging), (100, false));
+        // DualSense over Bluetooth: level 2, charging.
+        let mut ds = vec![0u8; 78];
+        ds[0] = 0x31;
+        ds[54] = 0x12;
+        let b = parse_battery(SonyModel::DualSense, &ds).unwrap();
+        assert_eq!((b.level, b.charging), (25, true));
+        // The reduced Bluetooth report has none.
+        assert_eq!(parse_battery(SonyModel::DualSense, &[0x01; 10]), None);
     }
 }

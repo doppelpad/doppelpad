@@ -23,7 +23,7 @@ use crate::nintendo::wired::WiredDriver;
 use crate::nintendo::{self, Model};
 use crate::padio::{InitError, PadDriver};
 use crate::sony::{self, SonyDriver, SonyModel};
-use crate::{DeviceId, DeviceInfo, GamepadBackend, JoyConSide, PadSnapshot};
+use crate::{Battery, DeviceId, DeviceInfo, GamepadBackend, JoyConSide, PadSnapshot};
 
 const RESCAN: Duration = Duration::from_secs(2);
 /// Interfaces that are not controllers we handle are not reopened for this long.
@@ -119,6 +119,7 @@ enum DevState {
     Ready {
         info: Arc<DeviceInfo>,
         pad: Option<PadState>,
+        battery: Option<Battery>,
         notice: Option<String>,
     },
     /// The driver could not start; `problem` explains why when the user can act on it.
@@ -396,6 +397,7 @@ fn run_device(mut io: HidIo, base: &Base, shared: &Shared) {
     *shared.state.lock().unwrap() = DevState::Ready {
         info,
         pad: None,
+        battery: None,
         notice,
     };
 
@@ -409,9 +411,12 @@ fn run_device(mut io: HidIo, base: &Base, shared: &Shared) {
             Ok(Wait::Report(_)) => {
                 tracing::trace!(report = ?io.report(), "HID report");
                 if let Some(pad) = driver.parse(io.report(), Instant::now())
-                    && let DevState::Ready { pad: p, .. } = &mut *shared.state.lock().unwrap()
+                    && let DevState::Ready {
+                        pad: p, battery, ..
+                    } = &mut *shared.state.lock().unwrap()
                 {
                     *p = Some(pad);
+                    *battery = driver.battery();
                 }
             }
             Ok(Wait::Woken | Wait::Timeout) => {}
@@ -444,12 +449,14 @@ impl GamepadBackend for HidBackend {
             if let DevState::Ready {
                 info,
                 pad: Some(state),
+                battery,
                 ..
             } = &*d.shared.state.lock().unwrap()
             {
                 out.push(PadSnapshot {
                     info: info.clone(),
                     state: *state,
+                    battery: *battery,
                 });
             }
         }

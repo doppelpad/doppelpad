@@ -11,7 +11,7 @@ use std::time::{Duration, Instant};
 
 use dp_core::pad::{PadState, Rgb, Rumble};
 
-use crate::{JoyConSide, PadFamily};
+use crate::{Battery, JoyConSide, PadFamily};
 
 /// Report transport of one HID device. Reports start with their report-ID byte.
 pub trait ReportIo {
@@ -116,6 +116,10 @@ pub trait PadDriver: Send {
     /// Periodic output (rumble, keep-alives). Called after every report, timeout and
     /// wake-up, with the rumble the engine currently wants.
     fn service(&mut self, io: &mut dyn ReportIo, rumble: Rumble) -> io::Result<()>;
+    /// The battery as of the last parsed report, if the device reports one.
+    fn battery(&self) -> Option<Battery> {
+        None
+    }
     /// Light bar colour to show from the next [`service`](Self::service) on; `None` leaves
     /// the light bar as it is. Ignored by pads without one.
     fn set_lightbar(&mut self, _color: Option<Rgb>) {}

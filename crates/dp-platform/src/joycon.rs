@@ -12,7 +12,8 @@ use dp_core::pad::{Axis, Motion, PadButton, PadState, Rgb, Rumble, Stick};
 
 use crate::nintendo::NINTENDO_VID;
 use crate::{
-    DeviceId, DeviceInfo, GamepadBackend, JoyConSide, PadFamily, PadSnapshot, VirtualIgnoreList,
+    Battery, DeviceId, DeviceInfo, GamepadBackend, JoyConSide, PadFamily, PadSnapshot,
+    VirtualIgnoreList,
 };
 
 /// Product ID of joycond's combined Joy-Con device (Linux).
@@ -184,6 +185,14 @@ impl<B: GamepadBackend> JoyConCombiner<B> {
     }
 }
 
+/// The emptier of two batteries: a pair runs out with its first half.
+fn lower(a: Option<Battery>, b: Option<Battery>) -> Option<Battery> {
+    match (a, b) {
+        (Some(a), Some(b)) => Some(if b.level < a.level { b } else { a }),
+        (a, b) => a.or(b),
+    }
+}
+
 impl<B: GamepadBackend> GamepadBackend for JoyConCombiner<B> {
     fn name(&self) -> &'static str {
         self.inner.name()
@@ -209,6 +218,7 @@ impl<B: GamepadBackend> GamepadBackend for JoyConCombiner<B> {
                     out.push(PadSnapshot {
                         info: p.info.clone(),
                         state: combine(&s.state, &right.state),
+                        battery: lower(s.battery, right.battery),
                     });
                 }
             } else if self.pairs.iter().any(|p| p.right == s.info.id) {
@@ -218,6 +228,7 @@ impl<B: GamepadBackend> GamepadBackend for JoyConCombiner<B> {
                 out.push(PadSnapshot {
                     info: s.info.clone(),
                     state: sideways(side, &s.state),
+                    battery: s.battery,
                 });
             }
         }
@@ -309,6 +320,7 @@ mod tests {
                 has_rumble: true,
             }),
             state,
+            battery: None,
         }
     }
 
@@ -487,5 +499,19 @@ mod tests {
             pad("r", R, PadState::default()),
         ];
         assert_eq!(ids(&poll(&mut c)), ["combined"]);
+    }
+
+    #[test]
+    fn a_pair_reports_its_emptier_half() {
+        let b = |level| {
+            Some(Battery {
+                level,
+                charging: false,
+                wired: false,
+            })
+        };
+        assert_eq!(lower(b(60), b(30)), b(30));
+        assert_eq!(lower(None, b(60)), b(60));
+        assert_eq!(lower(None, None), None);
     }
 }

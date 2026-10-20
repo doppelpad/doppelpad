@@ -120,6 +120,25 @@ pub struct DeviceInfo {
 pub struct PadSnapshot {
     pub info: Arc<DeviceInfo>,
     pub state: PadState,
+    /// `None` when the device does not report one.
+    pub battery: Option<Battery>,
+}
+
+/// A controller's battery as far as it reports it.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Battery {
+    /// Charge in percent; controllers that report coarse steps give their step's value.
+    pub level: u8,
+    pub charging: bool,
+    /// Runs on the cable without a battery (wired pads); `level` means nothing then.
+    pub wired: bool,
+}
+
+impl Battery {
+    /// Running on the battery (not charging, not wired).
+    pub fn draining(&self) -> bool {
+        !self.charging && !self.wired
+    }
 }
 
 /// Source of physical gamepads.

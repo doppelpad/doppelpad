@@ -7,7 +7,9 @@ use dp_core::pad::{Axis, PadButton, PadState, Rumble, axis_from_i16};
 use windows_sys::Win32::System::LibraryLoader::{GetProcAddress, LoadLibraryW};
 
 use super::wide;
-use crate::{DeviceId, DeviceInfo, GamepadBackend, PadFamily, PadSnapshot, VirtualIgnoreList};
+use crate::{
+    Battery, DeviceId, DeviceInfo, GamepadBackend, PadFamily, PadSnapshot, VirtualIgnoreList,
+};
 
 #[repr(C)]
 #[derive(Default, Clone, Copy)]
@@ -34,12 +36,23 @@ struct XInputVibration {
     right: u16,
 }
 
+#[repr(C)]
+#[derive(Default, Clone, Copy)]
+struct XInputBatteryInformation {
+    battery_type: u8,
+    battery_level: u8,
+}
+
 type GetStateFn = unsafe extern "system" fn(u32, *mut XInputState) -> u32;
 type SetStateFn = unsafe extern "system" fn(u32, *mut XInputVibration) -> u32;
+type GetBatteryFn = unsafe extern "system" fn(u32, u8, *mut XInputBatteryInformation) -> u32;
 
 const ERROR_SUCCESS: u32 = 0;
 const SLOTS: u32 = 4;
 const RESCAN: Duration = Duration::from_secs(1);
+/// Battery levels change slowly; asking costs a call per slot.
+const BATTERY_EVERY: Duration = Duration::from_secs(10);
+const BATTERY_DEVTYPE_GAMEPAD: u8 = 0;
 
 // XInput button bits.
 const BUTTONS: [(u16, PadButton); 15] = [
@@ -63,6 +76,9 @@ const BUTTONS: [(u16, PadButton); 15] = [
 pub struct XInputBackend {
     get_state: Option<GetStateFn>,
     set_state: Option<SetStateFn>,
+    get_battery: Option<GetBatteryFn>,
+    /// Last battery reading per slot and when it was taken.
+    batteries: [Option<(Instant, Option<Battery>)>; SLOTS as usize],
     infos: [Option<Arc<DeviceInfo>>; SLOTS as usize],
     last_probe: [Option<Instant>; SLOTS as usize],
     ignored: Vec<u32>,
@@ -72,6 +88,7 @@ impl XInputBackend {
     pub fn new() -> Self {
         let mut get_state = None;
         let mut set_state = None;
+        let mut get_battery = None;
         for dll in ["xinput1_4.dll", "xinput1_3.dll", "xinput9_1_0.dll"] {
             // SAFETY: plain library load; the handle is intentionally leaked for the process lifetime.
             let h = unsafe { LoadLibraryW(wide(dll).as_ptr()) };
@@ -88,6 +105,11 @@ impl XInputBackend {
                 .or(plain)
                 .map(|f| unsafe { std::mem::transmute::<_, GetStateFn>(f) });
             set_state = set.map(|f| unsafe { std::mem::transmute::<_, SetStateFn>(f) });
+            // Missing from xinput9_1_0.dll.
+            let battery =
+                unsafe { GetProcAddress(h, c"XInputGetBatteryInformation".as_ptr().cast()) };
+            // SAFETY: the signature matches the XInput ABI.
+            get_battery = battery.map(|f| unsafe { std::mem::transmute::<_, GetBatteryFn>(f) });
             if get_state.is_some() {
                 break;
             }
@@ -98,10 +120,33 @@ impl XInputBackend {
         XInputBackend {
             get_state,
             set_state,
+            get_battery,
+            batteries: Default::default(),
             infos: Default::default(),
             last_probe: [None; 4],
             ignored: Vec::new(),
         }
+    }
+
+    /// The slot's battery, asked again every [`BATTERY_EVERY`].
+    fn battery(&mut self, slot: u32, now: Instant) -> Option<Battery> {
+        let get = self.get_battery?;
+        let cached = &mut self.batteries[slot as usize];
+        if let Some((at, b)) = *cached
+            && now - at < BATTERY_EVERY
+        {
+            return b;
+        }
+        let mut info = XInputBatteryInformation::default();
+        // SAFETY: valid out-pointer to a correctly laid out XINPUT_BATTERY_INFORMATION.
+        let rc = unsafe { get(slot, BATTERY_DEVTYPE_GAMEPAD, &mut info) };
+        let b = if rc == ERROR_SUCCESS {
+            battery(info)
+        } else {
+            None
+        };
+        *cached = Some((now, b));
+        b
     }
 
     fn info(slot: u32) -> Arc<DeviceInfo> {
@@ -118,6 +163,24 @@ impl XInputBackend {
             has_touchpad: false,
             has_rumble: true,
         })
+    }
+}
+
+/// Battery type and level as XInput reports them.
+fn battery(info: XInputBatteryInformation) -> Option<Battery> {
+    let level = [5, 30, 60, 100][info.battery_level.min(3) as usize];
+    match info.battery_type {
+        0 => None, // disconnected
+        1 => Some(Battery {
+            level: 100,
+            charging: false,
+            wired: true,
+        }),
+        _ => Some(Battery {
+            level,
+            charging: false,
+            wired: false,
+        }),
     }
 }
 
@@ -159,6 +222,7 @@ impl GamepadBackend for XInputBackend {
             // SAFETY: valid out-pointer to a correctly laid out XINPUT_STATE.
             let rc = unsafe { get_state(slot, &mut st) };
             if rc != ERROR_SUCCESS {
+                self.batteries[i] = None;
                 if self.infos[i].take().is_some() {
                     tracing::info!(slot, "XInput controller disconnected");
                 }
@@ -169,9 +233,11 @@ impl GamepadBackend for XInputBackend {
                 tracing::info!(slot, "XInput controller connected");
                 Self::info(slot)
             });
+            let info = info.clone();
             out.push(PadSnapshot {
-                info: info.clone(),
+                info,
                 state: convert(&st.gamepad),
+                battery: self.battery(slot, now),
             });
         }
     }

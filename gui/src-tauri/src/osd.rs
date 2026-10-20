@@ -4,10 +4,12 @@
 //! window; the overlay page words it in the app's language. Nothing shows while the main
 //! window has focus (it shows the same state) or in the first seconds after start.
 
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use dp_config::library;
+use dp_platform::Battery;
 use dp_service::LiveState;
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State};
@@ -44,6 +46,14 @@ pub enum Event {
     },
     Disconnected {
         name: String,
+    },
+    BatteryLow {
+        name: String,
+        level: u8,
+    },
+    BatteryCritical {
+        name: String,
+        level: u8,
     },
     /// A sample from the settings dialog.
     Test,
@@ -87,8 +97,8 @@ struct View {
     profile_path: Option<String>,
     layer: u8,
     layer_name: Option<String>,
-    /// Id and name of each controller.
-    devices: Vec<(String, String)>,
+    /// Id, name and battery of each controller.
+    devices: Vec<(String, String, Option<Battery>)>,
 }
 
 impl View {
@@ -102,7 +112,7 @@ impl View {
             devices: live
                 .devices
                 .iter()
-                .map(|d| (d.id.clone(), d.name.clone()))
+                .map(|d| (d.id.clone(), d.name.clone(), d.battery))
                 .collect(),
         }
     }
@@ -113,13 +123,13 @@ impl View {
 fn events(old: &View, new: &View, s: &OsdSettings) -> Vec<Event> {
     let mut out = Vec::new();
     if s.controller {
-        for (id, name) in &old.devices {
-            if !new.devices.iter().any(|(i, _)| i == id) {
+        for (id, name, _) in &old.devices {
+            if !new.devices.iter().any(|(i, ..)| i == id) {
                 out.push(Event::Disconnected { name: name.clone() });
             }
         }
-        for (id, name) in &new.devices {
-            if !old.devices.iter().any(|(i, _)| i == id) {
+        for (id, name, _) in &new.devices {
+            if !old.devices.iter().any(|(i, ..)| i == id) {
                 out.push(Event::Connected { name: name.clone() });
             }
         }
@@ -146,6 +156,44 @@ fn events(old: &View, new: &View, s: &OsdSettings) -> Vec<Event> {
         } else {
             Event::RemapOff
         });
+    }
+    out
+}
+
+/// Battery warnings below these levels (percent).
+const LOW: u8 = 40;
+const CRITICAL: u8 = 20;
+
+/// Warnings for batteries that dropped below a threshold since `warned` (per controller: 0
+/// none, 1 low, 2 critical) was last updated. A warning repeats only after charging or
+/// climbing well above the low threshold again.
+fn battery_events(
+    devices: &[(String, String, Option<Battery>)],
+    warned: &mut HashMap<String, u8>,
+) -> Vec<Event> {
+    warned.retain(|id, _| devices.iter().any(|(i, ..)| i == id));
+    let mut out = Vec::new();
+    for (id, name, battery) in devices {
+        let Some(b) = battery else { continue };
+        let w = warned.entry(id.clone()).or_insert(0);
+        if !b.draining() || b.level >= LOW + 10 {
+            *w = 0;
+            continue;
+        }
+        let now = match b.level {
+            l if l < CRITICAL => 2,
+            l if l < LOW => 1,
+            _ => 0,
+        };
+        if now > *w {
+            *w = now;
+            let (name, level) = (name.clone(), b.level);
+            out.push(if now == 2 {
+                Event::BatteryCritical { name, level }
+            } else {
+                Event::BatteryLow { name, level }
+            });
+        }
     }
     out
 }
@@ -223,6 +271,7 @@ fn config_label(app: &AppHandle, path: &str) -> String {
 fn watch(app: AppHandle, live: Arc<Mutex<LiveState>>) {
     let started = Instant::now();
     let mut seen = View::of(&live.lock().unwrap());
+    let mut warned = HashMap::new();
     loop {
         std::thread::sleep(WATCH_INTERVAL);
         let view = View::of(&live.lock().unwrap());
@@ -243,6 +292,11 @@ fn watch(app: AppHandle, live: Arc<Mutex<LiveState>>) {
                 }
             }
             seen = view;
+        }
+        if !quiet && s.battery {
+            for e in battery_events(&seen.devices, &mut warned) {
+                notify(&app, e, false);
+            }
         }
         // Another message replaced a layer message that should stay: bring it back.
         if expire(&app) && !quiet && s.layer && s.keep_layer && seen.layer != 0 {
@@ -314,7 +368,7 @@ mod tests {
             profile_path: Some("a.toml".into()),
             layer: 0,
             layer_name: None,
-            devices: vec![("pad1".into(), "DualSense".into())],
+            devices: vec![("pad1".into(), "DualSense".into(), None)],
         }
     }
 
@@ -350,7 +404,7 @@ mod tests {
         let old = view();
         let mut new = view();
         new.remap_on = false;
-        new.devices = vec![("pad2".into(), "Pro Controller".into())];
+        new.devices = vec![("pad2".into(), "Pro Controller".into(), None)];
         assert_eq!(
             events(&old, &new, &s),
             vec![
@@ -366,6 +420,41 @@ mod tests {
         s.controller = false;
         s.remap = false;
         assert!(events(&old, &new, &s).is_empty());
+    }
+
+    #[test]
+    fn batteries_warn_once_per_drop() {
+        let pad = |level, charging| {
+            vec![(
+                "pad1".to_string(),
+                "DualSense".to_string(),
+                Some(Battery {
+                    level,
+                    charging,
+                    wired: false,
+                }),
+            )]
+        };
+        let mut warned = HashMap::new();
+        assert!(battery_events(&pad(55, false), &mut warned).is_empty());
+        let low = battery_events(&pad(35, false), &mut warned);
+        assert_eq!(
+            low,
+            vec![Event::BatteryLow {
+                name: "DualSense".into(),
+                level: 35
+            }]
+        );
+        // Wobbling around the threshold does not repeat it.
+        assert!(battery_events(&pad(45, false), &mut warned).is_empty());
+        assert!(battery_events(&pad(35, false), &mut warned).is_empty());
+        assert!(matches!(
+            battery_events(&pad(15, false), &mut warned)[..],
+            [Event::BatteryCritical { level: 15, .. }]
+        ));
+        // Charging clears it; draining below the threshold again warns again.
+        assert!(battery_events(&pad(15, true), &mut warned).is_empty());
+        assert_eq!(battery_events(&pad(15, false), &mut warned).len(), 1);
     }
 
     #[test]
