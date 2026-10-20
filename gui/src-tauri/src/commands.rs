@@ -13,7 +13,8 @@ use dp_core::hotkeys::Hotkeys;
 use dp_core::keys::{Key, MouseButton};
 use dp_core::pad::PadButton;
 use dp_core::profile::{
-    AnalogMapping, Mapping, Output, Profile, StickConfig, Timing, TriggerConfig, VirtualStick,
+    AnalogMapping, GyroSettings, Mapping, Output, Profile, StickConfig, Timing, TriggerConfig,
+    VirtualStick,
 };
 use dp_ipc::Request;
 use dp_service::{LiveState, ServiceCmd, ServiceHandle, ServiceReply};
@@ -66,6 +67,7 @@ pub struct Defaults {
     trigger: TriggerConfig,
     analog: AnalogMapping,
     virtual_stick: VirtualStick,
+    gyro: GyroSettings,
 }
 
 #[derive(Serialize)]
@@ -97,6 +99,7 @@ pub fn catalog() -> Catalog {
             trigger: TriggerConfig::default(),
             analog: AnalogMapping::default(),
             virtual_stick: VirtualStick::default(),
+            gyro: GyroSettings::default(),
         },
     }
 }

@@ -27,6 +27,8 @@ export type Command =
   | 'toggle_gyro'
   | 'gyro_on'
   | 'gyro_off'
+  | 'reset_tilt'
+  | 'switch_gyro_axis'
   | 'shutdown'
   | 'restart'
   | 'sleep'
@@ -212,6 +214,17 @@ export interface VirtualDevices {
   mouse?: { counts_per_turn?: number; turn_ms?: number };
 }
 
+/** How the motion sensors become gyro controls and feed gyro routes. */
+export interface GyroSettings {
+  mode?: 'motion' | 'tilt';
+  steering?: 'roll' | 'yaw';
+  initially_on?: boolean;
+  space?: 'local' | 'player';
+  /** Low, medium, high: degrees per second (motion) or degrees (tilt). */
+  motion_zones?: [number, number, number];
+  tilt_zones?: [number, number, number];
+}
+
 export interface Profile {
   name?: string;
   description?: string;
@@ -220,6 +233,7 @@ export interface Profile {
   timing?: Timing;
   sticks?: Sticks;
   triggers?: Triggers;
+  gyro?: GyroSettings;
   layers?: Layer[];
   mappings: Mapping[];
   analog?: AnalogMapping[];
@@ -338,6 +352,7 @@ export interface Catalog {
     trigger: Required<TriggerConfig>;
     analog: Required<AnalogMapping>;
     virtual_stick: Required<VirtualStick>;
+    gyro: Required<GyroSettings>;
   };
 }
 

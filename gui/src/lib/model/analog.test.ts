@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { AnalogMapping, Profile, StickConfig, TriggerConfig, VirtualStick } from '../types';
+import type { AnalogMapping, GyroSettings, Profile, StickConfig, TriggerConfig, VirtualStick } from '../types';
 import defaultsJson from './fixtures/defaults.json';
 import examples from './fixtures/examples.json';
 import fixture from './fixtures/profile.json';
@@ -23,6 +23,7 @@ import {
   routeTargets,
   setStick,
   setTrigger,
+  setGyro,
   setVirtualStick,
   shapeStick,
   shapeTrigger,
@@ -42,6 +43,7 @@ const def = defaultsJson as unknown as {
   trigger: Required<TriggerConfig>;
   analog: Required<AnalogMapping>;
   virtual_stick: Required<VirtualStick>;
+  gyro: Required<GyroSettings>;
 };
 
 const zd: ZoneDefaults = {
@@ -254,5 +256,15 @@ describe('analog routes', () => {
       ['right_stick', false],
       ['touchpad', true],
     ]);
+  });
+});
+
+describe('gyro settings', () => {
+  it('are written in full, or left out at their defaults', () => {
+    let p: Profile = { name: 'Test', mappings: [] };
+    p = setGyro(p, { mode: 'tilt', steering: 'yaw', initially_on: false, space: 'player', tilt_zones: [8, 20, 32] }, def.gyro);
+    expect(p.gyro).toEqual(fixture.gyro);
+    p = setGyro(p, def.gyro, def.gyro);
+    expect('gyro' in p).toBe(false);
   });
 });

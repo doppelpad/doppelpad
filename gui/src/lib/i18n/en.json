@@ -167,6 +167,9 @@
     "gyro": "Gyro",
     "touch_settings": "Touchpad as mouse",
     "gyro_settings": "Gyro aiming",
+    "gyro_controls_settings": "Gyro settings",
+    "lean_left": "Lean left",
+    "lean_right": "Lean right",
     "click": "Click",
     "stick_settings": "Stick settings",
     "stick_settings_hint": "Deadzone, curve, sensitivity, routes",
@@ -199,6 +202,7 @@
     },
     "any_direction": "{stick}, any direction",
     "any_direction_button": "Any direction (zones)",
+    "gyro_settings": "Gyro zones are set in Analog → Gyro",
     "desc": {
       "whole": "Active as soon as the control leaves its deadzone, however far it is moved.",
       "low": "Active while the control is moved only a little, up to where the medium zone starts.",
@@ -248,6 +252,8 @@
     "toggle_gyro": "Toggle gyro",
     "gyro_on": "Gyro on",
     "gyro_off": "Gyro off",
+    "reset_tilt": "Reset tilt (centre here)",
+    "switch_gyro_axis": "Switch gyro steering axis",
     "screenshot": "Take a screenshot",
     "close_window": "Close the active window",
     "shutdown": "Shut down the PC",
@@ -350,6 +356,7 @@
       "left": "Left stick",
       "right": "Right stick",
       "triggers": "Triggers",
+      "gyro": "Gyro",
       "routes": "Routes"
     },
     "all_layers": "Applies on every layer of this config, unless a layer changes it.",
@@ -379,6 +386,26 @@
       "delay_min": "Shortest step",
       "delay_max": "Longest step",
       "delay_hint": "Each step moves the offset to the next point of the pattern after a random time in this range."
+    },
+    "gyro": {
+      "scope": "Applies to the whole config, on every layer.",
+      "mode_label": "Gyro controls",
+      "mode": { "motion": "Turning", "tilt": "Tilting" },
+      "mode_hint": {
+        "motion": "Gyro directions and zones fire while the controller turns, by how fast.",
+        "tilt": "The controller is a stick: directions and zones follow how far it is tilted from its centre, and gyro routes to a stick follow the tilt (45° = full). Reset tilt sets the centre."
+      },
+      "steering_label": "Left and right",
+      "steering": { "roll": "Roll", "yaw": "Turn" },
+      "steering_hint": "Roll: like a steering wheel. Turn: like aiming left and right. Lean left/right always follows the roll.",
+      "space_label": "Gyro aiming",
+      "space": { "local": "Controller axes", "player": "Player space" },
+      "space_hint": "Player space turns around gravity, so aiming left and right works however you hold the controller.",
+      "initially_on": "Gyro on when the config starts",
+      "initially_on_hint": "Commands turn the gyro on and off while the config runs.",
+      "zones": "Zones",
+      "zones_hint_motion": "Where the low, medium and high zones start, in degrees per second.",
+      "zones_hint_tilt": "Where the low, medium and high zones start, in degrees from the centre."
     },
     "layer": {
       "own": "{layer} has its own settings here.",
@@ -600,7 +627,9 @@
     "up_left": "up-left",
     "up_right": "up-right",
     "down_left": "down-left",
-    "down_right": "down-right"
+    "down_right": "down-right",
+    "lean_left": "lean left",
+    "lean_right": "lean right"
   },
   "controls": {
     "LeftStick": "Left stick",
@@ -622,6 +651,7 @@
       "down_right": "Touchpad bottom right"
     },
     "gyro": "Gyro {dir}",
+    "Gyro": "Gyro",
     "PaddleUL": "Upper left paddle",
     "PaddleUR": "Upper right paddle",
     "PaddleLL": "Lower left paddle",

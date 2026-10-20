@@ -882,7 +882,11 @@ impl Runtime {
                     tracing::warn!("cannot launch {path}: {e}");
                 }
             }
-            Command::ToggleGyro | Command::GyroOn | Command::GyroOff => {
+            Command::ToggleGyro
+            | Command::GyroOn
+            | Command::GyroOff
+            | Command::ResetTilt
+            | Command::SwitchGyroAxis => {
                 tracing::info!(command = ?c, "gyro switched")
             }
             Command::Shutdown

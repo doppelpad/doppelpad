@@ -138,7 +138,7 @@ export function nativeAction(combo: Combo): Action | null {
   // A stick zone in any direction has no single direction to reproduce.
   if (/^(Left|Right)Stick(Low|Med|High)$/.test(c)) return null;
   if (/^Touch[A-Z][a-zA-Z]*$/.test(c) && c !== 'Touchpad') return null;
-  if (/^Gyro(Up|Down|Left|Right)$/.test(c)) return null;
+  if (/^Gyro[A-Z]/.test(c)) return null;
   return { pad: c as PadButtonName };
 }
 
@@ -317,6 +317,8 @@ const COMMAND_LABELS: Record<string, string> = {
   toggle_gyro: 'Gyro on/off',
   gyro_on: 'Gyro on',
   gyro_off: 'Gyro off',
+  reset_tilt: 'Reset tilt',
+  switch_gyro_axis: 'Switch gyro axis',
   shutdown: 'Shut down',
   restart: 'Restart',
   sleep: 'Sleep',

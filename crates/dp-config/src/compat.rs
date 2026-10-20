@@ -5,14 +5,15 @@
 
 use std::collections::HashMap;
 
-use dp_core::control::{Control, Dir, TouchRegion, Zone};
+use dp_core::control::{Control, Dir, GyroDir, TouchRegion, Zone};
 use dp_core::keys::{Key, MouseButton, WheelDir};
 use dp_core::pad::{PadButton, Stick, Trigger};
 use dp_core::profile::{
-    Action, Activator, AnalogMapping, AnalogSource, AnalogTarget, Combo, Command, JitterPattern,
-    Jump, JumpMode, KeyRepeat, Layer, LayerSticks, LayerTriggers, LayerVirtualSticks, Mapping,
-    Mode, Press, Profile, ShakeAxis, StickPatch, Sticks, TriggerPatch, Triggers, VirtualMotion,
-    VirtualMouse, VirtualPadType, VirtualStick, VirtualStickPatch, VirtualSticks, ZoneRadius,
+    Action, Activator, AnalogMapping, AnalogSource, AnalogTarget, Combo, Command, GyroMode,
+    JitterPattern, Jump, JumpMode, KeyRepeat, Layer, LayerSticks, LayerTriggers,
+    LayerVirtualSticks, Mapping, Mode, Press, Profile, ShakeAxis, StickPatch, Sticks, TriggerPatch,
+    Triggers, VirtualMotion, VirtualMouse, VirtualPadType, VirtualStick, VirtualStickPatch,
+    VirtualSticks, ZoneRadius,
 };
 use serde_json::Value;
 
@@ -131,10 +132,20 @@ fn gamepad_control(id: i64) -> Option<Control> {
         65 => MouseMove(Dir::Down),
         66 => MouseMove(Dir::Left),
         67 => MouseMove(Dir::Right),
-        68 | 244 => Gyro(Dir::Up),
-        69 | 245 => Gyro(Dir::Down),
-        70 | 246 => Gyro(Dir::Left),
-        71 | 247 => Gyro(Dir::Right),
+        // Gyro: up, down, left, right, lean left, lean right; then zones in any direction;
+        // then zone × direction (low up/down/left/right, med…, high…), then lean zones.
+        68..=73 => Gyro(GyroDir::ALL[(id - 68) as usize]),
+        244..=247 => Gyro(GyroDir::ALL[(id - 244) as usize]),
+        74..=76 => GyroZone(None, zone(74)),
+        145..=156 => {
+            let i = (id - 145) as usize;
+            GyroZone(Some(GyroDir::ALL[i % 4]), ZONES[i / 4])
+        }
+        157..=162 => {
+            let i = (id - 157) as usize;
+            let lean = [GyroDir::LeanLeft, GyroDir::LeanRight][i % 2];
+            GyroZone(Some(lean), ZONES[i / 2])
+        }
         79 => Touch(TouchRegion::Center),
         91 => Touch(TouchRegion::Up),
         92 => Touch(TouchRegion::Down),
@@ -399,6 +410,8 @@ struct Importer<'a> {
     layer_analog: HashMap<i64, ((LayerSticks, LayerTriggers), String)>,
     /// Turn calibration from a stick's mouse settings (flick values).
     turn: Option<VirtualMouse>,
+    /// The gyro stick entry asks for tilt mode.
+    gyro_tilt: bool,
 }
 
 /// Recognize the format's encoding of shift keys and fold each pair into one
@@ -468,6 +481,7 @@ pub fn import(json: &str) -> Result<(Profile, Diagnostics), ImportError> {
         zoned: Vec::new(),
         layer_analog: HashMap::new(),
         turn: None,
+        gyro_tilt: false,
     };
     let profile = imp.run();
     Ok((profile, imp.diags))
@@ -525,6 +539,9 @@ impl<'a> Importer<'a> {
         self.virtual_sticks(&mut p);
         if let Some(turn) = self.turn.take() {
             p.virtual_devices.mouse = turn;
+        }
+        if self.gyro_tilt {
+            p.gyro.mode = GyroMode::Tilt;
         }
         // A mask a layer does not inherit stays uninherited in its zone form too.
         for l in &mut p.layers {
@@ -878,9 +895,12 @@ impl<'a> Importer<'a> {
                 Some("left") => &mut sticks.left,
                 Some("right") => &mut sticks.right,
                 Some("gyro") => {
+                    if boolean(s, "tilt") {
+                        self.gyro_tilt = true;
+                    }
                     self.diags.info(
                         format!("{path}.sticks"),
-                        "gyro tuning is not imported; add a gyro route manually",
+                        "gyro sensitivity and curves are not imported; tune the gyro route",
                     );
                     continue;
                 }
@@ -1414,6 +1434,8 @@ impl<'a> Importer<'a> {
             let ty = int(cmd, "type").unwrap_or(0);
             let command = match ty {
                 1 => Command::RemapOff,
+                4 => Command::SwitchGyroAxis,
+                5 => Command::ResetTilt,
                 6 => Command::ToggleGyro,
                 7 => Command::LogOff,
                 8 => Command::Shutdown,
@@ -2068,6 +2090,54 @@ mod tests {
         assert!(diags.iter().any(|d| d.message.contains("flick threshold")));
         let toml = crate::to_toml(&p);
         assert_eq!(crate::parse_toml(&toml).unwrap(), p, "{toml}");
+    }
+
+    #[test]
+    fn gyro_controls_tilt_and_commands() {
+        let doc = r#"{ "schemaVersion": 3.0, "config": { "appName": "x" },
+          "devices": { "hardware": [ { "id": 1, "name": "gamepad", "default": { "sticks": [ { "name": "gyro", "tilt": true } ] } } ] },
+          "commands": [ { "id": 1, "type": 5 }, { "id": 2, "type": 4 } ],
+          "masks": [
+            { "id": 1, "set": [ { "deviceId": 1, "buttonId": 72 } ] },
+            { "id": 2, "set": [ { "deviceId": 1, "buttonId": 75 } ] },
+            { "id": 3, "set": [ { "deviceId": 1, "buttonId": 155 } ] },
+            { "id": 4, "set": [ { "deviceId": 1, "buttonId": 160 } ] }
+          ],
+          "mappings": [
+            { "condition": { "mask": { "id": 1, "activator": { "type": "single", "mode": "hold_until_release" } } },
+              "macros": [ { "command": { "id": 1 } } ] },
+            { "condition": { "mask": { "id": 2, "activator": { "type": "single", "mode": "hold_until_release" } } },
+              "macros": [ { "command": { "id": 2 } } ] },
+            { "condition": { "mask": { "id": 3, "activator": { "type": "single", "mode": "hold_until_release" } } },
+              "macros": [ { "keyboard": { "buttonId": 30, "description": "DIK_A" } } ] },
+            { "condition": { "mask": { "id": 4, "activator": { "type": "single", "mode": "hold_until_release" } } },
+              "macros": [ { "keyboard": { "buttonId": 31, "description": "DIK_S" } } ] }
+          ] }"#;
+        let (p, diags) = import(doc).unwrap();
+        assert!(!diags.has_errors(), "{diags:?}");
+        assert_eq!(p.gyro.mode, GyroMode::Tilt);
+        let triggers: Vec<String> = p.mappings.iter().map(|m| m.trigger.to_string()).collect();
+        assert_eq!(
+            triggers,
+            [
+                "GyroLeanLeft",
+                "GyroMed",
+                "GyroLeftHigh",
+                "GyroLeanRightMed"
+            ]
+        );
+        assert_eq!(
+            p.mappings[0].actions,
+            vec![Action::Command {
+                command: Command::ResetTilt
+            }]
+        );
+        assert_eq!(
+            p.mappings[1].actions,
+            vec![Action::Command {
+                command: Command::SwitchGyroAxis
+            }]
+        );
     }
 
     #[test]

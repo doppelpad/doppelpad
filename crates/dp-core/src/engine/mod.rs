@@ -14,6 +14,7 @@
 
 pub mod analog;
 pub mod compile;
+pub mod gyro;
 pub mod recognizer;
 pub mod routes;
 
@@ -26,6 +27,7 @@ use self::analog::{
 use self::compile::{
     AnalogOut, BindingId, Compiled, LayerTable, MaskId, Out, Policy, Step, StopRule, compile,
 };
+use self::gyro::{GyroAxes, GyroState, TILT_FULL_DEG};
 use self::recognizer::{RecEvent, Recognizer};
 use self::routes::{RouteInput, RouteOutput, RouteState};
 use crate::control::{Control, Dir, TouchRegion};
@@ -33,8 +35,8 @@ use crate::event::KbmEvent;
 use crate::keys::{Key, MouseButton, WheelDir};
 use crate::pad::{Axis, Motion, PadButton, PadState, Rumble, Stick, Trigger};
 use crate::profile::{
-    Activator, AnalogSource, Command, Mode, Profile, ShakeAxis, Sticks, Triggers, VirtualPadType,
-    VirtualStick, VirtualSticks,
+    Activator, AnalogSource, Command, GyroMode, Mode, Profile, ShakeAxis, Sticks, Triggers,
+    VirtualPadType, VirtualStick, VirtualSticks,
 };
 
 /// A shake flips direction this often.
@@ -84,8 +86,6 @@ impl Rng {
 const WHEEL_PULSE_MS: u64 = 50;
 /// Mouse speed (counts/s) above which `MouseMove:*` controls are active.
 const MOUSE_DIR_THRESHOLD: f32 = 200.0;
-/// Gyro rate (°/s) above which `Gyro*` controls are active.
-const GYRO_DIR_THRESHOLD: f32 = 60.0;
 /// Touchpad: distance from the centre (fraction of half-size) before a direction region counts.
 const TOUCH_CENTER_RADIUS: f32 = 0.35;
 
@@ -332,6 +332,9 @@ pub struct Engine {
     mouse_counts: (f32, f32),
     mouse_vel: (f32, f32),
     gyro_enabled: bool,
+    gyro: GyroState,
+    /// The gyro axes of this tick (tilt routes read them).
+    gyro_axes: GyroAxes,
     /// The profile maps diagonal touchpad regions or mouse directions, so those sources
     /// tell eight directions apart.
     touch_diagonals: bool,
@@ -401,6 +404,7 @@ impl Engine {
                 )
             })
             .collect();
+        let gyro_enabled = profile.gyro.initially_on;
         let touch_diagonals = uses(
             &profile,
             |c| matches!(c, Control::Touch(r) if r.is_diagonal()),
@@ -423,7 +427,9 @@ impl Engine {
             wheel: Default::default(),
             mouse_counts: (0.0, 0.0),
             mouse_vel: (0.0, 0.0),
-            gyro_enabled: true,
+            gyro_enabled,
+            gyro: GyroState::default(),
+            gyro_axes: GyroAxes::default(),
             touch_diagonals,
             mouse_diagonals,
             layer_analog,
@@ -609,20 +615,14 @@ impl Engine {
                     set.insert(Control::Touch(TouchRegion::Center));
                 }
             }
-            if let Some(m) = pad.motion
-                && self.gyro_enabled
-            {
-                let (pitch, yaw) = (m.gyro[0], m.gyro[1]);
-                if pitch > GYRO_DIR_THRESHOLD {
-                    set.insert(Control::Gyro(Dir::Up));
-                } else if pitch < -GYRO_DIR_THRESHOLD {
-                    set.insert(Control::Gyro(Dir::Down));
-                }
-                if yaw > GYRO_DIR_THRESHOLD {
-                    set.insert(Control::Gyro(Dir::Left));
-                } else if yaw < -GYRO_DIR_THRESHOLD {
-                    set.insert(Control::Gyro(Dir::Right));
-                }
+        }
+        self.gyro_axes = Default::default();
+        if let Some(m) = self.pad.and_then(|p| p.motion) {
+            // The tilt centre is taken even while the gyro is off.
+            let axes = self.gyro.axes(&self.profile.gyro, &m, dt);
+            self.gyro_axes = axes;
+            if self.gyro_enabled {
+                gyro::controls(&self.profile.gyro, axes, &mut set);
             }
         }
         set.extend(self.keys_down.iter().map(|k| Control::Key(*k)));
@@ -1228,6 +1228,8 @@ impl Engine {
                 Command::ToggleGyro => self.gyro_enabled = !self.gyro_enabled,
                 Command::GyroOn => self.gyro_enabled = true,
                 Command::GyroOff => self.gyro_enabled = false,
+                Command::ResetTilt => self.gyro.reset(),
+                Command::SwitchGyroAxis => self.gyro.switch_axis(),
                 _ => {}
             }
             self.outs.commands.push(c);
@@ -1303,8 +1305,8 @@ impl Engine {
             if !touch_used {
                 pad.touch = phys.touch;
             }
-            let gyro_used = Dir::ALL.iter().any(|d| hidden(&Control::Gyro(*d)))
-                || route_consumes(AnalogSource::Gyro);
+            let gyro_used =
+                Control::of_gyro().iter().any(hidden) || route_consumes(AnalogSource::Gyro);
             if !gyro_used {
                 pad.motion = phys.motion;
             }
@@ -1398,6 +1400,14 @@ impl Engine {
             now,
             gyro_enabled: self.gyro_enabled,
             turn: &self.profile.virtual_devices.mouse,
+            gyro_rates: self
+                .pad
+                .and_then(|p| p.motion)
+                .map(|m| gyro::route_rates(&self.profile.gyro, &m)),
+            tilt: (self.profile.gyro.mode == GyroMode::Tilt).then(|| {
+                let f = |v: f32| (v / TILT_FULL_DEG).clamp(-1.0, 1.0);
+                (f(self.gyro_axes.steer), f(self.gyro_axes.pitch))
+            }),
         };
         for &i in &routes {
             let r = &self.c.routes[i];

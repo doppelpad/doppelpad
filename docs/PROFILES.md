@@ -40,6 +40,14 @@ deadzone = 0.0
 zones = { low = 0.03 }       # where LT / RT and the zones start (see Zones)
 full_pull = 0.99             # LTFull / RTFull controls
 
+[gyro]
+mode = "motion"              # "motion" (turning) | "tilt" (the controller is a stick)
+steering = "roll"            # what GyroLeft/GyroRight follow: "roll" | "yaw"
+initially_on = true
+space = "local"              # gyro routes: "local" | "player" (turning around gravity)
+motion_zones = [60.0, 250.0, 550.0]   # low, med, high in °/s
+tilt_zones = [10.0, 22.0, 34.0]       # low, med, high in degrees from the centre
+
 [virtual.keyboard]
 repeat = "native"            # "native" | "fast" | "slow" | "off" | interval in ms (1–1000)
 
@@ -64,6 +72,13 @@ delay_max_ms = 40
 shake_g = 2.0                # strength of a shake action, in g
 shake_ms = 150               # its length
 ```
+
+`[gyro]` decides how the motion sensors become `Gyro*` controls. In `motion` mode they fire
+while the controller turns, by its rotation rate. In `tilt` mode the controller is a stick:
+they follow how far it is tilted from the centre pose (taken when the profile starts and by
+`reset_tilt`), and gyro routes to a stick follow the tilt (45° = full deflection). Up is nose up,
+Left/Right follow the steering axis, Lean is the roll. `space = "player"` makes gyro routes turn
+around gravity, so aiming left and right works however the controller is held.
 
 `[virtual.keyboard] repeat` sets how keys that mappings hold repeat, the way a physical
 keyboard repeats a held key. Only the most recently pressed key repeats, and only while it
@@ -104,7 +119,8 @@ every 25 ms; only a virtual DualShock 4 has motion sensors.
 | `LTLow` `LTMed` `LTHigh` (same for `RT…`) | Trigger pulled within a zone |
 | `TouchUp` `TouchDown` `TouchLeft` `TouchRight` `TouchCenter` | Finger resting in a touchpad region (four 90° regions around the centre) |
 | `TouchUpLeft` `TouchUpRight` `TouchDownLeft` `TouchDownRight` | Corner regions; mapping any of them splits the touchpad into eight 45° regions |
-| `GyroUp` `GyroDown` `GyroLeft` `GyroRight` | Controller turned quickly (> 60 °/s) |
+| `GyroUp` `GyroDown` `GyroLeft` `GyroRight` `GyroLeanLeft` `GyroLeanRight` | Controller turned (nose up/down, the steering axis, roll) past the low zone, or in tilt mode tilted past it; see `[gyro]` |
+| `GyroLow` … `GyroUpHigh`, `GyroLeanLeftMed` … | Gyro in a zone, any direction or one; see `[gyro]` |
 | `Key:Space` | Keyboard key (names below) |
 | `Mouse:Left` `Mouse:Right` `Mouse:Middle` `Mouse:X1` `Mouse:X2` | Mouse buttons |
 | `Wheel:Up` `Wheel:Down` `Wheel:Left` `Wheel:Right` | One wheel notch (50 ms pulse) |
@@ -241,7 +257,9 @@ Commands:
 | Command | Effect |
 |---|---|
 | `remap_off` | Turn remapping off (release everything, unload the profile) |
-| `toggle_gyro`, `gyro_on`, `gyro_off` | Switch the gyro routes of the profile |
+| `toggle_gyro`, `gyro_on`, `gyro_off` | Switch the gyro controls and routes of the profile |
+| `reset_tilt` | Take the controller's pose as the tilt centre |
+| `switch_gyro_axis` | Swap the gyro steering axis between roll and yaw |
 | `screenshot` | Save the monitor that shows the focused window as PNG in `Pictures\Doppelpad` (Windows; exclusive-fullscreen games may come out black) |
 | `close_window` | Ask the focused window to close, like its close button |
 | `shutdown`, `restart`, `sleep`, `hibernate`, `log_off` | Power commands; applications may still ask to save their work (Linux: `systemctl`, `loginctl`) |

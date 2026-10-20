@@ -15,8 +15,8 @@ export function dirKey(d: string): string {
 
 /** Touchpad regions; the controls are `TouchUp` … `TouchCenter`. */
 export const TOUCH_REGIONS = ['Up', 'Down', 'Left', 'Right', 'Center'] as const;
-/** Gyro directions; the controls are `GyroUp` … `GyroRight`. */
-export const GYRO_DIRS = DIRS;
+/** Gyro directions; the controls are `GyroUp` … `GyroLeanRight`, and their zones. */
+export const GYRO_DIRS = [...DIRS, 'LeanLeft', 'LeanRight'] as const;
 
 export const touchControls = (): ControlName[] => [...TOUCH_REGIONS, ...DIAGONALS].map((r) => `Touch${r}`);
 export const gyroControls = (): ControlName[] => GYRO_DIRS.map((d) => `Gyro${d}`);
@@ -39,16 +39,24 @@ export interface ZoneParts {
   base: string;
   zone: ZoneName | null;
   /** Where the zone thresholds live. */
-  source: { kind: 'stick' | 'trigger'; side: 'left' | 'right' };
+  source: { kind: 'stick' | 'trigger' | 'gyro'; side: 'left' | 'right' };
 }
 
 const ZONED = /^(?:(Left|Right)Stick(UpLeft|UpRight|DownLeft|DownRight|Up|Down|Left|Right)?|(LT|RT))(Low|Med|High)?$/;
+const GYRO_ZONED = /^Gyro(LeanLeft|LeanRight|Up|Down|Left|Right)?(Low|Med|High)?$/;
 
 /**
  * Zone parts of a stick direction, a trigger or one of their zone controls (`LeftStickUpHigh`,
  * `RTMed`, `LeftStickLow` = any direction); null for every other control.
  */
 export function zoneParts(c: ControlName): ZoneParts | null {
+  const g = GYRO_ZONED.exec(c);
+  if (g) {
+    const [, dir, zone] = g;
+    if (!dir && !zone) return null;
+    // Gyro zones live in the profile's gyro settings, not per side.
+    return { base: `Gyro${dir ?? ''}`, zone: (zone as ZoneName | undefined) ?? null, source: { kind: 'gyro', side: 'left' } };
+  }
   const m = ZONED.exec(c);
   if (!m) return null;
   const [, stick, dir, trigger, zone] = m;
@@ -68,7 +76,7 @@ export function withZone(base: string, zone: ZoneName | null): ControlName {
 
 /** Whether a zone base is the stick in any direction, which only exists per zone. */
 export function isAnyDirection(base: string): boolean {
-  return base === 'LeftStick' || base === 'RightStick';
+  return base === 'LeftStick' || base === 'RightStick' || base === 'Gyro';
 }
 
 /** Short tag of a zone for compact summaries: the first letter of its name ("H" for high). */
@@ -128,8 +136,8 @@ export function controlLabel(c: ControlName, family: PadFamily | null): string {
   if (sd) return `${t(`controls.${sd[0]}`)} ${t(`dirs.${dirKey(sd[1])}`)}`;
   const touch = /^Touch(UpLeft|UpRight|DownLeft|DownRight|Up|Down|Left|Right|Center)$/.exec(c);
   if (touch) return t(`controls.touch.${dirKey(touch[1])}`);
-  const gyro = /^Gyro(Up|Down|Left|Right)$/.exec(c);
-  if (gyro) return t('controls.gyro', { dir: t(`dirs.${gyro[1].toLowerCase()}`) });
+  const gyro = /^Gyro(LeanLeft|LeanRight|Up|Down|Left|Right)$/.exec(c);
+  if (gyro) return t('controls.gyro', { dir: t(`dirs.${dirKey(gyro[1])}`) });
   const named = familyName(c, family);
   if (named) return named;
   if (has(`controls.${c}`)) return t(`controls.${c}`);

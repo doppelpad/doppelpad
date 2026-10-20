@@ -36,6 +36,14 @@
     "left": { "deadzone": 0.05, "zones": { "low": 0.0625 }, "full_pull": 0.9 },
     "right": { "deadzone": 0, "zones": { "low": 0.125, "med": 0.5 }, "full_pull": 0.875 }
   },
+  "gyro": {
+    "mode": "tilt",
+    "steering": "yaw",
+    "initially_on": false,
+    "space": "player",
+    "motion_zones": [60, 250, 550],
+    "tilt_zones": [8, 20, 32]
+  },
   "layers": [
     {
       "id": 1,

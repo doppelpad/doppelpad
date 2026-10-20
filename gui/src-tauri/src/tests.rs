@@ -8,7 +8,9 @@
 use std::path::PathBuf;
 
 use dp_core::keys::Key;
-use dp_core::profile::{AnalogMapping, Profile, StickConfig, TriggerConfig, VirtualStick};
+use dp_core::profile::{
+    AnalogMapping, GyroSettings, Profile, StickConfig, TriggerConfig, VirtualStick,
+};
 use serde::Serialize;
 use serde_json::Value;
 
@@ -57,12 +59,14 @@ fn defaults_fixture_is_current() {
         trigger: TriggerConfig,
         analog: AnalogMapping,
         virtual_stick: VirtualStick,
+        gyro: GyroSettings,
     }
     let defaults = Defaults {
         stick: StickConfig::default(),
         trigger: TriggerConfig::default(),
         analog: AnalogMapping::default(),
         virtual_stick: VirtualStick::default(),
+        gyro: GyroSettings::default(),
     };
     let path = fixtures().join("defaults.json");
     let expected = serde_json::to_string_pretty(&defaults).unwrap() + "\n";

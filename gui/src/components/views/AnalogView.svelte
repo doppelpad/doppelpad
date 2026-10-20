@@ -4,12 +4,13 @@
   import { t } from '../../lib/i18n/index.svelte';
   import { layerRoutes } from '../../lib/model/analog';
   import { app, type AnalogTab } from '../../lib/state/app.svelte';
+  import GyroEditor from '../analog/GyroEditor.svelte';
   import RouteEditor from '../analog/RouteEditor.svelte';
   import StickEditor from '../analog/StickEditor.svelte';
   import TriggerEditor from '../analog/TriggerEditor.svelte';
   import VirtualStickEditor from '../analog/VirtualStickEditor.svelte';
 
-  const TABS: AnalogTab[] = ['left', 'right', 'triggers', 'routes'];
+  const TABS: AnalogTab[] = ['left', 'right', 'triggers', 'gyro', 'routes'];
   const routeCount = $derived(app.profile ? layerRoutes(app.profile, app.layer).length : 0);
 </script>
 
@@ -29,8 +30,11 @@
   {#if app.analogTab === 'routes'}
     <RouteEditor />
   {:else}
-    {#if app.layer === 0}<p class="scope">{t('analog.all_layers')}</p>{/if}
-    {#if app.analogTab === 'triggers'}
+    {#if app.analogTab === 'gyro'}<p class="scope">{t('analog.gyro.scope')}</p>
+    {:else if app.layer === 0}<p class="scope">{t('analog.all_layers')}</p>{/if}
+    {#if app.analogTab === 'gyro'}
+      <GyroEditor />
+    {:else if app.analogTab === 'triggers'}
       <TriggerEditor />
     {:else}
       <StickEditor side={app.analogTab} />
