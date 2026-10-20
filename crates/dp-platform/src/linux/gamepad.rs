@@ -29,6 +29,7 @@ use super::codes::*;
 use super::dev::{abs_axes, event_nodes, is_own, parent_device, set_grab, wait_readable};
 use super::padmap::{
     AbsRange, MotionMapper, NINTENDO_VID, PadMapper, TouchMapper, family_for, joycon_side,
+    stable_id,
 };
 use crate::{
     DeviceHider, DeviceId, DeviceInfo, GamepadBackend, PadFamily, PadSnapshot, PlatformError,
@@ -491,7 +492,13 @@ fn open_pad(path: &Path, dev: Device) -> io::Result<Pad> {
     };
     let axes: Vec<(u16, AbsRange)> = abs_axes(&dev).into_iter().map(|(c, r, _)| (c, r)).collect();
     let info = DeviceInfo {
-        id: DeviceId(format!("evdev:{}", path.display())),
+        id: DeviceId(stable_id(
+            vendor,
+            product,
+            dev.unique_name(),
+            dev.physical_path(),
+            &path.display().to_string(),
+        )),
         name,
         family,
         vendor_id: vendor,

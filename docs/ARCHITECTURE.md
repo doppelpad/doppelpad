@@ -36,7 +36,7 @@ deterministic.
 | `dp-config` | TOML (de)serialization, validation, JSON profile import, profile directories | none |
 | `dp-platform` | Backend traits; Windows and Linux implementations; null backends elsewhere | yes |
 | `dp-ipc` | `Request`/`Response` protocol and a tiny blocking client/server | local sockets |
-| `doppelpad` | CLI, foreground runner, daemon with auto-switching | timer resolution |
+| `doppelpad` | CLI (apply, slots, remap on/off, status, devices), foreground runner, daemon with auto-switching | timer resolution |
 
 ## The engine (`dp-core::engine`)
 

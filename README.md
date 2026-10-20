@@ -102,12 +102,21 @@ doppelpad check my-game.toml
 # are applied automatically while that game has focus.
 doppelpad daemon --profile profiles/examples/controller-desktop.toml
 
-doppelpad status
-doppelpad apply my-game.toml
+doppelpad status                      # profile, slots, remapping, auto-switch
+doppelpad apply my-game.toml          # one-off profile
+doppelpad apply my-game.toml --slot 2 # into slot 2 and activate it, like the app does
+doppelpad select-slot 1
+doppelpad clear-slot 2                # or: clear-slot all
+doppelpad remap off                   # remap on brings the active slot back
 doppelpad auto-switch off
 doppelpad stop
 doppelpad shutdown
 ```
+
+The daemon shares its slots (`state.toml`) and controller hotkeys (`hotkeys.toml`) with the
+desktop app. `doppelpad devices` lists controllers with ids that stay the same across
+reconnects (on Linux the Bluetooth address or USB port; XInput pads on Windows are only
+known by their XInput slot).
 
 ## Profiles
 

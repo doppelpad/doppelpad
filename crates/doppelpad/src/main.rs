@@ -55,7 +55,27 @@ enum Cmd {
         no_auto_switch: bool,
     },
     /// Ask the daemon to apply a profile.
-    Apply { profile: PathBuf },
+    Apply {
+        profile: PathBuf,
+        /// Put it into this slot (1–4) and make the slot active, like the app's "Apply to slot".
+        #[arg(long, value_parser = clap::value_parser!(u8).range(1..=4))]
+        slot: Option<u8>,
+    },
+    /// Make a slot (1–4) active and turn remapping on.
+    SelectSlot {
+        #[arg(value_parser = clap::value_parser!(u8).range(1..=4))]
+        slot: u8,
+    },
+    /// Empty a slot (1–4), or all of them.
+    ClearSlot {
+        /// A slot number or `all`.
+        slot: String,
+    },
+    /// Turn remapping on (the active slot) or off.
+    Remap {
+        #[arg(value_parser = ["on", "off"])]
+        state: String,
+    },
     /// Ask the daemon to stop remapping.
     Stop,
     /// Show the daemon's state.
@@ -111,12 +131,37 @@ fn run(cli: Cli) -> Result<()> {
             profile,
             !no_auto_switch,
         ),
-        Cmd::Apply { profile } => {
+        Cmd::Apply { profile, slot } => {
             let path = std::fs::canonicalize(&profile)
-                .with_context(|| format!("{}", profile.display()))?;
-            print_response(dp_ipc::call(&Request::Apply {
-                path: path.display().to_string(),
-            })?)
+                .with_context(|| format!("{}", profile.display()))?
+                .display()
+                .to_string();
+            let req = match slot {
+                Some(slot) => Request::ApplyToSlot {
+                    path,
+                    slot: slot as usize,
+                },
+                None => Request::Apply { path },
+            };
+            print_response(dp_ipc::call(&req)?)
+        }
+        Cmd::SelectSlot { slot } => print_response(dp_ipc::call(&Request::SelectSlot {
+            slot: slot as usize,
+        })?),
+        Cmd::ClearSlot { slot } => {
+            let slot = match slot.as_str() {
+                "all" => None,
+                n => Some(
+                    n.parse::<usize>()
+                        .ok()
+                        .filter(|n| (1..=4).contains(n))
+                        .with_context(|| format!("`{n}` is not a slot (1–4 or `all`)"))?,
+                ),
+            };
+            print_response(dp_ipc::call(&Request::ClearSlot { slot })?)
+        }
+        Cmd::Remap { state } => {
+            print_response(dp_ipc::call(&Request::Remap { on: state == "on" })?)
         }
         Cmd::Stop => print_response(dp_ipc::call(&Request::Stop)?),
         Cmd::Status => print_response(dp_ipc::call(&Request::Status)?),
@@ -155,6 +200,15 @@ fn print_response(r: Response) -> Result<()> {
                 s.virtual_pad.as_deref().unwrap_or("(none)")
             );
             println!("hidden:       {} device(s)", s.hidden_devices);
+            println!("remapping:    {}", if s.remap_on { "on" } else { "off" });
+            for (i, slot) in s.slots.iter().enumerate() {
+                let mark = if i + 1 == s.active_slot { "*" } else { " " };
+                println!(
+                    "slot {}:{mark}     {}",
+                    i + 1,
+                    slot.as_deref().unwrap_or("(empty)")
+                );
+            }
             println!("auto-switch:  {}", if s.auto_switch { "on" } else { "off" });
             println!("foreground:   {}", s.foreground.as_deref().unwrap_or("?"));
             for w in s.warnings {

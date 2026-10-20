@@ -74,6 +74,25 @@ pub fn joycon_side(vendor: u16, product: u16, name: &str) -> Option<JoyConSide> 
     }
 }
 
+/// A device id that survives reconnects and reboots: vendor and product plus the device's
+/// unique id (Bluetooth address, serial number) or else its physical path (USB port). The
+/// event node, whose number changes, is the last resort.
+pub fn stable_id(
+    vendor: u16,
+    product: u16,
+    uniq: Option<&str>,
+    phys: Option<&str>,
+    node: &str,
+) -> String {
+    let key = [uniq, phys]
+        .into_iter()
+        .flatten()
+        .map(str::trim)
+        .find(|s| !s.is_empty())
+        .unwrap_or(node);
+    format!("evdev:{vendor:04x}:{product:04x}:{key}")
+}
+
 pub fn family_for(vendor: u16, product: u16) -> PadFamily {
     match vendor {
         SONY_VID => match model_for(vendor, product) {
@@ -583,6 +602,35 @@ impl FfMixer {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn stable_ids_prefer_unique_then_physical() {
+        let node = "/dev/input/event17";
+        assert_eq!(
+            stable_id(
+                0x054c,
+                0x0ce6,
+                Some("a0:b1:c2:d3:e4:f5"),
+                Some("usb-1/input0"),
+                node
+            ),
+            "evdev:054c:0ce6:a0:b1:c2:d3:e4:f5"
+        );
+        assert_eq!(
+            stable_id(
+                0x045e,
+                0x028e,
+                Some(""),
+                Some("usb-0000:00:14.0-2/input0"),
+                node
+            ),
+            "evdev:045e:028e:usb-0000:00:14.0-2/input0"
+        );
+        assert_eq!(
+            stable_id(1, 2, None, None, node),
+            "evdev:0001:0002:/dev/input/event17"
+        );
+    }
 
     const STICK: AbsRange = AbsRange::new(-32768, 32767);
     const BYTE: AbsRange = AbsRange::new(0, 255);
