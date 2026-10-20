@@ -129,9 +129,26 @@ export interface Layer {
   virtual?: { sticks?: VirtualSticks };
   /** Give the physical keyboard and/or mouse back while the layer is active. */
   unlock?: Unlock;
+  /** The light bar while this layer is active. */
+  lightbar?: Light;
 }
 
 export type Unlock = 'all' | 'keyboard' | 'mouse';
+
+export type LightMode = 'off' | 'solid' | 'breath' | 'rainbow' | 'shimmer' | 'heartbeat' | 'strobe';
+
+/** A light-bar setting; whatever it leaves out is the default. */
+export interface Light {
+  mode?: LightMode;
+  /** `#rrggbb`, 1–10. */
+  colors?: string[];
+  /** Use the next colour every period. */
+  cycle?: boolean;
+  period_ms?: number;
+}
+
+/** What the controllers' player lights show. */
+export type PlayerLights = 'while_remapping' | 'always' | 'off';
 
 export type CrosshairShape =
   | 'cross'
@@ -376,6 +393,8 @@ export interface Profile {
   crosshairs?: Crosshair[];
   /** Radial menus, each shown while its layer is active. */
   radial_menus?: RadialMenu[];
+  /** The controller's light bar; without it the game sets the colour. */
+  lightbar?: Light;
   mappings: Mapping[];
   analog?: AnalogMapping[];
   virtual?: VirtualDevices;
@@ -450,6 +469,8 @@ export interface LiveState {
   active_slot: number;
   remap_on: boolean;
   auto_switch: boolean;
+  player_lights: PlayerLights;
+  mic_led: boolean;
   suspended: boolean;
   foreground: string | null;
   virtual_pad: string | null;
@@ -531,6 +552,7 @@ export interface Catalog {
     magnifier: Magnifier;
     radial_menu: Required<Omit<RadialMenu, 'sectors' | 'name'>>;
     radial_sector: RadialSector;
+    light: Required<Light>;
   };
 }
 

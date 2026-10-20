@@ -9,6 +9,7 @@ import type {
   Combo,
   ControlName,
   Layer,
+  Light,
   Mapping,
   Mode,
   MouseButtonName,
@@ -422,4 +423,14 @@ export function mappingSummary(m: Mapping, layerLabel: (id: number) => string): 
   if (m.jump) s = s ? `${s} · → ${layerLabel(m.jump.layer)}` : `→ ${layerLabel(m.jump.layer)}`;
   if (!s) s = '⊘';
   return s;
+}
+
+/** The light bar of `layer` (0: the profile's own), or `undefined` to drop it. */
+export function setLight(p: Profile, layer: number, light: Light | undefined): Profile {
+  if (layer === 0) {
+    const next: Profile = { ...p, lightbar: light };
+    if (!light) delete next.lightbar;
+    return next;
+  }
+  return patchLayer(p, layer, ({ lightbar: _, ...l }) => (light ? { ...l, lightbar: light } : l));
 }

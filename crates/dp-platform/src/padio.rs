@@ -11,7 +11,7 @@ use std::time::{Duration, Instant};
 
 use dp_core::pad::{PadState, Rgb, Rumble};
 
-use crate::{Battery, JoyConSide, PadFamily};
+use crate::{Battery, JoyConSide, Leds, PadFamily};
 
 /// Report transport of one HID device. Reports start with their report-ID byte.
 pub trait ReportIo {
@@ -123,6 +123,8 @@ pub trait PadDriver: Send {
     /// Light bar colour to show from the next [`service`](Self::service) on; `None` leaves
     /// the light bar as it is. Ignored by pads without one.
     fn set_lightbar(&mut self, _color: Option<Rgb>) {}
+    /// Player lights and microphone LED to show from the next [`service`](Self::service) on.
+    fn set_leds(&mut self, _leds: Leds) {}
     /// When [`service`](Self::service) must run again even if no report arrives.
     fn next_deadline(&self) -> Option<Instant>;
     /// The limitation notice if it changed since [`init`](Self::init) or the last call:

@@ -35,6 +35,22 @@ pub struct SlotState {
     pub auto_switch: bool,
     /// Controllers with slots of their own, by device id.
     pub devices: BTreeMap<String, DeviceSlots>,
+    pub player_lights: PlayerLights,
+    /// The DualSense microphone LED shows whether remapping is on.
+    pub mic_led: bool,
+}
+
+/// What the player lights of a controller show.
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PlayerLights {
+    /// The active slot's number while remapping is on, dark while it is off.
+    #[default]
+    WhileRemapping,
+    /// The active slot's number.
+    Always,
+    /// Left to the controller.
+    Off,
 }
 
 impl Default for SlotState {
@@ -45,6 +61,8 @@ impl Default for SlotState {
             remap_on: true,
             auto_switch: true,
             devices: BTreeMap::new(),
+            player_lights: PlayerLights::default(),
+            mic_led: false,
         }
     }
 }
@@ -59,6 +77,8 @@ struct StateFile {
     auto_switch: Option<bool>,
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     devices: BTreeMap<String, DeviceFile>,
+    player_lights: PlayerLights,
+    mic_led: bool,
 }
 
 #[derive(Default, Serialize, Deserialize)]
@@ -116,6 +136,8 @@ impl SlotState {
                     (id, slots)
                 })
                 .collect(),
+            player_lights: file.player_lights,
+            mic_led: file.mic_led,
         }
     }
 
@@ -137,6 +159,8 @@ impl SlotState {
                     (id.clone(), file)
                 })
                 .collect(),
+            player_lights: self.player_lights,
+            mic_led: self.mic_led,
         };
         let text = toml::to_string_pretty(&file).map_err(std::io::Error::other)?;
         if let Some(dir) = path.parent() {

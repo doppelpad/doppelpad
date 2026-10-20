@@ -12,8 +12,9 @@ use std::time::{Duration, Instant};
 use dp_core::pad::{Axis, Motion, PadButton, PadState, Rumble};
 
 use super::{StickCal, Switch2Model, apply_buttons, unpack12};
+use crate::nintendo::player_mask;
 use crate::padio::{BulkIo, Identity, InitError, LateBulk, PadDriver, ReportIo, RumblePacer};
-use crate::{JoyConSide, PadFamily};
+use crate::{JoyConSide, Leds, PadFamily};
 
 /// Feature mask: buttons, sticks, IMU and rumble.
 pub const FEATURES: u8 = 0x27;
@@ -294,6 +295,9 @@ pub struct Switch2Driver {
     seq: u8,
     pacer: RumblePacer,
     gc_error: u32,
+    /// Player lights wanted and last sent (bits 0..3: LEDs 1..4).
+    player_want: Option<u8>,
+    player_sent: Option<u8>,
 }
 
 impl Switch2Driver {
@@ -312,6 +316,8 @@ impl Switch2Driver {
                 1,
             ),
             gc_error: 0,
+            player_want: None,
+            player_sent: Some(0x01),
         }
     }
 
@@ -495,8 +501,20 @@ impl PadDriver for Switch2Driver {
         parse_report(self.model, &mut self.cal, scale, report)
     }
 
+    fn set_leds(&mut self, leds: Leds) {
+        self.player_want = leds.player.map(player_mask);
+    }
+
     fn service(&mut self, io: &mut dyn ReportIo, rumble: Rumble) -> io::Result<()> {
         self.adopt_late_bulk();
+        if let Some(mask) = self.player_want.filter(|m| Some(*m) != self.player_sent)
+            && let Ok(bulk) = &mut self.bulk
+        {
+            if let Err(e) = Self::send(bulk.as_mut(), &player_led_command(mask)) {
+                tracing::debug!("player LED: {e}");
+            }
+            self.player_sent = Some(mask);
+        }
         let Some(r) = self.pacer.poll(io.now(), rumble) else {
             return Ok(());
         };

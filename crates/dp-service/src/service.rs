@@ -8,10 +8,11 @@ use anyhow::Result;
 use dp_core::hotkeys::{HotkeyAction, Hotkeys};
 use dp_core::profile::Profile;
 use dp_ipc::{Device, Request, Response, Status};
+use dp_platform::Leds;
 
 use crate::live::{LiveDevice, LiveState};
 use crate::runtime::{DriverStatus, Runtime};
-use crate::slots::{SLOTS, SlotState};
+use crate::slots::{PlayerLights, SLOTS, SlotState};
 
 /// How often the foreground application is checked by default.
 pub const FOREGROUND_POLL_MS: u64 = 250;
@@ -89,6 +90,11 @@ pub enum ServiceCmd {
     SetSuspended(bool),
     SetPreferredDevice(Option<String>),
     SetAutoSwitch(bool),
+    /// What the controllers' player lights and microphone LED show.
+    SetLights {
+        player: PlayerLights,
+        mic: bool,
+    },
     /// Re-probe ViGEmBus / HidHide now.
     RefreshDrivers,
     /// Look for controllers now, e.g. after another program released them.
@@ -638,6 +644,12 @@ impl Service {
                 self.set_auto_switch(on);
                 ServiceReply::Ok(format!("auto-switch {}", if on { "on" } else { "off" }))
             }
+            ServiceCmd::SetLights { player, mic } => {
+                self.state.player_lights = player;
+                self.state.mic_led = mic;
+                self.save_state();
+                ServiceReply::Ok("lights set".into())
+            }
             ServiceCmd::RefreshDrivers => {
                 self.check_drivers(self.rt.now_ms());
                 ServiceReply::Ok("drivers checked".into())
@@ -757,9 +769,26 @@ impl Service {
         }
     }
 
+    /// Player lights and microphone LED of every controller, from the slots and remapping.
+    fn show_lights(&mut self) {
+        let state = &self.state;
+        self.rt.set_indicators(|id| {
+            let slot = state.devices.get(&id.0).map_or(state.active, |d| d.active) as u8 + 1;
+            Leds {
+                player: match state.player_lights {
+                    PlayerLights::Always => Some(slot),
+                    PlayerLights::WhileRemapping => Some(if state.remap_on { slot } else { 0 }),
+                    PlayerLights::Off => None,
+                },
+                mic: state.mic_led.then_some(state.remap_on),
+            }
+        });
+    }
+
     pub fn tick(&mut self) {
         self.rt.tick();
         self.run_hotkeys();
+        self.show_lights();
         self.save_calibration();
         if self.rt.take_remap_off_request() {
             self.state.remap_on = false;
@@ -886,6 +915,8 @@ impl Service {
                 .collect(),
             active_slot: self.state.active,
             remap_on: self.state.remap_on,
+            player_lights: self.state.player_lights,
+            mic_led: self.state.mic_led,
             auto_switch: self.state.auto_switch,
             suspended: self.rt.is_suspended(),
             foreground: self.foreground.clone(),

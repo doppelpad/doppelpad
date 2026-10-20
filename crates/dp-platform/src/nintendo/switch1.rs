@@ -11,8 +11,9 @@ use std::time::{Duration, Instant};
 use dp_core::pad::{Axis, Motion, PadState, Rumble};
 
 use super::{NINTENDO_VID, StickCal, apply_buttons, imu_to_pad, unpack12};
+use crate::nintendo::player_mask;
 use crate::padio::{Identity, InitError, PadDriver, ReportIo, RumblePacer, pause};
-use crate::{Battery, JoyConSide, PadFamily};
+use crate::{Battery, JoyConSide, Leds, PadFamily};
 
 /// Rumble data for "no vibration" (320 Hz / 160 Hz at amplitude 0).
 pub const NEUTRAL_RUMBLE: [u8; 4] = [0x00, 0x01, 0x40, 0x40];
@@ -457,6 +458,9 @@ pub struct Switch1Driver {
     last_imu_fix: Option<Instant>,
     now: Option<Instant>,
     battery: Option<Battery>,
+    /// Player lights wanted and last sent.
+    player_want: Option<u8>,
+    player_sent: Option<u8>,
 }
 
 impl Switch1Driver {
@@ -480,6 +484,8 @@ impl Switch1Driver {
             last_mode_fix: None,
             imu_seen: false,
             battery: None,
+            player_want: None,
+            player_sent: Some(0x01),
             imu_lost: false,
             last_imu_fix: None,
             now: None,
@@ -755,6 +761,10 @@ impl PadDriver for Switch1Driver {
         self.battery
     }
 
+    fn set_leds(&mut self, leds: Leds) {
+        self.player_want = leds.player.map(player_mask);
+    }
+
     fn service(&mut self, io: &mut dyn ReportIo, rumble: Rumble) -> io::Result<()> {
         let now = io.now();
         if !self.link.bluetooth
@@ -772,6 +782,10 @@ impl PadDriver for Switch1Driver {
         if self.imu_lost && self.last_imu_fix.is_none_or(|t| now >= t + IMU_RETRY) {
             self.send_subcommand(io, SUB_IMU, &[0x01])?;
             self.last_imu_fix = Some(now);
+        }
+        if let Some(mask) = self.player_want.filter(|m| Some(*m) != self.player_sent) {
+            self.player_sent = Some(mask);
+            self.send_subcommand(io, SUB_PLAYER_LEDS, &[mask])?;
         }
         if self.ty.has_rumble()
             && let Some(r) = self.pacer.poll(now, rumble)

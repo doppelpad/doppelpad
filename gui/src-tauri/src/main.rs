@@ -147,6 +147,7 @@ fn main() {
             commands::own_slots,
             commands::set_remap,
             commands::set_auto_switch,
+            commands::set_lights,
             commands::set_preferred_device,
             commands::refresh_drivers,
             commands::hotkeys_get,

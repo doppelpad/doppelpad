@@ -6,6 +6,7 @@
   import { app } from '../lib/state/app.svelte';
   import type { KeyRepeat, Output, Profile, VirtualPadType } from '../lib/types';
   import CrosshairSettings from './crosshair/CrosshairSettings.svelte';
+  import LightSettings from './LightSettings.svelte';
   import RadialSettings from './radial/RadialSettings.svelte';
   import Toggle from './ui/Toggle.svelte';
 
@@ -302,6 +303,7 @@
     {/each}
   </div>
 
+  <LightSettings />
   <CrosshairSettings />
   <RadialSettings />
 </div>

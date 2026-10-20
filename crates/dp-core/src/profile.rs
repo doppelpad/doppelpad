@@ -54,6 +54,47 @@ pub struct Profile {
     /// Radial menus (`[[radial_menus]]`), each shown while its layer is active.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub radial_menus: Vec<RadialMenu>,
+    /// The controller's light bar (`[lightbar]`); without it the game sets the colour.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub lightbar: Option<Light>,
+}
+
+/// A light-bar setting: a mode, its colours and how fast it animates.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct Light {
+    pub mode: LightMode,
+    /// `#rrggbb`, 1–10 colours.
+    pub colors: Vec<String>,
+    /// Use the next colour every period.
+    pub cycle: bool,
+    /// One animation cycle, 100–10000 ms.
+    pub period_ms: u32,
+}
+
+impl Default for Light {
+    fn default() -> Self {
+        Light {
+            mode: LightMode::Solid,
+            colors: vec!["#14b8a6".into()],
+            cycle: false,
+            period_ms: 2000,
+        }
+    }
+}
+
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LightMode {
+    /// Dark.
+    Off,
+    #[default]
+    Solid,
+    Breath,
+    Rainbow,
+    Shimmer,
+    Heartbeat,
+    Strobe,
 }
 
 /// A ring of sectors over the game. It opens when its layer becomes active; a stick, the
@@ -1165,6 +1206,9 @@ pub struct Layer {
     /// is not swallowed and the base layer's keyboard/mouse mappings are not inherited.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub unlock: Option<Unlock>,
+    /// The light bar while this layer is active (the base layer's otherwise).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub lightbar: Option<Light>,
 }
 
 /// Which physical inputs an unlock layer gives back.
@@ -1216,6 +1260,7 @@ impl Default for Layer {
             triggers: LayerTriggers::default(),
             virtual_devices: LayerVirtual::default(),
             unlock: None,
+            lightbar: None,
         }
     }
 }

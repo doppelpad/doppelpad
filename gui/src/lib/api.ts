@@ -11,6 +11,7 @@ import type {
   Library,
   LiveState,
   LoadedConfig,
+  PlayerLights,
   Profile,
   RewasdStatus,
 } from './types';
@@ -69,6 +70,8 @@ export const api = {
   settingsGet: () => invoke<GuiSettings>('settings_get'),
   settingsSet: (settings: GuiSettings) => invoke<void>('settings_set', { settings }),
   /** Show a sample on-screen notification. */
+  /** What the player lights and the microphone LED show. */
+  setLights: (player: PlayerLights, mic: boolean) => invoke<string>('set_lights', { player, mic }),
   osdTest: () => invoke<void>('osd_test'),
   /** Sizes of the monitors, the primary one first. */
   osdMonitors: () => invoke<string[]>('osd_monitors'),

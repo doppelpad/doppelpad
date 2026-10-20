@@ -13,10 +13,10 @@ use dp_core::pad::{PadButton, Stick, Trigger};
 use dp_core::profile::{
     Action, Activator, AnalogMapping, AnalogSource, AnalogTarget, Combo, Command, Crosshair,
     CrosshairShape, GyroMode, JitterPattern, Jump, JumpMode, KeyRepeat, Layer, LayerSticks,
-    LayerTriggers, LayerVirtualSticks, Magnifier, Mapping, Mode, Press, Profile, RadialApply,
-    RadialMenu, RadialSector, RadialSelect, ShakeAxis, StickPatch, Sticks, TriggerPatch, Triggers,
-    Unlock, VirtualMotion, VirtualMouse, VirtualPadType, VirtualStick, VirtualStickPatch,
-    VirtualSticks, ZoneRadius,
+    LayerTriggers, LayerVirtualSticks, Light, LightMode, Magnifier, Mapping, Mode, Press, Profile,
+    RadialApply, RadialMenu, RadialSector, RadialSelect, ShakeAxis, StickPatch, Sticks,
+    TriggerPatch, Triggers, Unlock, VirtualMotion, VirtualMouse, VirtualPadType, VirtualStick,
+    VirtualStickPatch, VirtualSticks, ZoneRadius,
 };
 use serde_json::Value;
 
@@ -72,6 +72,40 @@ fn text(v: &Value, key: &str) -> Option<String> {
 
 fn boolean(v: &Value, key: &str) -> bool {
     get(v, key).and_then(Value::as_bool).unwrap_or(false)
+}
+
+/// A light-bar entry (`mode`, `colors`, `loop`).
+fn light(v: &Value) -> Light {
+    let mode = match enum_str(v, "mode").as_deref() {
+        Some("shimmer") => LightMode::Shimmer,
+        Some("heartbeat") => LightMode::Heartbeat,
+        Some("stroboscope") => LightMode::Strobe,
+        Some("rainbow") => LightMode::Rainbow,
+        Some("breath") => LightMode::Breath,
+        _ => LightMode::Solid,
+    };
+    let colors: Vec<String> = array(v, "colors")
+        .iter()
+        .filter_map(|c| {
+            let c: Vec<u8> = c
+                .as_array()?
+                .iter()
+                .filter_map(|x| x.as_u64().map(|n| n.min(255) as u8))
+                .collect();
+            (c.len() == 3).then(|| format!("#{:02x}{:02x}{:02x}", c[0], c[1], c[2]))
+        })
+        .take(10)
+        .collect();
+    Light {
+        mode,
+        colors: if colors.is_empty() {
+            Light::default().colors
+        } else {
+            colors
+        },
+        cycle: boolean(v, "loop"),
+        ..Default::default()
+    }
 }
 
 /// An `[r, g, b]` colour as `#rrggbb`.
@@ -480,6 +514,8 @@ struct Importer<'a> {
     /// Sector id of each radial-menu sector mask, and menu and position of each sector id.
     radial_masks: HashMap<i64, i64>,
     radial_sectors: HashMap<i64, (usize, usize)>,
+    /// Light bars of layers, set once the layers exist.
+    layer_lights: Vec<(u8, Light)>,
 }
 
 /// Recognize the format's encoding of shift keys and fold each pair into one
@@ -557,6 +593,7 @@ pub fn import(json: &str) -> Result<(Profile, Diagnostics), ImportError> {
         crosshair_guids: HashMap::new(),
         radial_masks: HashMap::new(),
         radial_sectors: HashMap::new(),
+        layer_lights: Vec::new(),
     };
     let profile = imp.run();
     Ok((profile, imp.diags))
@@ -588,11 +625,13 @@ impl<'a> Importer<'a> {
             .filter(|s| !s.is_empty())
             .map(Into::into)
             .collect();
-        if get(&config, "led").is_some() {
-            self.diags.info(
-                "config.led",
-                "light-bar settings are not supported yet and were ignored",
-            );
+        if let Some(led) = get(&config, "led") {
+            p.lightbar = get(led, "default").map(light);
+            for s in array(led, "shifts") {
+                if let Some(id) = int(s, "shiftId").filter(|id| (1..=255).contains(id)) {
+                    self.layer_lights.push((id as u8, light(s)));
+                }
+            }
         }
 
         self.devices(&mut p);
@@ -607,6 +646,15 @@ impl<'a> Importer<'a> {
         self.radial_menus(&mut p);
         self.masks(&mut p);
         self.layers(&mut p);
+        for (id, light) in std::mem::take(&mut self.layer_lights) {
+            match p.layers.iter_mut().find(|l| l.id == id) {
+                Some(l) => l.lightbar = Some(light),
+                None => self.diags.warn(
+                    "config.led",
+                    format!("light bar of layer {id}, which does not exist"),
+                ),
+            }
+        }
         let mappings = array(self.root, "mappings");
         for (i, m) in mappings.iter().enumerate() {
             let path = format!("mappings[{i}]");
@@ -2153,6 +2201,28 @@ mod tests {
         let (p, _) = import(doc).unwrap();
         assert_eq!(p.mappings.len(), 1);
         assert_eq!(p.mappings[0].jump.as_ref().unwrap().mode, JumpMode::Hold);
+    }
+
+    #[test]
+    fn light_bars_of_the_profile_and_layers() {
+        let doc = r#"{ "schemaVersion": 3.0, "appVersion": "9.2.0",
+          "config": { "appName": "x", "minTimeUnit": 1,
+            "led": { "default": { "mode": "solid", "colors": [[255, 0, 0]] },
+                     "shifts": [ { "shiftId": 1, "mode": "stroboscope", "colors": [[0, 0, 255], [0, 255, 0]], "loop": true } ] } },
+          "devices": { "hardware": [ { "id": 1, "name": "gamepad" } ] },
+          "shifts": [ { "id": 1, "type": "default" } ] }"#;
+        let (p, diags) = import(doc).unwrap();
+        assert!(!diags.has_errors());
+        let base = p.lightbar.unwrap();
+        assert_eq!(
+            (base.mode, base.colors),
+            (LightMode::Solid, vec!["#ff0000".to_string()])
+        );
+        let l = p.layers[0].lightbar.as_ref().unwrap();
+        assert_eq!(
+            (l.mode, l.cycle, l.colors.len()),
+            (LightMode::Strobe, true, 2)
+        );
     }
 
     #[test]
