@@ -276,7 +276,7 @@ fn on_menu(app: &AppHandle, id: &str) {
         }
         _ => {
             if let Some(slot) = id.strip_prefix("slot-").and_then(|n| n.parse().ok()) {
-                command(app, ServiceCmd::SelectSlot(slot));
+                command(app, ServiceCmd::SelectSlot { device: None, slot });
             }
         }
     }

@@ -5,7 +5,7 @@ use dp_core::pad::PadState;
 use dp_platform::PadFamily;
 use serde::Serialize;
 
-use crate::runtime::DriverStatus;
+use crate::runtime::{DriverStatus, SessionInfo};
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct LiveDevice {
@@ -39,4 +39,16 @@ pub struct LiveState {
     pub hidden_devices: usize,
     pub warnings: Vec<String>,
     pub drivers: DriverStatus,
+    /// Controllers with slots of their own.
+    pub device_slots: Vec<LiveDeviceSlots>,
+    /// Every running profile, the default session first.
+    pub sessions: Vec<SessionInfo>,
+}
+
+/// The slots of a controller that has its own.
+#[derive(Clone, Debug, Default, PartialEq, Serialize)]
+pub struct LiveDeviceSlots {
+    pub id: String,
+    pub slots: Vec<Option<String>>,
+    pub active_slot: usize,
 }

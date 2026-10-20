@@ -28,14 +28,22 @@ pub enum Request {
     ApplyToSlot {
         path: String,
         slot: usize,
+        /// The slots of this controller (`doppelpad devices` lists the ids) instead of the
+        /// shared ones; it gets slots of its own if it has none yet.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        device: Option<String>,
     },
     /// Make a slot (1–4) active and turn remapping on.
     SelectSlot {
         slot: usize,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        device: Option<String>,
     },
     /// Empty a slot (1–4), or every slot.
     ClearSlot {
         slot: Option<usize>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        device: Option<String>,
     },
     /// Turn remapping on (the active slot) or off.
     Remap {
@@ -178,7 +186,11 @@ mod tests {
             serde_json::from_str(r#"{"cmd":"auto_switch","enabled":true}"#).unwrap();
         assert_eq!(back, Request::AutoSwitch { enabled: true });
         assert_eq!(
-            serde_json::to_string(&Request::ClearSlot { slot: None }).unwrap(),
+            serde_json::to_string(&Request::ClearSlot {
+                slot: None,
+                device: None
+            })
+            .unwrap(),
             r#"{"cmd":"clear_slot","slot":null}"#
         );
         let back: Request = serde_json::from_str(r#"{"cmd":"remap","on":false}"#).unwrap();

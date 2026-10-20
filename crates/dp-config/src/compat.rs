@@ -557,9 +557,9 @@ impl<'a> Importer<'a> {
             }
         };
         if pads.len() > 1 {
-            self.diags.warn(
+            self.diags.info(
                 "devices.virtual.gamepads",
-                "only the first virtual gamepad is used",
+                "only the first virtual gamepad is used; gamepad outputs in this format do not say which one they mean. To drive a second virtual controller, give that physical controller slots of its own",
             );
         }
         // Only the four combinations the editor offers mean something; others stay native.

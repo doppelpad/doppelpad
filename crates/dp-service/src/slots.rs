@@ -1,6 +1,8 @@
 //! Four slots that each hold a config file, the active slot, and the global remap and
-//! auto-switch switches. Persisted as TOML so they survive restarts.
+//! auto-switch switches; controllers can have four slots of their own. Persisted as TOML
+//! so they survive restarts.
 
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
@@ -8,13 +10,31 @@ use serde::{Deserialize, Serialize};
 /// Number of slots.
 pub const SLOTS: usize = 4;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct SlotState {
+/// The slots of one controller that has its own.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct DeviceSlots {
     pub slots: [Option<PathBuf>; SLOTS],
     /// Index of the active slot, `0..SLOTS`.
     pub active: usize,
+}
+
+impl DeviceSlots {
+    /// Config file of the active slot.
+    pub fn active_profile(&self) -> Option<&PathBuf> {
+        self.slots.get(self.active)?.as_ref()
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SlotState {
+    /// The shared slots, used by the controller in use unless it has slots of its own.
+    pub slots: [Option<PathBuf>; SLOTS],
+    /// Index of the active shared slot, `0..SLOTS`.
+    pub active: usize,
     pub remap_on: bool,
     pub auto_switch: bool,
+    /// Controllers with slots of their own, by device id.
+    pub devices: BTreeMap<String, DeviceSlots>,
 }
 
 impl Default for SlotState {
@@ -24,6 +44,7 @@ impl Default for SlotState {
             active: 0,
             remap_on: true,
             auto_switch: true,
+            devices: BTreeMap::new(),
         }
     }
 }
@@ -36,6 +57,34 @@ struct StateFile {
     active: usize,
     remap_on: Option<bool>,
     auto_switch: Option<bool>,
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    devices: BTreeMap<String, DeviceFile>,
+}
+
+#[derive(Default, Serialize, Deserialize)]
+#[serde(default)]
+struct DeviceFile {
+    slots: Vec<String>,
+    active: usize,
+}
+
+fn slots_from(file: Vec<String>) -> [Option<PathBuf>; SLOTS] {
+    let mut slots: [Option<PathBuf>; SLOTS] = Default::default();
+    for (slot, p) in slots.iter_mut().zip(file) {
+        *slot = (!p.is_empty()).then(|| PathBuf::from(p));
+    }
+    slots
+}
+
+fn slots_to(slots: &[Option<PathBuf>; SLOTS]) -> Vec<String> {
+    slots
+        .iter()
+        .map(|s| {
+            s.as_ref()
+                .map(|p| p.display().to_string())
+                .unwrap_or_default()
+        })
+        .collect()
 }
 
 impl SlotState {
@@ -51,31 +100,43 @@ impl SlotState {
                 return SlotState::default();
             }
         };
-        let mut s = SlotState::default();
-        for (slot, p) in s.slots.iter_mut().zip(file.slots) {
-            *slot = (!p.is_empty()).then(|| PathBuf::from(p));
+        SlotState {
+            slots: slots_from(file.slots),
+            active: file.active.min(SLOTS - 1),
+            remap_on: file.remap_on.unwrap_or(true),
+            auto_switch: file.auto_switch.unwrap_or(true),
+            devices: file
+                .devices
+                .into_iter()
+                .map(|(id, d)| {
+                    let slots = DeviceSlots {
+                        slots: slots_from(d.slots),
+                        active: d.active.min(SLOTS - 1),
+                    };
+                    (id, slots)
+                })
+                .collect(),
         }
-        s.active = file.active.min(SLOTS - 1);
-        s.remap_on = file.remap_on.unwrap_or(true);
-        s.auto_switch = file.auto_switch.unwrap_or(true);
-        s
     }
 
     /// Write to `path` atomically (temporary file, then rename).
     pub fn save(&self, path: &Path) -> std::io::Result<()> {
         let file = StateFile {
-            slots: self
-                .slots
-                .iter()
-                .map(|s| {
-                    s.as_ref()
-                        .map(|p| p.display().to_string())
-                        .unwrap_or_default()
-                })
-                .collect(),
+            slots: slots_to(&self.slots),
             active: self.active,
             remap_on: Some(self.remap_on),
             auto_switch: Some(self.auto_switch),
+            devices: self
+                .devices
+                .iter()
+                .map(|(id, d)| {
+                    let file = DeviceFile {
+                        slots: slots_to(&d.slots),
+                        active: d.active,
+                    };
+                    (id.clone(), file)
+                })
+                .collect(),
         };
         let text = toml::to_string_pretty(&file).map_err(std::io::Error::other)?;
         if let Some(dir) = path.parent() {
@@ -86,7 +147,7 @@ impl SlotState {
         std::fs::rename(&tmp, path)
     }
 
-    /// Config file of the active slot.
+    /// Config file of the active shared slot.
     pub fn active_profile(&self) -> Option<&PathBuf> {
         self.slots.get(self.active)?.as_ref()
     }
@@ -111,9 +172,18 @@ mod tests {
         s.slots[3] = Some(PathBuf::from("b.toml"));
         s.active = 1;
         s.remap_on = false;
+        let mut own = DeviceSlots::default();
+        own.slots[2] = Some(PathBuf::from("c.toml"));
+        own.active = 2;
+        s.devices
+            .insert(r"hid:HID\VID_054C&PID_0CE6\7&1".into(), own);
         s.save(&path).unwrap();
         assert_eq!(SlotState::load(&path), s);
         assert_eq!(s.active_profile(), Some(&PathBuf::from(r"C:\games\a.toml")));
+        assert_eq!(
+            s.devices.values().next().unwrap().active_profile(),
+            Some(&PathBuf::from("c.toml"))
+        );
 
         std::fs::write(&path, "this is = = not toml").unwrap();
         assert_eq!(

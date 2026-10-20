@@ -128,6 +128,7 @@ fn main() {
             commands::apply_to_slot,
             commands::select_slot,
             commands::clear_slot,
+            commands::own_slots,
             commands::set_remap,
             commands::set_auto_switch,
             commands::set_preferred_device,

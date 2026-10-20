@@ -10,7 +10,7 @@ pub mod service;
 pub mod slots;
 
 pub use host::{HostOptions, ServiceHandle, spawn, spawn_with};
-pub use live::{LiveDevice, LiveState};
-pub use runtime::{DriverState, DriverStatus, Runtime, TimerResolution};
+pub use live::{LiveDevice, LiveDeviceSlots, LiveState};
+pub use runtime::{DriverState, DriverStatus, Runtime, SessionInfo, TimerResolution};
 pub use service::{Service, ServiceCmd, ServiceOptions, ServiceReply, ipc_devices};
-pub use slots::{SLOTS, SlotState};
+pub use slots::{DeviceSlots, SLOTS, SlotState};

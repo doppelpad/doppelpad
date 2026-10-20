@@ -233,6 +233,10 @@ export interface LiveState {
   hidden_devices: number;
   warnings: string[];
   drivers: { virtual_pads: DriverState; device_hiding: DriverState };
+  /** Controllers with slots of their own. */
+  device_slots: { id: string; slots: (string | null)[]; active_slot: number }[];
+  /** Running profiles, the default session (`owner` null) first. */
+  sessions: LiveSession[];
 }
 
 // ----- library --------------------------------------------------------------------------
@@ -325,3 +329,14 @@ export interface Hotkeys {
 }
 
 export type HotkeyField = Exclude<keyof Hotkeys, 'hold_ms'>;
+
+/** One running profile: the shared slots' (`owner` null) or a controller's own. */
+export interface LiveSession {
+  owner: string | null;
+  /** The controller it reads now. */
+  device: string | null;
+  profile: string;
+  profile_path: string | null;
+  layer: number;
+  virtual_pad: string | null;
+}

@@ -262,19 +262,39 @@ fn reveal_path(path: &Path) -> std::io::Result<()> {
 
 // ----- service -------------------------------------------------------------------------
 
+/// `device`: a controller's own slots instead of the shared ones.
 #[tauri::command]
-pub fn apply_to_slot(state: State<AppState>, slot: usize, path: PathBuf) -> CmdResult<String> {
-    state.call(ServiceCmd::ApplyToSlot { slot, path })
+pub fn apply_to_slot(
+    state: State<AppState>,
+    slot: usize,
+    path: PathBuf,
+    device: Option<String>,
+) -> CmdResult<String> {
+    state.call(ServiceCmd::ApplyToSlot { device, slot, path })
 }
 
 #[tauri::command]
-pub fn select_slot(state: State<AppState>, slot: usize) -> CmdResult<String> {
-    state.call(ServiceCmd::SelectSlot(slot))
+pub fn select_slot(
+    state: State<AppState>,
+    slot: usize,
+    device: Option<String>,
+) -> CmdResult<String> {
+    state.call(ServiceCmd::SelectSlot { device, slot })
 }
 
 #[tauri::command]
-pub fn clear_slot(state: State<AppState>, slot: usize) -> CmdResult<String> {
-    state.call(ServiceCmd::ClearSlot(slot))
+pub fn clear_slot(
+    state: State<AppState>,
+    slot: usize,
+    device: Option<String>,
+) -> CmdResult<String> {
+    state.call(ServiceCmd::ClearSlot { device, slot })
+}
+
+/// Give a controller slots of its own, or let it use the shared slots again.
+#[tauri::command]
+pub fn own_slots(state: State<AppState>, device: String, on: bool) -> CmdResult<String> {
+    state.call(ServiceCmd::OwnSlots { device, on })
 }
 
 #[tauri::command]
