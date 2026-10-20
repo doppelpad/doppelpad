@@ -42,6 +42,15 @@ full_pull = 0.99             # LTFull / RTFull controls
 
 [virtual.keyboard]
 repeat = "native"            # "native" | "fast" | "slow" | "off" | interval in ms (1–1000)
+
+[virtual.sticks.left]        # same for [virtual.sticks.right]; how mappings push the stick
+initial = 1.0                # deflection a button starts at
+max = 1.0                    # largest deflection a held button reaches
+speed = 0.0                  # growth per second while held (0 = no ramp)
+acceleration = 0.0           # growth of that speed per second
+multiplier_x = 1.0           # scales speed and acceleration horizontally
+multiplier_y = 1.0           # ... and vertically
+curve = []                   # output curve of the whole virtual stick; empty = linear
 ```
 
 `[virtual.keyboard] repeat` sets how keys that mappings hold repeat, the way a physical
@@ -49,6 +58,15 @@ keyboard repeats a held key. Only the most recently pressed key repeats, and onl
 is held. `native` waits 500 ms, then repeats about every 30 ms with a little jitter;
 `fast` (10 ms), `slow` (50 ms) and a number of milliseconds repeat at once at that interval;
 `off` sends one key-down per press.
+
+`[virtual.sticks.*]` shapes what stick actions (`{ stick = "left", x = 0.0, y = 1.0 }`) send.
+While a button holds such an action, each axis starts at `initial` and grows by `speed` per
+second (plus `acceleration` per second²), up to `max` and never beyond the action's own
+deflection. The defaults push at once. Two actions pushing the same axis in opposite
+directions cancel out; actions on different axes add up without being normalised. `curve`
+then shapes everything the virtual stick sends, including the passed-through physical stick
+and analog routes. A layer can change these fields like the stick settings, under
+`[layers.virtual.sticks.left]`.
 
 ## Controls (what can trigger a mapping)
 
@@ -308,3 +326,6 @@ matter. The importer reports
 everything it could not represent, as diagnostics with JSON paths. These include radial
 menus, crosshairs, right trackpads, adaptive triggers, flick stick, LED settings and
 unsupported commands.
+
+In that format a button that pushes a stick ramps up gradually by default, so imported
+profiles get `[virtual.sticks.*]` settings with that ramp for every stick that buttons push.

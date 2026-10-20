@@ -327,6 +327,25 @@
       "routes": "Routen"
     },
     "all_layers": "Gilt auf allen Ebenen dieser Config, sofern eine Ebene es nicht ändert.",
+    "virtual": {
+      "title": "Tasten auf diesem Stick",
+      "hint": "Für Belegungen, die den virtuellen Stick per Taste bewegen.",
+      "preset_instant": "Sofort voll",
+      "preset_ramp": "Langsam steigern",
+      "initial": "Start bei",
+      "initial_hint": "Auslenkung im Moment des Drückens.",
+      "max": "Höchstens",
+      "max_hint": "Größte Auslenkung, die eine gehaltene Taste erreicht (die eigene Auslenkung einer Belegung kann kleiner sein).",
+      "speed": "Tempo",
+      "speed_hint": "Wie schnell die Auslenkung beim Halten wächst.",
+      "acceleration": "Beschleunigung",
+      "multiplier_x": "Tempo-Faktor horizontal",
+      "multiplier_y": "Tempo-Faktor vertikal",
+      "multiplier_hint": "Skaliert Tempo und Beschleunigung je Achse.",
+      "preview": "Auslenkung in den ersten zwei Sekunden, in denen eine Taste gehalten wird.",
+      "curve": "Ausgabekurve",
+      "curve_hint": "Formt alles, was der virtuelle Stick sendet, auch den durchgereichten Stick."
+    },
     "layer": {
       "own": "{layer} hat hier eigene Einstellungen.",
       "follows": "{layer} nutzt hier die Einstellungen der Haupt-Ebene. Eine Änderung gibt {layer} einen eigenen Wert.",

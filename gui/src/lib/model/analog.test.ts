@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { AnalogMapping, Profile, StickConfig, TriggerConfig } from '../types';
+import type { AnalogMapping, Profile, StickConfig, TriggerConfig, VirtualStick } from '../types';
 import defaultsJson from './fixtures/defaults.json';
 import examples from './fixtures/examples.json';
 import fixture from './fixtures/profile.json';
@@ -23,6 +23,7 @@ import {
   routeTargets,
   setStick,
   setTrigger,
+  setVirtualStick,
   shapeStick,
   shapeTrigger,
   sourcePatch,
@@ -30,6 +31,8 @@ import {
   stickResponse,
   triggerConfig,
   updateRoute,
+  virtualRamp,
+  virtualStickConfig,
 } from './analog';
 import { setStickLevel, setTriggerLevel, type ZoneDefaults } from './zones';
 
@@ -38,6 +41,7 @@ const def = defaultsJson as unknown as {
   stick: Required<StickConfig>;
   trigger: Required<TriggerConfig>;
   analog: Required<AnalogMapping>;
+  virtual_stick: Required<VirtualStick>;
 };
 
 const zd: ZoneDefaults = {
@@ -80,13 +84,31 @@ describe('stick and trigger settings', () => {
     expect('sticks' in p).toBe(false);
   });
 
+  it('include how buttons push the virtual sticks', () => {
+    let p: Profile = { ...empty(), virtual: { keyboard: { repeat: 40 } } };
+    p = setVirtualStick(p, 'left', { initial: 0.25, speed: 1, acceleration: 0.5, multiplier_y: 2 }, def.virtual_stick);
+    p = setVirtualStick(p, 'right', { curve: [[0.5, 0.25]] }, def.virtual_stick);
+    expect(p.virtual).toEqual(fixture.virtual);
+    const left = virtualStickConfig(p, 'left', def.virtual_stick);
+    expect(virtualRamp(left, 0, 1)).toBe(0.25);
+    expect(virtualRamp(left, 0.5, 1)).toBeCloseTo(0.8125);
+    expect(virtualRamp(left, 0.5, 2)).toBe(1);
+    expect(virtualRamp(def.virtual_stick, 3, 1)).toBe(1);
+    // Back to the defaults: the section disappears again.
+    p = setVirtualStick(p, 'left', def.virtual_stick, def.virtual_stick);
+    p = setVirtualStick(p, 'right', def.virtual_stick, def.virtual_stick);
+    expect(p.virtual).toEqual({ keyboard: { repeat: 40 } });
+  });
+
   it('on a layer, keep only what differs from Main', () => {
     const fx = fixture as unknown as Profile;
-    let p: Profile = { ...empty(), sticks: fx.sticks, triggers: fx.triggers, layers: [{ id: 1, name: 'Aim', inherit: true }] };
+    const base = { sticks: fx.sticks, triggers: fx.triggers, virtual: fx.virtual };
+    let p: Profile = { ...empty(), ...base, layers: [{ id: 1, name: 'Aim', inherit: true }] };
     const mainRight = stickConfig(p, 'right', def.stick);
     p = setStick(p, 'right', { sensitivity: 0.5, deadzone: mainRight.deadzone }, def.stick, 1);
     p = setStick(p, 'right', { zones: setStickLevel(mainRight.zones, 'low', 'both', 0.125, zd) }, def.stick, 1);
     p = setTrigger(p, 'right', { full_pull: 0.75 }, def.trigger, 1);
+    p = setVirtualStick(p, 'left', { max: 0.5, speed: 1 }, def.virtual_stick, 1);
     expect(p.layers?.[0]).toEqual(fx.layers?.[0]);
     expect(p.sticks).toEqual(fx.sticks);
     expect(stickConfig(p, 'right', def.stick, 1)).toEqual({ ...mainRight, sensitivity: 0.5, zones: { low: 0.125 } });
@@ -97,6 +119,7 @@ describe('stick and trigger settings', () => {
     p = setStick(p, 'right', { sensitivity: mainRight.sensitivity }, def.stick, 1);
     expect(layerOverrides(p, 1, 'sticks', 'right')).toEqual(['zones']);
     p = resetLayerPart(resetLayerPart(p, 1, 'sticks', 'right'), 1, 'triggers', 'right');
+    p = resetLayerPart(p, 1, 'virtual_sticks', 'left');
     expect(p.layers?.[0]).toEqual({ id: 1, name: 'Aim', inherit: true });
 
     // An undeclared layer is declared on first change.

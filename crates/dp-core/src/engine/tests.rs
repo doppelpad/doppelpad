@@ -476,6 +476,114 @@ fn keyboard_to_stick_and_mute() {
     assert_eq!(h.virtual_pad().stick(Stick::Left), (1.0, 0.0));
 }
 
+fn push(stick: Stick, x: f32, y: f32) -> Action {
+    Action::Stick {
+        stick,
+        x,
+        y,
+        action: Press::Auto,
+    }
+}
+
+fn near(a: (f32, f32), b: (f32, f32)) -> bool {
+    (a.0 - b.0).abs() < 1e-3 && (a.1 - b.1).abs() < 1e-3
+}
+
+#[test]
+fn buttons_ramp_a_virtual_stick_up() {
+    use crate::profile::VirtualStick;
+    let mut p = Profile::default();
+    p.virtual_devices.sticks.left = VirtualStick {
+        initial: 0.25,
+        max: 0.75,
+        speed: 1.0,
+        multiplier_x: 2.0,
+        ..Default::default()
+    };
+    p.mappings
+        .push(map(Control::Key(Key::W), vec![push(Stick::Left, 0.0, 1.0)]));
+    p.mappings.push(map(
+        Control::Key(Key::S),
+        vec![push(Stick::Left, 0.0, -1.0)],
+    ));
+    p.mappings
+        .push(map(Control::Key(Key::D), vec![push(Stick::Left, 0.4, 0.0)]));
+    let mut h = Harness::new(p);
+
+    h.key(Key::W, true); // 1
+    assert!(
+        near(h.virtual_pad().stick(Stick::Left), (0.0, 0.25)),
+        "starts at `initial`"
+    );
+    h.until(251);
+    assert!(near(h.virtual_pad().stick(Stick::Left), (0.0, 0.5)));
+    h.until(700);
+    assert!(
+        near(h.virtual_pad().stick(Stick::Left), (0.0, 0.75)),
+        "capped at `max`"
+    );
+
+    h.key(Key::S, true); // 701: opposite directions cancel
+    assert_eq!(h.virtual_pad().stick(Stick::Left).1, 0.0);
+    h.key(Key::S, false);
+    assert!(near(h.virtual_pad().stick(Stick::Left), (0.0, 0.75)));
+
+    h.key(Key::D, true); // 703: x doubles the speed but stops at the action's 0.4
+    assert!(
+        near(h.virtual_pad().stick(Stick::Left), (0.25, 0.75)),
+        "not normalised"
+    );
+    h.until(753);
+    assert!(near(h.virtual_pad().stick(Stick::Left), (0.35, 0.75)));
+    h.until(900);
+    assert!(near(h.virtual_pad().stick(Stick::Left), (0.4, 0.75)));
+}
+
+#[test]
+fn virtual_stick_curve_and_layer_settings() {
+    use crate::profile::{LayerVirtual, LayerVirtualSticks, VirtualStickPatch};
+    let mut p = Profile::default();
+    p.virtual_devices.sticks.right.curve = vec![[0.5, 0.25]];
+    p.layers.push(Layer {
+        id: 1,
+        virtual_devices: LayerVirtual {
+            sticks: LayerVirtualSticks {
+                right: VirtualStickPatch {
+                    curve: Some(Vec::new()),
+                    max: Some(0.3),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        },
+        ..Default::default()
+    });
+    let mut shift = map(b(PadButton::Back), vec![]);
+    shift.jump = Some(Jump {
+        layer: 1,
+        mode: JumpMode::Hold,
+        delay_ms: None,
+    });
+    p.mappings.push(shift);
+    p.mappings.push(map(
+        Control::Key(Key::L),
+        vec![push(Stick::Right, 0.5, 0.0)],
+    ));
+    let mut h = Harness::new(p);
+
+    h.key(Key::L, true);
+    assert!(
+        near(h.virtual_pad().stick(Stick::Right), (0.25, 0.0)),
+        "curve applies"
+    );
+    h.btn(PadButton::Back, true);
+    h.until(10);
+    assert!(
+        near(h.virtual_pad().stick(Stick::Right), (0.3, 0.0)),
+        "layer: linear, max 0.3"
+    );
+}
+
 #[test]
 fn quick_key_tap_within_one_tick_is_not_lost() {
     let mut p = Profile::default();

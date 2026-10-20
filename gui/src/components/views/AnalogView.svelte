@@ -7,6 +7,7 @@
   import RouteEditor from '../analog/RouteEditor.svelte';
   import StickEditor from '../analog/StickEditor.svelte';
   import TriggerEditor from '../analog/TriggerEditor.svelte';
+  import VirtualStickEditor from '../analog/VirtualStickEditor.svelte';
 
   const TABS: AnalogTab[] = ['left', 'right', 'triggers', 'routes'];
   const routeCount = $derived(app.profile ? layerRoutes(app.profile, app.layer).length : 0);
@@ -33,6 +34,7 @@
       <TriggerEditor />
     {:else}
       <StickEditor side={app.analogTab} />
+      <VirtualStickEditor side={app.analogTab} />
     {/if}
   {/if}
 </div>

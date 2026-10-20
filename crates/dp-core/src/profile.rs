@@ -44,6 +44,149 @@ pub struct Profile {
 pub struct VirtualDevices {
     #[serde(skip_serializing_if = "is_default")]
     pub keyboard: VirtualKeyboard,
+    #[serde(skip_serializing_if = "is_default")]
+    pub sticks: VirtualSticks,
+}
+
+/// How mappings push the virtual sticks (`[virtual.sticks.left]`, ...).
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct VirtualSticks {
+    pub left: VirtualStick,
+    pub right: VirtualStick,
+}
+
+impl VirtualSticks {
+    pub fn get(&self, s: Stick) -> &VirtualStick {
+        match s {
+            Stick::Left => &self.left,
+            Stick::Right => &self.right,
+        }
+    }
+}
+
+/// One virtual stick: how far and how fast buttons and keys push it, and its output curve.
+/// The defaults push at once to the mapped deflection.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct VirtualStick {
+    /// Deflection a button starts at, `[0, 1]`.
+    pub initial: f32,
+    /// Largest deflection buttons reach, `[0, 1]`.
+    pub max: f32,
+    /// Growth of the deflection per second while held.
+    pub speed: f32,
+    /// Growth of that speed per second.
+    pub acceleration: f32,
+    /// Scale of speed and acceleration on the horizontal axis.
+    pub multiplier_x: f32,
+    /// Scale of speed and acceleration on the vertical axis.
+    pub multiplier_y: f32,
+    /// Output curve of the whole virtual stick (`[deflection, output]` points, linear in
+    /// between); applies to every source, empty = linear.
+    pub curve: Vec<[f32; 2]>,
+}
+
+impl Default for VirtualStick {
+    fn default() -> Self {
+        VirtualStick {
+            initial: 1.0,
+            max: 1.0,
+            speed: 0.0,
+            acceleration: 0.0,
+            multiplier_x: 1.0,
+            multiplier_y: 1.0,
+            curve: Vec::new(),
+        }
+    }
+}
+
+impl VirtualStick {
+    /// Deflection a button pushing along one axis has reached after `held_s` seconds.
+    pub fn ramp(&self, held_s: f32, multiplier: f32) -> f32 {
+        let grown = (self.speed + 0.5 * self.acceleration * held_s) * held_s * multiplier;
+        (self.initial + grown).min(self.max).clamp(0.0, 1.0)
+    }
+}
+
+/// A layer's own settings for one virtual stick; every field left out is the base layer's.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct VirtualStickPatch {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub initial: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub speed: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub acceleration: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub multiplier_x: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub multiplier_y: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub curve: Option<Vec<[f32; 2]>>,
+}
+
+impl VirtualStickPatch {
+    pub fn apply(&self, base: &VirtualStick) -> VirtualStick {
+        VirtualStick {
+            initial: self.initial.unwrap_or(base.initial),
+            max: self.max.unwrap_or(base.max),
+            speed: self.speed.unwrap_or(base.speed),
+            acceleration: self.acceleration.unwrap_or(base.acceleration),
+            multiplier_x: self.multiplier_x.unwrap_or(base.multiplier_x),
+            multiplier_y: self.multiplier_y.unwrap_or(base.multiplier_y),
+            curve: self.curve.clone().unwrap_or_else(|| base.curve.clone()),
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        *self == VirtualStickPatch::default()
+    }
+
+    /// The patch that turns `base` into `target`.
+    pub fn between(base: &VirtualStick, target: &VirtualStick) -> VirtualStickPatch {
+        fn d<T: PartialEq + Clone>(b: &T, t: &T) -> Option<T> {
+            (b != t).then(|| t.clone())
+        }
+        VirtualStickPatch {
+            initial: d(&base.initial, &target.initial),
+            max: d(&base.max, &target.max),
+            speed: d(&base.speed, &target.speed),
+            acceleration: d(&base.acceleration, &target.acceleration),
+            multiplier_x: d(&base.multiplier_x, &target.multiplier_x),
+            multiplier_y: d(&base.multiplier_y, &target.multiplier_y),
+            curve: d(&base.curve, &target.curve),
+        }
+    }
+}
+
+/// A layer's own virtual device settings (`[layers.virtual.sticks.left]`, ...).
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct LayerVirtual {
+    #[serde(skip_serializing_if = "is_default")]
+    pub sticks: LayerVirtualSticks,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct LayerVirtualSticks {
+    #[serde(skip_serializing_if = "VirtualStickPatch::is_empty")]
+    pub left: VirtualStickPatch,
+    #[serde(skip_serializing_if = "VirtualStickPatch::is_empty")]
+    pub right: VirtualStickPatch,
+}
+
+impl LayerVirtualSticks {
+    pub fn apply(&self, base: &VirtualSticks) -> VirtualSticks {
+        VirtualSticks {
+            left: self.left.apply(&base.left),
+            right: self.right.apply(&base.right),
+        }
+    }
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -592,6 +735,9 @@ pub struct Layer {
     pub sticks: LayerSticks,
     #[serde(skip_serializing_if = "is_default")]
     pub triggers: LayerTriggers,
+    /// Virtual stick settings of this layer, on top of the base layer's.
+    #[serde(rename = "virtual", skip_serializing_if = "is_default")]
+    pub virtual_devices: LayerVirtual,
 }
 
 impl Default for Layer {
@@ -603,6 +749,7 @@ impl Default for Layer {
             not_inherited: Vec::new(),
             sticks: LayerSticks::default(),
             triggers: LayerTriggers::default(),
+            virtual_devices: LayerVirtual::default(),
         }
     }
 }

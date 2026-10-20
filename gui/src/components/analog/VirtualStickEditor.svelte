@@ -1,0 +1,246 @@
+<script lang="ts">
+  // How mappings push one virtual stick from buttons and keys: where the deflection starts,
+  // how fast it grows and where it stops, with a preview of the first two seconds, and the
+  // output curve of the whole virtual stick.
+  import { t } from '../../lib/i18n/index.svelte';
+  import { setVirtualStick, virtualRamp, virtualStickConfig, type CurvePoint, type Side } from '../../lib/model/analog';
+  import { app } from '../../lib/state/app.svelte';
+  import type { VirtualStick } from '../../lib/types';
+  import Slider from '../ui/Slider.svelte';
+  import CurveEditor from './CurveEditor.svelte';
+  import LayerNote from './LayerNote.svelte';
+
+  let { side }: { side: Side } = $props();
+
+  /** The format's ramp: start at about a fifth, then grow and speed up. */
+  const RAMP: Partial<VirtualStick> = { initial: 0.21, speed: 1, acceleration: 0.5 };
+
+  const def = $derived(app.catalog?.defaults.virtual_stick);
+  const stickDef = $derived(app.catalog?.defaults.stick);
+  const cfg = $derived(app.profile && def ? virtualStickConfig(app.profile, side, def, app.layer) : null);
+  const ref = $derived(app.layer === 0 || !app.profile || !def ? def : virtualStickConfig(app.profile, side, def));
+  const resetLabel = $derived(app.layer === 0 ? undefined : t('analog.layer.reset_field'));
+  const disabled = $derived(app.readOnly);
+  const instant = $derived(!!cfg && cfg.speed === 0 && cfg.acceleration === 0 && cfg.initial >= cfg.max);
+
+  function set(patch: Partial<VirtualStick>) {
+    if (app.profile && def) app.update(setVirtualStick(app.profile, side, patch, def, app.layer));
+  }
+
+  // Preview: deflection over the first two seconds of holding a button (horizontal axis).
+  const W = 240;
+  const H = 90;
+  const points = $derived.by(() => {
+    if (!cfg) return '';
+    const pts: string[] = [];
+    for (let i = 0; i <= 48; i++) {
+      const s = (i / 48) * 2;
+      pts.push(`${((s / 2) * W).toFixed(1)},${((1 - virtualRamp(cfg, s, cfg.multiplier_x)) * H).toFixed(1)}`);
+    }
+    return pts.join(' ');
+  });
+  /** The curve preview draws only the curve (no stick deadzone or sensitivity). */
+  const curveCfg = $derived(
+    cfg && stickDef ? { ...stickDef, deadzone: 0, outer: 1, anti_deadzone: 0, sensitivity: 1, curve: cfg.curve } : null,
+  );
+</script>
+
+{#if cfg && def && ref}
+  <section class="virtual">
+    <div class="sub">{t('analog.virtual.title')}</div>
+    <p class="hint">{t('analog.virtual.hint')}</p>
+    <LayerNote kind="virtual_sticks" sides={[side]} />
+    <div class="grid">
+      <div class="controls">
+        <div class="presets">
+          <button class="btn" class:on={instant} {disabled} onclick={() => set({ initial: 1, max: 1, speed: 0, acceleration: 0 })}>
+            {t('analog.virtual.preset_instant')}
+          </button>
+          <button class="btn" class:on={!instant} {disabled} onclick={() => set(RAMP)}>{t('analog.virtual.preset_ramp')}</button>
+        </div>
+        <Slider
+          label={t('analog.virtual.initial')}
+          value={cfg.initial}
+          def={ref.initial}
+          {resetLabel}
+          min={0}
+          max={1}
+          step={0.01}
+          scale={100}
+          unit="%"
+          hint={t('analog.virtual.initial_hint')}
+          {disabled}
+          onchange={(v) => set({ initial: v })}
+        />
+        <Slider
+          label={t('analog.virtual.max')}
+          value={cfg.max}
+          def={ref.max}
+          {resetLabel}
+          min={0.05}
+          max={1}
+          step={0.01}
+          scale={100}
+          unit="%"
+          hint={t('analog.virtual.max_hint')}
+          {disabled}
+          onchange={(v) => set({ max: v })}
+        />
+        <Slider
+          label={t('analog.virtual.speed')}
+          value={cfg.speed}
+          def={ref.speed}
+          {resetLabel}
+          min={0}
+          max={4}
+          step={0.05}
+          unit="/s"
+          hint={t('analog.virtual.speed_hint')}
+          {disabled}
+          onchange={(v) => set({ speed: v })}
+        />
+        <Slider
+          label={t('analog.virtual.acceleration')}
+          value={cfg.acceleration}
+          def={ref.acceleration}
+          {resetLabel}
+          min={0}
+          max={4}
+          step={0.05}
+          unit="/s²"
+          {disabled}
+          onchange={(v) => set({ acceleration: v })}
+        />
+        <Slider
+          label={t('analog.virtual.multiplier_x')}
+          value={cfg.multiplier_x}
+          def={ref.multiplier_x}
+          {resetLabel}
+          min={0.1}
+          max={5}
+          step={0.1}
+          unit="×"
+          {disabled}
+          onchange={(v) => set({ multiplier_x: v })}
+        />
+        <Slider
+          label={t('analog.virtual.multiplier_y')}
+          value={cfg.multiplier_y}
+          def={ref.multiplier_y}
+          {resetLabel}
+          min={0.1}
+          max={5}
+          step={0.1}
+          unit="×"
+          hint={t('analog.virtual.multiplier_hint')}
+          {disabled}
+          onchange={(v) => set({ multiplier_y: v })}
+        />
+      </div>
+      <div class="previews">
+        <svg viewBox="-4 -4 {W + 8} {H + 22}" role="img" aria-label={t('analog.virtual.preview')}>
+          <rect x="0" y="0" width={W} height={H} class="frame" />
+          <line x1="0" x2={W} y1={(1 - cfg.max) * H} y2={(1 - cfg.max) * H} class="cap" />
+          <polyline {points} class="ramp" />
+          <text x="0" y={H + 14}>0 s</text>
+          <text x={W / 2} y={H + 14} text-anchor="middle">1 s</text>
+          <text x={W} y={H + 14} text-anchor="end">2 s</text>
+        </svg>
+        <p class="live-hint">{t('analog.virtual.preview')}</p>
+        {#if curveCfg}
+          <div class="sub">{t('analog.virtual.curve')}</div>
+          <CurveEditor cfg={curveCfg} live={null} {disabled} onchange={(curve: CurvePoint[]) => set({ curve })} />
+          <p class="live-hint">{t('analog.virtual.curve_hint')}</p>
+        {/if}
+      </div>
+    </div>
+  </section>
+{/if}
+
+<style>
+  .virtual {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding-top: 18px;
+    border-top: 1px solid var(--line);
+  }
+  .hint {
+    margin: -4px 0 0;
+    color: var(--text-dim);
+    font-size: 12px;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: minmax(240px, 1fr) minmax(260px, 320px);
+    gap: 28px;
+    align-items: start;
+  }
+  @container analog (max-width: 620px) {
+    .grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+  .controls {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    min-width: 0;
+  }
+  .presets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .presets .btn {
+    font-size: 12px;
+    padding: 4px 10px;
+  }
+  .presets .btn.on {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: var(--accent-soft);
+  }
+  .previews {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+  }
+  svg {
+    width: 100%;
+    max-width: 340px;
+    height: auto;
+    align-self: center;
+  }
+  svg text {
+    font-size: 10px;
+    fill: var(--text-faint);
+  }
+  .frame {
+    fill: var(--bg-1);
+    stroke: var(--line);
+  }
+  .cap {
+    stroke: var(--text-faint);
+    stroke-dasharray: 3 3;
+  }
+  .ramp {
+    fill: none;
+    stroke: var(--accent);
+    stroke-width: 2;
+  }
+  .live-hint {
+    margin: 0 0 6px;
+    text-align: center;
+    color: var(--text-faint);
+    font-size: 11.5px;
+  }
+  .sub {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+</style>

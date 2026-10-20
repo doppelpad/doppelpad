@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 
 pub use compat::ImportError;
 pub use diag::{Diagnostic, Diagnostics, Severity};
-use dp_core::profile::{Action, Command, Mode, Profile, Sticks, Triggers};
+use dp_core::profile::{Action, Command, Mode, Profile, Sticks, Triggers, VirtualSticks};
 
 #[derive(Debug, thiserror::Error)]
 pub enum LoadError {
@@ -167,6 +167,7 @@ pub fn validate(p: &Profile) -> Diagnostics {
         }
     }
     check_analog(&mut d, "", &p.sticks, &p.triggers, [true; 4]);
+    check_virtual(&mut d, "", &p.virtual_devices.sticks, [true; 2]);
     for (i, l) in p.layers.iter().enumerate() {
         // Only the sides a layer changes are checked again.
         let changed = [
@@ -185,6 +186,12 @@ pub fn validate(p: &Profile) -> Diagnostics {
                 &triggers,
                 changed,
             );
+        }
+        let vs = &l.virtual_devices.sticks;
+        let changed = [!vs.left.is_empty(), !vs.right.is_empty()];
+        if changed.contains(&true) {
+            let sticks = vs.apply(&p.virtual_devices.sticks);
+            check_virtual(&mut d, &format!("layers[{i}]."), &sticks, changed);
         }
     }
     d
@@ -232,6 +239,38 @@ fn check_analog(
     for ((name, t), _) in sides.into_iter().zip(&which[2..]).filter(|(_, on)| **on) {
         if let Some(msg) = zone_problem(t.zone_thresholds()) {
             d.error(format!("{prefix}triggers.{name}.zones"), msg);
+        }
+    }
+}
+
+/// Range checks for the virtual sticks (`which`: left, right).
+fn check_virtual(d: &mut Diagnostics, prefix: &str, sticks: &VirtualSticks, which: [bool; 2]) {
+    let sides = [("left", &sticks.left), ("right", &sticks.right)];
+    for ((name, s), _) in sides.into_iter().zip(which).filter(|(_, on)| *on) {
+        let path = |field: &str| format!("{prefix}virtual.sticks.{name}.{field}");
+        for (field, v) in [("initial", s.initial), ("max", s.max)] {
+            if !(0.0..=1.0).contains(&v) {
+                d.error(path(field), "must be in [0, 1]");
+            }
+        }
+        for (field, v) in [("speed", s.speed), ("acceleration", s.acceleration)] {
+            if !(0.0..=100.0).contains(&v) {
+                d.error(path(field), "must be between 0 and 100");
+            }
+        }
+        for (field, v) in [
+            ("multiplier_x", s.multiplier_x),
+            ("multiplier_y", s.multiplier_y),
+        ] {
+            if !(0.1..=5.0).contains(&v) {
+                d.error(path(field), "must be between 0.1 and 5");
+            }
+        }
+        if s.curve
+            .iter()
+            .any(|pt| !(0.0..=1.0).contains(&pt[0]) || !(0.0..=1.0).contains(&pt[1]))
+        {
+            d.error(path("curve"), "points must be in [0, 1]");
         }
     }
 }
@@ -436,6 +475,25 @@ while_held = ["LT", "Mouse:Right"]
         let d = validate(&bad);
         assert!(
             d.iter().any(|x| x.path == "layers[0].sticks.right.zones"),
+            "{d:?}"
+        );
+    }
+
+    #[test]
+    fn virtual_stick_settings_round_trip_and_validate() {
+        let text = "[virtual.sticks.left]\ninitial = 0.25\nspeed = 1.0\n\n[[layers]]\nid = 1\ninherit = true\n\n[layers.virtual.sticks.right]\nmax = 0.5\n";
+        let p = parse_toml(text).unwrap();
+        assert_eq!(p.virtual_devices.sticks.left.initial, 0.25);
+        assert_eq!(p.virtual_devices.sticks.right.initial, 1.0, "default");
+        assert_eq!(p.layers[0].virtual_devices.sticks.right.max, Some(0.5));
+        assert!(!validate(&p).has_errors());
+        assert_eq!(parse_toml(&to_toml(&p)).unwrap(), p);
+
+        let bad = parse_toml("[[layers]]\nid = 1\ninherit = true\n\n[layers.virtual.sticks.left]\nmultiplier_x = 9.0\n").unwrap();
+        let d = validate(&bad);
+        assert!(
+            d.iter()
+                .any(|x| x.path == "layers[0].virtual.sticks.left.multiplier_x"),
             "{d:?}"
         );
     }

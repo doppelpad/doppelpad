@@ -37,5 +37,14 @@
     "trackball_friction": 0.0,
     "while_held": [],
     "consume": true
+  },
+  "virtual_stick": {
+    "initial": 1.0,
+    "max": 1.0,
+    "speed": 0.0,
+    "acceleration": 0.0,
+    "multiplier_x": 1.0,
+    "multiplier_y": 1.0,
+    "curve": []
   }
 }
