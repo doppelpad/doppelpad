@@ -278,6 +278,11 @@ settings to map each pad on its own. The Steam Controller's right pad also works
 stick. When Steam runs, it adds a virtual Xbox controller of its own for these pads; ignore
 one of the two in *Settings → Controllers*.
 
+GameCube controllers on the USB adapter (Nintendo's or a clone switched to Wii U mode) show
+up one per occupied port. The adapter works with Windows' own driver and with the WinUSB
+driver Dolphin needs; with the WinUSB driver Doppelpad cannot hide it from games. Rumble
+needs the adapter's second (grey) plug.
+
 Other game pads and joysticks (HID devices without a driver of their own) work with a guessed
 layout at first. Choose **Identify buttons …** in their menu: Doppelpad asks for each button,
 trigger and stick direction in turn and records what the controller sends (skip what it does

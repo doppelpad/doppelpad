@@ -6,6 +6,7 @@
 //! grip, Nintendo Switch Online pads), [`switch2`] the Switch 2 USB protocol, and [`wired`]
 //! third-party pads that only send a plain input report.
 
+pub mod gcadapter;
 pub mod switch1;
 pub mod switch2;
 pub mod wired;

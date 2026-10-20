@@ -58,6 +58,10 @@ fn driver_kind(vid: u16, pid: u16, usage_page: u16, usage: u16) -> Option<Driver
     if let Some(m) = sony::model_for(vid, pid) {
         return (usage == 0x05).then_some(DriverKind::Sony(m));
     }
+    // The GameCube adapter has a backend of its own.
+    if crate::nintendo::gcadapter::is_adapter(vid, pid) {
+        return None;
+    }
     let pad = matches!(usage, 0x04 | 0x05);
     // Nintendo pads are game pads over Bluetooth; wired ones may report a joystick.
     if let Some(m) = nintendo::model_for(vid, pid) {
