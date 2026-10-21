@@ -15,7 +15,7 @@ use interprocess::local_socket::{
 };
 use serde::{Deserialize, Serialize};
 
-pub const SOCKET_NAME: &str = "doppelpad.sock";
+const SOCKET_NAME: &str = "doppelpad.sock";
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "cmd", rename_all = "snake_case")]
@@ -74,12 +74,9 @@ pub struct Status {
     pub hidden_devices: usize,
     pub warnings: Vec<String>,
     /// Profile file of each slot (1–4), `None` when empty.
-    #[serde(default)]
     pub slots: Vec<Option<String>>,
     /// The active slot, 1–4.
-    #[serde(default)]
     pub active_slot: usize,
-    #[serde(default)]
     pub remap_on: bool,
 }
 
@@ -91,7 +88,6 @@ pub struct Device {
     pub vendor_id: u16,
     pub product_id: u16,
     /// OS instance paths used to hide the device (two for a Joy-Con pair).
-    #[serde(default)]
     pub instance_paths: Vec<String>,
 }
 
@@ -102,6 +98,29 @@ pub enum Response {
     Error { message: String },
     Status(Status),
     Devices { devices: Vec<Device> },
+}
+
+impl Response {
+    pub fn ok(message: impl Into<String>) -> Self {
+        Response::Ok {
+            message: message.into(),
+        }
+    }
+
+    pub fn error(message: impl Into<String>) -> Self {
+        Response::Error {
+            message: message.into(),
+        }
+    }
+}
+
+impl From<Result<String, String>> for Response {
+    fn from(r: Result<String, String>) -> Self {
+        match r {
+            Ok(message) => Response::ok(message),
+            Err(message) => Response::error(message),
+        }
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -132,8 +151,7 @@ pub fn call(req: &Request) -> Result<Response, IpcError> {
 
 fn call_on(socket: &str, req: &Request, timeout: Duration) -> Result<Response, IpcError> {
     let stream = Stream::connect(name(socket)?).map_err(IpcError::NotRunning)?;
-    let mut line = serde_json::to_string(req)?;
-    line.push('\n');
+    let line = json_line(req)?;
     // Named pipes have no timeouts on Windows: the exchange runs on a helper thread, and a
     // daemon that does not answer in time is given up on.
     let (tx, rx) = mpsc::channel();
@@ -200,7 +218,7 @@ fn serve_on(socket: &str, mut handler: impl FnMut(Request) -> Response) -> Resul
                 let shutdown = req == Request::Shutdown;
                 let r = handler(req);
                 if shutdown {
-                    let _ = send(&mut conn, &r);
+                    let _ = write_line(&mut conn, &r);
                     // Wake the accept loop so that it sees the flag and closes the socket.
                     stop.store(true, Ordering::Relaxed);
                     if Stream::connect(name(socket)?).is_ok() {
@@ -214,15 +232,20 @@ fn serve_on(socket: &str, mut handler: impl FnMut(Request) -> Response) -> Resul
                 message: format!("bad request: {e}"),
             },
         };
-        let _ = send(&mut conn, &response);
+        let _ = write_line(&mut conn, &response);
     }
     Ok(())
 }
 
-fn send(w: &mut impl Write, r: &Response) -> Result<(), IpcError> {
-    let mut line = serde_json::to_string(r)?;
+/// One message as it travels: JSON on a single line.
+fn json_line(value: &impl Serialize) -> serde_json::Result<String> {
+    let mut line = serde_json::to_string(value)?;
     line.push('\n');
-    w.write_all(line.as_bytes())?;
+    Ok(line)
+}
+
+fn write_line(w: &mut impl Write, value: &impl Serialize) -> Result<(), IpcError> {
+    w.write_all(json_line(value)?.as_bytes())?;
     Ok(())
 }
 
@@ -343,16 +366,21 @@ mod tests {
 
     #[test]
     fn device_hiding_paths() {
-        let d: Device = serde_json::from_str(
-            r#"{"id":"hid:x","name":"Pad","backend":"hid","vendor_id":1,"product_id":2}"#,
-        )
-        .unwrap();
-        assert!(d.instance_paths.is_empty(), "older daemons send no paths");
         let pair = Device {
+            id: "hid:x".into(),
+            name: "Joy-Con (L/R)".into(),
+            backend: "hid".into(),
+            vendor_id: 1,
+            product_id: 2,
             instance_paths: vec!["A".into(), "B".into()],
-            ..d
         };
         let json = serde_json::to_string(&pair).unwrap();
         assert!(json.contains(r#""instance_paths":["A","B"]"#), "{json}");
+        assert_eq!(serde_json::from_str::<Device>(&json).unwrap(), pair);
+        let without = r#"{"id":"hid:x","name":"Pad","backend":"hid","vendor_id":1,"product_id":2}"#;
+        assert!(
+            serde_json::from_str::<Device>(without).is_err(),
+            "the paths are required"
+        );
     }
 }
