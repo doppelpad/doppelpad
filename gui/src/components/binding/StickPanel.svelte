@@ -4,6 +4,7 @@
   // and a graph with the live stick deflection.
   import { X } from '@lucide/svelte';
   import { t } from '../../lib/i18n/index.svelte';
+  import { layerColor } from '../../lib/theme/layers';
   import { MOUSE_PRESETS, mousePresetOf, mouseResponse, updateRoute, type MousePreset, type Side } from '../../lib/model/analog';
   import { STICK_GROUPS, stickGroupOf, stickRouteIndex, stickSource } from '../../lib/model/stickgroups';
   import { app } from '../../lib/state/app.svelte';
@@ -51,7 +52,7 @@
   <div class="head">
     <div class="title">
       <span class="name">{t(`analog.routes.sources.${stickSource(side)}`)}</span>
-      <span class="layer" style="--c: var(--layer-{Math.min(app.layer, 6)})">{app.layerLabel(app.layer)}</span>
+      <span class="layer" style="--c: {layerColor(app.layer)}">{app.layerLabel(app.layer)}</span>
     </div>
     <button class="icon-btn" title={t('common.close')} onclick={() => app.select(null)}><X size={16} /></button>
   </div>

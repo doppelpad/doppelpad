@@ -5,6 +5,7 @@
   import { ArrowLeft, ArrowUp, ArrowDown, X, Circle, Square, Plus, Timer, Vibrate, Gamepad2, SeparatorHorizontal } from '@lucide/svelte';
   import { onDestroy } from 'svelte';
   import { t } from '../../lib/i18n/index.svelte';
+  import { layerColor } from '../../lib/theme/layers';
   import { controlLabel } from '../../lib/model/controls';
   import { keyFromEvent } from '../../lib/model/keymap';
   import { recordedSteps } from '../../lib/model/actions';
@@ -150,7 +151,7 @@
           control: comboList(target.trigger).map((c) => controlLabel(c, app.family)).join(' + '),
         })}
       </h2>
-      <span class="layer" style="--c: var(--layer-{Math.min(target.layer, 6)})">{app.layerLabel(target.layer)}</span>
+      <span class="layer" style="--c: {layerColor(target.layer)}">{app.layerLabel(target.layer)}</span>
     </div>
 
     <div class="modes">

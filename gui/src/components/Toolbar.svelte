@@ -2,6 +2,7 @@
   import { Gamepad2, RotateCcw, Keyboard, Mouse, Combine, Cable, Joystick, Plus, Ellipsis, ChevronDown } from '@lucide/svelte';
   import { api, errorText } from '../lib/api';
   import { t } from '../lib/i18n/index.svelte';
+  import { layerColor } from '../lib/theme/layers';
   import { insertPreset, makePreset } from '../lib/model/presets';
   import { addLayer, clearLayer, copyLayer, layerIds, pasteLayer, removeLayer, renameLayer } from '../lib/model/profile';
   import { app, type View } from '../lib/state/app.svelte';
@@ -17,7 +18,6 @@
   ]);
 
   const layers = $derived(app.profile ? layerIds(app.profile) : [0]);
-  const layerColor = (id: number) => `var(--layer-${Math.min(id, 6)})`;
 
   // Chip widths come from an invisible copy of every chip, so the strip knows what fits before showing it.
   const GAP = 4;
