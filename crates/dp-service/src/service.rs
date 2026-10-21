@@ -1254,6 +1254,7 @@ impl Service {
                 error: self.dsu_error.clone(),
             },
             auto_switch: self.state.auto_switch,
+            auto_active: self.auto_active.is_some(),
             suspended: self.rt.is_suspended(),
             foreground: self.foreground.clone(),
             virtual_pad: self.rt.virtual_pad().map(|k| format!("{k:?}")),

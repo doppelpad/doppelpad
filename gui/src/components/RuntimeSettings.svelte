@@ -16,11 +16,21 @@
       app.toast(errorText(e), 'error');
     }
   }
+
+  async function setAutoSwitch(on: boolean) {
+    try {
+      await api.setAutoSwitch(on);
+    } catch (e) {
+      app.toast(errorText(e), 'error');
+    }
+  }
 </script>
 
 {#if options}
   <div class="section">
     <div class="section-head"><span>{t('settings.runtime.title')}</span></div>
+    <Toggle checked={app.live?.auto_switch ?? true} label={t('settings.runtime.auto_switch')} onchange={setAutoSwitch} />
+    <p class="hint">{t('settings.runtime.auto_switch_hint')}</p>
     <Toggle checked={options.prevent_sleep} label={t('settings.runtime.prevent_sleep')} onchange={(v) => set({ prevent_sleep: v })} />
     <Toggle checked={options.pause_unfocused} label={t('settings.runtime.pause_unfocused')} onchange={(v) => set({ pause_unfocused: v })} />
     <p class="hint">{t('settings.runtime.pause_unfocused_hint')}</p>

@@ -825,7 +825,8 @@
     "title": "Geräte",
     "none": "Kein Controller verbunden",
     "in_use": "Aktiv",
-    "use": "Diesen Controller verwenden",
+    "pick": "Der Controller, auf dem die Slots laufen",
+    "options": "Controller-Optionen",
     "own_slots": "Eigene Slots für diesen Controller",
     "own_hint": "Dieser Controller hat eigene Slots: eigene Config und eigener virtueller Controller",
     "ignore": "Diesen Controller ignorieren",
@@ -848,12 +849,13 @@
     "battery_charging": "Akku {level} %, lädt"
   },
   "remap": {
-    "on": "Remap AN",
-    "off": "Remap AUS",
+    "on": "Remapping ist an",
+    "off": "Remapping ist aus",
+    "running": "Läuft: {name}",
+    "running_auto": "Läuft: {name}, automatisch gewählt für das Spiel im Vordergrund",
     "apply": "Anwenden",
     "apply_to": "Auf Slot {n} anwenden",
-    "autodetect": "Automatisch",
-    "autodetect_hint": "Zur Config eines Spiels wechseln, solange das Spiel im Vordergrund ist",
+    "pick_slot": "Slot wählen",
     "paused": "Pausiert während der Bearbeitung",
     "paused_locked": "Pausiert: Bildschirm gesperrt",
     "paused_focus": "Pausiert: das Spiel ist nicht im Vordergrund",
@@ -863,9 +865,7 @@
   "slots": {
     "slot": "Slot {n}",
     "empty": "Leerer Slot",
-    "unload": "Entladen",
-    "shared": "Gemeinsame Slots",
-    "of_device": "Slots von {name}"
+    "unload": "Entladen"
   },
   "settings": {
     "title": "Einstellungen",
@@ -910,6 +910,8 @@
     },
     "runtime": {
       "title": "Beim Remappen",
+      "auto_switch": "Automatisch: zur Config eines Spiels wechseln, solange das Spiel im Vordergrund ist",
+      "auto_switch_hint": "Nutzt die Programme, die bei jedem Spiel eingetragen sind. Nur die gemeinsamen Slots wechseln; Controller mit eigenen Slots behalten ihre Config.",
       "prevent_sleep": "Ruhezustand verhindern, während eine Belegung Eingaben abspielt",
       "pause_unfocused": "Pausieren, wenn das Spiel der Config nicht im Vordergrund ist",
       "pause_unfocused_hint": "Gilt für Configs eines Spiels (aus seinem Ordner oder mit eigenen Programmnamen).",

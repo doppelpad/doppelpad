@@ -825,7 +825,8 @@
     "title": "Devices",
     "none": "No controller connected",
     "in_use": "In use",
-    "use": "Use this controller",
+    "pick": "The controller the slots run on",
+    "options": "Controller options",
     "own_slots": "Own slots for this controller",
     "own_hint": "This controller has slots of its own: its own config and virtual controller",
     "ignore": "Ignore this controller",
@@ -848,12 +849,13 @@
     "battery_charging": "Battery {level} %, charging"
   },
   "remap": {
-    "on": "Remap ON",
-    "off": "Remap OFF",
+    "on": "Remapping is on",
+    "off": "Remapping is off",
+    "running": "Running: {name}",
+    "running_auto": "Running: {name}, chosen by Autodetect for the game in front",
     "apply": "Apply",
     "apply_to": "Apply to slot {n}",
-    "autodetect": "Autodetect",
-    "autodetect_hint": "Switch to a game's config while that game is in the foreground",
+    "pick_slot": "Choose the slot",
     "paused": "Paused while editing",
     "paused_locked": "Paused: the screen is locked",
     "paused_focus": "Paused: the game is not in front",
@@ -863,9 +865,7 @@
   "slots": {
     "slot": "Slot {n}",
     "empty": "Empty slot",
-    "unload": "Unload",
-    "shared": "Shared slots",
-    "of_device": "Slots of {name}"
+    "unload": "Unload"
   },
   "settings": {
     "title": "Settings",
@@ -910,6 +910,8 @@
     },
     "runtime": {
       "title": "While remapping",
+      "auto_switch": "Autodetect: switch to a game's config while the game is in front",
+      "auto_switch_hint": "Uses the programs listed for each game. Only the shared slots switch; controllers with slots of their own keep their config.",
       "prevent_sleep": "Keep the PC awake while a mapping plays input",
       "pause_unfocused": "Pause while the config's game is not in front",
       "pause_unfocused_hint": "Applies to configs of a game (from its folder or with program names of their own).",
