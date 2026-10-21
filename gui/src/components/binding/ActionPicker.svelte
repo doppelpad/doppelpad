@@ -7,22 +7,11 @@
   import { t } from '../../lib/i18n/index.svelte';
   import { keyFromEvent } from '../../lib/model/keymap';
   import { controlLabel } from '../../lib/model/controls';
-  import { POWER_COMMANDS } from '../../lib/model/profile';
+  import { POWER_COMMANDS, RADIAL_COMMANDS, SIMPLE_COMMANDS } from '../../lib/model/profile';
   import { app } from '../../lib/state/app.svelte';
   import type { Action, Dir, MouseButtonName, PadButtonName, ShakeAxis, StickName, TouchOutput, TriggerName } from '../../lib/types';
 
   let { onpick, onclose }: { onpick: (a: Action) => void; onclose: () => void } = $props();
-
-  const RADIAL_COMMANDS = [
-    'radial_next',
-    'radial_prev',
-    'radial_up',
-    'radial_down',
-    'radial_left',
-    'radial_right',
-    'radial_apply',
-    'radial_back',
-  ] as const;
 
   type Tab = 'keyboard' | 'mouse' | 'gamepad' | 'commands';
   let tab = $state<Tab>('keyboard');
@@ -229,17 +218,9 @@
     </div>
   {:else}
     <div class="list">
-      <button class="cmd" onclick={() => onpick({ command: 'remap_off' })}>{t('picker.remap_off')}</button>
-      <button class="cmd" onclick={() => onpick({ command: 'toggle_gyro' })}>{t('picker.toggle_gyro')}</button>
-      <button class="cmd" onclick={() => onpick({ command: 'gyro_on' })}>{t('picker.gyro_on')}</button>
-      <button class="cmd" onclick={() => onpick({ command: 'gyro_off' })}>{t('picker.gyro_off')}</button>
-      <button class="cmd" onclick={() => onpick({ command: 'reset_tilt' })}>{t('picker.reset_tilt')}</button>
-      <button class="cmd" onclick={() => onpick({ command: 'switch_gyro_axis' })}>{t('picker.switch_gyro_axis')}</button>
-      <button class="cmd" onclick={() => onpick({ command: 'screenshot' })}>{t('picker.screenshot')}</button>
-      <button class="cmd" onclick={() => onpick({ command: 'close_window' })}>{t('picker.close_window')}</button>
-      <button class="cmd" onclick={() => onpick({ command: 'pad_overlay' })}>{t('picker.pad_overlay')}</button>
-      <button class="cmd" onclick={() => onpick({ command: 'mappings_overlay' })}>{t('picker.mappings_overlay')}</button>
-      <button class="cmd" onclick={() => onpick({ command: 'power_off' })}>{t('picker.power_off')}</button>
+      {#each SIMPLE_COMMANDS as c (c)}
+        <button class="cmd" onclick={() => onpick({ command: c })}>{t(`picker.${c}`)}</button>
+      {/each}
       {#each app.profile?.crosshairs ?? [] as x, i (i)}
         <button class="cmd" onclick={() => onpick({ command: { crosshair: i + 1 } })}>
           {t('picker.crosshair', { n: i + 1 })}{x.name ? ` · ${x.name}` : ''}
@@ -250,7 +231,7 @@
       {/if}
       {#if app.profile?.radial_menus?.length}
         {#each RADIAL_COMMANDS as c (c)}
-          <button class="cmd" onclick={() => onpick({ command: c })}>{t(`picker.`)}</button>
+          <button class="cmd" onclick={() => onpick({ command: c })}>{t(`picker.${c}`)}</button>
         {/each}
       {/if}
       {#each POWER_COMMANDS as c (c)}
