@@ -22,11 +22,14 @@
   /** Idle timeouts offered, in minutes; 0 never turns controllers off. */
   const IDLE_MINUTES = [0, 5, 10, 15, 20, 30, 45, 60];
 
-  async function run(p: Promise<unknown>) {
+  /** Await a command; on failure show why. `true` when it worked. */
+  async function run(p: Promise<unknown>): Promise<boolean> {
     try {
       await p;
+      return true;
     } catch (e) {
       app.toast(errorText(e), 'error');
+      return false;
     }
   }
 
@@ -35,7 +38,7 @@
   }
 
   async function create() {
-    await setGroups([...groups, { name: name.trim(), members: picked }]);
+    if (!(await setGroups([...groups, { name: name.trim(), members: picked }]))) return;
     name = '';
     picked = [];
   }
