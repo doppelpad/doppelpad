@@ -1,7 +1,7 @@
 <script lang="ts">
   import { ChevronDown, Ellipsis, Save, Settings, Lock } from '@lucide/svelte';
   import { open, save } from '@tauri-apps/plugin-dialog';
-  import { api, errorText } from '../lib/api';
+  import { api, confirmAsk, errorText } from '../lib/api';
   import { t } from '../lib/i18n/index.svelte';
   import { bindingsSheet } from '../lib/model/sheet';
   import { app } from '../lib/state/app.svelte';
@@ -93,7 +93,7 @@
   }
 
   async function remove() {
-    if (!app.configPath || !confirm(t('header.delete_confirm', { name: configName }))) return;
+    if (!app.configPath || !(await confirmAsk(t('header.delete_confirm', { name: configName })))) return;
     try {
       await api.configDelete(app.configPath);
       app.closeConfig();
@@ -104,8 +104,9 @@
     }
   }
 
-  function clearMappings() {
-    if (app.profile && confirm(t('header.clear_confirm'))) app.update({ ...app.profile, mappings: [] });
+  async function clearMappings() {
+    if (!app.profile || !(await confirmAsk(t('header.clear_confirm')))) return;
+    if (app.profile) app.update({ ...app.profile, mappings: [] });
   }
 
   const configItems = $derived<MenuItem[]>([
