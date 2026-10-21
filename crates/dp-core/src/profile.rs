@@ -1042,13 +1042,6 @@ pub struct LayerSticks {
 }
 
 impl LayerSticks {
-    pub fn get(&self, s: Stick) -> &StickPatch {
-        match s {
-            Stick::Left => &self.left,
-            Stick::Right => &self.right,
-        }
-    }
-
     /// The effective settings on the layer, given the base layer's.
     pub fn apply(&self, base: &Sticks) -> Sticks {
         Sticks {
@@ -1069,13 +1062,6 @@ pub struct LayerTriggers {
 }
 
 impl LayerTriggers {
-    pub fn get(&self, t: Trigger) -> &TriggerPatch {
-        match t {
-            Trigger::Left => &self.left,
-            Trigger::Right => &self.right,
-        }
-    }
-
     pub fn apply(&self, base: &Triggers) -> Triggers {
         Triggers {
             left: self.left.apply(&base.left),

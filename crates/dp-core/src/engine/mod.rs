@@ -12,20 +12,21 @@
 //! 4. run mode executors / macro programs → output events
 //! 5. mirror unmapped physical controls to the virtual pad and merge outputs
 
-pub mod analog;
-pub mod compile;
-pub mod gyro;
-pub mod radial;
-pub mod recognizer;
-pub mod routes;
-pub mod touch;
+mod analog;
+mod compile;
+mod gyro;
+mod radial;
+mod recognizer;
+mod routes;
+mod touch;
+
+/// The stick and trigger shaping and the zone rule, which the editor mirrors to draw them.
+pub use self::analog::{apply_curve, shape_stick, shape_trigger, stick_zone, trigger_zone};
+pub use self::radial::RadialView;
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 
-use self::analog::{
-    DIRECTION_SECTOR, apply_curve, directions, orient, sectors, shape_stick, shape_trigger,
-    stick_zone, trigger_zone,
-};
+use self::analog::{DIRECTION_SECTOR, directions, orient, sectors};
 use self::compile::{
     AnalogOut, BindingId, Compiled, LayerTable, MaskId, Out, Policy, Step, StopRule, compile,
 };
@@ -36,7 +37,7 @@ use self::touch::GestureTracker;
 use crate::control::{Control, Dir, Half, TouchGesture, TrackpadPart, Zone};
 use crate::event::KbmEvent;
 use crate::keys::{Key, MouseButton, WheelDir};
-use crate::pad::{Axis, Motion, PadButton, PadState, Rumble, Stick, Trigger};
+use crate::pad::{Motion, PadButton, PadState, Rumble, Stick, Trigger};
 use crate::profile::{
     Activator, AnalogSource, Command, GyroMode, Mode, Profile, RadialSelect, ShakeAxis, Sticks,
     TriggerEffect, Triggers, VirtualPadType, VirtualStick, VirtualSticks,
@@ -220,6 +221,7 @@ impl Outputs {
         }
     }
 
+    #[cfg(test)]
     fn is_down(&self, o: Out) -> bool {
         self.counts.contains_key(&o)
     }
@@ -1774,14 +1776,10 @@ impl Engine {
         out
     }
 
-    /// Whether any output is currently held down (for diagnostics).
-    pub fn is_output_down(&self, key: Key) -> bool {
+    /// Whether a mapping holds `key` down right now.
+    #[cfg(test)]
+    pub(crate) fn is_output_down(&self, key: Key) -> bool {
         self.outs.is_down(Out::Key(key))
-    }
-
-    /// Axis helper used by tests and diagnostics.
-    pub fn physical_axis(&self, a: Axis) -> f32 {
-        self.pad.map(|p| p.axis(a)).unwrap_or(0.0)
     }
 }
 

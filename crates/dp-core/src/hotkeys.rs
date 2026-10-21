@@ -11,8 +11,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::pad::PadButton;
 
-/// Number of slots the slot hotkeys address.
-pub const HOTKEY_SLOTS: usize = 4;
 /// Allowed hold times in milliseconds.
 pub const HOLD_MS_RANGE: std::ops::RangeInclusive<u32> = 50..=2500;
 /// Most buttons in one hotkey.
@@ -169,12 +167,6 @@ impl HotkeyDetector {
     /// Buttons the mapping engine must not see (bitset over [`PadButton::bit`]).
     pub fn withheld(&self) -> u32 {
         self.withheld
-    }
-
-    /// Forget everything (used when hotkeys are paused).
-    pub fn reset(&mut self) {
-        self.held.clear();
-        self.withheld = 0;
     }
 }
 

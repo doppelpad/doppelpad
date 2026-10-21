@@ -9,7 +9,7 @@ use crate::profile::Activator;
 
 /// Timing for one trigger.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub struct RecConfig {
+pub(super) struct RecConfig {
     pub single: bool,
     pub long: bool,
     pub double: bool,
@@ -44,10 +44,10 @@ impl Default for RecConfig {
 }
 
 /// Minimum length of a Start activation.
-pub const START_MIN_MS: u64 = 20;
+pub(super) const START_MIN_MS: u64 = 20;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum RecEvent {
+pub(super) enum RecEvent {
     Begin(Activator, u64),
     End(Activator, u64),
 }
@@ -85,7 +85,7 @@ enum State {
 }
 
 #[derive(Clone, Debug)]
-pub struct Recognizer {
+pub(super) struct Recognizer {
     state: State,
     /// Pending ends of pulsed activations and minimum-length Start activations.
     pending_ends: Vec<(Activator, u64)>,
@@ -106,12 +106,12 @@ impl Default for Recognizer {
 }
 
 impl Recognizer {
-    pub fn is_idle(&self) -> bool {
+    pub(super) fn is_idle(&self) -> bool {
         self.state == State::Idle && self.pending_ends.is_empty() && self.start_begin.is_none()
     }
 
     /// Forget everything without emitting events (caller ends activations itself).
-    pub fn reset(&mut self) {
+    pub(super) fn reset(&mut self) {
         *self = Recognizer::default();
     }
 
@@ -121,7 +121,7 @@ impl Recognizer {
     }
 
     /// Advance timers up to `now`, emitting events stamped with their deadline.
-    pub fn poll(&mut self, now: u64, cfg: &RecConfig, out: &mut Vec<RecEvent>) {
+    pub(super) fn poll(&mut self, now: u64, cfg: &RecConfig, out: &mut Vec<RecEvent>) {
         loop {
             match self.state {
                 State::P1 { t0 } if cfg.long && now >= t0 + cfg.t_long => {
@@ -170,7 +170,7 @@ impl Recognizer {
         }
     }
 
-    pub fn press(&mut self, t: u64, cfg: &RecConfig, out: &mut Vec<RecEvent>) {
+    pub(super) fn press(&mut self, t: u64, cfg: &RecConfig, out: &mut Vec<RecEvent>) {
         self.poll(t, cfg, out);
         if cfg.start {
             if self.start_begin.is_some() {
@@ -202,7 +202,7 @@ impl Recognizer {
         };
     }
 
-    pub fn release(&mut self, t: u64, cfg: &RecConfig, out: &mut Vec<RecEvent>) {
+    pub(super) fn release(&mut self, t: u64, cfg: &RecConfig, out: &mut Vec<RecEvent>) {
         self.poll(t, cfg, out);
         if cfg.start
             && let Some(begin) = self.start_begin
@@ -247,23 +247,6 @@ impl Recognizer {
         };
         // Release pulses must be delivered even if nothing else is pending.
         self.poll(t, cfg, out);
-    }
-
-    /// Earliest future time at which `poll` would emit something (for idle sleeping).
-    pub fn next_deadline(&self, cfg: &RecConfig) -> Option<u64> {
-        let timer = match self.state {
-            State::P1 { t0 } if cfg.long => Some(t0 + cfg.t_long),
-            State::W1 { t_r1 } => Some(t_r1 + cfg.t_double + 1),
-            State::P2 { t_r1 } => Some(t_r1 + cfg.t_triple),
-            State::W2 { t_r1 } => Some(t_r1 + cfg.t_triple + 1),
-            _ => None,
-        };
-        let pulse = self.pending_ends.iter().map(|&(_, t)| t).min();
-        let start = self
-            .start_begin
-            .filter(|_| self.start_released)
-            .map(|b| b + START_MIN_MS);
-        [timer, pulse, start].into_iter().flatten().min()
     }
 }
 
@@ -482,14 +465,5 @@ mod tests {
             ),
             vec![]
         );
-    }
-
-    #[test]
-    fn deadlines_are_reported() {
-        let c = cfg(true, true, false, false);
-        let mut r = Recognizer::default();
-        let mut out = Vec::new();
-        r.press(100, &c, &mut out);
-        assert_eq!(r.next_deadline(&c), Some(400));
     }
 }

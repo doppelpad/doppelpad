@@ -72,17 +72,6 @@ pub enum Axis {
     RightTrigger,
 }
 
-impl Axis {
-    pub const ALL: [Axis; 6] = [
-        Axis::LeftX,
-        Axis::LeftY,
-        Axis::RightX,
-        Axis::RightY,
-        Axis::LeftTrigger,
-        Axis::RightTrigger,
-    ];
-}
-
 named_enum! {
 /// Which stick.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]

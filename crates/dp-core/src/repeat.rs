@@ -79,10 +79,6 @@ impl KeyRepeater {
         self.current = Some((k, now + next));
         Some(k)
     }
-
-    pub fn clear(&mut self) {
-        self.current = None;
-    }
 }
 
 #[cfg(test)]

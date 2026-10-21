@@ -85,8 +85,7 @@ impl Dir {
 named_enum! {
 /// Band of a stick's deflection or a trigger's pull. Bands are exclusive: a
 /// control is in at most one zone at a time.
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Zone {
     Low,
     Med,
@@ -157,7 +156,7 @@ impl TouchGesture {
 
 named_enum! {
 /// One half of a touchpad split into two trackpads.
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Half {
     Left,
     Right,
@@ -176,8 +175,7 @@ pub enum TrackpadPart {
 named_enum! {
 /// Direction of the controller's motion: nose up or down, the steering axis (roll or yaw, see
 /// the profile's `[gyro]`) to the left or right, or a lean (roll, left grip down = left).
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum GyroDir {
     Up,
     Down,
@@ -190,8 +188,7 @@ pub enum GyroDir {
 
 named_enum! {
 /// Region of a touchpad, used as a digital input.
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum TouchRegion {
     Up,
     Down,
@@ -323,7 +320,7 @@ impl Control {
 }
 
 /// Parse a gamepad button name, accepting common PlayStation/Nintendo aliases.
-pub fn parse_pad_button(s: &str) -> Option<PadButton> {
+fn parse_pad_button(s: &str) -> Option<PadButton> {
     let alias = match s.to_ascii_lowercase().as_str() {
         "cross" => Some(PadButton::A),
         "circle" => Some(PadButton::B),
@@ -356,7 +353,7 @@ fn trigger_name(t: Trigger) -> &'static str {
     }
 }
 
-pub fn parse_mouse_button(s: &str) -> Option<MouseButton> {
+fn parse_mouse_button(s: &str) -> Option<MouseButton> {
     MouseButton::from_name(s).or(match s.to_ascii_lowercase().as_str() {
         "back" | "4" => Some(MouseButton::X1),
         "forward" | "5" => Some(MouseButton::X2),

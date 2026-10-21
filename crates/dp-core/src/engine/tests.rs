@@ -2,6 +2,7 @@
 
 use super::*;
 use crate::control::{GyroDir, Half, TouchGesture, TouchRegion, TrackpadPart, Zone};
+use crate::pad::Axis;
 use crate::profile::{
     Action, AnalogMapping, AnalogTarget, Combo, Jump, JumpMode, Layer, Mapping, Press,
 };

@@ -17,10 +17,10 @@ const SWIPE_MS: u64 = 500;
 /// Zoom: two fingers' distance changes by this factor.
 const ZOOM_RATIO: f32 = 1.2;
 /// How long a gesture control stays pressed.
-pub const GESTURE_PRESS_MS: u64 = 50;
+pub(super) const GESTURE_PRESS_MS: u64 = 50;
 
 /// Regions for a finger at `(x, y)` (0–1, origin top left).
-pub fn regions(
+pub(super) fn regions(
     (x, y): (f32, f32),
     cfg: &TouchpadSettings,
     diagonals: bool,
@@ -81,7 +81,7 @@ pub fn regions(
 }
 
 /// How long a touch action plays when it gives no length.
-pub fn output_ms(g: TouchGesture) -> u32 {
+pub(super) fn output_ms(g: TouchGesture) -> u32 {
     match g {
         TouchGesture::Tap
         | TouchGesture::TapLeft
@@ -93,7 +93,7 @@ pub fn output_ms(g: TouchGesture) -> u32 {
 }
 
 /// Fingers on the virtual touchpad `t` (0–1) of the way through a played gesture.
-pub fn output_fingers(g: TouchGesture, t: f32) -> [Option<TouchPoint>; 2] {
+pub(super) fn output_fingers(g: TouchGesture, t: f32) -> [Option<TouchPoint>; 2] {
     use TouchGesture::*;
     let t = t.clamp(0.0, 1.0);
     let lerp = |a: f32, b: f32| a + (b - a) * t;
@@ -139,7 +139,7 @@ pub fn output_fingers(g: TouchGesture, t: f32) -> [Option<TouchPoint>; 2] {
 }
 
 /// Which half of the pad a finger is on, and where within it (0–1 again).
-pub fn half_of(p: TouchPoint) -> (Half, (f32, f32)) {
+pub(super) fn half_of(p: TouchPoint) -> (Half, (f32, f32)) {
     if p.x < 0.5 {
         (Half::Left, (p.x * 2.0, p.y))
     } else {
@@ -169,7 +169,7 @@ struct Touch {
 
 /// Follows the fingers from the first touch to the last lift and recognises gestures.
 #[derive(Clone, Debug, Default)]
-pub struct GestureTracker {
+pub(super) struct GestureTracker {
     fingers: [Option<Finger>; 2],
     touch: Option<Touch>,
 }
@@ -181,7 +181,7 @@ fn dist(a: (f32, f32), b: (f32, f32)) -> f32 {
 impl GestureTracker {
     /// Feed this tick's fingers; returns the gestures recognised now. With `split`, taps also
     /// report the trackpad half they were on.
-    pub fn update(
+    pub(super) fn update(
         &mut self,
         touch: [Option<TouchPoint>; 2],
         now: u64,

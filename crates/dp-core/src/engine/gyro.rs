@@ -6,13 +6,13 @@ use crate::pad::Motion;
 use crate::profile::{GyroMode, GyroSettings, GyroSpace, SteeringAxis};
 
 /// How far a tilt reaches full stick deflection, in degrees.
-pub const TILT_FULL_DEG: f32 = 45.0;
+pub(super) const TILT_FULL_DEG: f32 = 45.0;
 /// Player-space yaw may exceed the measured yaw axis by this factor (GyroWiki's "relax").
 const PLAYER_RELAX: f32 = 1.41;
 
 /// Gyro state that outlives one tick: the tilt centre and the steering axis in use.
 #[derive(Clone, Debug, Default)]
-pub struct GyroState {
+pub(super) struct GyroState {
     /// Gravity direction (normalised accelerometer) at the centre pose.
     centre: Option<[f32; 3]>,
     /// Yaw turned since the centre pose (for yaw steering in tilt mode), degrees.
@@ -24,7 +24,7 @@ pub struct GyroState {
 /// Pitch (nose up +), steering (left +) and lean (left grip down +), in degrees per second
 /// in motion mode or degrees from the centre in tilt mode.
 #[derive(Copy, Clone, Debug, Default, PartialEq)]
-pub struct GyroAxes {
+pub(super) struct GyroAxes {
     pub pitch: f32,
     pub steer: f32,
     pub lean: f32,
@@ -37,12 +37,12 @@ fn normalised(a: [f32; 3]) -> Option<[f32; 3]> {
 
 impl GyroState {
     /// Take the current pose as the tilt centre (on the next motion sample).
-    pub fn reset(&mut self) {
+    pub(super) fn reset(&mut self) {
         self.centre = None;
         self.yaw = 0.0;
     }
 
-    pub fn switch_axis(&mut self) {
+    pub(super) fn switch_axis(&mut self) {
         self.swapped = !self.swapped;
     }
 
@@ -65,7 +65,7 @@ impl GyroState {
     }
 
     /// The gyro axes this tick (`dt` in seconds).
-    pub fn axes(&mut self, cfg: &GyroSettings, m: &Motion, dt: f32) -> GyroAxes {
+    pub(super) fn axes(&mut self, cfg: &GyroSettings, m: &Motion, dt: f32) -> GyroAxes {
         let (pitch_rate, yaw_rate, roll_rate) = (m.gyro[0], m.gyro[1], m.gyro[2]);
         let steering = self.steering(cfg);
         match cfg.mode {
@@ -93,19 +93,11 @@ impl GyroState {
             }
         }
     }
-
-    /// Steering and pitch angles for stick routes in tilt mode, as deflections in [-1, 1]
-    /// (left and up positive).
-    pub fn tilt_deflection(&mut self, cfg: &GyroSettings, m: &Motion, dt: f32) -> (f32, f32) {
-        let a = self.axes(cfg, m, dt);
-        let f = |v: f32| (v / TILT_FULL_DEG).clamp(-1.0, 1.0);
-        (f(a.steer), f(a.pitch))
-    }
 }
 
 /// Yaw and pitch rates for gyro routes: the controller's own yaw, or in player space the
 /// turning around gravity (whichever way the controller is held).
-pub fn route_rates(cfg: &GyroSettings, m: &Motion) -> (f32, f32) {
+pub(super) fn route_rates(cfg: &GyroSettings, m: &Motion) -> (f32, f32) {
     let (pitch, yaw, roll) = (m.gyro[0], m.gyro[1], m.gyro[2]);
     if cfg.space == GyroSpace::Local {
         return (yaw, pitch);
@@ -122,7 +114,7 @@ pub fn route_rates(cfg: &GyroSettings, m: &Motion) -> (f32, f32) {
 }
 
 /// Direction and zone controls for the gyro axes.
-pub fn controls(cfg: &GyroSettings, a: GyroAxes, out: &mut impl Extend<Control>) {
+pub(super) fn controls(cfg: &GyroSettings, a: GyroAxes, out: &mut impl Extend<Control>) {
     let t = match cfg.mode {
         GyroMode::Motion => cfg.motion_zones,
         GyroMode::Tilt => cfg.tilt_zones,

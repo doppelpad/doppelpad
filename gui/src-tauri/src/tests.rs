@@ -11,7 +11,7 @@
 use std::path::PathBuf;
 
 use dp_core::control::{Control, Zone};
-use dp_core::engine::analog::{apply_curve, shape_stick, shape_trigger, stick_zone, trigger_zone};
+use dp_core::engine::{apply_curve, shape_stick, shape_trigger, stick_zone, trigger_zone};
 use dp_core::hotkeys::Hotkeys;
 use dp_core::keys::Key;
 use dp_core::pad::{Motion, PadButton, PadState, Stick, TouchPoint, Trigger};
