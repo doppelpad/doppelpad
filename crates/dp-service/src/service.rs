@@ -189,6 +189,7 @@ pub struct Service {
     oneoff: Option<PathBuf>,
     /// Profile applied because its application is in the foreground.
     auto_active: Option<PathBuf>,
+    /// The application auto-switch last acted on (`None` while it is off).
     foreground: Option<String>,
     last_fg_check: Option<u64>,
     drivers: DriverStatus,
@@ -459,7 +460,7 @@ impl Service {
             profile_path: self.rt.profile_path().map(|p| p.display().to_string()),
             layer: self.rt.layer(),
             auto_switch: self.state.auto_switch,
-            foreground: self.foreground.clone(),
+            foreground: self.fg_now.clone(),
             virtual_pad: self.rt.virtual_pad().map(|k| format!("{k:?}")),
             hidden_devices: self.rt.hidden_devices(),
             warnings: self.warnings(),
@@ -1313,7 +1314,7 @@ impl Service {
             auto_switch: self.state.auto_switch,
             auto_active: self.auto_active.is_some(),
             suspended: self.rt.is_suspended(),
-            foreground: self.foreground.clone(),
+            foreground: self.fg_now.clone(),
             virtual_pad: self.rt.virtual_pad().map(|k| format!("{k:?}")),
             hidden_devices: self.rt.hidden_devices(),
             warnings: self.warnings(),
@@ -1759,6 +1760,18 @@ Host: 127.0.0.1:{}
         *fg.lock().unwrap() = Some("game.exe".into());
         s.tick();
         assert_eq!(active_name(&s).as_deref(), Some("Base"), "auto-switch off");
+    }
+
+    #[test]
+    fn foreground_is_reported_without_auto_switch() {
+        let dir = tempfile::tempdir().unwrap();
+        let (mut s, fg) = service(dir.path(), None);
+        s.handle(ServiceCmd::SetAutoSwitch(false));
+        s.handle(ServiceCmd::SetRemap(false));
+        *fg.lock().unwrap() = Some("notepad.exe".into());
+        s.tick();
+        assert_eq!(s.live().foreground.as_deref(), Some("notepad.exe"));
+        assert_eq!(s.status().foreground.as_deref(), Some("notepad.exe"));
     }
 
     #[test]
