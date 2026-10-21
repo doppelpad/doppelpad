@@ -102,6 +102,7 @@
     "import_title": "JSON-Profil importieren",
     "save": "Speichern",
     "unsaved": "Ungespeicherte Änderungen",
+    "discard_confirm": "Ungespeicherte Änderungen verwerfen?",
     "read_only": "Importierte Datei (schreibgeschützt) – zum Bearbeiten duplizieren",
     "options": "Optionen",
     "clear_mappings": "Alle Mappings löschen",

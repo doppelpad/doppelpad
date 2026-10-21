@@ -13,5 +13,7 @@ export default defineConfig({
     emptyOutDir: true,
     rolldownOptions: { input: { main: 'index.html', overlay: 'overlay.html' } },
   },
-  test: { environment: 'node', include: ['src/**/*.test.ts'] },
+  // No module cache: the source scans in the tests use import.meta.glob, whose file list the
+  // cache would keep from an earlier run.
+  test: { environment: 'node', include: ['src/**/*.test.ts'], fsModuleCache: false },
 });

@@ -1,6 +1,6 @@
 // Central application state (Svelte 5 runes). Components read and mutate `app`.
 
-import { api, errorText } from '../api';
+import { api, confirmAsk, errorText } from '../api';
 import { setLanguage, t } from '../i18n/index.svelte';
 import type { Side } from '../model/analog';
 import { controlsFromPad, drawingsFor, sideShowing } from '../model/devices';
@@ -227,12 +227,12 @@ class AppState {
   }
 
   /** Ask before discarding unsaved changes. */
-  confirmDiscard(): boolean {
-    return !this.dirty || confirm(t('header.unsaved') + ' — ' + t('common.close') + '?');
+  async confirmDiscard(): Promise<boolean> {
+    return !this.dirty || (await confirmAsk(t('header.discard_confirm')));
   }
 
   async selectGame(dir: string) {
-    if (dir !== this.gameDir && !this.confirmDiscard()) return;
+    if (dir !== this.gameDir && !(await this.confirmDiscard())) return;
     this.gameDir = dir;
     const g = this.library.games.find((x) => x.dir === dir);
     const target =
@@ -252,7 +252,7 @@ class AppState {
   }
 
   async openConfig(path: string, force = false) {
-    if (!force && path !== this.configPath && !this.confirmDiscard()) return;
+    if (!force && path !== this.configPath && !(await this.confirmDiscard())) return;
     try {
       const loaded = await api.configLoad(path);
       this.configPath = path;
@@ -351,13 +351,15 @@ class AppState {
   }
 
   /** Make the whole stick a mouse, WASD, the arrow keys or a flick stick on the current layer (`null`: nothing). */
-  setStickGroup(s: Side, group: StickGroup | null) {
+  async setStickGroup(s: Side, group: StickGroup | null) {
     const p = this.profile;
     const def = this.catalog?.defaults.analog;
     if (!p || !def || this.readOnly) return;
     if (group && stickGroupOf(p, this.layer, s) === group) return this.selectStick(s);
     const n = stickGroupConflicts(p, this.layer, s);
-    if (n > 0 && !confirm(t('binding.whole_stick_replace', { n }))) return;
+    if (n > 0 && !(await confirmAsk(t('binding.whole_stick_replace', { n })))) return;
+    // The config may have changed while the question was open.
+    if (this.profile !== p) return;
     this.update(setStickGroup(p, this.layer, s, group, def));
     this.selectStick(s);
   }

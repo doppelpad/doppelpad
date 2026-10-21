@@ -102,6 +102,7 @@
     "import_title": "Import a JSON profile",
     "save": "Save",
     "unsaved": "Unsaved changes",
+    "discard_confirm": "Discard the unsaved changes?",
     "read_only": "Imported file (read-only) — duplicate it to edit",
     "options": "Options",
     "clear_mappings": "Clear all mappings",
