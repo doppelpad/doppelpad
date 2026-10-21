@@ -198,6 +198,29 @@ pub struct Rgb {
     pub b: u8,
 }
 
+impl Rgb {
+    pub const BLACK: Rgb = Rgb { r: 0, g: 0, b: 0 };
+    pub const WHITE: Rgb = Rgb {
+        r: 255,
+        g: 255,
+        b: 255,
+    };
+
+    /// A colour written `#rrggbb`.
+    pub fn from_hex(s: &str) -> Option<Rgb> {
+        let h = s.strip_prefix('#')?;
+        if h.len() != 6 || !h.bytes().all(|b| b.is_ascii_hexdigit()) {
+            return None;
+        }
+        let v = u32::from_str_radix(h, 16).ok()?;
+        Some(Rgb {
+            r: (v >> 16) as u8,
+            g: (v >> 8) as u8,
+            b: v as u8,
+        })
+    }
+}
+
 /// Convert a signed 16-bit raw axis (XInput convention) to `[-1, 1]`.
 #[inline]
 pub fn axis_from_i16(v: i16) -> f32 {

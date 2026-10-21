@@ -12,8 +12,10 @@ use std::path::{Path, PathBuf};
 
 pub use compat::ImportError;
 pub use diag::{Diagnostic, Diagnostics, Severity};
+use dp_core::pad::Rgb;
 use dp_core::profile::{
-    Action, AnalogTarget, Command, JumpMode, Light, Mode, Profile, Sticks, TriggerEffect, Triggers,
+    Action, AnalogTarget, Command, Crosshair, JumpMode, Light, Magnifier, Mode, Profile,
+    RadialMenu, StickConfig, Sticks, TriggerEffect, Triggers, Vibration, VirtualMotion,
     VirtualSticks,
 };
 pub use store::{load_toml_or_default, save_toml, write_atomic};
@@ -240,7 +242,7 @@ pub fn validate(p: &Profile) -> Diagnostics {
     if !(motion.shake_g > 0.0 && motion.shake_g <= 8.0) {
         d.error("virtual.motion.shake_g", "must be in (0, 8]");
     }
-    if !(10..=2000).contains(&motion.shake_ms) {
+    if !VirtualMotion::SHAKE_MS.contains(&motion.shake_ms) {
         d.error("virtual.motion.shake_ms", "must be 10–2000 ms");
     }
     for (field, [low, med, high]) in [
@@ -295,7 +297,7 @@ pub fn validate(p: &Profile) -> Diagnostics {
     let v = &p.vibration;
     if !(0.0..=1.0).contains(&v.left)
         || !(0.0..=1.0).contains(&v.right)
-        || !(10..=200).contains(&v.min_delay_ms)
+        || !Vibration::MIN_DELAY_MS.contains(&v.min_delay_ms)
     {
         d.error(
             "vibration",
@@ -353,7 +355,7 @@ pub fn validate(p: &Profile) -> Diagnostics {
 
 /// `#rrggbb`.
 fn is_hex_color(s: &str) -> bool {
-    s.len() == 7 && s.starts_with('#') && s[1..].chars().all(|c| c.is_ascii_hexdigit())
+    Rgb::from_hex(s).is_some()
 }
 
 /// Parameter ranges of a trigger effect.
@@ -381,10 +383,13 @@ fn check_effect(d: &mut Diagnostics, path: &str, e: &TriggerEffect) {
 }
 
 fn check_light(d: &mut Diagnostics, path: &str, l: &Light) {
-    if l.colors.is_empty() || l.colors.len() > 10 || !l.colors.iter().all(|c| is_hex_color(c)) {
+    if l.colors.is_empty()
+        || l.colors.len() > Light::MAX_COLORS
+        || !l.colors.iter().all(|c| is_hex_color(c))
+    {
         d.error(path, "a light bar has 1–10 colours written #rrggbb");
     }
-    if !(100..=10_000).contains(&l.period_ms) {
+    if !Light::PERIOD_MS.contains(&l.period_ms) {
         d.error(path, "period_ms must be 100–10000");
     }
 }
@@ -396,7 +401,10 @@ fn check_radial(d: &mut Diagnostics, p: &Profile) {
         if m.sectors.is_empty() || m.sectors.len() > 12 {
             d.error(&path, "a radial menu has 1–12 sectors");
         }
-        if !(0.0..=1.0).contains(&m.tint) || !(0.5..=2.0).contains(&m.scale) || m.delay_ms > 5000 {
+        if !(0.0..=1.0).contains(&m.tint)
+            || !RadialMenu::SCALE.contains(&m.scale)
+            || m.delay_ms > 5000
+        {
             d.error(
                 &path,
                 "tint must be 0–1, scale 0.5–2 and delay_ms at most 5000",
@@ -460,7 +468,10 @@ fn check_crosshairs(d: &mut Diagnostics, p: &Profile) {
     }
     for (i, c) in p.crosshairs.iter().enumerate() {
         let path = format!("crosshairs[{i}]");
-        if !(10..=200).contains(&c.size) || !(10..=100).contains(&c.thickness) || c.outline > 10 {
+        if !Crosshair::SIZE.contains(&c.size)
+            || !Crosshair::THICKNESS.contains(&c.thickness)
+            || c.outline > Crosshair::MAX_OUTLINE
+        {
             d.error(
                 &path,
                 "size must be 10–200, thickness 10–100 and outline 0–10",
@@ -473,7 +484,7 @@ fn check_crosshairs(d: &mut Diagnostics, p: &Profile) {
             d.error(&path, "colours are written #rrggbb");
         }
         if let Some(m) = c.magnifier
-            && (!(1.0..=16.0).contains(&m.zoom) || !(0.1..=1.0).contains(&m.size))
+            && (!Magnifier::ZOOM.contains(&m.zoom) || !Magnifier::SIZE.contains(&m.size))
         {
             d.error(
                 &path,
@@ -506,7 +517,7 @@ fn check_analog(
                 "must be in [0, 1)",
             );
         }
-        if !(1.0..=44.0).contains(&s.direction_width) {
+        if !StickConfig::DIRECTION_WIDTH.contains(&s.direction_width) {
             d.error(
                 format!("{prefix}sticks.{name}.direction_width"),
                 "must be between 1 and 44 degrees",

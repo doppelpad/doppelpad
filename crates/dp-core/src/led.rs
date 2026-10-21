@@ -5,20 +5,6 @@ use std::f32::consts::TAU;
 use crate::pad::Rgb;
 use crate::profile::{Light, LightMode};
 
-/// `#rrggbb` as a colour.
-pub fn parse_hex(s: &str) -> Option<Rgb> {
-    let h = s.strip_prefix('#')?;
-    if h.len() != 6 {
-        return None;
-    }
-    let v = u32::from_str_radix(h, 16).ok()?;
-    Some(Rgb {
-        r: (v >> 16) as u8,
-        g: (v >> 8) as u8,
-        b: v as u8,
-    })
-}
-
 fn scale(c: Rgb, k: f32) -> Rgb {
     let f = |v: u8| (f32::from(v) * k.clamp(0.0, 1.0)).round() as u8;
     Rgb {
@@ -58,22 +44,20 @@ fn pulse(phase: f32, at: f32, width: f32) -> f32 {
     }
 }
 
-/// The colour `light` shows `t_ms` after it started; `None` when it shows nothing of its own.
-pub fn color_at(light: &Light, t_ms: u64) -> Option<Rgb> {
-    let colors: Vec<Rgb> = light.colors.iter().filter_map(|c| parse_hex(c)).collect();
-    let period = u64::from(light.period_ms.max(100));
+/// The colour `light` shows `t_ms` after it started (black when it is off).
+pub fn color_at(light: &Light, t_ms: u64) -> Rgb {
+    let colors = || light.colors.iter().filter_map(|c| Rgb::from_hex(c));
+    let period = u64::from(light.period_ms.max(*Light::PERIOD_MS.start()));
     let cycle = (t_ms / period) as usize;
     let phase = (t_ms % period) as f32 / period as f32;
-    let base = match colors.len() {
-        0 => Rgb {
-            r: 255,
-            g: 255,
-            b: 255,
-        },
-        n => colors[if light.cycle { cycle % n } else { 0 }],
+    let base = match colors().count() {
+        0 => Rgb::WHITE,
+        n => colors()
+            .nth(if light.cycle { cycle % n } else { 0 })
+            .unwrap_or(Rgb::WHITE),
     };
-    Some(match light.mode {
-        LightMode::Off => return None,
+    match light.mode {
+        LightMode::Off => Rgb::BLACK,
         LightMode::Solid => base,
         LightMode::Breath => scale(base, 0.5 - 0.5 * (TAU * phase).cos()),
         LightMode::Rainbow => hue(phase),
@@ -89,10 +73,10 @@ pub fn color_at(light: &Light, t_ms: u64) -> Option<Rgb> {
             if (phase * 8.0).fract() < 0.5 {
                 base
             } else {
-                Rgb { r: 0, g: 0, b: 0 }
+                Rgb::BLACK
             }
         }
-    })
+    }
 }
 
 /// The time steps colours change in: lights refresh at most this often.
@@ -114,44 +98,41 @@ mod tests {
     #[test]
     fn solid_breath_and_cycle() {
         let red = Rgb { r: 255, g: 0, b: 0 };
-        assert_eq!(
-            color_at(&light(LightMode::Solid, &["#ff0000"]), 0),
-            Some(red)
-        );
+        assert_eq!(color_at(&light(LightMode::Solid, &["#ff0000"]), 0), red);
         let breath = light(LightMode::Breath, &["#ff0000"]);
-        assert_eq!(color_at(&breath, 0), Some(Rgb { r: 0, g: 0, b: 0 }));
-        assert_eq!(color_at(&breath, 500), Some(red), "full at half the period");
+        assert_eq!(color_at(&breath, 0), Rgb::BLACK);
+        assert_eq!(color_at(&breath, 500), red, "full at half the period");
         let mut cycling = light(LightMode::Solid, &["#ff0000", "#0000ff"]);
         cycling.cycle = true;
-        assert_eq!(color_at(&cycling, 1500), Some(Rgb { r: 0, g: 0, b: 255 }));
-        assert_eq!(color_at(&light(LightMode::Off, &["#ff0000"]), 0), None);
+        assert_eq!(color_at(&cycling, 1500), Rgb { r: 0, g: 0, b: 255 });
+        assert_eq!(
+            color_at(&light(LightMode::Off, &["#ff0000"]), 0),
+            Rgb::BLACK
+        );
     }
 
     #[test]
     fn rainbow_and_strobe() {
         let rainbow = light(LightMode::Rainbow, &[]);
-        assert_eq!(color_at(&rainbow, 0), Some(Rgb { r: 255, g: 0, b: 0 }));
-        assert_eq!(
-            color_at(&rainbow, 333).unwrap().g,
-            255,
-            "green a third of the way"
-        );
+        assert_eq!(color_at(&rainbow, 0), Rgb { r: 255, g: 0, b: 0 });
+        assert_eq!(color_at(&rainbow, 333).g, 255, "green a third of the way");
         let strobe = light(LightMode::Strobe, &["#ffffff"]);
-        assert_eq!(color_at(&strobe, 10).unwrap().r, 255);
-        assert_eq!(color_at(&strobe, 100).unwrap().r, 0);
+        assert_eq!(color_at(&strobe, 10).r, 255);
+        assert_eq!(color_at(&strobe, 100).r, 0);
     }
 
     #[test]
     fn hex_colours() {
         assert_eq!(
-            parse_hex("#0a1B2c"),
+            Rgb::from_hex("#0a1B2c"),
             Some(Rgb {
                 r: 10,
                 g: 27,
                 b: 44
             })
         );
-        assert_eq!(parse_hex("0a1b2c"), None);
-        assert_eq!(parse_hex("#0a1b2"), None);
+        assert_eq!(Rgb::from_hex("0a1b2c"), None);
+        assert_eq!(Rgb::from_hex("#0a1b2"), None);
+        assert_eq!(Rgb::from_hex("#+12345"), None, "only hex digits");
     }
 }
