@@ -73,6 +73,8 @@ pub struct LiveState {
     pub active_slot: usize,
     pub remap_on: bool,
     pub auto_switch: bool,
+    /// Autodetect chose the running config for the game in front, not the active slot.
+    pub auto_active: bool,
     pub player_lights: PlayerLights,
     pub mic_led: bool,
     /// Every device the backends report, blocked and grouped ones included.

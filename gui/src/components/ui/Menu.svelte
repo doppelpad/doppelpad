@@ -8,6 +8,10 @@
     separator?: boolean;
     /** CSS color for a dot in front of the label. */
     color?: string;
+    /** Dim text at the end of the row, e.g. a battery level. */
+    detail?: string;
+    /** Colors the detail: low or critical. */
+    tone?: 'warning' | 'danger';
   }
 </script>
 
@@ -23,6 +27,8 @@
 
   let open = $state(false);
   let up = $state(false);
+  /** One tickable item gives every item the tick column, so the labels line up. */
+  const ticks = $derived(items.some((i) => i.checked !== undefined));
   let root: HTMLElement;
   let popup: HTMLElement | undefined = $state();
 
@@ -62,9 +68,12 @@
               item.onclick?.();
             }}
           >
-            {#if item.checked !== undefined}<span class="check">{item.checked ? '✓' : ''}</span>{/if}
+            {#if ticks}<span class="check">{item.checked ? '✓' : ''}</span>{/if}
             {#if item.color}<span class="dot" style:background={item.color}></span>{/if}
             {item.label}
+            {#if item.detail}
+              <span class="detail" class:warning={item.tone === 'warning'} class:danger={item.tone === 'danger'}>{item.detail}</span>
+            {/if}
           </button>
         {/if}
       {/each}
@@ -124,6 +133,18 @@
   .check {
     width: 14px;
     color: var(--accent);
+  }
+  .detail {
+    margin-left: auto;
+    padding-left: 18px;
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+  .detail.warning {
+    color: var(--warning);
+  }
+  .detail.danger {
+    color: var(--danger);
   }
   .dot {
     flex: none;

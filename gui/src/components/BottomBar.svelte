@@ -10,31 +10,60 @@
     Layers,
     Pause,
     Power,
+    Settings,
     TriangleAlert,
     X,
   } from '@lucide/svelte';
   import { api, errorText } from '../lib/api';
   import { t } from '../lib/i18n/index.svelte';
   import { app } from '../lib/state/app.svelte';
-  import type { LiveDevice } from '../lib/types';
+  import type { Battery, LiveDevice } from '../lib/types';
   import IdentifyWizard from './IdentifyWizard.svelte';
-  import Menu from './ui/Menu.svelte';
-  import Toggle from './ui/Toggle.svelte';
+  import Menu, { type MenuItem } from './ui/Menu.svelte';
 
   const live = $derived(app.live);
   const set = $derived(app.slotSet);
-  const slotNames = $derived(
-    set.slots.map((p) => {
-      if (!p) return null;
-      for (const g of app.library.games) {
-        const c = g.configs.find((c) => c.path === p);
-        if (c) return `${g.meta.name} › ${c.name}`;
-      }
-      return p.split(/[\/]/).pop() ?? p;
-    }),
-  );
+
+  /** *Game › Config* for a config file, else its file name. */
+  function configName(path: string) {
+    for (const g of app.library.games) {
+      const c = g.configs.find((c) => c.path === path);
+      if (c) return `${g.meta.name} › ${c.name}`;
+    }
+    return path.split(/[\\/]/).pop() ?? path;
+  }
+
+  const slotNames = $derived(set.slots.map((p) => (p ? configName(p) : null)));
   const ownIds = $derived(new Set((live?.device_slots ?? []).map((d) => d.id)));
-  const ownName = $derived(live?.devices.find((d) => d.id === set.device)?.name ?? set.device);
+
+  /** The controller the bar shows: one with slots of its own while they are on show, else the one in use. */
+  const currentId = $derived(set.device ?? live?.primary ?? live?.devices[0]?.id ?? null);
+  const current = $derived(live?.devices.find((d) => d.id === currentId) ?? null);
+  const others = $derived((live?.devices ?? []).filter((d) => d.id !== currentId));
+
+  /** Low or critical, for a battery that is not charging. */
+  function batteryTone(b: Battery | null): 'warning' | 'danger' | undefined {
+    if (!b || b.wired || b.charging) return undefined;
+    return b.level < 20 ? 'danger' : b.level < 40 ? 'warning' : undefined;
+  }
+
+  /** The worst battery among the controllers the select does not show. */
+  const othersTone = $derived.by(() => {
+    const tones = others.map((d) => batteryTone(d.battery));
+    return tones.includes('danger') ? 'danger' : tones.includes('warning') ? 'warning' : undefined;
+  });
+
+  const paused = $derived(!!(live?.suspended && live.remap_on && live.profile));
+  const powerTitle = $derived.by(() => {
+    if (!live) return '';
+    const lines = [t(live.remap_on ? 'remap.on' : 'remap.off')];
+    if (paused) lines.push(t(live.locked ? 'remap.paused_locked' : live.focus_paused ? 'remap.paused_focus' : 'remap.paused'));
+    if (live.remap_on && live.profile) {
+      const name = live.profile_path ? configName(live.profile_path) : live.profile;
+      lines.push(t(live.auto_active ? 'remap.running_auto' : 'remap.running', { name }));
+    }
+    return lines.join('\n');
+  });
 
   async function run(p: Promise<unknown>) {
     try {
@@ -57,7 +86,17 @@
   /** The device the identify wizard runs for. */
   let identify = $state<string | null>(null);
 
-  function deviceMenu(d: LiveDevice) {
+  const deviceItems = $derived<MenuItem[]>(
+    (live?.devices ?? []).map((d) => ({
+      label: d.name,
+      checked: d.id === currentId,
+      detail: d.battery && !d.battery.wired ? `${d.battery.level} %` : undefined,
+      tone: batteryTone(d.battery),
+      onclick: () => pick(d),
+    })),
+  );
+
+  function deviceMenu(d: LiveDevice): MenuItem[] {
     const own = ownIds.has(d.id);
     return [
       {
@@ -68,14 +107,14 @@
           app.slotDevice = own ? null : d.id;
         },
       },
-      // A group's own id cannot be ignored; its members can, in the settings.
-      ...(d.id.startsWith('group:')
-        ? []
-        : [{ label: t('devices.ignore'), onclick: () => run(api.setBlocked(d.id, true)) }]),
       // Generic pads: which button is which.
       ...(d.family === 'generic' && d.raw ? [{ label: t('identify.menu'), onclick: () => (identify = d.id) }] : []),
       // Only wireless controllers can be told to turn off.
       ...(d.battery && !d.battery.wired ? [{ label: t('devices.power_off'), onclick: () => run(api.powerOff(d.id)) }] : []),
+      // A group's own id cannot be ignored; its members can, in the settings.
+      ...(d.id.startsWith('group:')
+        ? []
+        : [{ label: t('devices.ignore'), onclick: () => run(api.setBlocked(d.id, true)) }]),
     ];
   }
 
@@ -86,7 +125,21 @@
       onclick: () => (app.applySlot = i),
     })),
   );
+  const canApply = $derived(!!app.configPath && !app.readOnly);
 </script>
+
+{#snippet battery(b: Battery)}
+  {@const tone = batteryTone(b)}
+  <span
+    class="battery"
+    class:low={tone === 'warning'}
+    class:critical={tone === 'danger'}
+    title={t(b.charging ? 'devices.battery_charging' : 'devices.battery', { level: b.level })}
+  >
+    {#if b.charging}<BatteryCharging size={14} />{:else if b.level < 20}<BatteryWarning size={14} />{:else if b.level < 40}<BatteryLow size={14} />{:else if b.level < 80}<BatteryMedium size={14} />{:else}<BatteryFull size={14} />{/if}
+    {b.level} %
+  </span>
+{/snippet}
 
 <!-- Problems the remapping service reports (devices, hiding, applying); English from Rust. -->
 {#if live?.warnings.length}
@@ -99,88 +152,73 @@
 
 <footer class="bar">
   <div class="left">
-    <div class="devices">
-      {#if !live || live.devices.length === 0}
-        <span class="none">{t('devices.none')}</span>
-      {:else}
-        {#each live.devices as d (d.id)}
-          {@const own = ownIds.has(d.id)}
-          <span class="device-wrap" class:selected={own ? set.device === d.id : set.device === null && d.id === live.primary}>
-            <button
-              class="device"
-              class:primary={d.id === live.primary}
-              class:own
-              title={own ? t('devices.own_hint') : d.id === live.primary ? t('devices.in_use') : t('devices.use')}
-              onclick={() => pick(d)}
-            >
-              {#if own}<Layers size={15} />{:else}<Gamepad2 size={15} />{/if}
-              {d.name}
-              {#if d.battery && !d.battery.wired}
-                {@const b = d.battery}
-                <span
-                  class="battery"
-                  class:low={b.level < 40 && !b.charging}
-                  class:critical={b.level < 20 && !b.charging}
-                  title={t(b.charging ? 'devices.battery_charging' : 'devices.battery', { level: b.level })}
-                >
-                  {#if b.charging}<BatteryCharging size={14} />{:else if b.level < 20}<BatteryWarning size={14} />{:else if b.level < 40}<BatteryLow size={14} />{:else if b.level < 80}<BatteryMedium size={14} />{:else}<BatteryFull size={14} />{/if}
-                  {b.level} %
-                </span>
-              {/if}
-            </button>
-            <Menu items={deviceMenu(d)}>
-              {#snippet trigger()}<span class="device-more"><ChevronDown size={13} /></span>{/snippet}
-            </Menu>
-          </span>
-        {/each}
-      {/if}
-      {#if live && !live.drivers.virtual_pads.available}
-        <span class="warn" title={live.drivers.virtual_pads.error ?? ''}>
-          <TriangleAlert size={13} /> ViGEmBus {t('drivers.missing')}
-        </span>
-      {/if}
-    </div>
-
     <button
-      class="remap"
+      class="power"
       class:on={live?.remap_on}
+      aria-pressed={!!live?.remap_on}
+      aria-label={t(live?.remap_on ? 'remap.on' : 'remap.off')}
+      title={powerTitle}
       onclick={() => run(api.setRemap(!live?.remap_on))}
-      title={live?.profile ?? ''}
     >
-      <Power size={15} />
-      {live?.remap_on ? t('remap.on') : t('remap.off')}
+      {#if paused}<Pause size={15} />{:else}<Power size={15} />{/if}
     </button>
-    {#if live?.suspended && live?.remap_on && live?.profile}
-      <span class="paused"><Pause size={12} /> {t(live.locked ? 'remap.paused_locked' : live.focus_paused ? 'remap.paused_focus' : 'remap.paused')}</span>
+
+    {#if !live || live.devices.length === 0}
+      <span class="btn select empty"><Gamepad2 size={15} /><span class="name">{t('devices.none')}</span></span>
+    {:else}
+      <Menu items={deviceItems} title={ownIds.has(currentId ?? '') ? t('devices.own_hint') : t('devices.pick')}>
+        {#snippet trigger()}
+          <span class="btn select">
+            {#if ownIds.has(currentId ?? '')}<Layers size={15} />{:else}<Gamepad2 size={15} />{/if}
+            <span class="name">{current?.name ?? live?.seen_devices.find((d) => d.id === currentId)?.name ?? currentId}</span>
+            {#if current?.battery && !current.battery.wired}{@render battery(current.battery)}{/if}
+            {#if others.length}
+              <span
+                class="more"
+                class:low={othersTone === 'warning'}
+                class:critical={othersTone === 'danger'}
+                title={others
+                  .map((d) => (d.battery && !d.battery.wired ? `${d.name} — ${t('devices.battery', { level: d.battery.level })}` : d.name))
+                  .join('\n')}
+              >
+                +{others.length}
+              </span>
+            {/if}
+            <ChevronDown size={14} />
+          </span>
+        {/snippet}
+      </Menu>
+      {#if current}
+        <Menu items={deviceMenu(current)} title={t('devices.options')}>
+          {#snippet trigger()}<span class="btn square"><Settings size={15} /></span>{/snippet}
+        </Menu>
+      {/if}
     {/if}
 
-    <div class="apply">
-      <button class="btn primary" disabled={!app.configPath || app.readOnly} onclick={() => app.apply()}>
-        {t('remap.apply_to', { n: app.applySlot + 1 })}
-      </button>
-      <Menu items={slotMenu}>
-        {#snippet trigger()}<span class="btn slot-pick"><ChevronDown size={14} /></span>{/snippet}
-      </Menu>
-    </div>
+    {#if live && !live.drivers.virtual_pads.available}
+      <span class="warn" title={live.drivers.virtual_pads.error ?? ''}>
+        <TriangleAlert size={13} /> ViGEmBus {t('drivers.missing')}
+      </span>
+    {/if}
   </div>
 
   <div class="right">
-    <Toggle
-      checked={live?.auto_switch ?? true}
-      label={t('remap.autodetect')}
-      onchange={(v) => run(api.setAutoSwitch(v))}
-    />
-    {#if ownIds.size > 0}
-      <span class="slot-owner" title={set.session?.profile ?? ''}>
-        {set.device ? t('slots.of_device', { name: ownName ?? '' }) : t('slots.shared')}
-      </span>
-    {/if}
+    <!-- Hovering it marks the slot it fills. -->
+    <div class="apply" class:ready={canApply}>
+      <button class="btn primary" disabled={!canApply} onclick={() => app.apply()}>
+        {t('remap.apply_to', { n: app.applySlot + 1 })}
+      </button>
+      <Menu items={slotMenu} align="right" title={t('remap.pick_slot')}>
+        {#snippet trigger()}<span class="btn primary slot-pick"><ChevronDown size={14} /></span>{/snippet}
+      </Menu>
+    </div>
     <div class="slots">
       {#each [0, 1, 2, 3] as i (i)}
         <div class="slot-wrap">
           <button
             class="slot"
             class:filled={!!slotNames[i]}
+            class:target={app.applySlot === i}
             class:active={set.active === i && live?.remap_on && !!slotNames[i]}
             class:failed={set.active === i && live?.remap_on && !!slotNames[i] && !set.session && (set.device === null || !!live?.devices.some((d) => d.id === set.device))}
             title={slotNames[i] ?? t('slots.empty')}
@@ -238,116 +276,117 @@
   .right {
     display: flex;
     align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+  .right {
     gap: 14px;
-    min-width: 0;
   }
-  .devices {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    min-width: 0;
-    overflow: hidden;
+  /* Circles switch something (remapping, slots); rectangles pick and act. All are 32 px high. */
+  .bar :global(.btn) {
+    height: 32px;
   }
-  .none {
+  .power {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    margin-right: 4px;
+    border-radius: 50%;
+    border: 1px solid var(--line-strong);
     color: var(--text-faint);
+    transition: background 0.12s, border-color 0.12s, color 0.12s;
   }
-  .device {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 5px 10px;
-    border-radius: var(--radius-s);
-    color: var(--text-faint);
+  .power:hover {
+    border-color: var(--text-faint);
+    color: var(--text-dim);
+  }
+  .power.on {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: var(--accent-soft);
+  }
+  .power.on:hover {
+    background: color-mix(in srgb, var(--accent) 24%, transparent);
+  }
+  .select {
+    gap: 7px;
+    max-width: 340px;
     white-space: nowrap;
   }
-  .device.primary {
-    color: var(--text);
+  .select > :global(svg:first-child) {
+    flex: none;
+    color: var(--accent);
+  }
+  .select > :global(svg:last-child) {
+    flex: none;
+    color: var(--text-faint);
+  }
+  .name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .select.empty {
+    color: var(--text-faint);
+    cursor: default;
+  }
+  .select.empty:hover {
     background: var(--bg-2);
+    border-color: var(--line);
+  }
+  .select.empty > :global(svg:first-child) {
+    color: var(--text-faint);
+  }
+  .square {
+    width: 32px;
+    padding: 0;
+    justify-content: center;
+    color: var(--text-dim);
   }
   .battery {
     display: inline-flex;
     align-items: center;
     gap: 3px;
-    margin-left: 2px;
     color: var(--text-dim);
     font-size: 11px;
   }
-  .battery.low {
+  .battery.low,
+  .more.low {
     color: var(--warning);
   }
-  .battery.critical {
+  .battery.critical,
+  .more.critical {
     color: var(--danger);
   }
-  .device-wrap {
-    display: inline-flex;
-    align-items: center;
-    border-radius: var(--radius-s);
-    border: 1px solid transparent;
-  }
-  .device-wrap.selected {
-    border-color: color-mix(in srgb, var(--accent) 45%, transparent);
-  }
-  .device.own {
-    color: var(--text);
-  }
-  .device-more {
-    display: inline-flex;
-    align-items: center;
-    padding: 5px 4px;
-    color: var(--text-faint);
-  }
-  .slot-owner {
-    font-size: 12px;
+  .more {
+    padding: 1px 5px;
+    border-radius: 4px;
+    background: var(--line-strong);
     color: var(--text-dim);
-    white-space: nowrap;
-  }
-  .device.primary :global(svg) {
-    color: var(--accent);
+    font-size: 11px;
+    font-weight: 600;
   }
   .warn {
     display: inline-flex;
     align-items: center;
     gap: 4px;
+    margin-left: 6px;
     color: var(--warning);
     font-size: 12px;
-    white-space: nowrap;
-  }
-  .remap {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 6px 14px;
-    border-radius: 99px;
-    border: 1px solid var(--line-strong);
-    color: var(--text-dim);
-    font-weight: 600;
-    font-size: 12px;
-    white-space: nowrap;
-  }
-  .remap.on {
-    color: #04221f;
-    background: var(--ok);
-    border-color: var(--ok);
-  }
-  .paused {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    font-size: 11px;
-    color: var(--text-faint);
     white-space: nowrap;
   }
   .apply {
     display: inline-flex;
   }
-  .apply :global(.btn.primary) {
+  .apply > :global(.btn.primary) {
     border-radius: var(--radius-s) 0 0 var(--radius-s);
   }
   .slot-pick {
+    padding: 0 7px;
     border-radius: 0 var(--radius-s) var(--radius-s) 0;
-    padding: 6px 7px;
-    border-left: none;
-    height: 100%;
+    border-left-color: rgba(4, 34, 31, 0.3);
   }
   .slots {
     display: flex;
@@ -360,9 +399,13 @@
     width: 32px;
     height: 32px;
     border-radius: 50%;
-    border: 2px dashed var(--line-strong);
+    border: 1px dashed var(--line-strong);
     color: var(--text-faint);
     font-weight: 600;
+    transition: background 0.12s, border-color 0.12s, box-shadow 0.12s;
+  }
+  .slot:hover {
+    border-color: var(--text-faint);
   }
   .slot.filled {
     border-style: solid;
@@ -372,12 +415,17 @@
   .slot.active {
     border-color: var(--accent);
     color: var(--accent);
-    box-shadow: 0 0 0 3px var(--accent-soft);
+    background: var(--accent-soft);
   }
   .slot.active.failed {
     border-color: var(--warning);
     color: var(--warning);
-    box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.15);
+    background: rgba(245, 158, 11, 0.12);
+  }
+  .right:has(.apply.ready:hover, .apply.ready:focus-within) .slot.target {
+    border-style: solid;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
   }
   .unload {
     position: absolute;

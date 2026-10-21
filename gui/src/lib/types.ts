@@ -568,6 +568,8 @@ export interface LiveState {
   active_slot: number;
   remap_on: boolean;
   auto_switch: boolean;
+  /** Autodetect chose the running config for the game in front, not the active slot. */
+  auto_active: boolean;
   player_lights: PlayerLights;
   mic_led: boolean;
   /** Every device the backends report, blocked and grouped ones included. */

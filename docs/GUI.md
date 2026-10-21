@@ -18,7 +18,7 @@ only edits profiles and sends commands.
 | **Toolbar** | Views: *Controller*, *Back side*, *Keyboard*, *Mouse*. The two controller views draw the connected model as it looks from that side: the front shows the bumpers (L1 / R1, L / R) but not the triggers behind them; the back side shows the triggers, the bumpers where they show from behind (not on the DualSense), and the back buttons the model has, e.g. GL / GR on the Switch 2 Pro Controller, none on the first one. Layer chips: *Main* plus shift layers, which you can add, rename, copy, paste, clear and remove (together with their analog routes), and whose *Layer settings* say what they inherit from *Main*. On the right: *Analog* (see [Sticks, triggers and analog routes](#sticks-triggers-and-analog-routes)), *Shortcuts* and *Config settings*. |
 | **Centre** | The selected view. Click a control to edit it. On the controller views, pressing a button on the controller selects it, and turns the drawing to the side that shows it (a trigger to the back side, a face button to the front). On the keyboard view, pressing a key does the same. |
 | **Binding panel** (right) | See below. With nothing selected, it lists the mappings of the current layer. |
-| **Bottom bar** | Connected controllers with their battery level where the controller reports one (DualShock 4, DualSense, Switch controllers, wireless Xbox controllers; orange below 40 %, red below 20 %) (click one to use it; its menu gives it *own slots*, see [Several controllers](#several-controllers)), driver warnings, **Remap ON/OFF**, *Apply to slot n* (saves, puts the config in that slot and activates it), *Autodetect* (switch configs by the game in the foreground; only while remapping is on), and the four slots (click to activate, which also turns remapping on; × to unload). |
+| **Bottom bar** | On the left: the remap button (on in teal, off in grey; a pause sign while remapping pauses, see [Remapping while the window is open](#remapping-while-the-window-is-open); its tooltip names the running config), the controller in use with its battery level where the controller reports one (DualShock 4, DualSense, Switch controllers, wireless Xbox controllers; orange below 40 %, red below 20 %), and driver warnings. *+1* means another controller is connected; it turns orange or red when that one's battery runs low. The controller list picks the one to use, and the cog next to it holds that controller's options: *own slots* (see [Several controllers](#several-controllers)), identifying a generic pad's buttons, **Turn off** and **Ignore this controller**. On the right: *Apply to slot n* (saves, puts the config in that slot and activates it; the arrow picks the slot, and hovering the button marks it) and the four slots (click to activate, which also turns remapping on; × to unload). |
 
 ## Editing a control
 
@@ -247,22 +247,23 @@ The settings are stored as `[sticks.left]`, `[sticks.right]`, `[triggers.left]`,
 
 Remapping pauses while the Doppelpad window has keyboard focus. Mapped keys therefore
 don't land in the editor, and pressing a button selects it instead of triggering its
-mapping. The bottom bar then shows *Paused while editing*. Switch to the game (or hide
-the window) and the active slot takes over again. *Settings → Keep remapping active while
-this window is focused* turns this off.
+mapping. The remap button in the bottom bar then shows a pause sign, and its tooltip says
+*Paused while editing*. Switch to the game (or hide the window) and the active slot takes
+over again. *Settings → Keep remapping active while this window is focused* turns this off.
 
 ## Several controllers
 
-Normally the four slots are shared: they run on the controller in use (the one you clicked
-in the bottom bar, else the first one). If that controller disconnects for a moment, they
-move to another one and come back to it when it returns; only the controller in use is
-hidden from games. To play with two controllers at once, open the
-second controller's menu (the arrow next to its name) and choose **Own slots for this
-controller**. It then shows its own four slots: *Apply to slot* and the slot buttons work on
-them while that controller is selected, and it runs its own config with its own virtual
-controller while it is connected. The shared slots keep running on the other controller.
-Keyboard and mouse belong to the shared slots' config. Remap ON/OFF switches all of them;
-*Autodetect* changes the shared slots only. Each config hides only its own controller.
+Normally the four slots are shared: they run on the controller in use (the one picked in
+the bottom bar's controller list, else the first one). If that controller disconnects for a
+moment, they move to another one and come back to it when it returns; only the controller in
+use is hidden from games. To play with two controllers at once, pick the second controller
+in the list, open the cog next to it and choose **Own slots for this controller**. It then
+shows its own four slots (the list marks it with a stack icon): *Apply to slot* and the slot
+buttons work on them while that controller is picked, and it runs its own config with its
+own virtual controller while it is connected. The shared slots keep running on the other
+controller. Keyboard and mouse belong to the shared slots' config. The remap button switches
+all of them; *Autodetect* (*Settings → While remapping*) changes the shared slots only. Each
+config hides only its own controller.
 
 *Settings → Controllers* lists every connected device. Untick one (or choose **Ignore this
 controller** in its menu) and Doppelpad leaves it alone completely: no input, no hiding, no
@@ -331,7 +332,7 @@ drives the mappings, for example the virtual controller for a game that ignores 
 input, while the real keyboard and mouse keep working as usual. Doppelpad's own output never
 counts as input.
 
-Wireless controllers can be turned off from their menu in the bottom bar (**Turn off**), with
+Wireless controllers can be turned off from the cog next to them in the bottom bar (**Turn off**), with
 the `power_off` command in a mapping, or by themselves: *Turn wireless controllers off after*
 switches off a controller that had no input for that many minutes (resting sticks with a
 little drift do not count). Wired controllers stay on. Its home button turns it back on.
@@ -377,7 +378,8 @@ turns remapping on or off. The right-click menu has:
 
 - **Open Doppelpad**
 - the active config (*Game › Config*) or *No config active*
-- **Remapping on** and **Autodetect games**, the same switches as in the bottom bar
+- **Remapping on** and **Autodetect games**, the same switches as the remap button in the
+  bottom bar and *Settings → While remapping → Autodetect*
 - the four slots with their configs; choosing one activates it and turns remapping on
 - **Quit**
 
