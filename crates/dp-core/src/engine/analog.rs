@@ -150,7 +150,7 @@ mod tests {
 
     fn dirs_with(v: (f32, f32), diagonals: bool) -> Vec<Dir> {
         let d = directions(v, 7849.0 / 32768.0, K, diagonals);
-        Dir::ALL8.into_iter().filter(|x| d[*x as usize]).collect()
+        Dir::ALL.into_iter().filter(|x| d[*x as usize]).collect()
     }
 
     #[test]

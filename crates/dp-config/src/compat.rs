@@ -186,7 +186,7 @@ fn gamepad_control(id: i64) -> Option<Control> {
         109..=132 => {
             let i = (id - 109) as usize;
             let stick = if i < 12 { Stick::Left } else { Stick::Right };
-            StickZone(stick, Some(Dir::ALL[i % 4]), ZONES[i % 12 / 4])
+            StickZone(stick, Some(Dir::CARDINALS[i % 4]), ZONES[i % 12 / 4])
         }
         1 => Button(P::A),
         2 => Button(P::B),
@@ -223,7 +223,7 @@ fn gamepad_control(id: i64) -> Option<Control> {
         // Mouse zone × direction: low up/down/left/right, then med, then high.
         133..=144 => {
             let i = (id - 133) as usize;
-            MouseZone(Some(Dir::ALL[i % 4]), ZONES[i / 4])
+            MouseZone(Some(Dir::CARDINALS[i % 4]), ZONES[i / 4])
         }
         64 => MouseMove(Dir::Up),
         65 => MouseMove(Dir::Down),

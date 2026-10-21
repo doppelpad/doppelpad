@@ -27,9 +27,12 @@ use std::str::FromStr;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::keys::{Key, MouseButton, WheelDir};
+use crate::names::named_enum;
 use crate::pad::{PadButton, Stick, Trigger};
 
-/// Direction: the four cardinals, and the four diagonals for sources that tell them apart.
+named_enum! {
+/// Direction: the four cardinals, then the four diagonals for sources that tell them apart
+/// (`ALL` is in this order).
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Dir {
@@ -42,41 +45,12 @@ pub enum Dir {
     DownLeft,
     DownRight,
 }
+}
 
 impl Dir {
     /// The four cardinal directions.
-    pub const ALL: [Dir; 4] = [Dir::Up, Dir::Down, Dir::Left, Dir::Right];
+    pub const CARDINALS: [Dir; 4] = [Dir::Up, Dir::Down, Dir::Left, Dir::Right];
     pub const DIAGONALS: [Dir; 4] = [Dir::UpLeft, Dir::UpRight, Dir::DownLeft, Dir::DownRight];
-    /// Cardinals, then diagonals.
-    pub const ALL8: [Dir; 8] = [
-        Dir::Up,
-        Dir::Down,
-        Dir::Left,
-        Dir::Right,
-        Dir::UpLeft,
-        Dir::UpRight,
-        Dir::DownLeft,
-        Dir::DownRight,
-    ];
-
-    pub fn name(self) -> &'static str {
-        match self {
-            Dir::Up => "Up",
-            Dir::Down => "Down",
-            Dir::Left => "Left",
-            Dir::Right => "Right",
-            Dir::UpLeft => "UpLeft",
-            Dir::UpRight => "UpRight",
-            Dir::DownLeft => "DownLeft",
-            Dir::DownRight => "DownRight",
-        }
-    }
-
-    fn parse(s: &str) -> Option<Dir> {
-        Dir::ALL8
-            .into_iter()
-            .find(|d| d.name().eq_ignore_ascii_case(s))
-    }
 
     pub fn is_diagonal(self) -> bool {
         Dir::DIAGONALS.contains(&self)
@@ -108,6 +82,7 @@ impl Dir {
     }
 }
 
+named_enum! {
 /// Band of a stick's deflection or a trigger's pull. Bands are exclusive: a
 /// control is in at most one zone at a time.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
@@ -117,18 +92,9 @@ pub enum Zone {
     Med,
     High,
 }
+}
 
 impl Zone {
-    pub const ALL: [Zone; 3] = [Zone::Low, Zone::Med, Zone::High];
-
-    pub fn name(self) -> &'static str {
-        match self {
-            Zone::Low => "Low",
-            Zone::Med => "Med",
-            Zone::High => "High",
-        }
-    }
-
     /// Split a trailing zone name off a lowercase control name (`"rthigh"` →
     /// `("rt", High)`).
     fn strip_suffix(lower: &str) -> Option<(&str, Zone)> {
@@ -143,6 +109,7 @@ impl Zone {
     }
 }
 
+named_enum! {
 /// A touchpad gesture, recognised from the finger tracks; each is a short press. Also played
 /// on the virtual controller's touchpad by touch actions (snake case there: `swipe2_left`).
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
@@ -169,46 +136,9 @@ pub enum TouchGesture {
     ZoomIn,
     ZoomOut,
 }
+}
 
 impl TouchGesture {
-    pub const ALL: [TouchGesture; 15] = [
-        TouchGesture::Tap,
-        TouchGesture::TapLeft,
-        TouchGesture::TapCenter,
-        TouchGesture::TapRight,
-        TouchGesture::MultiTap,
-        TouchGesture::SwipeUp,
-        TouchGesture::SwipeDown,
-        TouchGesture::SwipeLeft,
-        TouchGesture::SwipeRight,
-        TouchGesture::Swipe2Up,
-        TouchGesture::Swipe2Down,
-        TouchGesture::Swipe2Left,
-        TouchGesture::Swipe2Right,
-        TouchGesture::ZoomIn,
-        TouchGesture::ZoomOut,
-    ];
-
-    pub fn name(self) -> &'static str {
-        match self {
-            TouchGesture::Tap => "Tap",
-            TouchGesture::TapLeft => "TapLeft",
-            TouchGesture::TapCenter => "TapCenter",
-            TouchGesture::TapRight => "TapRight",
-            TouchGesture::MultiTap => "MultiTap",
-            TouchGesture::SwipeUp => "SwipeUp",
-            TouchGesture::SwipeDown => "SwipeDown",
-            TouchGesture::SwipeLeft => "SwipeLeft",
-            TouchGesture::SwipeRight => "SwipeRight",
-            TouchGesture::Swipe2Up => "Swipe2Up",
-            TouchGesture::Swipe2Down => "Swipe2Down",
-            TouchGesture::Swipe2Left => "Swipe2Left",
-            TouchGesture::Swipe2Right => "Swipe2Right",
-            TouchGesture::ZoomIn => "ZoomIn",
-            TouchGesture::ZoomOut => "ZoomOut",
-        }
-    }
-
     /// The swipe in a cardinal direction with one or two fingers.
     pub fn swipe(dir: Dir, two: bool) -> TouchGesture {
         use TouchGesture::*;
@@ -225,20 +155,13 @@ impl TouchGesture {
     }
 }
 
+named_enum! {
 /// One half of a touchpad split into two trackpads.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum Half {
     Left,
     Right,
 }
-
-impl Half {
-    pub fn name(self) -> &'static str {
-        match self {
-            Half::Left => "Left",
-            Half::Right => "Right",
-        }
-    }
 }
 
 /// What one of the two trackpads of a split touchpad reports.
@@ -250,6 +173,7 @@ pub enum TrackpadPart {
     Click,
 }
 
+named_enum! {
 /// Direction of the controller's motion: nose up or down, the steering axis (roll or yaw, see
 /// the profile's `[gyro]`) to the left or right, or a lean (roll, left grip down = left).
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
@@ -262,35 +186,9 @@ pub enum GyroDir {
     LeanLeft,
     LeanRight,
 }
-
-impl GyroDir {
-    pub const ALL: [GyroDir; 6] = [
-        GyroDir::Up,
-        GyroDir::Down,
-        GyroDir::Left,
-        GyroDir::Right,
-        GyroDir::LeanLeft,
-        GyroDir::LeanRight,
-    ];
-
-    pub fn name(self) -> &'static str {
-        match self {
-            GyroDir::Up => "Up",
-            GyroDir::Down => "Down",
-            GyroDir::Left => "Left",
-            GyroDir::Right => "Right",
-            GyroDir::LeanLeft => "LeanLeft",
-            GyroDir::LeanRight => "LeanRight",
-        }
-    }
-
-    fn parse(s: &str) -> Option<GyroDir> {
-        GyroDir::ALL
-            .into_iter()
-            .find(|d| d.name().eq_ignore_ascii_case(s))
-    }
 }
 
+named_enum! {
 /// Region of a touchpad, used as a digital input.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -305,34 +203,9 @@ pub enum TouchRegion {
     DownLeft,
     DownRight,
 }
+}
 
 impl TouchRegion {
-    pub const ALL: [TouchRegion; 9] = [
-        TouchRegion::Up,
-        TouchRegion::Down,
-        TouchRegion::Left,
-        TouchRegion::Right,
-        TouchRegion::Center,
-        TouchRegion::UpLeft,
-        TouchRegion::UpRight,
-        TouchRegion::DownLeft,
-        TouchRegion::DownRight,
-    ];
-
-    pub fn name(self) -> &'static str {
-        match self {
-            TouchRegion::Up => "Up",
-            TouchRegion::Down => "Down",
-            TouchRegion::Left => "Left",
-            TouchRegion::Right => "Right",
-            TouchRegion::Center => "Center",
-            TouchRegion::UpLeft => "UpLeft",
-            TouchRegion::UpRight => "UpRight",
-            TouchRegion::DownLeft => "DownLeft",
-            TouchRegion::DownRight => "DownRight",
-        }
-    }
-
     /// The region in a direction from the centre.
     pub fn of(dir: Dir) -> TouchRegion {
         match dir {
@@ -405,10 +278,10 @@ impl Control {
 
     /// Every digital control derived from a stick: directions (with diagonals) and zones.
     pub fn of_stick(s: Stick) -> Vec<Control> {
-        let dirs = Dir::ALL8.map(|d| Control::StickDir(s, d));
+        let dirs = Dir::ALL.map(|d| Control::StickDir(s, d));
         let zones = Zone::ALL.into_iter().flat_map(move |z| {
             std::iter::once(None)
-                .chain(Dir::ALL8.map(Some))
+                .chain(Dir::ALL.map(Some))
                 .map(move |d| Control::StickZone(s, d, z))
         });
         dirs.into_iter().chain(zones).collect()
@@ -418,7 +291,7 @@ impl Control {
     pub fn of_touchpad() -> Vec<Control> {
         let regions = TouchRegion::ALL.map(Control::Touch);
         let gestures = TouchGesture::ALL.map(Control::Gesture);
-        let halves = [Half::Left, Half::Right].into_iter().flat_map(|h| {
+        let halves = Half::ALL.into_iter().flat_map(|h| {
             TouchRegion::ALL
                 .map(TrackpadPart::Region)
                 .into_iter()
@@ -449,33 +322,6 @@ impl Control {
     }
 }
 
-pub fn pad_button_name(b: PadButton) -> &'static str {
-    match b {
-        PadButton::A => "A",
-        PadButton::B => "B",
-        PadButton::X => "X",
-        PadButton::Y => "Y",
-        PadButton::LB => "LB",
-        PadButton::RB => "RB",
-        PadButton::Back => "Back",
-        PadButton::Start => "Start",
-        PadButton::LS => "LS",
-        PadButton::RS => "RS",
-        PadButton::DpadUp => "DpadUp",
-        PadButton::DpadDown => "DpadDown",
-        PadButton::DpadLeft => "DpadLeft",
-        PadButton::DpadRight => "DpadRight",
-        PadButton::Guide => "Guide",
-        PadButton::Touchpad => "Touchpad",
-        PadButton::Misc => "Misc",
-        PadButton::PaddleUL => "PaddleUL",
-        PadButton::PaddleUR => "PaddleUR",
-        PadButton::PaddleLL => "PaddleLL",
-        PadButton::PaddleLR => "PaddleLR",
-        PadButton::Misc2 => "Misc2",
-    }
-}
-
 /// Parse a gamepad button name, accepting common PlayStation/Nintendo aliases.
 pub fn parse_pad_button(s: &str) -> Option<PadButton> {
     let alias = match s.to_ascii_lowercase().as_str() {
@@ -500,18 +346,7 @@ pub fn parse_pad_button(s: &str) -> Option<PadButton> {
         "gr" => Some(PadButton::PaddleUR),
         _ => None,
     };
-    alias.or_else(|| {
-        PadButton::ALL
-            .into_iter()
-            .find(|b| pad_button_name(*b).eq_ignore_ascii_case(s))
-    })
-}
-
-fn stick_name(s: Stick) -> &'static str {
-    match s {
-        Stick::Left => "Left",
-        Stick::Right => "Right",
-    }
+    alias.or_else(|| PadButton::from_name(s))
 }
 
 fn trigger_name(t: Trigger) -> &'static str {
@@ -521,59 +356,26 @@ fn trigger_name(t: Trigger) -> &'static str {
     }
 }
 
-fn wheel_name(w: WheelDir) -> &'static str {
-    match w {
-        WheelDir::Up => "Up",
-        WheelDir::Down => "Down",
-        WheelDir::Left => "Left",
-        WheelDir::Right => "Right",
-    }
-}
-
-pub fn mouse_button_name(b: MouseButton) -> &'static str {
-    match b {
-        MouseButton::Left => "Left",
-        MouseButton::Right => "Right",
-        MouseButton::Middle => "Middle",
-        MouseButton::X1 => "X1",
-        MouseButton::X2 => "X2",
-    }
-}
-
 pub fn parse_mouse_button(s: &str) -> Option<MouseButton> {
-    MouseButton::ALL
-        .into_iter()
-        .find(|b| mouse_button_name(*b).eq_ignore_ascii_case(s))
-        .or(match s.to_ascii_lowercase().as_str() {
-            "back" | "4" => Some(MouseButton::X1),
-            "forward" | "5" => Some(MouseButton::X2),
-            "1" => Some(MouseButton::Left),
-            "2" => Some(MouseButton::Right),
-            "3" => Some(MouseButton::Middle),
-            _ => None,
-        })
-}
-
-pub fn parse_wheel(s: &str) -> Option<WheelDir> {
-    [
-        WheelDir::Up,
-        WheelDir::Down,
-        WheelDir::Left,
-        WheelDir::Right,
-    ]
-    .into_iter()
-    .find(|w| wheel_name(*w).eq_ignore_ascii_case(s))
+    MouseButton::from_name(s).or(match s.to_ascii_lowercase().as_str() {
+        "back" | "4" => Some(MouseButton::X1),
+        "forward" | "5" => Some(MouseButton::X2),
+        "1" => Some(MouseButton::Left),
+        "2" => Some(MouseButton::Right),
+        "3" => Some(MouseButton::Middle),
+        _ => None,
+    })
 }
 
 impl fmt::Display for Control {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
-            Control::Button(b) => f.write_str(pad_button_name(b)),
-            Control::StickDir(s, d) => write!(f, "{}Stick{}", stick_name(s), d.name()),
+            Control::Button(b) => f.write_str(b.name()),
+            Control::StickDir(s, d) => write!(f, "{}Stick{}", s.name(), d.name()),
             Control::StickZone(s, d, z) => write!(
                 f,
                 "{}Stick{}{}",
-                stick_name(s),
+                s.name(),
                 d.map_or("", Dir::name),
                 z.name()
             ),
@@ -590,8 +392,8 @@ impl fmt::Display for Control {
             Control::Gyro(d) => write!(f, "Gyro{}", d.name()),
             Control::GyroZone(d, z) => write!(f, "Gyro{}{}", d.map_or("", GyroDir::name), z.name()),
             Control::Key(k) => write!(f, "Key:{}", k.name()),
-            Control::Mouse(b) => write!(f, "Mouse:{}", mouse_button_name(b)),
-            Control::Wheel(w) => write!(f, "Wheel:{}", wheel_name(w)),
+            Control::Mouse(b) => write!(f, "Mouse:{}", b.name()),
+            Control::Wheel(w) => write!(f, "Wheel:{}", w.name()),
             Control::MouseMove(d) => write!(f, "MouseMove:{}", d.name()),
             Control::MouseZone(d, z) => {
                 write!(f, "MouseMove:{}{}", d.map_or("", Dir::name), z.name())
@@ -610,9 +412,11 @@ impl FromStr for Control {
             return match prefix.to_ascii_lowercase().as_str() {
                 "key" => rest.parse::<Key>().map(Control::Key),
                 "mouse" => parse_mouse_button(rest).map(Control::Mouse).ok_or_else(err),
-                "wheel" => parse_wheel(rest).map(Control::Wheel).ok_or_else(err),
+                "wheel" => WheelDir::from_name(rest)
+                    .map(Control::Wheel)
+                    .ok_or_else(err),
                 "mousemove" | "mouse_move" => {
-                    if let Some(d) = Dir::parse(rest) {
+                    if let Some(d) = Dir::from_name(rest) {
                         return Ok(Control::MouseMove(d));
                     }
                     let lower = rest.to_ascii_lowercase();
@@ -620,7 +424,7 @@ impl FromStr for Control {
                     if rest.is_empty() {
                         Ok(Control::MouseZone(None, z))
                     } else {
-                        Dir::parse(rest)
+                        Dir::from_name(rest)
                             .map(|d| Control::MouseZone(Some(d), z))
                             .ok_or_else(err)
                     }
@@ -650,43 +454,35 @@ impl FromStr for Control {
             let Some(rest) = lower.strip_prefix(prefix) else {
                 continue;
             };
-            if let Some(d) = Dir::parse(rest) {
+            if let Some(d) = Dir::from_name(rest) {
                 return Ok(Control::StickDir(stick, d));
             }
             if let Some((rest, z)) = Zone::strip_suffix(rest) {
                 if rest.is_empty() {
                     return Ok(Control::StickZone(stick, None, z));
                 }
-                if let Some(d) = Dir::parse(rest) {
+                if let Some(d) = Dir::from_name(rest) {
                     return Ok(Control::StickZone(stick, Some(d), z));
                 }
             }
         }
-        let region = |rest: &str| {
-            TouchRegion::ALL
-                .into_iter()
-                .find(|r| r.name().eq_ignore_ascii_case(rest))
-        };
         if let Some(rest) = lower.strip_prefix("touch") {
-            if let Some(r) = region(rest) {
+            if let Some(r) = TouchRegion::from_name(rest) {
                 return Ok(Control::Touch(r));
             }
-            if let Some(g) = TouchGesture::ALL
-                .into_iter()
-                .find(|g| g.name().eq_ignore_ascii_case(rest))
-            {
+            if let Some(g) = TouchGesture::from_name(rest) {
                 return Ok(Control::Gesture(g));
             }
         }
         if let Some(rest) = lower.strip_prefix("trackpad") {
-            for half in [Half::Left, Half::Right] {
+            for half in Half::ALL {
                 let Some(part) = rest.strip_prefix(&half.name().to_ascii_lowercase()) else {
                     continue;
                 };
                 let part = match part {
                     "tap" => Some(TrackpadPart::Tap),
                     "click" => Some(TrackpadPart::Click),
-                    other => region(other).map(TrackpadPart::Region),
+                    other => TouchRegion::from_name(other).map(TrackpadPart::Region),
                 };
                 if let Some(p) = part {
                     return Ok(Control::Trackpad(half, p));
@@ -694,14 +490,14 @@ impl FromStr for Control {
             }
         }
         if let Some(rest) = lower.strip_prefix("gyro") {
-            if let Some(d) = GyroDir::parse(rest) {
+            if let Some(d) = GyroDir::from_name(rest) {
                 return Ok(Control::Gyro(d));
             }
             if let Some((rest, z)) = Zone::strip_suffix(rest) {
                 if rest.is_empty() {
                     return Ok(Control::GyroZone(None, z));
                 }
-                if let Some(d) = GyroDir::parse(rest) {
+                if let Some(d) = GyroDir::from_name(rest) {
                     return Ok(Control::GyroZone(Some(d), z));
                 }
             }
@@ -727,6 +523,24 @@ impl<'de> Deserialize<'de> for Control {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// `ALL` is in declaration order: `PadButton::bit`, the engine's `d[dir as usize]` and the
+    /// importer's `GyroDir::ALL[i]` count on it.
+    #[test]
+    fn all_is_in_declaration_order() {
+        for (i, b) in PadButton::ALL.into_iter().enumerate() {
+            assert_eq!(b as usize, i, "{b:?}");
+        }
+        for (i, d) in Dir::ALL.into_iter().enumerate() {
+            assert_eq!(d as usize, i, "{d:?}");
+        }
+        for (i, d) in GyroDir::ALL.into_iter().enumerate() {
+            assert_eq!(d as usize, i, "{d:?}");
+        }
+        assert_eq!(Dir::ALL[..4], Dir::CARDINALS);
+        assert_eq!(PadButton::from_name("dpadup"), Some(PadButton::DpadUp));
+        assert_eq!(PadButton::Misc2.name(), "Misc2");
+    }
 
     #[test]
     fn roundtrip_all_kinds() {

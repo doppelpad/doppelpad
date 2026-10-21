@@ -5,6 +5,9 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::names::named_enum;
+
+named_enum! {
 /// Digital gamepad buttons, named by their Xbox position.
 ///
 /// PlayStation/Nintendo layouts map by *position*: Cross = `A`, Circle = `B`,
@@ -47,33 +50,9 @@ pub enum PadButton {
     /// Second extra button: C (Switch 2 controllers).
     Misc2,
 }
+}
 
 impl PadButton {
-    pub const ALL: [PadButton; 22] = [
-        PadButton::A,
-        PadButton::B,
-        PadButton::X,
-        PadButton::Y,
-        PadButton::LB,
-        PadButton::RB,
-        PadButton::Back,
-        PadButton::Start,
-        PadButton::LS,
-        PadButton::RS,
-        PadButton::DpadUp,
-        PadButton::DpadDown,
-        PadButton::DpadLeft,
-        PadButton::DpadRight,
-        PadButton::Guide,
-        PadButton::Touchpad,
-        PadButton::Misc,
-        PadButton::PaddleUL,
-        PadButton::PaddleUR,
-        PadButton::PaddleLL,
-        PadButton::PaddleLR,
-        PadButton::Misc2,
-    ];
-
     #[inline]
     pub const fn bit(self) -> u32 {
         1 << self as u8
@@ -104,12 +83,14 @@ impl Axis {
     ];
 }
 
+named_enum! {
 /// Which stick.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Stick {
     Left,
     Right,
+}
 }
 
 impl Stick {
@@ -121,12 +102,14 @@ impl Stick {
     }
 }
 
+named_enum! {
 /// Which trigger.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Trigger {
     Left,
     Right,
+}
 }
 
 impl Trigger {

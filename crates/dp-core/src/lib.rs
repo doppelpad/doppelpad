@@ -7,6 +7,7 @@ pub mod event;
 pub mod hotkeys;
 pub mod keys;
 pub mod led;
+mod names;
 pub mod pad;
 pub mod profile;
 pub mod repeat;

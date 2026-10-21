@@ -10,7 +10,6 @@ use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result, bail};
 use clap::{Parser, Subcommand, ValueEnum};
-use dp_core::control::pad_button_name;
 use dp_core::pad::{Axis, PadButton};
 use dp_ipc::{Request, Response};
 use dp_platform::Platform;
@@ -437,7 +436,7 @@ fn monitor() -> Result<()> {
             let buttons: Vec<&str> = PadButton::ALL
                 .iter()
                 .filter(|b| st.pressed(**b))
-                .map(|b| pad_button_name(*b))
+                .map(|b| b.name())
                 .collect();
             line.push_str(&format!(
                 "[{}] L({:+.2},{:+.2}) R({:+.2},{:+.2}) LT {:.2} RT {:.2} {}",
