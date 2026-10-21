@@ -225,8 +225,8 @@ describe('curve editing', () => {
 
 describe('analog routes', () => {
   it('offer only the fields the engine reads', () => {
-    expect(routeFields('right_stick', 'mouse')).toEqual(['curve', 'deadzone', 'smoothing_ms', 'acceleration', 'consume']);
-    expect(routeFields('left_stick', 'right_stick')).toEqual(['deadzone', 'anti_deadzone', 'snap', 'consume']);
+    expect(routeFields('right_stick', 'mouse')).toEqual(['curve', 'deadzone', 'outer', 'smoothing_ms', 'acceleration', 'consume']);
+    expect(routeFields('left_stick', 'right_stick')).toEqual(['deadzone', 'outer', 'anti_deadzone', 'snap', 'consume']);
     expect(routeFields('mouse', 'right_stick')).toContain('decay_ms');
     expect(routeFields('gyro', 'mouse')).toEqual(['smoothing_ms']);
     expect(routeFields('touchpad', 'mouse')).toEqual(['trackball_friction']);
@@ -241,7 +241,7 @@ describe('analog routes', () => {
   it('are written like Rust writes them', () => {
     let p = empty();
     p = addRoute(p, newRoute(def.analog, 0, { sensitivity: 1.2, vertical_ratio: 0.8, curve: 1.8, deadzone: 0.12 }));
-    p = updateRoute(p, 0, { smoothing_ms: 10 });
+    p = updateRoute(p, 0, { smoothing_ms: 10, outer: 0.95 });
     p = addRoute(p, newRoute(def.analog, 1, { source: 'gyro', target: 'right_stick', while_held: ['LT'] }));
     p = updateRoute(p, 1, { sensitivity: 2.5, invert_y: true, anti_deadzone: 0.2, consume: false });
     p = addRoute(p, newRoute(def.analog, 2, { source: 'mouse', target: 'left_stick', sensitivity: 1.5 }));

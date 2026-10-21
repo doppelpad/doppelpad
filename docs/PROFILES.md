@@ -501,6 +501,7 @@ sensitivity = 1.0
 vertical_ratio = 1.0
 curve = 1.0              # exponent on the normalized magnitude
 deadzone = 0.1           # source deadzone (sticks, touchpad)
+outer = 1.0              # stick sources: deflection that counts as fully pushed, (deadzone, 1]
 anti_deadzone = 0.0      # minimum output deflection (stick targets)
 smoothing_ms = 0
 decay_ms = 40            # mouse → stick: recentre after this long without motion

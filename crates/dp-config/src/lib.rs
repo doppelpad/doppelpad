@@ -269,6 +269,10 @@ pub fn validate(p: &Profile) -> Diagnostics {
             );
         }
         let stick = matches!(r.source, AnalogSource::LeftStick | AnalogSource::RightStick);
+        // Flick routes use the deadzone as their threshold and ignore outer.
+        if stick && r.target != AnalogTarget::Flick && !(r.outer > r.deadzone && r.outer <= 1.0) {
+            d.error(format!("analog[{i}].outer"), "must be in (deadzone, 1]");
+        }
         if r.target == AnalogTarget::Flick && !stick {
             d.warn(
                 format!("analog[{i}]"),

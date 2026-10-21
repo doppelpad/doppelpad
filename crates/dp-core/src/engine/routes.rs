@@ -89,13 +89,14 @@ fn smooth(st: &mut RouteState, v: (f32, f32), smoothing_ms: u32, dt: f32) -> (f3
     st.ema
 }
 
-/// Normalized magnitude after a source deadzone and power curve, keeping direction.
-fn shape_vector((x, y): (f32, f32), deadzone: f32, curve: f32) -> (f32, f32) {
+/// Normalized magnitude after a source deadzone, the deflection that counts as full and a
+/// power curve, keeping direction.
+fn shape_vector((x, y): (f32, f32), deadzone: f32, outer: f32, curve: f32) -> (f32, f32) {
     let mag = (x * x + y * y).sqrt();
     if mag <= deadzone || mag == 0.0 {
         return (0.0, 0.0);
     }
-    let t = ((mag - deadzone) / (1.0 - deadzone).max(0.01)).clamp(0.0, 1.0);
+    let t = ((mag - deadzone) / (outer - deadzone).max(0.01)).clamp(0.0, 1.0);
     let t = if curve > 0.0 && curve != 1.0 {
         t.powf(curve)
     } else {
@@ -202,7 +203,7 @@ pub fn run(r: &AnalogMapping, st: &mut RouteState, input: &RouteInput) -> RouteO
             match r.target {
                 AnalogTarget::Flick => flick(r, st, raw, input),
                 AnalogTarget::Mouse => {
-                    let (x, y) = shape_vector(raw, r.deadzone, r.curve);
+                    let (x, y) = shape_vector(raw, r.deadzone, r.outer, r.curve);
                     // Held at the edge, the speed grows (acceleration).
                     let boost = if r.acceleration > 0.0 && x.hypot(y) >= ACCEL_FROM {
                         let since = *st.accel_since.get_or_insert(input.now);
@@ -225,6 +226,7 @@ pub fn run(r: &AnalogMapping, st: &mut RouteState, input: &RouteInput) -> RouteO
                 _ => {
                     let cfg = StickConfig {
                         deadzone: r.deadzone,
+                        outer: r.outer,
                         ..Default::default()
                     };
                     let (x, y) = shape_stick(raw, &cfg);
@@ -246,7 +248,7 @@ pub fn run(r: &AnalogMapping, st: &mut RouteState, input: &RouteInput) -> RouteO
                     (st.pos.1 - dy * k * sy).clamp(-1.0, 1.0),
                 );
                 let v = if r.curve != 1.0 {
-                    shape_vector(st.pos, 0.0, r.curve)
+                    shape_vector(st.pos, 0.0, 1.0, r.curve)
                 } else {
                     st.pos
                 };
@@ -267,7 +269,7 @@ pub fn run(r: &AnalogMapping, st: &mut RouteState, input: &RouteInput) -> RouteO
                 st.ema
             };
             let v = if r.curve != 1.0 {
-                shape_vector(v, 0.0, r.curve)
+                shape_vector(v, 0.0, 1.0, r.curve)
             } else {
                 v
             };
@@ -297,7 +299,7 @@ pub fn run(r: &AnalogMapping, st: &mut RouteState, input: &RouteInput) -> RouteO
             if let Some((steer, up)) = input.tilt
                 && r.target != AnalogTarget::Mouse
             {
-                let v = shape_vector((-steer * sx, up * sy), r.deadzone, r.curve);
+                let v = shape_vector((-steer * sx, up * sy), r.deadzone, 1.0, r.curve);
                 return to_stick(r, (v.0 * r.sensitivity, v.1 * r.sensitivity));
             }
             match r.target {
@@ -379,7 +381,7 @@ pub fn run(r: &AnalogMapping, st: &mut RouteState, input: &RouteInput) -> RouteO
                     let v = finger
                         .map(|(x, y)| ((x - 0.5) * 2.0, (0.5 - y) * 2.0))
                         .unwrap_or((0.0, 0.0));
-                    let v = shape_vector(v, r.deadzone, r.curve);
+                    let v = shape_vector(v, r.deadzone, 1.0, r.curve);
                     to_stick(r, (v.0 * r.sensitivity * sx, v.1 * r.sensitivity * sy))
                 }
             }
@@ -432,6 +434,33 @@ mod tests {
             &input(Some(&pad), &sticks, (0.0, 0.0), 0),
         );
         assert_eq!(out, RouteOutput::Mouse(10.0, 0.0), "1000 px/s for 10 ms");
+    }
+
+    #[test]
+    fn stick_to_mouse_is_at_full_speed_from_outer() {
+        let sticks = Sticks::default();
+        let mut pad = PadState::default();
+        let r = AnalogMapping {
+            deadzone: 0.0,
+            outer: 0.9,
+            ..Default::default()
+        };
+        let mut speed = |x: f32| {
+            pad.set_axis(Axis::RightX, x);
+            match run(
+                &r,
+                &mut RouteState::default(),
+                &input(Some(&pad), &sticks, (0.0, 0.0), 0),
+            ) {
+                RouteOutput::Mouse(dx, _) => dx,
+                other => panic!("{other:?}"),
+            }
+        };
+        assert_eq!(speed(0.95), 10.0, "past outer is full speed");
+        assert!(
+            (speed(0.45) - 5.0).abs() < 1e-4,
+            "half of outer is half speed"
+        );
     }
 
     #[test]

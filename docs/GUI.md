@@ -23,7 +23,8 @@ only edits profiles and sends commands.
 ## Editing a control
 
 1. Pick the layer in the toolbar and click the control (or press it). A stick asks for its
-   direction (or the click, or *any direction* for zones). The touchpad asks for its click
+   direction (or the click, or *any direction* for zones), or what the whole stick does (see
+   [A whole stick](#a-whole-stick-as-mouse-wasd-or-flick-stick)). The touchpad asks for its click
    or one of five regions (top, bottom, left, right, centre), or a gesture (taps, swipes with
    one or two fingers, zoom); with two trackpads, the regions, tap and click of each half.
    Controllers with motion
@@ -121,6 +122,30 @@ Its **Timing** section holds the config-wide defaults: the shortcut window (how 
 controls of a shortcut may take to be pressed together), the long-press time, the double-
 and triple-press windows, the turbo period and the delay between keys. A mapping's own
 timing wins over these; empty fields use the built-in defaults.
+
+## A whole stick as mouse, WASD or flick stick
+
+The menu of either stick has a row *Whole stick as*: **Mouse**, **WASD**, **Arrow keys** and
+**Flick stick**, for the current layer. Mouse and Flick stick add an analog route from that
+stick (see [Routes](#sticks-triggers-and-analog-routes)); WASD and Arrow keys map the four
+directions to W, A, S, D or the arrow keys. A choice replaces the stick's direction mappings
+(with their zones) and its routes on that layer, after asking; shortcuts with the stick and
+its click stay. The stick's label on the drawing then says *Mouse* or *Flick stick*.
+
+The side panel shows the whole stick: the same four choices, the route's settings and
+*Clear this stick on this layer*. For the mouse it adds *Response* presets and a graph of the
+cursor speed over the stick's deflection, with a dot that follows the stick:
+
+| Preset | Feel |
+|---|---|
+| *Standard* (where a new mouse stick starts) | a gentle curve, a little smoothing, some acceleration at the edge |
+| *Precise* | slow near the centre for fine aiming, quick at the edge |
+| *Fast* | linear and quick, with strong acceleration at the edge |
+| *Smooth* | more smoothing: calmer, with a little delay |
+
+A preset sets the curve, deadzone, *Counts as full from*, smoothing and acceleration;
+sensitivity, vertical ratio and inverting stay. Changing one of those values shows *Custom
+values*.
 
 ## Sticks, triggers and analog routes
 
@@ -222,6 +247,7 @@ A route shows only the settings it uses:
 | *Sensitivity*, *Vertical ratio*, *Invert* | every route; the hint under *Sensitivity* says what 1 means for the route |
 | *Curve* (exponent on the deflection; 1 = linear) | stick → mouse, mouse → stick, touchpad → stick |
 | *Deadzone* | stick → mouse, stick → stick, touchpad → stick |
+| *Counts as full from* (deflection that already gives full speed or deflection) | stick → mouse, stick → stick |
 | *Anti-deadzone* | routes to a stick |
 | *Smoothing* | stick → mouse, mouse → stick, gyro → mouse or stick |
 | *Acceleration at the edge* | stick → mouse: held at 90 % or more, the cursor speeds up (up to 4 ×) |
