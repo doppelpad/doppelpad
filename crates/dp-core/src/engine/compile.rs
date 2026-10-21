@@ -184,7 +184,7 @@ fn policy_for(mode: Mode, holdable: bool, m: &Mapping, turbo_ms: u32) -> Policy 
             random_ms,
         },
         Mode::Repeat => Policy::Loop {
-            max_runs: Some(m.repeat.unwrap_or(1).clamp(1, 9999)),
+            max_runs: Some(m.repeat.unwrap_or(1).clamp(1, MAX_REPEATS)),
             stop: StopRule::Never,
             gap_ms,
             period_ms: None,
@@ -451,6 +451,12 @@ fn expand_jumps(mappings: &[Mapping]) -> Vec<(Mapping, JumpTarget)> {
 /// Pulse length of decided-after-the-fact activations.
 const PULSE_PAD_MS: u64 = 20;
 const PULSE_KEY_MS: u64 = 10;
+/// Shortest turbo period.
+const MIN_TURBO_MS: u32 = 10;
+/// Most runs a `repeat` mapping makes.
+const MAX_REPEATS: u32 = 9999;
+/// The triple-press window ends at least this long after the double-press window.
+const MIN_TRIPLE_GAP_MS: u64 = 100;
 
 #[derive(Default)]
 struct MaskTable {
@@ -481,7 +487,7 @@ fn make_binding(
     warnings: &mut Vec<String>,
 ) -> Binding {
     let key_delay = m.key_delay_ms.unwrap_or(p.timing.key_delay_ms);
-    let turbo_ms = m.turbo_ms.unwrap_or(p.timing.turbo_ms).max(10);
+    let turbo_ms = m.turbo_ms.unwrap_or(p.timing.turbo_ms).max(MIN_TURBO_MS);
     let mut mode = m.mode;
     let mut activator = m.activator;
     // Release cannot hold/turbo/toggle; Start cannot toggle.
@@ -617,7 +623,7 @@ pub(super) fn compile(p: &Profile) -> Compiled {
                 }
             }
             if rec.t_triple <= rec.t_double {
-                rec.t_triple = rec.t_double + 100;
+                rec.t_triple = rec.t_double + MIN_TRIPLE_GAP_MS;
             }
             table.rec.insert(mask, rec);
 
