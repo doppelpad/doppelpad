@@ -995,7 +995,7 @@ impl Engine {
 
     fn begin(&mut self, bid: BindingId, m: MaskId, kind: Activator, t: u64) {
         let b = &self.c.bindings[bid];
-        let policy = b.policy();
+        let policy = b.policy;
         let mode = b.mode;
         let jump = b.jump;
         if mode == Mode::Toggle {

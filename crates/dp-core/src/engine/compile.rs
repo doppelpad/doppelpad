@@ -122,80 +122,74 @@ pub(super) struct Binding {
     pub layer: u8,
     pub activator: Activator,
     pub mode: Mode,
-    /// Program for hold-style execution (ends with a hold point), per segment.
-    pub hold_programs: Vec<Vec<Step>>,
-    /// Program for one sequence run (everything released at the end), per segment.
-    pub run_programs: Vec<Vec<Step>>,
-    /// Program for one turbo pulse (press everything, wait half a period, release).
-    pub pulse_program: Vec<Step>,
-    /// Every action is a plain holdable output, so turbo/toggle can pulse/latch it.
-    pub holdable: bool,
+    /// How an activation runs the programs.
+    pub policy: Policy,
+    /// One program per segment: hold programs (ending with a hold point), runs (everything
+    /// released at the end), or the one turbo pulse (press, wait half a period, release).
+    pub programs: Vec<Vec<Step>>,
     pub jump: JumpTarget,
-    pub turbo_ms: u32,
-    pub repeat: u32,
-    pub repeat_pause_ms: u32,
-    pub random_ms: u32,
     pub has_pad_output: bool,
     /// No actions and no jump: the trigger is consumed ("unmapped"/muted).
     pub is_unmap: bool,
+    /// The mapping's own press-pattern windows, where it sets them.
+    pub long_press_ms: Option<u32>,
+    pub double_tap_ms: Option<u32>,
+    pub triple_tap_ms: Option<u32>,
 }
 
 impl Binding {
-    pub(super) fn policy(&self) -> Policy {
-        match self.mode {
-            Mode::Hold => Policy::Hold,
-            Mode::Toggle if self.holdable => Policy::Hold,
-            // A toggled sequence loops until the next activation, like a held one.
-            Mode::Toggle | Mode::WhileHeld => Policy::Loop {
-                max_runs: None,
-                stop: StopRule::FinishRun,
-                gap_ms: self.repeat_pause_ms,
-                period_ms: None,
-                random_ms: self.random_ms,
-            },
-            Mode::Turbo if self.holdable => Policy::Loop {
-                max_runs: None,
-                stop: StopRule::Immediate,
-                gap_ms: 0,
-                period_ms: Some(self.turbo_ms),
-                random_ms: self.random_ms,
-            },
-            Mode::Turbo => Policy::Loop {
-                max_runs: None,
-                stop: StopRule::FinishRun,
-                gap_ms: 0,
-                period_ms: Some(self.turbo_ms),
-                random_ms: self.random_ms,
-            },
-            Mode::Once => Policy::Loop {
-                max_runs: Some(1),
-                stop: StopRule::Never,
-                gap_ms: 0,
-                period_ms: None,
-                random_ms: self.random_ms,
-            },
-            Mode::Repeat => Policy::Loop {
-                max_runs: Some(self.repeat.max(1)),
-                stop: StopRule::Never,
-                gap_ms: self.repeat_pause_ms,
-                period_ms: None,
-                random_ms: self.random_ms,
-            },
-        }
-    }
-
     /// The program of one segment (sequences without break steps have one).
     pub(super) fn program(&self, segment: usize) -> &[Step] {
-        match (self.policy(), self.mode) {
-            (Policy::Hold, _) => &self.hold_programs[segment],
-            (_, Mode::Turbo) if self.holdable => &self.pulse_program,
-            _ => &self.run_programs[segment],
-        }
+        &self.programs[segment]
     }
 
     /// Number of segments the break steps cut the sequence into.
     pub(super) fn segments(&self) -> usize {
-        self.run_programs.len()
+        self.programs.len()
+    }
+}
+
+/// How a binding in `mode` runs; `holdable` when every action is a plain output to hold, so
+/// turbo pulses it and toggle latches it.
+fn policy_for(mode: Mode, holdable: bool, m: &Mapping, turbo_ms: u32) -> Policy {
+    let random_ms = m.random_ms.unwrap_or(0);
+    let gap_ms = m.repeat_pause_ms.unwrap_or(0);
+    match mode {
+        Mode::Hold => Policy::Hold,
+        Mode::Toggle if holdable => Policy::Hold,
+        // A toggled sequence loops until the next activation, like a held one.
+        Mode::Toggle | Mode::WhileHeld => Policy::Loop {
+            max_runs: None,
+            stop: StopRule::FinishRun,
+            gap_ms,
+            period_ms: None,
+            random_ms,
+        },
+        Mode::Turbo => Policy::Loop {
+            max_runs: None,
+            stop: if holdable {
+                StopRule::Immediate
+            } else {
+                StopRule::FinishRun
+            },
+            gap_ms: 0,
+            period_ms: Some(turbo_ms),
+            random_ms,
+        },
+        Mode::Once => Policy::Loop {
+            max_runs: Some(1),
+            stop: StopRule::Never,
+            gap_ms: 0,
+            period_ms: None,
+            random_ms,
+        },
+        Mode::Repeat => Policy::Loop {
+            max_runs: Some(m.repeat.unwrap_or(1).clamp(1, 9999)),
+            stop: StopRule::Never,
+            gap_ms,
+            period_ms: None,
+            random_ms,
+        },
     }
 }
 
@@ -248,23 +242,58 @@ impl Compiled {
     }
 }
 
-fn press_outputs(a: &Action) -> Option<(Option<Out>, Option<AnalogOut>, Press)> {
+/// What a key, button or analog action holds while it is down.
+#[derive(Copy, Clone)]
+enum Held {
+    Digital(Out),
+    Analog(AnalogOut),
+}
+
+impl Held {
+    fn down(self) -> Step {
+        match self {
+            Held::Digital(o) => Step::Down(o),
+            Held::Analog(o) => Step::AnalogDown(o),
+        }
+    }
+
+    fn up(self) -> Step {
+        match self {
+            Held::Digital(o) => Step::Up(o),
+            Held::Analog(o) => Step::AnalogUp(o),
+        }
+    }
+
+    /// Down, a short wait (analog outputs a little longer, so games read them), up.
+    fn tap(self, key_delay: u32) -> [Step; 3] {
+        let wait = match self {
+            Held::Digital(_) => key_delay.max(1),
+            Held::Analog(_) => key_delay.max(ANALOG_TAP_MS),
+        };
+        [self.down(), Step::Wait(wait), self.up()]
+    }
+}
+
+fn press_outputs(a: &Action) -> Option<(Held, Press)> {
     Some(match *a {
-        Action::Key { key, action } => (Some(Out::Key(key)), None, action),
-        Action::Pad { pad, action } => (Some(Out::Pad(pad)), None, action),
-        Action::Mouse { mouse, action } => (Some(Out::Mouse(mouse)), None, action),
+        Action::Key { key, action } => (Held::Digital(Out::Key(key)), action),
+        Action::Pad { pad, action } => (Held::Digital(Out::Pad(pad)), action),
+        Action::Mouse { mouse, action } => (Held::Digital(Out::Mouse(mouse)), action),
         Action::Stick {
             stick,
             x,
             y,
             absolute,
             action,
-        } => (None, Some(AnalogOut::Stick(stick, x, y, absolute)), action),
+        } => (
+            Held::Analog(AnalogOut::Stick(stick, x, y, absolute)),
+            action,
+        ),
         Action::Trigger {
             trigger,
             value,
             action,
-        } => (None, Some(AnalogOut::Trigger(trigger, value)), action),
+        } => (Held::Analog(AnalogOut::Trigger(trigger, value)), action),
         Action::MouseMove {
             mouse_move,
             speed,
@@ -276,11 +305,11 @@ fn press_outputs(a: &Action) -> Option<(Option<Out>, Option<AnalogOut>, Press)> 
             } else {
                 AnalogOut::MouseVelocity(x * speed, -y * speed)
             };
-            (None, Some(out), Press::Auto)
+            (Held::Analog(out), Press::Auto)
         }
         Action::MouseClip {
             mouse_clip: [x1, y1, x2, y2],
-        } => (None, Some(AnalogOut::Clip(x1, y1, x2, y2)), Press::Auto),
+        } => (Held::Analog(AnalogOut::Clip(x1, y1, x2, y2)), Press::Auto),
         _ => return None,
     })
 }
@@ -323,25 +352,11 @@ const ANALOG_TAP_MS: u32 = 20;
 fn hold_program(actions: &[Action], key_delay: u32) -> Vec<Step> {
     let mut steps = Vec::new();
     for a in actions {
-        if let Some((digital, analog, press)) = press_outputs(a) {
+        if let Some((held, press)) = press_outputs(a) {
             match press {
                 Press::Up => {} // hold programs drop explicit releases
-                Press::Tap => {
-                    if let Some(o) = digital {
-                        steps.extend([Step::Down(o), Step::Wait(key_delay.max(1)), Step::Up(o)]);
-                    }
-                    if let Some(o) = analog {
-                        steps.extend([
-                            Step::AnalogDown(o),
-                            Step::Wait(key_delay.max(ANALOG_TAP_MS)),
-                            Step::AnalogUp(o),
-                        ]);
-                    }
-                }
-                Press::Auto | Press::Down => {
-                    steps.extend(digital.map(Step::Down));
-                    steps.extend(analog.map(Step::AnalogDown));
-                }
+                Press::Tap => steps.extend(held.tap(key_delay)),
+                Press::Auto | Press::Down => steps.push(held.down()),
             }
         } else if let Some(s) = other_steps(a) {
             steps.push(s);
@@ -355,28 +370,11 @@ fn hold_program(actions: &[Action], key_delay: u32) -> Vec<Step> {
 fn run_program(actions: &[Action], key_delay: u32) -> Vec<Step> {
     let mut steps = Vec::new();
     for a in actions {
-        if let Some((digital, analog, press)) = press_outputs(a) {
+        if let Some((held, press)) = press_outputs(a) {
             match press {
-                Press::Down => {
-                    steps.extend(digital.map(Step::Down));
-                    steps.extend(analog.map(Step::AnalogDown));
-                }
-                Press::Up => {
-                    steps.extend(digital.map(Step::Up));
-                    steps.extend(analog.map(Step::AnalogUp));
-                }
-                Press::Auto | Press::Tap => {
-                    if let Some(o) = digital {
-                        steps.extend([Step::Down(o), Step::Wait(key_delay.max(1)), Step::Up(o)]);
-                    }
-                    if let Some(o) = analog {
-                        steps.extend([
-                            Step::AnalogDown(o),
-                            Step::Wait(key_delay.max(ANALOG_TAP_MS)),
-                            Step::AnalogUp(o),
-                        ]);
-                    }
-                }
+                Press::Down => steps.push(held.down()),
+                Press::Up => steps.push(held.up()),
+                Press::Auto | Press::Tap => steps.extend(held.tap(key_delay)),
             }
         } else if let Some(s) = other_steps(a) {
             steps.push(s);
@@ -389,15 +387,9 @@ fn pulse_program(actions: &[Action], period: u32) -> Vec<Step> {
     let mut steps = Vec::new();
     let mut ups = Vec::new();
     for a in actions {
-        if let Some((digital, analog, _)) = press_outputs(a) {
-            if let Some(o) = digital {
-                steps.push(Step::Down(o));
-                ups.push(Step::Up(o));
-            }
-            if let Some(o) = analog {
-                steps.push(Step::AnalogDown(o));
-                ups.push(Step::AnalogUp(o));
-            }
+        if let Some((held, _)) = press_outputs(a) {
+            steps.push(held.down());
+            ups.push(held.up());
         }
     }
     steps.push(Step::Wait((period / 2).max(1)));
@@ -408,7 +400,7 @@ fn pulse_program(actions: &[Action], period: u32) -> Vec<Step> {
 fn is_holdable(actions: &[Action]) -> bool {
     !actions.is_empty()
         && actions.iter().all(|a| {
-            matches!(press_outputs(a), Some((_, _, Press::Auto | Press::Down)))
+            matches!(press_outputs(a), Some((_, Press::Auto | Press::Down)))
                 && !matches!(a, Action::MouseMove { .. })
         })
 }
@@ -520,23 +512,28 @@ fn make_binding(
             other => other,
         };
     }
-    let mask = mt.id(&m.trigger.0);
+    let holdable = is_holdable(&m.actions);
+    let policy = policy_for(mode, holdable, m, turbo_ms);
+    let programs = match policy {
+        Policy::Hold => segs.iter().map(|s| hold_program(s, key_delay)).collect(),
+        Policy::Loop { .. } if mode == Mode::Turbo && holdable => {
+            vec![pulse_program(&m.actions, turbo_ms)]
+        }
+        Policy::Loop { .. } => segs.iter().map(|s| run_program(s, key_delay)).collect(),
+    };
     Binding {
-        mask,
+        mask: mt.id(&m.trigger.0),
         layer: m.layer,
         activator,
         mode,
-        hold_programs: segs.iter().map(|s| hold_program(s, key_delay)).collect(),
-        run_programs: segs.iter().map(|s| run_program(s, key_delay)).collect(),
-        pulse_program: pulse_program(&m.actions, turbo_ms),
-        holdable: is_holdable(&m.actions),
+        policy,
+        programs,
         jump,
-        turbo_ms,
-        repeat: m.repeat.unwrap_or(1).clamp(1, 9999),
-        repeat_pause_ms: m.repeat_pause_ms.unwrap_or(0),
-        random_ms: m.random_ms.unwrap_or(0),
         has_pad_output: has_pad_output(&m.actions),
         is_unmap: m.actions.is_empty() && jump.is_none(),
+        long_press_ms: m.long_press_ms,
+        double_tap_ms: m.double_tap_ms,
+        triple_tap_ms: m.triple_tap_ms,
     }
 }
 
@@ -557,7 +554,6 @@ pub(super) fn compile(p: &Profile) -> Compiled {
     layer_ids.sort();
     layer_ids.dedup();
 
-    let mappings_expanded = expand_jumps(&p.mappings);
     let mut layers = BTreeMap::new();
     for &lid in &layer_ids {
         let decl = p.layer(lid);
@@ -610,14 +606,13 @@ pub(super) fn compile(p: &Profile) -> Compiled {
                 if b.has_pad_output {
                     rec.t_pulse = PULSE_PAD_MS;
                 }
-                let (m, _) = &mappings_expanded[bid];
-                if let Some(t) = m.long_press_ms {
+                if let Some(t) = b.long_press_ms {
                     rec.t_long = u64::from(t);
                 }
-                if let Some(t) = m.double_tap_ms {
+                if let Some(t) = b.double_tap_ms {
                     rec.t_double = u64::from(t);
                 }
-                if let Some(t) = m.triple_tap_ms {
+                if let Some(t) = b.triple_tap_ms {
                     rec.t_triple = u64::from(t);
                 }
             }
