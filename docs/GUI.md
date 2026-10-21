@@ -254,7 +254,9 @@ this window is focused* turns this off.
 ## Several controllers
 
 Normally the four slots are shared: they run on the controller in use (the one you clicked
-in the bottom bar, else the first one). To play with two controllers at once, open the
+in the bottom bar, else the first one). If that controller disconnects for a moment, they
+move to another one and come back to it when it returns; only the controller in use is
+hidden from games. To play with two controllers at once, open the
 second controller's menu (the arrow next to its name) and choose **Own slots for this
 controller**. It then shows its own four slots: *Apply to slot* and the slot buttons work on
 them while that controller is selected, and it runs its own config with its own virtual
@@ -427,7 +429,7 @@ running reWASD.
 | `%APPDATA%\doppelpad\hotkeys.toml` | Controller hotkeys and their hold time (also read by `doppelpad daemon`) |
 | `%APPDATA%\doppelpad\calibration.toml` | Gyro calibration per controller (also used by `doppelpad daemon`) |
 | `%APPDATA%\doppelpad\gui.toml` | Language, focus pause, press-to-select |
-| `%LOCALAPPDATA%\doppelpad\logs\doppelpad-gui.log` | Log of the current run; the previous run's log is kept as `doppelpad-gui.log.1` |
+| `%LOCALAPPDATA%\doppelpad\logs\doppelpad-gui.log` | Log of the current run; the logs of the five runs before are kept as `doppelpad-gui.log.1` (the newest) to `.5` |
 
 The app saves atomically (it writes a temporary file, then renames it). Before it
 overwrites a profile that it did not write itself, it keeps one `.bak` copy. Deleting
@@ -435,12 +437,13 @@ moves files to the recycle bin.
 
 ### Log file
 
-When reporting a problem, attach `doppelpad-gui.log` (and `doppelpad-gui.log.1` if the
-problem happened before the app was last restarted). *Settings → Open log folder* shows
-the file in Explorer. The log starts with the app version, the Windows version and
-whether ViGEmBus and HidHide are available, and it records warnings, the controllers in
-use and crashes. Each start replaces the log, and a single run stops logging after
-16 MiB. `DOPPELPAD_LOG` sets the detail level (default `info`; for example
+When reporting a problem, attach `doppelpad-gui.log` (and the numbered logs of earlier
+runs if the problem happened before the app was last restarted). *Settings → Open log
+folder* shows the files in Explorer. The log starts with the app version, the Windows
+version and whether ViGEmBus and HidHide are available, and it records warnings, the
+controller in use and why it was picked, controllers that went silent and were started
+again, and crashes. Each start begins a new log and keeps those of the five runs before;
+a single run stops logging after 16 MiB. `DOPPELPAD_LOG` sets the detail level (default `info`; for example
 `DOPPELPAD_LOG=debug`). On Linux the log is in `$XDG_STATE_HOME/doppelpad/logs`
 (default `~/.local/state/doppelpad/logs`).
 

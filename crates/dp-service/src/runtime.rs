@@ -3,7 +3,8 @@
 //!
 //! Several profiles can run at once, one per *session*. The default session runs on the
 //! controller in use (the preferred one, else the first one without a session of its
-//! own); a controller can also have its own session with its own profile and virtual pad.
+//! own, which it keeps and returns to after a disconnect); a controller can also have its
+//! own session with its own profile and virtual pad.
 //! Keyboard and mouse are shared: their input goes to the default session (or the first
 //! session if there is none), and every session's keyboard and mouse output goes out.
 
@@ -194,7 +195,11 @@ pub struct Runtime {
     snapshots: Vec<PadSnapshot>,
     /// The controller of the default session.
     primary: Option<DeviceId>,
+    /// The controller picked in the app for the default session.
     preferred: Option<DeviceId>,
+    /// The controller the default session used until it went away (unplugged, reset, or
+    /// taken by a session of its own). The session goes back to it when it is free again.
+    lost: Option<DeviceId>,
     hidden: Vec<String>,
     echo: Option<Echo>,
     suspended: bool,
@@ -513,6 +518,7 @@ impl Runtime {
             snapshots: Vec::new(),
             primary: None,
             preferred: None,
+            lost: None,
             hidden: Vec::new(),
             echo: None,
             suspended: false,
@@ -569,6 +575,7 @@ impl Runtime {
     /// Prefer this controller for the default session when it is connected.
     pub fn set_preferred_device(&mut self, id: Option<DeviceId>) {
         self.preferred = id;
+        self.lost = None;
         self.primary = None; // re-pick on the next poll
     }
 
@@ -1017,9 +1024,10 @@ impl Runtime {
         }
     }
 
-    /// Which controller each session reads: its own, or for the default session the
-    /// preferred (else first) controller that has no session of its own.
-    fn bind_sessions(&mut self) {
+    /// Which controller each session reads: its own, or for the default session one
+    /// without a session of its own: the preferred one, else the one it lost, else the
+    /// current one, else the first. Returns whether any session changed controllers.
+    fn bind_sessions(&mut self) -> bool {
         let ids: Vec<DeviceId> = self.snapshots.iter().map(|s| s.info.id.clone()).collect();
         let owned: Vec<DeviceId> = self
             .sessions
@@ -1027,21 +1035,46 @@ impl Runtime {
             .filter_map(|s| s.owner.clone())
             .collect();
         let free: Vec<&DeviceId> = ids.iter().filter(|id| !owned.contains(id)).collect();
-        let preferred = self.preferred.as_ref().filter(|p| free.contains(p));
-        let current = self.primary.as_ref().filter(|p| free.contains(p));
-        let primary = preferred.or(current).or(free.first().copied()).cloned();
+        let is_free = |p: &&DeviceId| free.contains(p);
+        let (primary, reason) = if let Some(p) = self.preferred.as_ref().filter(is_free) {
+            (Some(p), "picked in the app")
+        } else if let Some(p) = self.lost.as_ref().filter(is_free) {
+            (Some(p), "the controller in use before is back")
+        } else if let Some(p) = self.primary.as_ref().filter(is_free) {
+            (Some(p), "still connected")
+        } else if self.primary.is_some() {
+            let reason = "the controller in use went away or has its own profile";
+            (free.first().copied(), reason)
+        } else {
+            (free.first().copied(), "first free controller")
+        };
+        let primary = primary.cloned();
         if primary != self.primary {
-            if let Some(p) = &primary {
-                tracing::info!(device = %p, "using controller");
+            match &primary {
+                Some(p) => tracing::info!(device = %p, reason, "using controller"),
+                None => tracing::info!(reason, "no controller in use"),
+            }
+            if self.lost.is_none()
+                && let Some(old) = &self.primary
+                && !free.contains(&old)
+            {
+                self.lost = Some(old.clone());
+            }
+            if primary.is_some() && primary == self.lost {
+                self.lost = None;
             }
             self.primary = primary;
         }
+        let mut changed = false;
         for s in &mut self.sessions {
-            s.device = match &s.owner {
+            let device = match &s.owner {
                 Some(id) => ids.contains(id).then(|| id.clone()),
                 None => self.primary.clone(),
             };
+            changed |= device != s.device;
+            s.device = device;
         }
+        changed
     }
 
     fn poll_devices(&mut self, now: u64) {
@@ -1057,11 +1090,13 @@ impl Runtime {
         let devices_changed = ids != before;
         let primary_lost = self.primary.as_ref().is_some_and(|p| !ids.contains(p));
         let preferred_back = self.preferred.is_some() && self.preferred != self.primary;
-        if devices_changed || primary_lost || preferred_back || self.primary.is_none() {
-            self.bind_sessions();
-        }
+        let rebound = (devices_changed || primary_lost || preferred_back || self.primary.is_none())
+            && self.bind_sessions();
         if devices_changed {
             self.detectors.retain(|id, _| ids.contains(id));
+        }
+        // A session on another controller must hide that one instead.
+        if devices_changed || rebound {
             self.sync_hiding();
         }
     }
@@ -1369,6 +1404,8 @@ pub(crate) mod testing {
         pub system: Vec<String>,
         /// Controllers told to turn off.
         pub powered_off: Vec<DeviceId>,
+        /// Instance paths hidden from games right now.
+        pub hidden: Vec<String>,
     }
 
     pub type Shared = Arc<Mutex<World>>;
@@ -1483,6 +1520,22 @@ pub(crate) mod testing {
         }
     }
 
+    struct FakeHider(Shared);
+
+    impl dp_platform::DeviceHider for FakeHider {
+        fn available(&self) -> dp_platform::Result<()> {
+            Ok(())
+        }
+        fn hide(&mut self, instance_paths: &[String]) -> dp_platform::Result<()> {
+            self.0.lock().unwrap().hidden = instance_paths.to_vec();
+            Ok(())
+        }
+        fn restore(&mut self) -> dp_platform::Result<()> {
+            self.0.lock().unwrap().hidden.clear();
+            Ok(())
+        }
+    }
+
     struct FakeKbm(Shared);
 
     impl dp_platform::KbmOutput for FakeKbm {
@@ -1494,12 +1547,13 @@ pub(crate) mod testing {
         fn wheel(&mut self, _: dp_core::keys::WheelDir, _: f32) {}
     }
 
-    /// Null backends plus fake controller, virtual pad and keyboard backends.
+    /// Null backends plus fake controller, virtual pad, hiding and keyboard backends.
     pub fn platform() -> (Platform, Shared) {
         let world = Shared::default();
         let mut p = NullPlatform::platform();
         p.gamepads.push(Box::new(FakeBackend(world.clone())));
         p.virtual_pads = Box::new(FakeFactory(world.clone()));
+        p.hider = Box::new(FakeHider(world.clone()));
         p.kbm_out = Box::new(FakeKbm(world.clone()));
         p.system = Box::new(FakeSystem(world.clone()));
         (p, world)
@@ -1547,6 +1601,67 @@ mod tests {
         assert_eq!(press(LB.bit() | RB.bit()), 0, "until released");
         assert_eq!(press(0), 0);
         assert_eq!(press(X.bit()), X.bit(), "free again");
+    }
+
+    #[test]
+    fn picking_another_controller_moves_the_hiding() {
+        let (platform, world) = testing::platform();
+        world.lock().unwrap().pads.extend([
+            pad("pro", PadFamily::SwitchPro),
+            pad("ds", PadFamily::DualSense),
+        ]);
+        let mut rt = Runtime::with_platform(platform);
+        rt.apply(Profile::default(), None).unwrap();
+        rt.tick();
+        assert_eq!(world.lock().unwrap().hidden, ["path-pro"]);
+
+        rt.set_preferred_device(Some(DeviceId("ds".into())));
+        rt.tick();
+        assert_eq!(rt.primary_device(), Some(&DeviceId("ds".into())));
+        assert_eq!(
+            world.lock().unwrap().hidden,
+            ["path-ds"],
+            "the unused pad is visible again"
+        );
+    }
+
+    #[test]
+    fn default_session_returns_to_its_controller_after_a_drop() {
+        use dp_core::pad::PadButton;
+        let (platform, world) = testing::platform();
+        world.lock().unwrap().pads.extend([
+            pad("pro", PadFamily::SwitchPro),
+            pad("ds", PadFamily::DualSense),
+        ]);
+        let mut rt = Runtime::with_platform(platform);
+        rt.apply(Profile::default(), None).unwrap();
+        rt.tick();
+        let pro = world.lock().unwrap().pads.remove(0);
+        rt.tick();
+        assert_eq!(
+            rt.primary_device(),
+            Some(&DeviceId("ds".into())),
+            "falls back"
+        );
+        assert_eq!(world.lock().unwrap().hidden, ["path-ds"]);
+
+        // Back (now listed after the other pad): the session returns to it.
+        world.lock().unwrap().pads.push(pro);
+        rt.tick();
+        assert_eq!(rt.primary_device(), Some(&DeviceId("pro".into())));
+        assert_eq!(world.lock().unwrap().hidden, ["path-pro"]);
+        world.lock().unwrap().pads[1].state.set(PadButton::A, true);
+        rt.tick();
+        let out = world.lock().unwrap().virtual_pads[0].1.unwrap();
+        assert!(
+            out.pressed(PadButton::A),
+            "its input reaches the virtual pad"
+        );
+
+        // Once back, a later drop of the other pad changes nothing.
+        world.lock().unwrap().pads.remove(0);
+        rt.tick();
+        assert_eq!(rt.primary_device(), Some(&DeviceId("pro".into())));
     }
 
     #[test]

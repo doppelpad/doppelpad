@@ -1,6 +1,7 @@
 //! The app's log file, `dp_config::log_dir()/doppelpad-gui.log`, so bug reports can
-//! include it (release builds have no console). Each start moves the previous run's log
-//! to `doppelpad-gui.log.1`; a run stops writing after [`MAX_BYTES`].
+//! include it (release builds have no console). Each start shifts the logs of the last
+//! [`KEEP`] runs to `doppelpad-gui.log.1` (the newest) and up; a run stops writing after
+//! [`MAX_BYTES`].
 
 use std::fs::File;
 use std::io::{self, Write};
@@ -14,6 +15,9 @@ const FILE_NAME: &str = "doppelpad-gui.log";
 
 /// Per run, so a warning repeated every tick cannot fill the disk.
 const MAX_BYTES: u64 = 16 << 20;
+
+/// Earlier runs whose logs are kept: a problem seen yesterday must survive a few restarts.
+const KEEP: usize = 5;
 
 pub fn path() -> PathBuf {
     dp_config::log_dir().join(FILE_NAME)
@@ -45,15 +49,23 @@ pub fn init() {
     log_panics();
 }
 
-/// Start an empty log at `path`, keeping the previous one as `<path>.1`.
+/// `<path>.<n>`: the log of the run `n` starts ago.
+fn earlier(path: &Path, n: usize) -> PathBuf {
+    let mut p = path.as_os_str().to_owned();
+    p.push(format!(".{n}"));
+    p.into()
+}
+
+/// Start an empty log at `path`, keeping the previous ones as `<path>.1` to `<path>.KEEP`.
 fn open(path: &Path) -> io::Result<File> {
     if let Some(dir) = path.parent() {
         std::fs::create_dir_all(dir)?;
     }
-    let mut previous = path.as_os_str().to_owned();
-    previous.push(".1");
-    // Missing on first start; otherwise losing the old log is no reason not to log.
-    let _ = std::fs::rename(path, previous);
+    // Missing on the first starts; otherwise losing an old log is no reason not to log.
+    for n in (1..KEEP).rev() {
+        let _ = std::fs::rename(earlier(path, n), earlier(path, n + 1));
+    }
+    let _ = std::fs::rename(path, earlier(path, 1));
     File::create(path)
 }
 
@@ -114,17 +126,29 @@ mod tests {
     use super::*;
 
     #[test]
-    fn open_keeps_the_previous_run() {
+    fn open_keeps_the_previous_runs() {
         let dir = std::env::temp_dir().join(format!("dp-gui-log-{}", std::process::id()));
         let path = dir.join("nested").join(FILE_NAME);
-        let previous = path.with_extension("log.1");
+        let read = |n: usize| std::fs::read_to_string(earlier(&path, n)).ok();
 
-        open(&path).unwrap().write_all(b"first").unwrap();
-        assert!(!previous.exists());
-        open(&path).unwrap().write_all(b"second").unwrap();
-        open(&path).unwrap().write_all(b"third").unwrap();
-        assert_eq!(std::fs::read_to_string(&path).unwrap(), "third");
-        assert_eq!(std::fs::read_to_string(&previous).unwrap(), "second");
+        open(&path).unwrap().write_all(b"run 1").unwrap();
+        assert_eq!(read(1), None);
+        for run in 2..=KEEP + 2 {
+            open(&path)
+                .unwrap()
+                .write_all(format!("run {run}").as_bytes())
+                .unwrap();
+        }
+        assert_eq!(
+            std::fs::read_to_string(&path).unwrap(),
+            format!("run {}", KEEP + 2)
+        );
+        assert_eq!(
+            read(1).as_deref(),
+            Some(format!("run {}", KEEP + 1).as_str())
+        );
+        assert_eq!(read(KEEP).as_deref(), Some("run 2"));
+        assert_eq!(read(KEEP + 1), None, "older runs are dropped");
 
         std::fs::remove_dir_all(dir).unwrap();
     }

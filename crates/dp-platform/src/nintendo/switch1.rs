@@ -21,6 +21,9 @@ pub const NEUTRAL_RUMBLE: [u8; 4] = [0x00, 0x01, 0x40, 0x40];
 const REPLY_TIMEOUT: Duration = Duration::from_millis(100);
 /// Without input for this long a USB pad has been reset (e.g. by Steam): force USB again.
 const USB_KEEPALIVE: Duration = Duration::from_millis(100);
+/// Still silent this long despite the keep-alives: another program reset the pad or set
+/// simple reports (which a wired pad answers with silence), so start it again.
+const USB_RESTART: Duration = Duration::from_secs(1);
 const MODE_RETRY: Duration = Duration::from_secs(1);
 const IMU_RETRY: Duration = Duration::from_secs(3);
 
@@ -452,6 +455,9 @@ pub struct Switch1Driver {
     initial_mode: Option<u8>,
     last_input: Option<Instant>,
     last_keepalive: Option<Instant>,
+    last_restart: Option<Instant>,
+    /// Started again after a silence and no full report since.
+    stalled: bool,
     mode_lost: bool,
     last_mode_fix: Option<Instant>,
     imu_seen: bool,
@@ -481,6 +487,8 @@ impl Switch1Driver {
             initial_mode: None,
             last_input: None,
             last_keepalive: None,
+            last_restart: None,
+            stalled: false,
             mode_lost: false,
             last_mode_fix: None,
             imu_seen: false,
@@ -666,35 +674,27 @@ impl Switch1Driver {
         let report = subcommand_report(self.next_counter(), &self.rumble, sub, args);
         io.write(&report)
     }
-}
 
-impl PadDriver for Switch1Driver {
-    fn init(&mut self, io: &mut dyn ReportIo) -> Result<Identity, InitError> {
-        self.rumble = neutral8();
-        if !self.link.bluetooth {
-            if !self.usb(io, USB_HANDSHAKE, true)? {
-                return Err(InitError::NoResponse);
-            }
-            // Some clones ignore the speed change, and the right Joy-Con in a grip fails
-            // the second handshake; neither is fatal.
-            self.usb(io, USB_HIGH_SPEED, true)?;
-            self.usb(io, USB_HANDSHAKE, true)?;
-            self.usb(io, USB_FORCE, false)?;
+    /// The USB handshake; `false` if the pad never acknowledges it.
+    fn usb_handshake(&mut self, io: &mut dyn ReportIo) -> io::Result<bool> {
+        if !self.usb(io, USB_HANDSHAKE, true)? {
+            return Ok(false);
         }
-        self.read_type(io)?;
-        let ty = self.ty;
-        tracing::debug!(
-            ?ty,
-            bluetooth = self.link.bluetooth,
-            "Switch controller type"
-        );
-        self.load_stick_calibration(io)?;
-        if ty.has_imu() {
-            self.load_imu_calibration(io)?;
+        // Some clones ignore the speed change, and the right Joy-Con in a grip fails
+        // the second handshake; neither is fatal.
+        self.usb(io, USB_HIGH_SPEED, true)?;
+        self.usb(io, USB_HANDSHAKE, true)?;
+        self.usb(io, USB_FORCE, false)?;
+        Ok(true)
+    }
+
+    /// Switch on motion and rumble where the pad has them, then full reports.
+    fn start_reports(&mut self, io: &mut dyn ReportIo) -> io::Result<()> {
+        if self.ty.has_imu() {
             // Licensed pads may refuse; that is not fatal.
             self.subcommand(io, SUB_IMU, &[0x01])?;
         }
-        if ty.has_rumble() {
+        if self.ty.has_rumble() {
             self.subcommand(io, SUB_VIBRATION, &[0x01])?;
         }
         if self
@@ -706,6 +706,45 @@ impl PadDriver for Switch1Driver {
         if !self.link.bluetooth {
             self.usb(io, USB_FORCE, false)?;
         }
+        Ok(())
+    }
+
+    /// Start a wired pad again that stays silent despite the keep-alives.
+    fn restart_usb(&mut self, io: &mut dyn ReportIo) -> io::Result<()> {
+        if !self.stalled {
+            self.stalled = true;
+            tracing::info!(ty = ?self.ty, "Switch controller silent over USB, starting it again");
+        }
+        self.last_restart = Some(io.now());
+        if self.usb_handshake(io)? {
+            self.start_reports(io)?;
+            // A reset also put out the player lights.
+            let mask = self.player_want.unwrap_or(0x01);
+            self.subcommand(io, SUB_PLAYER_LEDS, &[mask])?;
+            self.player_sent = Some(mask);
+        }
+        Ok(())
+    }
+}
+
+impl PadDriver for Switch1Driver {
+    fn init(&mut self, io: &mut dyn ReportIo) -> Result<Identity, InitError> {
+        self.rumble = neutral8();
+        if !self.link.bluetooth && !self.usb_handshake(io)? {
+            return Err(InitError::NoResponse);
+        }
+        self.read_type(io)?;
+        let ty = self.ty;
+        tracing::debug!(
+            ?ty,
+            bluetooth = self.link.bluetooth,
+            "Switch controller type"
+        );
+        self.load_stick_calibration(io)?;
+        if ty.has_imu() {
+            self.load_imu_calibration(io)?;
+        }
+        self.start_reports(io)?;
         self.subcommand(io, SUB_PLAYER_LEDS, &[0x01])?;
         if ty.has_home_led() {
             self.subcommand(io, SUB_HOME_LED, &[0x01, 0xF0, 0xF0, 0x00])?;
@@ -733,6 +772,10 @@ impl PadDriver for Switch1Driver {
             0x30 | 0x31 => {
                 self.last_input = Some(now);
                 self.mode_lost = false;
+                if self.stalled {
+                    self.stalled = false;
+                    tracing::info!(ty = ?self.ty, "Switch controller reporting again");
+                }
                 let state = parse_full(self.ty, &mut self.cal, report)?;
                 if self.ty.has_imu() {
                     match state.motion {
@@ -785,6 +828,15 @@ impl PadDriver for Switch1Driver {
             io.write(&usb_command(USB_FORCE))?;
             self.last_keepalive = Some(now);
         }
+        if !self.link.bluetooth
+            && !self.link.is_grip()
+            && self
+                .last_input
+                .max(self.last_restart)
+                .is_some_and(|t| now >= t + USB_RESTART)
+        {
+            self.restart_usb(io)?;
+        }
         if self.mode_lost && self.last_mode_fix.is_none_or(|t| now >= t + MODE_RETRY) {
             self.send_subcommand(io, SUB_REPORT_MODE, &[MODE_FULL])?;
             self.last_mode_fix = Some(now);
@@ -815,7 +867,11 @@ impl PadDriver for Switch1Driver {
             }
         };
         if !self.link.bluetooth && !self.link.is_grip() {
-            consider(self.last_input.map(|t| t + USB_KEEPALIVE));
+            // Counted from the last attempt too, so a silent pad does not make the
+            // caller spin on a deadline in the past.
+            let since = |attempt: Option<Instant>| self.last_input.max(attempt);
+            consider(since(self.last_keepalive).map(|t| t + USB_KEEPALIVE));
+            consider(since(self.last_restart).map(|t| t + USB_RESTART));
         }
         if self.mode_lost {
             consider(self.last_mode_fix.map(|t| t + MODE_RETRY).or(self.now));
@@ -1190,6 +1246,45 @@ mod tests {
         io.advance(Duration::from_secs(1));
         d.service(&mut io, Rumble::default()).unwrap();
         assert!(io.writes().is_empty(), "no keep-alive over Bluetooth");
+    }
+
+    #[test]
+    fn silent_usb_pad_is_started_again() {
+        let (mut d, mut io) = ready_driver(false);
+        d.parse(&full_report(), io.now());
+        for _ in 0..9 {
+            io.advance(100 * MS);
+            d.service(&mut io, Rumble::default()).unwrap();
+            assert!(
+                d.next_deadline().unwrap() > io.now(),
+                "no deadline in the past"
+            );
+        }
+        assert!(
+            !sequence(&io).contains(&0x8002),
+            "keep-alives only for a second"
+        );
+
+        io.advance(100 * MS);
+        d.service(&mut io, Rumble::default()).unwrap();
+        let seq = sequence(&io);
+        let start = seq
+            .iter()
+            .position(|&s| s == 0x8002)
+            .expect("handshake again");
+        let after = &seq[start..];
+        let pos = |s: u16| after.iter().position(|&x| x == s).unwrap();
+        assert!(pos(0x40) < pos(0x48) && pos(0x48) < pos(0x03) && pos(0x03) < pos(0x30));
+
+        io.written.clear();
+        io.advance(500 * MS);
+        d.service(&mut io, Rumble::default()).unwrap();
+        assert!(!sequence(&io).contains(&0x8002), "at most once a second");
+
+        d.parse(&full_report(), io.now());
+        io.advance(50 * MS);
+        d.service(&mut io, Rumble::default()).unwrap();
+        assert!(!sequence(&io).contains(&0x8002), "reporting again");
     }
 
     #[test]
