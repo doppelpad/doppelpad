@@ -108,7 +108,7 @@ class AppState {
   slotDevice = $state<string | null>(null);
   toasts = $state<Toast[]>([]);
   prompt = $state<PromptRequest | null>(null);
-  copiedLayer: LayerCopy | null = null;
+  copiedLayer = $state.raw<LayerCopy | null>(null);
 
   /** Listeners for physical controller presses (shortcut recording overrides selection). */
   pressListener: ((c: ControlName) => void) | null = null;
