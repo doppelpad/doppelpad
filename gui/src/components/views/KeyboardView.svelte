@@ -97,8 +97,13 @@
     return !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable);
   }
 
+  /** A dialog or an open menu owns the keyboard. */
+  function overlayOpen(): boolean {
+    return document.querySelector('[role=dialog], [role=menu]') !== null;
+  }
+
   function onKeydown(e: KeyboardEvent) {
-    if (typing(e) || e.ctrlKey || app.prompt) return;
+    if (typing(e) || e.ctrlKey || overlayOpen()) return;
     const k = keyFromEvent(e);
     if (!k) return;
     e.preventDefault();
