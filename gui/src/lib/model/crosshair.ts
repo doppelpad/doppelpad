@@ -1,6 +1,7 @@
 // Crosshair shapes as SVG parts, and edits of a profile's crosshairs. Coordinates are logical
 // pixels around the centre (0, 0).
 
+import { t } from '../i18n/index.svelte';
 import type { Crosshair, CrosshairFull, CrosshairShape, Profile } from '../types';
 
 export const CROSSHAIR_SHAPES: CrosshairShape[] = [
@@ -95,7 +96,7 @@ export function updateCrosshair(p: Profile, i: number, patch: Partial<Crosshair>
 export function addCrosshair(p: Profile): Profile {
   const all = p.crosshairs ?? [];
   if (all.length >= MAX_CROSSHAIRS) return p;
-  return { ...p, crosshairs: [...all, { name: `Crosshair ${all.length + 1}` }] };
+  return { ...p, crosshairs: [...all, { name: t('crosshairs.default_name', { n: all.length + 1 }) }] };
 }
 
 /** Remove crosshair `i`; commands showing a later one keep pointing at the same crosshair. */

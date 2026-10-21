@@ -397,6 +397,7 @@
     "period": "One cycle"
   },
   "crosshairs": {
+    "default_name": "Crosshair {n}",
     "title": "Crosshairs",
     "hint": "Up to ten crosshairs over the game, in the middle of the primary monitor. Mappings show them with “Show crosshair N”, or they appear while one of their layers is active.",
     "name": "Name",
@@ -430,6 +431,7 @@
     }
   },
   "radial": {
+    "default_name": "Menu {n}",
     "title": "Radial menus",
     "hint": "A ring of sectors over the game. It opens while its layer is active; a stick, the mouse or the radial menu commands point at a sector.",
     "name": "Name",
@@ -557,6 +559,49 @@
       "numpad": "Numpad",
       "media": "Media",
       "other": "Other"
+    }
+  },
+  "labels": {
+    "pad": "Pad {name}",
+    "mouse": "Mouse {name}",
+    "mouse_button": { "left": "left", "right": "right", "middle": "middle", "x1": "x1", "x2": "x2" },
+    "wheel": "Wheel {dir}",
+    "left_stick": "L-stick {dir}",
+    "right_stick": "R-stick {dir}",
+    "mouse_move": "Mouse {dir}",
+    "rumble": "Rumble {ms} ms",
+    "turn": "Turn {deg}°",
+    "touch": "Touch {gesture}",
+    "mouse_to": "Cursor to {x}%, {y}%",
+    "mouse_clip": "Keep cursor in area",
+    "launch": "Run {name}",
+    "crosshair": "Crosshair {n}",
+    "commands": {
+      "remap_off": "Remap off",
+      "toggle_gyro": "Gyro on/off",
+      "gyro_on": "Gyro on",
+      "gyro_off": "Gyro off",
+      "reset_tilt": "Reset tilt",
+      "switch_gyro_axis": "Switch gyro axis",
+      "shutdown": "Shut down",
+      "restart": "Restart",
+      "sleep": "Sleep",
+      "hibernate": "Hibernate",
+      "log_off": "Log off",
+      "screenshot": "Screenshot",
+      "close_window": "Close window",
+      "toggle_crosshair": "Crosshair on/off",
+      "radial_next": "Radial: next",
+      "radial_prev": "Radial: previous",
+      "radial_up": "Radial: up",
+      "radial_down": "Radial: down",
+      "radial_left": "Radial: left",
+      "radial_right": "Radial: right",
+      "radial_apply": "Radial: select",
+      "radial_back": "Radial: back",
+      "pad_overlay": "Controller overlay",
+      "mappings_overlay": "Mappings overlay",
+      "power_off": "Controller off"
     }
   },
   "macro": {

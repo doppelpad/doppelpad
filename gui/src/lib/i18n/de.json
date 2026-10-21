@@ -397,6 +397,7 @@
     "period": "Dauer eines Durchlaufs"
   },
   "crosshairs": {
+    "default_name": "Fadenkreuz {n}",
     "title": "Fadenkreuze",
     "hint": "Bis zu zehn Fadenkreuze über dem Spiel, in der Mitte des Hauptmonitors. Belegungen zeigen sie mit „Fadenkreuz N zeigen“, oder sie erscheinen, solange eine ihrer Ebenen aktiv ist.",
     "name": "Name",
@@ -430,6 +431,7 @@
     }
   },
   "radial": {
+    "default_name": "Menü {n}",
     "title": "Radialmenüs",
     "hint": "Ein Ring aus Sektoren über dem Spiel. Er öffnet sich, solange seine Ebene aktiv ist; ein Stick, die Maus oder die Radialmenü-Befehle zeigen auf einen Sektor.",
     "name": "Name",
@@ -557,6 +559,49 @@
       "numpad": "Ziffernblock",
       "media": "Medien",
       "other": "Sonstige"
+    }
+  },
+  "labels": {
+    "pad": "Pad {name}",
+    "mouse": "Maus {name}",
+    "mouse_button": { "left": "links", "right": "rechts", "middle": "Mitte", "x1": "x1", "x2": "x2" },
+    "wheel": "Mausrad {dir}",
+    "left_stick": "L-Stick {dir}",
+    "right_stick": "R-Stick {dir}",
+    "mouse_move": "Maus {dir}",
+    "rumble": "Vibration {ms} ms",
+    "turn": "Drehen {deg}°",
+    "touch": "Touch: {gesture}",
+    "mouse_to": "Mauszeiger auf {x} %, {y} %",
+    "mouse_clip": "Mauszeiger im Bereich halten",
+    "launch": "{name} starten",
+    "crosshair": "Fadenkreuz {n}",
+    "commands": {
+      "remap_off": "Remapping aus",
+      "toggle_gyro": "Gyro an/aus",
+      "gyro_on": "Gyro an",
+      "gyro_off": "Gyro aus",
+      "reset_tilt": "Neigung zurücksetzen",
+      "switch_gyro_axis": "Gyro-Achse wechseln",
+      "shutdown": "Herunterfahren",
+      "restart": "Neu starten",
+      "sleep": "Energie sparen",
+      "hibernate": "Ruhezustand",
+      "log_off": "Abmelden",
+      "screenshot": "Screenshot",
+      "close_window": "Fenster schließen",
+      "toggle_crosshair": "Fadenkreuz an/aus",
+      "radial_next": "Radial: nächster",
+      "radial_prev": "Radial: voriger",
+      "radial_up": "Radial: oben",
+      "radial_down": "Radial: unten",
+      "radial_left": "Radial: links",
+      "radial_right": "Radial: rechts",
+      "radial_apply": "Radial: auswählen",
+      "radial_back": "Radial: zurück",
+      "pad_overlay": "Controller-Overlay",
+      "mappings_overlay": "Belegungs-Overlay",
+      "power_off": "Controller aus"
     }
   },
   "macro": {
