@@ -141,6 +141,16 @@ pub fn import_game(root: &Path, bundle: &Path) -> Result<Game> {
         return Err(invalid(bundle, "made by a newer Doppelpad"));
     }
     let created = library::create_game_empty(root, &b.meta.name)?;
+    let filled = fill_game(&created, b);
+    if filled.is_err() {
+        // No half-written game: the folder goes again.
+        let _ = std::fs::remove_dir_all(&created);
+    }
+    filled
+}
+
+/// Write a bundle's configs, picture and metadata into the new game folder `created`.
+fn fill_game(created: &Path, b: Bundle) -> Result<Game> {
     let mut meta = b.meta;
     meta.image = None;
     for c in &b.configs {
@@ -166,8 +176,8 @@ pub fn import_game(root: &Path, bundle: &Path) -> Result<Game> {
     {
         meta.default_config = None;
     }
-    library::update_game_meta(&created, &meta)?;
-    library::read_game(&created)
+    library::update_game_meta(created, &meta)?;
+    library::read_game(created)
 }
 
 /// One layer to reuse in other configs: its settings, mappings and routes.
@@ -201,9 +211,12 @@ pub fn list_presets(profiles: &Path) -> Vec<PresetEntry> {
         .flatten()
         .map(|e| e.path())
         .filter(|p| p.extension().is_some_and(|e| e == "toml"))
-        .filter_map(|path| {
-            let p = load_preset(&path).ok()?;
-            Some(PresetEntry { name: p.name, path })
+        .filter_map(|path| match load_preset(&path) {
+            Ok(p) => Some(PresetEntry { name: p.name, path }),
+            Err(e) => {
+                tracing::warn!("ignoring preset: {e}");
+                None
+            }
         })
         .collect();
     out.sort_by_key(|p| p.name.to_lowercase());
@@ -215,11 +228,18 @@ pub fn load_preset(path: &Path) -> Result<LayerPreset> {
     toml::from_str(&text).map_err(|e| invalid(path, e.to_string()))
 }
 
-/// Store a preset under its name; a preset of the same name is replaced.
+/// Store a preset under its name; a preset of the same name is replaced, and one whose name
+/// only makes the same file name is not.
 pub fn save_preset(profiles: &Path, preset: &LayerPreset) -> Result<PathBuf> {
     let dir = profiles.join(PRESETS_DIR);
     std::fs::create_dir_all(&dir).map_err(io(&dir))?;
-    let path = dir.join(format!("{}.toml", library::slugify(&preset.name)));
+    let path = match list_presets(profiles)
+        .into_iter()
+        .find(|p| p.name == preset.name)
+    {
+        Some(same) => same.path,
+        None => library::unique_path(&dir, &library::slugify(&preset.name), Some("toml")),
+    };
     let text = toml::to_string_pretty(preset).map_err(|e| invalid(&path, e.to_string()))?;
     std::fs::write(&path, format!("# Doppelpad layer preset\n{text}")).map_err(io(&path))?;
     Ok(path)
@@ -319,5 +339,57 @@ mod tests {
         );
         delete_preset(&path).unwrap();
         assert!(list_presets(dir.path()).is_empty());
+    }
+
+    #[test]
+    fn presets_with_alike_names_keep_their_own_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let named = |name: &str| LayerPreset {
+            name: name.into(),
+            ..Default::default()
+        };
+        let a = save_preset(dir.path(), &named("Aim!")).unwrap();
+        let b = save_preset(dir.path(), &named("Aim?")).unwrap();
+        assert_ne!(a, b, "same slug, different presets");
+        assert_eq!(
+            save_preset(dir.path(), &named("Aim?")).unwrap(),
+            b,
+            "replaced"
+        );
+        let names: Vec<String> = list_presets(dir.path())
+            .into_iter()
+            .map(|p| p.name)
+            .collect();
+        assert_eq!(names, ["Aim!", "Aim?"]);
+    }
+
+    #[test]
+    fn a_failed_import_leaves_no_half_game() {
+        let root = tempfile::tempdir().unwrap();
+        let bundle = Bundle {
+            doppelpad_game: BUNDLE_VERSION,
+            meta: library::GameMeta {
+                name: "Broken".into(),
+                ..Default::default()
+            },
+            configs: vec![
+                BundledFile {
+                    file: "ok.toml".into(),
+                    data: "name = \"Ok\"\n".into(),
+                },
+                // A name no file system takes: writing it fails halfway through.
+                BundledFile {
+                    file: format!("{}.toml", "x".repeat(300)),
+                    data: String::new(),
+                },
+            ],
+            image: None,
+        };
+        let file = root.path().join("broken.dpgame");
+        std::fs::write(&file, serde_json::to_string(&bundle).unwrap()).unwrap();
+        let games = root.path().join("profiles");
+        assert!(import_game(&games, &file).is_err());
+        let left: Vec<_> = std::fs::read_dir(&games).unwrap().flatten().collect();
+        assert!(left.is_empty(), "{left:?}");
     }
 }
