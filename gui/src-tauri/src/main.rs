@@ -78,10 +78,7 @@ fn main() {
             take_over_running_service(&mut notices);
 
             let profiles_dir = dp_config::profiles_dir();
-            let mut service = ServiceOptions::new(profiles_dir.clone());
-            service.state_path = Some(dp_config::config_dir().join("state.toml"));
-            service.hotkeys_path = Some(dp_config::config_dir().join("hotkeys.toml"));
-            service.calibration_path = Some(dp_config::config_dir().join("calibration.toml"));
+            let service = ServiceOptions::with_user_files(profiles_dir.clone());
             let handle = dp_service::spawn(HostOptions { service, ipc: true })?;
 
             app.manage(AppState {

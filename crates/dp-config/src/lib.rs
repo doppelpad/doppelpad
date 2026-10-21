@@ -598,6 +598,13 @@ fn zone_problem([low, med, high]: [f32; 3]) -> Option<&'static str> {
     }
 }
 
+/// The slot state, shared by the app and the daemon, in [`config_dir`].
+pub const STATE_FILE: &str = "state.toml";
+/// The controller hotkeys, in [`config_dir`].
+pub const HOTKEYS_FILE: &str = "hotkeys.toml";
+/// The gyro calibration of each controller, in [`config_dir`].
+pub const CALIBRATION_FILE: &str = "calibration.toml";
+
 /// Per-user configuration directory (`%APPDATA%\doppelpad` or `~/.config/doppelpad`).
 pub fn config_dir() -> PathBuf {
     let base = if let Some(appdata) = std::env::var_os("APPDATA") {

@@ -60,6 +60,18 @@ impl ServiceOptions {
             gui_focus_grace_ms: GUI_FOCUS_GRACE_MS,
         }
     }
+
+    /// Options that keep the slots, hotkeys and calibration in the user's settings folder,
+    /// where the app and the daemon share them.
+    pub fn with_user_files(profiles_dir: PathBuf) -> Self {
+        let dir = dp_config::config_dir();
+        ServiceOptions {
+            state_path: Some(dir.join(dp_config::STATE_FILE)),
+            hotkeys_path: Some(dir.join(dp_config::HOTKEYS_FILE)),
+            calibration_path: Some(dir.join(dp_config::CALIBRATION_FILE)),
+            ..ServiceOptions::new(profiles_dir)
+        }
+    }
 }
 
 /// A manual gyro calibration samples this long.

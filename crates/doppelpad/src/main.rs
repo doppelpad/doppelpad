@@ -303,7 +303,8 @@ fn check(path: &Path) -> Result<()> {
     Ok(())
 }
 
-fn stop_flag() -> Result<Arc<AtomicBool>> {
+/// Cleared when the user presses Ctrl+C.
+pub(crate) fn stop_flag() -> Result<Arc<AtomicBool>> {
     let running = Arc::new(AtomicBool::new(true));
     let r = running.clone();
     ctrlc::set_handler(move || r.store(false, Ordering::Relaxed))?;
