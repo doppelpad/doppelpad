@@ -133,11 +133,8 @@
     color: var(--text-dim);
     font-size: 12px;
   }
-  .param input {
+  .param input:not([type='checkbox']) {
     width: 64px;
-  }
-  .param input[type='checkbox'] {
-    width: auto;
   }
   .param.wide input {
     width: 180px;

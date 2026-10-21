@@ -47,6 +47,8 @@
   }
 
   const shown = $derived(Number((value * scale).toFixed(shownDecimals)));
+  /** How far the track is filled, for its two colors. */
+  const fill = $derived(max > min ? Math.min(100, Math.max(0, ((value - min) / (max - min)) * 100)) : 0);
 </script>
 
 <div class="slider" class:disabled>
@@ -77,6 +79,7 @@
     {value}
     {disabled}
     aria-label={label}
+    style:--fill="{fill}%"
     oninput={(e) => set(Number(e.currentTarget.value))}
   />
   {#if hint}<div class="hint">{hint}</div>{/if}
@@ -129,14 +132,42 @@
     color: var(--text-faint);
     font-size: 12px;
   }
+  /* Drawn here instead of natively: a thin track, teal up to the value, and a teal knob. */
   input[type='range'] {
+    appearance: none;
     width: 100%;
-    margin: 2px 0;
-    accent-color: var(--accent);
+    height: 18px;
+    margin: 0;
+    padding: 0;
+    border: none;
+    border-radius: 0;
+    background: transparent;
     cursor: pointer;
+  }
+  input[type='range']::-webkit-slider-runnable-track {
+    height: 4px;
+    border-radius: 2px;
+    background: linear-gradient(to right, var(--accent) var(--fill), var(--line-strong) var(--fill));
+  }
+  input[type='range']::-webkit-slider-thumb {
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    margin-top: -5px;
+    border-radius: 50%;
+    background: var(--accent);
+    transition: box-shadow 0.12s;
+  }
+  input[type='range']:hover::-webkit-slider-thumb,
+  input[type='range']:focus-visible::-webkit-slider-thumb {
+    box-shadow: 0 0 0 4px var(--accent-soft);
   }
   .disabled input[type='range'] {
     cursor: default;
+    opacity: 0.45;
+  }
+  .disabled input[type='range']::-webkit-slider-thumb {
+    box-shadow: none;
   }
   .hint {
     color: var(--text-faint);
