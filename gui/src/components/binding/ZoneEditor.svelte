@@ -57,12 +57,16 @@
   });
   const problem = $derived(zoneProblem(th.x) ?? zoneProblem(th.y));
 
-  /** Edit horizontal and vertical thresholds separately (elliptic zones). */
-  let separate = $state(false);
-  $effect(() => {
+  /**
+   * Edit horizontal and vertical thresholds separately (elliptic zones). Starts as the shown
+   * zones are, again for another stick, layer or config; the switch then sticks while editing.
+   */
+  let separate = $derived.by(() => {
     void source.kind;
     void source.side;
-    separate = untrack(() => isStick && isElliptic(stickZones));
+    void app.layer;
+    void app.configPath;
+    return untrack(() => isStick && isElliptic(stickZones));
   });
   const axes = $derived<('both' | 0 | 1)[]>(separate ? [0, 1] : ['both']);
 
