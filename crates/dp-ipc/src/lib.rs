@@ -5,6 +5,9 @@
 //! and one response, each a single line of JSON.
 
 use std::io::{BufRead, BufReader, Write};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, mpsc};
+use std::time::Duration;
 
 use interprocess::local_socket::prelude::*;
 use interprocess::local_socket::{
@@ -111,45 +114,98 @@ pub enum IpcError {
     Json(#[from] serde_json::Error),
 }
 
-fn name() -> std::io::Result<Name<'static>> {
+/// How long a client waits for the daemon's answer.
+const CALL_TIMEOUT: Duration = Duration::from_secs(15);
+
+fn name(socket: &str) -> std::io::Result<Name<'static>> {
     if GenericNamespaced::is_supported() {
-        SOCKET_NAME.to_ns_name::<GenericNamespaced>()
+        socket.to_owned().to_ns_name::<GenericNamespaced>()
     } else {
-        format!("/tmp/{SOCKET_NAME}").to_fs_name::<GenericFilePath>()
+        format!("/tmp/{socket}").to_fs_name::<GenericFilePath>()
     }
 }
 
 /// Send one request to the daemon and wait for its response.
 pub fn call(req: &Request) -> Result<Response, IpcError> {
-    let stream = Stream::connect(name()?).map_err(IpcError::NotRunning)?;
-    let mut conn = BufReader::new(stream);
+    call_on(SOCKET_NAME, req, CALL_TIMEOUT)
+}
+
+fn call_on(socket: &str, req: &Request, timeout: Duration) -> Result<Response, IpcError> {
+    let stream = Stream::connect(name(socket)?).map_err(IpcError::NotRunning)?;
     let mut line = serde_json::to_string(req)?;
     line.push('\n');
-    conn.get_mut().write_all(line.as_bytes())?;
-    let mut reply = String::new();
-    conn.read_line(&mut reply)?;
+    // Named pipes have no timeouts on Windows: the exchange runs on a helper thread, and a
+    // daemon that does not answer in time is given up on.
+    let (tx, rx) = mpsc::channel();
+    std::thread::Builder::new()
+        .name("dp-ipc-call".into())
+        .spawn(move || {
+            let mut conn = BufReader::new(stream);
+            let mut reply = String::new();
+            let result = conn
+                .get_mut()
+                .write_all(line.as_bytes())
+                .and_then(|()| conn.read_line(&mut reply))
+                .map(|_| reply);
+            let _ = tx.send(result);
+        })?;
+    let reply = rx
+        .recv_timeout(timeout)
+        .map_err(|_| std::io::Error::from(std::io::ErrorKind::TimedOut))??;
     Ok(serde_json::from_str(reply.trim_end())?)
 }
 
 /// Serve requests forever, answering each with `handler`. Blocks the calling thread.
-pub fn serve(mut handler: impl FnMut(Request) -> Response) -> Result<(), IpcError> {
+pub fn serve(handler: impl FnMut(Request) -> Response) -> Result<(), IpcError> {
+    serve_on(SOCKET_NAME, handler)
+}
+
+fn serve_on(socket: &str, mut handler: impl FnMut(Request) -> Response) -> Result<(), IpcError> {
     let listener = ListenerOptions::new()
-        .name(name()?)
+        .name(name(socket)?)
         .try_overwrite(true)
         .create_sync()?;
-    for conn in listener.incoming() {
-        let Ok(conn) = conn else { continue };
-        let mut conn = BufReader::new(conn);
-        let mut line = String::new();
-        if conn.read_line(&mut line).is_err() {
-            continue;
-        }
+    let stop = Arc::new(AtomicBool::new(false));
+    let (tx, requests) = mpsc::channel::<(String, Stream)>();
+    let accept = {
+        let stop = stop.clone();
+        std::thread::Builder::new()
+            .name("dp-ipc-accept".into())
+            .spawn(move || {
+                for conn in listener.incoming() {
+                    if stop.load(Ordering::Relaxed) {
+                        break;
+                    }
+                    let Ok(conn) = conn else { continue };
+                    let tx = tx.clone();
+                    // Each request is read on a thread of its own, so a client that connects
+                    // and sends nothing cannot hold up the others (named pipes have no read
+                    // timeouts on Windows).
+                    let _ = std::thread::Builder::new()
+                        .name("dp-ipc-conn".into())
+                        .spawn(move || {
+                            let mut conn = BufReader::new(conn);
+                            let mut line = String::new();
+                            if conn.read_line(&mut line).is_ok() {
+                                let _ = tx.send((line, conn.into_inner()));
+                            }
+                        });
+                }
+            })?
+    };
+    // Requests are answered one after the other, on this thread.
+    for (line, mut conn) in &requests {
         let response = match serde_json::from_str::<Request>(line.trim_end()) {
             Ok(req) => {
                 let shutdown = req == Request::Shutdown;
                 let r = handler(req);
                 if shutdown {
-                    let _ = send(conn.get_mut(), &r);
+                    let _ = send(&mut conn, &r);
+                    // Wake the accept loop so that it sees the flag and closes the socket.
+                    stop.store(true, Ordering::Relaxed);
+                    if Stream::connect(name(socket)?).is_ok() {
+                        let _ = accept.join();
+                    }
                     return Ok(());
                 }
                 r
@@ -158,7 +214,7 @@ pub fn serve(mut handler: impl FnMut(Request) -> Response) -> Result<(), IpcErro
                 message: format!("bad request: {e}"),
             },
         };
-        let _ = send(conn.get_mut(), &response);
+        let _ = send(&mut conn, &response);
     }
     Ok(())
 }
@@ -247,6 +303,42 @@ mod tests {
         );
         assert_eq!(serde_json::to_string(&devices).unwrap(), json);
         assert_eq!(serde_json::from_str::<Response>(json).unwrap(), devices);
+    }
+
+    /// A client that connects and never sends a request must not stop the daemon from
+    /// answering everyone else.
+    #[test]
+    fn a_silent_client_does_not_block_the_others() {
+        // Not the real socket name: the installed app may be listening on that one.
+        let socket = format!("doppelpad-test-{}.sock", std::process::id());
+        let server = {
+            let socket = socket.clone();
+            std::thread::spawn(move || {
+                serve_on(&socket, |req| Response::Ok {
+                    message: format!("{req:?}"),
+                })
+            })
+        };
+        let start = std::time::Instant::now();
+        let silent = loop {
+            match Stream::connect(name(&socket).unwrap()) {
+                Ok(s) => break s,
+                Err(_) if start.elapsed() < Duration::from_secs(5) => {
+                    std::thread::sleep(Duration::from_millis(10));
+                }
+                Err(e) => panic!("the server does not listen: {e}"),
+            }
+        };
+        let r = call_on(&socket, &Request::Status, Duration::from_secs(3)).unwrap();
+        assert_eq!(
+            r,
+            Response::Ok {
+                message: "Status".into()
+            }
+        );
+        call_on(&socket, &Request::Shutdown, Duration::from_secs(3)).unwrap();
+        server.join().unwrap().unwrap();
+        drop(silent);
     }
 
     #[test]
