@@ -145,10 +145,7 @@ fn run(cli: Cli) -> Result<()> {
             slot,
             device,
         } => {
-            let path = std::fs::canonicalize(&profile)
-                .with_context(|| format!("{}", profile.display()))?
-                .display()
-                .to_string();
+            let path = profile_path(&profile)?;
             let req = match slot {
                 Some(slot) => Request::ApplyToSlot {
                     path,
@@ -186,18 +183,32 @@ fn run(cli: Cli) -> Result<()> {
         Cmd::Shutdown => print_response(dp_ipc::call(&Request::Shutdown)?),
         Cmd::Devices => match dp_ipc::call(&Request::Devices) {
             Ok(r) => print_response(r),
-            Err(_) => {
+            // A running daemon holds the devices; only without one scan them here.
+            Err(dp_ipc::IpcError::NotRunning(_)) => {
                 let rt = scan_devices();
                 print_response(Response::Devices {
                     devices: dp_service::ipc_devices(&rt),
                 })
             }
+            Err(e) => Err(e.into()),
         },
         Cmd::Import { file, output } => import(&file, output.as_deref()),
         Cmd::Check { profile } => check(&profile),
         Cmd::Doctor => doctor(),
         Cmd::Monitor => monitor(),
     }
+}
+
+/// The absolute path of an existing profile, as the daemon stores it in a slot. Not
+/// `canonicalize`: on Windows that gives a verbatim `\\?\C:\...` path, which never equals
+/// the paths the GUI and the tray compare it with.
+fn profile_path(profile: &Path) -> Result<String> {
+    let context = || format!("{}", profile.display());
+    std::fs::metadata(profile).with_context(context)?;
+    Ok(std::path::absolute(profile)
+        .with_context(context)?
+        .display()
+        .to_string())
 }
 
 fn print_response(r: Response) -> Result<()> {
@@ -441,4 +452,22 @@ fn monitor() -> Result<()> {
     }
     eprintln!();
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Slot paths are compared with the ones the GUI writes, so they must not be verbatim
+    /// (`\\?\C:\...`) paths.
+    #[test]
+    fn profile_paths_are_plain_absolute_paths() {
+        let file = std::env::temp_dir().join("doppelpad-cli-path-test.toml");
+        std::fs::write(&file, "").unwrap();
+        let path = profile_path(&file).unwrap();
+        std::fs::remove_file(&file).unwrap();
+        assert!(!path.starts_with(r"\\?\"), "{path}");
+        assert!(Path::new(&path).is_absolute(), "{path}");
+        assert!(profile_path(&file).is_err(), "a missing file is an error");
+    }
 }
