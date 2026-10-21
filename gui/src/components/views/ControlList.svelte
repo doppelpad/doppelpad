@@ -68,15 +68,6 @@
     return parts.length ? { text: parts.join(' · '), inherited } : null;
   }
 
-  const pressed = $derived.by(() => {
-    const dev = app.primary;
-    const names = app.catalog?.pad_buttons ?? [];
-    const s = new Set<string>();
-    if (!dev) return s;
-    names.forEach((b, i) => (dev.state.buttons >>> i) & 1 && s.add(b));
-    return s;
-  });
-
   function summary(c: ControlName): { text: string; inherited: boolean } | null {
     if (!app.profile) return null;
     const eff = effectiveMappings(app.profile, app.layer, c);
@@ -95,7 +86,7 @@
         <button
           class="tile"
           class:selected={tl.members.includes(app.selectedKey)}
-          class:pressed={pressed.has(c)}
+          class:pressed={tl.members.some((m) => app.pressed.has(m))}
           class:mapped={!!s}
           onclick={() => app.select(c)}
         >
