@@ -333,12 +333,7 @@ pub fn delete_config(path: &Path) -> Result<()> {
 }
 
 fn write_atomic(path: &Path, text: &str) -> Result<()> {
-    let tmp = path.with_extension(match path.extension().and_then(|e| e.to_str()) {
-        Some(e) => format!("{e}.tmp"),
-        None => "tmp".into(),
-    });
-    std::fs::write(&tmp, text).map_err(io(&tmp))?;
-    std::fs::rename(&tmp, path).map_err(io(path))
+    crate::store::write_atomic(path, text).map_err(io(path))
 }
 
 /// Save a profile as TOML: written to a temporary file and renamed over the target.
@@ -355,17 +350,11 @@ pub fn save_profile_atomic(path: &Path, profile: &Profile) -> Result<()> {
             ));
         }
         if !existing.starts_with(OUR_HEADER) {
-            let bak = path.with_extension(match path.extension().and_then(|e| e.to_str()) {
-                Some(e) => format!("{e}.bak"),
-                None => "bak".into(),
-            });
+            let bak = crate::store::with_suffix(path, "bak");
             if !bak.exists() {
                 std::fs::copy(path, &bak).map_err(io(&bak))?;
             }
         }
-    }
-    if let Some(dir) = path.parent() {
-        std::fs::create_dir_all(dir).map_err(io(dir))?;
     }
     write_atomic(path, &text)
 }

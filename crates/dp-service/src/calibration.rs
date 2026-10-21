@@ -95,13 +95,7 @@ fn dist(a: [f32; 3], b: [f32; 3]) -> f32 {
 impl Calibrator {
     /// Load from `path`; a missing or unreadable file gives defaults (with a warning).
     pub fn load(path: &Path) -> Calibrator {
-        let file = match std::fs::read_to_string(path) {
-            Err(_) => CalibrationFile::default(),
-            Ok(src) => toml::from_str(&src).unwrap_or_else(|e| {
-                tracing::warn!("ignoring {}: {e}", path.display());
-                CalibrationFile::default()
-            }),
-        };
+        let file: CalibrationFile = dp_config::load_toml_or_default(path);
         Calibrator {
             devices: file
                 .devices
@@ -128,13 +122,7 @@ impl Calibrator {
                 .map(|(id, d)| (id.clone(), d.cal.clone()))
                 .collect(),
         };
-        let text = toml::to_string_pretty(&file).map_err(std::io::Error::other)?;
-        if let Some(dir) = path.parent() {
-            std::fs::create_dir_all(dir)?;
-        }
-        let tmp = path.with_extension("toml.tmp");
-        std::fs::write(&tmp, text)?;
-        std::fs::rename(&tmp, path)?;
+        dp_config::save_toml(path, &file)?;
         self.dirty = false;
         self.urgent = false;
         Ok(())

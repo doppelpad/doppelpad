@@ -7,31 +7,18 @@ use dp_core::hotkeys::Hotkeys;
 /// Load from `path`. A missing file yields the defaults; an unreadable or invalid one too,
 /// with a warning.
 pub fn load(path: &Path) -> Hotkeys {
-    let Ok(src) = std::fs::read_to_string(path) else {
-        return Hotkeys::default();
-    };
-    match toml::from_str::<Hotkeys>(&src) {
-        Ok(h) if h.problems().is_empty() => h,
-        Ok(h) => {
-            tracing::warn!("ignoring {}: {}", path.display(), h.problems().join("; "));
-            Hotkeys::default()
-        }
-        Err(e) => {
-            tracing::warn!("ignoring {}: {e}", path.display());
-            Hotkeys::default()
-        }
+    let h: Hotkeys = dp_config::load_toml_or_default(path);
+    let problems = h.problems();
+    if problems.is_empty() {
+        return h;
     }
+    tracing::warn!("ignoring {}: {}", path.display(), problems.join("; "));
+    Hotkeys::default()
 }
 
 /// Write to `path` atomically (temporary file, then rename).
 pub fn save(path: &Path, hotkeys: &Hotkeys) -> std::io::Result<()> {
-    let text = toml::to_string_pretty(hotkeys).map_err(std::io::Error::other)?;
-    if let Some(dir) = path.parent() {
-        std::fs::create_dir_all(dir)?;
-    }
-    let tmp = path.with_extension("toml.tmp");
-    std::fs::write(&tmp, text)?;
-    std::fs::rename(&tmp, path)
+    dp_config::save_toml(path, hotkeys)
 }
 
 #[cfg(test)]
