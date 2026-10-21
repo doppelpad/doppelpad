@@ -3,6 +3,8 @@
 //! Profiles are written in TOML (see `profiles/` for examples). JSON profiles
 //! (schema 3.0) are imported into this model by `dp-config`.
 
+use std::ops::RangeInclusive;
+
 use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::control::{Control, Dir, InputDevice, TouchGesture};
@@ -99,6 +101,8 @@ impl Default for Vibration {
 }
 
 impl Vibration {
+    pub const MIN_DELAY_MS: RangeInclusive<u32> = 10..=200;
+
     /// The game's rumble as the controller should play it.
     pub fn apply(&self, game: crate::pad::Rumble) -> crate::pad::Rumble {
         let (low, high) = if self.swap {
@@ -124,6 +128,11 @@ pub struct Light {
     pub cycle: bool,
     /// One animation cycle, 100–10000 ms.
     pub period_ms: u32,
+}
+
+impl Light {
+    pub const PERIOD_MS: RangeInclusive<u32> = 100..=10_000;
+    pub const MAX_COLORS: usize = 10;
 }
 
 impl Default for Light {
@@ -171,6 +180,10 @@ pub struct RadialMenu {
     /// Pixels from the centre of the primary monitor, right and down.
     pub offset: [i16; 2],
     pub sectors: Vec<RadialSector>,
+}
+
+impl RadialMenu {
+    pub const SCALE: RangeInclusive<f32> = 0.5..=2.0;
 }
 
 impl Default for RadialMenu {
@@ -286,6 +299,15 @@ pub struct Crosshair {
     pub layers: Vec<u8>,
 }
 
+impl Crosshair {
+    /// Logical pixels.
+    pub const SIZE: RangeInclusive<u16> = 10..=200;
+    /// Percent of the widest line.
+    pub const THICKNESS: RangeInclusive<u8> = 10..=100;
+    /// Pixels.
+    pub const MAX_OUTLINE: u8 = 10;
+}
+
 impl Default for Crosshair {
     fn default() -> Self {
         Crosshair {
@@ -331,6 +353,11 @@ pub struct Magnifier {
     pub zoom: f32,
     /// Diameter as a fraction of the screen height, 0.1–1.
     pub size: f32,
+}
+
+impl Magnifier {
+    pub const ZOOM: RangeInclusive<f32> = 1.0..=16.0;
+    pub const SIZE: RangeInclusive<f32> = 0.1..=1.0;
 }
 
 impl Default for Magnifier {
@@ -529,6 +556,10 @@ pub struct VirtualMotion {
     pub shake_g: f32,
     /// Length of a shake action.
     pub shake_ms: u32,
+}
+
+impl VirtualMotion {
+    pub const SHAKE_MS: RangeInclusive<u32> = 10..=2000;
 }
 
 impl Default for VirtualMotion {
@@ -761,7 +792,7 @@ pub enum KeyRepeat {
 
 impl KeyRepeat {
     /// Allowed custom intervals.
-    pub const MS_RANGE: std::ops::RangeInclusive<u32> = 1..=1000;
+    pub const MS_RANGE: RangeInclusive<u32> = 1..=1000;
 }
 
 impl Serialize for KeyRepeat {
@@ -933,10 +964,14 @@ impl Default for StickConfig {
 }
 
 impl StickConfig {
+    /// Degrees.
+    pub const DIRECTION_WIDTH: RangeInclusive<f32> = 1.0..=44.0;
+
     /// Tangent of [`direction_width`](Self::direction_width), the ratio the direction
     /// sectors are tested with.
     pub fn direction_ratio(&self) -> f32 {
-        self.direction_width.clamp(1.0, 44.0).to_radians().tan()
+        let [min, max] = [Self::DIRECTION_WIDTH.start(), Self::DIRECTION_WIDTH.end()];
+        self.direction_width.clamp(*min, *max).to_radians().tan()
     }
 }
 

@@ -403,8 +403,7 @@ fn profile_light(s: &Session, now: u64) -> Option<Rgb> {
         .layer(layer)
         .and_then(|l| l.lightbar.as_ref())
         .or(p.lightbar.as_ref())?;
-    let dark = Rgb { r: 0, g: 0, b: 0 };
-    Some(led::color_at(light, now - now % led::STEP_MS).unwrap_or(dark))
+    Some(led::color_at(light, now - now % led::STEP_MS))
 }
 
 /// Rumble for the session's controller: mapping rumble overrides what the game asks the

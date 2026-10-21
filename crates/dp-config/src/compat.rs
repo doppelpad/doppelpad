@@ -14,9 +14,9 @@ use dp_core::profile::{
     Action, Activator, AnalogMapping, AnalogSource, AnalogTarget, Combo, Command, Crosshair,
     CrosshairShape, GyroMode, JitterPattern, Jump, JumpMode, KbmSource, KeyRepeat, Layer,
     LayerSticks, LayerTriggers, LayerVirtualSticks, Light, LightMode, Magnifier, Mapping, Mode,
-    Press, Profile, RadialApply, RadialMenu, RadialSector, RadialSelect, ShakeAxis, StickPatch,
-    Sticks, TriggerEffect, TriggerPatch, Triggers, Unlock, Vibration, VirtualMotion, VirtualMouse,
-    VirtualPadType, VirtualStick, VirtualStickPatch, VirtualSticks, ZoneRadius,
+    Press, Profile, RadialApply, RadialMenu, RadialSector, RadialSelect, ShakeAxis, StickConfig,
+    StickPatch, Sticks, TriggerEffect, TriggerPatch, Triggers, Unlock, Vibration, VirtualMotion,
+    VirtualMouse, VirtualPadType, VirtualStick, VirtualStickPatch, VirtualSticks, ZoneRadius,
 };
 use serde_json::Value;
 
@@ -1197,7 +1197,11 @@ impl<'a> Importer<'a> {
                     .collect();
                 if !parts.is_empty() {
                     let ratio = parts.iter().sum::<f32>() / parts.len() as f32;
-                    cfg.direction_width = ratio.atan().to_degrees().clamp(1.0, 44.0);
+                    let [min, max] = [
+                        StickConfig::DIRECTION_WIDTH.start(),
+                        StickConfig::DIRECTION_WIDTH.end(),
+                    ];
+                    cfg.direction_width = ratio.atan().to_degrees().clamp(*min, *max);
                 }
             }
             if let Some(mc) = get(s, "mouse") {
