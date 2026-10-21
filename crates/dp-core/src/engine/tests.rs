@@ -314,6 +314,41 @@ fn toggle_layer_switch() {
     assert_eq!(h.e.layer(), 0);
 }
 
+/// Toggled keys that a layer switch lets go come up in the order they went down, whatever
+/// order the engine's hash maps keep (every fresh engine hashes differently).
+#[test]
+fn layer_switch_releases_toggles_in_order() {
+    for _ in 0..20 {
+        let mut p = Profile::default();
+        for (button, k) in [(PadButton::X, Key::A), (PadButton::Y, Key::B)] {
+            let mut m = map(b(button), vec![key(k)]);
+            m.mode = Mode::Toggle;
+            p.mappings.push(m);
+        }
+        let mut switch = map(b(PadButton::Back), vec![]);
+        switch.jump = Some(Jump {
+            layer: 1,
+            mode: JumpMode::Switch,
+            delay_ms: None,
+            postpone: false,
+        });
+        p.mappings.push(switch);
+        let mut h = Harness::new(p);
+        for button in [PadButton::X, PadButton::Y] {
+            h.btn(button, true);
+            h.btn(button, false);
+        }
+        h.btn(PadButton::Back, true);
+        let ups: Vec<Key> = h
+            .keys
+            .iter()
+            .filter(|(_, _, down)| !down)
+            .map(|(_, k, _)| *k)
+            .collect();
+        assert_eq!(ups, [Key::A, Key::B]);
+    }
+}
+
 #[test]
 fn held_button_is_repressed_in_new_layer() {
     let mut p = Profile::default();

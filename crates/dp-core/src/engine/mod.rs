@@ -1154,8 +1154,9 @@ impl Engine {
         tracing::debug!(from = self.layer, to = target, "layer switch");
         // Segmented sequences start again from their first segment.
         self.segment_cursor.clear();
-        // Toggle latches belong to the old layer.
-        let latched: Vec<ActId> = self.toggles.drain().map(|(_, id)| id).collect();
+        // Toggle latches belong to the old layer; they end in the order they began.
+        let mut latched: Vec<ActId> = self.toggles.drain().map(|(_, id)| id).collect();
+        latched.sort_unstable();
         for id in latched {
             if let Some(a) = self.acts.iter_mut().find(|a| a.id == id) {
                 a.latched = false;
@@ -1209,12 +1210,13 @@ impl Engine {
             .filter(|m| Some(*m) != owner && !self.jump_owned.contains(m))
             .collect();
         held.sort();
-        let busy: Vec<MaskId> = self
+        let mut busy: Vec<MaskId> = self
             .recs
             .keys()
             .copied()
             .filter(|m| Some(*m) != owner && !self.jump_owned.contains(m))
             .collect();
+        busy.sort_unstable();
         let repress = self.profile.layer_change.repress;
         for m in busy {
             if !repress && held.contains(&m) {
