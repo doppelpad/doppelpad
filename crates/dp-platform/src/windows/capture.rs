@@ -199,6 +199,7 @@ unsafe extern "system" fn raw_wndproc(
     lparam: LPARAM,
 ) -> LRESULT {
     if msg == WM_INPUT {
+        // SAFETY: RAWINPUT is a plain C struct, for which all zeroes is a valid value.
         let mut raw: RAWINPUT = unsafe { std::mem::zeroed() };
         let mut size = size_of::<RAWINPUT>() as u32;
         // SAFETY: buffer is a RAWINPUT, large enough for mouse input.

@@ -103,6 +103,7 @@ impl HidDecoder {
         };
         // SAFETY: zeroed plain struct filled by the parser.
         let mut caps: HIDP_CAPS = unsafe { std::mem::zeroed() };
+        // SAFETY: `pp` is valid until the decoder drops, `caps` a valid out-pointer.
         if unsafe { HidP_GetCaps(pp, &mut caps) } != HIDP_STATUS_SUCCESS {
             return None;
         }
@@ -110,8 +111,8 @@ impl HidDecoder {
 
         let mut n = caps.NumberInputButtonCaps;
         let mut bcaps = vec![HIDP_BUTTON_CAPS::default(); n as usize];
-        // SAFETY: the buffer holds `n` entries.
         if n > 0
+            // SAFETY: the buffer holds `n` entries.
             && unsafe { HidP_GetButtonCaps(HidP_Input, bcaps.as_mut_ptr(), &mut n, pp) }
                 == HIDP_STATUS_SUCCESS
         {
@@ -140,8 +141,8 @@ impl HidDecoder {
 
         let mut n = caps.NumberInputValueCaps;
         let mut vcaps = vec![HIDP_VALUE_CAPS::default(); n as usize];
-        // SAFETY: the buffer holds `n` entries.
         if n > 0
+            // SAFETY: the buffer holds `n` entries.
             && unsafe { HidP_GetValueCaps(HidP_Input, vcaps.as_mut_ptr(), &mut n, pp) }
                 == HIDP_STATUS_SUCCESS
         {

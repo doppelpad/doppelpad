@@ -64,6 +64,7 @@ pub(crate) struct OwnedHandle(pub windows_sys::Win32::Foundation::HANDLE);
 
 // SAFETY: Win32 file/device handles may be used from any thread.
 unsafe impl Send for OwnedHandle {}
+// SAFETY: the handle is only passed to Win32 calls, which synchronise themselves.
 unsafe impl Sync for OwnedHandle {}
 
 impl OwnedHandle {

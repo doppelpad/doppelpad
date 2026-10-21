@@ -271,9 +271,11 @@ impl HidIo {
             buf.resize(self.caps.output_len, 0);
         }
         let ev = event(true)?;
-        // SAFETY: zeroed OVERLAPPED with our event; `buf` lives until `complete` returns.
+        // SAFETY: a zeroed OVERLAPPED is the documented initial state.
         let mut ov: OVERLAPPED = unsafe { std::mem::zeroed() };
         ov.hEvent = ev.0;
+        // SAFETY: `buf` and `ov` (with our event) live until `complete` has waited for the
+        // write to finish.
         let started = unsafe {
             WriteFile(
                 self.handle.0,
@@ -289,9 +291,10 @@ impl HidIo {
     /// Read a feature report into `buf` (`buf[0]` = report ID).
     pub fn feature(&self, buf: &mut [u8]) -> io::Result<usize> {
         let ev = event(true)?;
-        // SAFETY: as in `write_report`; `buf` outlives the operation.
+        // SAFETY: a zeroed OVERLAPPED is the documented initial state.
         let mut ov: OVERLAPPED = unsafe { std::mem::zeroed() };
         ov.hEvent = ev.0;
+        // SAFETY: as in `write_report`; `buf` and `ov` outlive the operation.
         let started = unsafe {
             DeviceIoControl(
                 self.handle.0,
@@ -375,7 +378,9 @@ fn read_caps(handle: HANDLE) -> Option<HidCaps> {
     }
     // SAFETY: plain struct filled by HidP_GetCaps.
     let mut caps: HIDP_CAPS = unsafe { std::mem::zeroed() };
+    // SAFETY: `pp` is the preparsed data read above, `caps` a valid out-pointer.
     let status = unsafe { HidP_GetCaps(pp, &mut caps) };
+    // SAFETY: `pp` came from HidD_GetPreparsedData and is not used afterwards.
     unsafe { HidD_FreePreparsedData(pp) };
     (status == HIDP_STATUS_SUCCESS).then_some(HidCaps {
         usage_page: caps.UsagePage,

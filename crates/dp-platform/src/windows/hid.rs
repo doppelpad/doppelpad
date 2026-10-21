@@ -303,6 +303,7 @@ impl Drop for HidBackend {
 
 impl Scanner {
     fn scan(&mut self) {
+        // SAFETY: GUID is plain data, for which all zeroes is a valid value.
         let mut guid: GUID = unsafe { std::mem::zeroed() };
         // SAFETY: valid out-pointer.
         unsafe { HidD_GetHidGuid(&mut guid) };
