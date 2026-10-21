@@ -225,11 +225,18 @@ pub fn load_preset(path: &Path) -> Result<LayerPreset> {
     toml::from_str(&text).map_err(|e| invalid(path, e.to_string()))
 }
 
-/// Store a preset under its name; a preset of the same name is replaced.
+/// Store a preset under its name; a preset of the same name is replaced, and one whose name
+/// only makes the same file name is not.
 pub fn save_preset(profiles: &Path, preset: &LayerPreset) -> Result<PathBuf> {
     let dir = profiles.join(PRESETS_DIR);
     std::fs::create_dir_all(&dir).map_err(io(&dir))?;
-    let path = dir.join(format!("{}.toml", library::slugify(&preset.name)));
+    let path = match list_presets(profiles)
+        .into_iter()
+        .find(|p| p.name == preset.name)
+    {
+        Some(same) => same.path,
+        None => library::unique_path(&dir, &library::slugify(&preset.name), Some("toml")),
+    };
     let text = toml::to_string_pretty(preset).map_err(|e| invalid(&path, e.to_string()))?;
     std::fs::write(&path, format!("# Doppelpad layer preset\n{text}")).map_err(io(&path))?;
     Ok(path)
@@ -334,6 +341,28 @@ mod tests {
     #[test]
     fn a_failed_import_leaves_no_half_game() {
         let root = tempfile::tempdir().unwrap();
+    #[test]
+    fn presets_with_alike_names_keep_their_own_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let named = |name: &str| LayerPreset {
+            name: name.into(),
+            ..Default::default()
+        };
+        let a = save_preset(dir.path(), &named("Aim!")).unwrap();
+        let b = save_preset(dir.path(), &named("Aim?")).unwrap();
+        assert_ne!(a, b, "same slug, different presets");
+        assert_eq!(
+            save_preset(dir.path(), &named("Aim?")).unwrap(),
+            b,
+            "replaced"
+        );
+        let names: Vec<String> = list_presets(dir.path())
+            .into_iter()
+            .map(|p| p.name)
+            .collect();
+        assert_eq!(names, ["Aim!", "Aim?"]);
+    }
+
         let bundle = Bundle {
             doppelpad_game: BUNDLE_VERSION,
             meta: library::GameMeta {

@@ -220,7 +220,7 @@ pub fn slugify(name: &str) -> String {
 }
 
 /// `base`, or `base-2`, `base-3`, … whichever does not exist yet in `dir`.
-fn unique_path(dir: &Path, base: &str, ext: Option<&str>) -> PathBuf {
+pub(crate) fn unique_path(dir: &Path, base: &str, ext: Option<&str>) -> PathBuf {
     let make = |stem: &str| match ext {
         Some(e) => dir.join(format!("{stem}.{e}")),
         None => dir.join(stem),
