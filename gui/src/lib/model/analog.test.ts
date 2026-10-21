@@ -39,7 +39,7 @@ import {
 import { setStickLevel, setTriggerLevel, type ZoneDefaults } from './zones';
 
 // Rust's defaults, as the catalog command sends them.
-// `unknown` until Catalog's types match the fields Rust leaves out (B2).
+// Through `unknown`: JSON imports type arrays as `number[]`, the model uses tuples.
 const def = defaultsJson as unknown as Catalog['defaults'];
 
 const zd: ZoneDefaults = {

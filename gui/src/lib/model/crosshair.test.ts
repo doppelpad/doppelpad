@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import type { Profile } from '../types';
-import { CROSSHAIR_SHAPES, addCrosshair, crosshairParts, removeCrosshair, updateCrosshair } from './crosshair';
+import type { Catalog, Profile } from '../types';
+import {
+  CROSSHAIR_SHAPES,
+  addCrosshair,
+  crosshairConfig,
+  crosshairParts,
+  removeCrosshair,
+  updateCrosshair,
+} from './crosshair';
+import defaultsJson from './fixtures/defaults.json';
 
 describe('crosshairs', () => {
   it('draws every shape inside its size', () => {
@@ -30,5 +38,16 @@ describe('crosshairs', () => {
     p = updateCrosshair(p, 0, { size: 50 });
     p = updateCrosshair(p, 0, { size: undefined, shape: 'dot' });
     expect(p.crosshairs).toEqual([{ name: 'Crosshair 1', shape: 'dot' }]);
+  });
+
+  it('a crosshair without layers shows on none of them', () => {
+    // The catalog's default leaves `layers` out, like every crosshair the editor adds.
+    const def = (defaultsJson as unknown as Catalog['defaults']).crosshair;
+    expect(def.layers).toBeUndefined();
+    const p = addCrosshair({ name: 't', mappings: [] });
+    const f = crosshairConfig(p.crosshairs![0], def);
+    expect(f.layers).toEqual([]);
+    expect(f.size).toBe(def.size);
+    expect(crosshairConfig({ layers: [2] }, def).layers).toEqual([2]);
   });
 });

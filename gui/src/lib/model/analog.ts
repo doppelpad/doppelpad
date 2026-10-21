@@ -14,6 +14,7 @@ import type {
   Sticks,
   TouchpadSettings,
   TriggerConfig,
+  TriggerFull,
   Triggers,
   VirtualDevices,
   VirtualStick,
@@ -67,7 +68,7 @@ export function stickConfig(p: Profile, side: Side, def: Required<StickConfig>, 
 }
 
 /** A trigger's settings with the defaults filled in, as they are on `layer`. */
-export function triggerConfig(p: Profile, side: Side, def: Required<TriggerConfig>, layer = 0): Required<TriggerConfig> {
+export function triggerConfig(p: Profile, side: Side, def: TriggerFull, layer = 0): TriggerFull {
   return { ...def, ...p.triggers?.[side], ...declared(p, layer)?.triggers?.[side] };
 }
 
@@ -150,7 +151,7 @@ export function setTrigger(
   p: Profile,
   side: Side,
   patch: Partial<TriggerConfig>,
-  def: Required<TriggerConfig>,
+  def: TriggerFull,
   layer = 0,
 ): Profile {
   if (layer !== 0) return setLayerPart(p, layer, 'triggers', side, patch, triggerConfig(p, side, def));
@@ -268,7 +269,7 @@ export function shapeStick([x, y]: [number, number], cfg: Required<StickConfig>)
 }
 
 /** Trigger output after deadzone and full-pull rescaling. */
-export function shapeTrigger(v: number, cfg: Required<TriggerConfig>): number {
+export function shapeTrigger(v: number, cfg: TriggerFull): number {
   if (v <= cfg.deadzone) return 0;
   const top = Math.max(cfg.full_pull, cfg.deadzone + 0.01);
   return clamp((v - cfg.deadzone) / (top - cfg.deadzone), 0, 1);

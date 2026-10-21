@@ -3,13 +3,12 @@
   // window is sized and centred by the app.
   import { onMount } from 'svelte';
   import { overlayContent } from '../../lib/overlay';
-  import type { Crosshair } from '../../lib/types';
+  import type { CrosshairFull } from '../../lib/types';
   import CrosshairShape from '../crosshair/CrosshairShape.svelte';
 
-  type Full = Required<Omit<Crosshair, 'magnifier'>>;
-  let crosshair = $state<Full | null>(null);
+  let crosshair = $state<CrosshairFull | null>(null);
 
-  onMount(() => overlayContent<Full>((c) => (crosshair = c)));
+  onMount(() => overlayContent<CrosshairFull>((c) => (crosshair = c)));
 </script>
 
 {#if crosshair}
