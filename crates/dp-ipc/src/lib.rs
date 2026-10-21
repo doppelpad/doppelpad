@@ -204,6 +204,50 @@ mod tests {
         );
     }
 
+    /// The JSON of the two structured replies, field by field, so that format changes are
+    /// deliberate (the CLI, the GUI and scripts read them).
+    #[test]
+    fn reply_json() {
+        let status = Response::Status(Status {
+            profile: Some("Racing".into()),
+            profile_path: Some(r"C:\p\racing.toml".into()),
+            layer: 2,
+            auto_switch: true,
+            foreground: Some("game.exe".into()),
+            virtual_pad: Some("xbox360".into()),
+            hidden_devices: 1,
+            warnings: vec!["ViGEmBus is missing".into()],
+            slots: vec![Some(r"C:\p\racing.toml".into()), None, None, None],
+            active_slot: 1,
+            remap_on: true,
+        });
+        let json = concat!(
+            r#"{"type":"status","profile":"Racing","profile_path":"C:\\p\\racing.toml","#,
+            r#""layer":2,"auto_switch":true,"foreground":"game.exe","virtual_pad":"xbox360","#,
+            r#""hidden_devices":1,"warnings":["ViGEmBus is missing"],"#,
+            r#""slots":["C:\\p\\racing.toml",null,null,null],"active_slot":1,"remap_on":true}"#
+        );
+        assert_eq!(serde_json::to_string(&status).unwrap(), json);
+        assert_eq!(serde_json::from_str::<Response>(json).unwrap(), status);
+
+        let devices = Response::Devices {
+            devices: vec![Device {
+                id: "hid:pad".into(),
+                name: "DualSense".into(),
+                backend: "hid".into(),
+                vendor_id: 0x054C,
+                product_id: 0x0CE6,
+                instance_paths: vec![r"HID\VID_054C&PID_0CE6\1".into()],
+            }],
+        };
+        let json = concat!(
+            r#"{"type":"devices","devices":[{"id":"hid:pad","name":"DualSense","backend":"hid","#,
+            r#""vendor_id":1356,"product_id":3302,"instance_paths":["HID\\VID_054C&PID_0CE6\\1"]}]}"#
+        );
+        assert_eq!(serde_json::to_string(&devices).unwrap(), json);
+        assert_eq!(serde_json::from_str::<Response>(json).unwrap(), devices);
+    }
+
     #[test]
     fn device_hiding_paths() {
         let d: Device = serde_json::from_str(

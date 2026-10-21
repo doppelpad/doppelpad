@@ -2002,6 +2002,167 @@ actions = [{ key = "LeftShift" }]
         assert_eq!(again, p);
     }
 
+    /// Every `Action` variant in its written form. `untagged` makes the variant order part of
+    /// the format, so the text must survive a round trip unchanged.
+    #[test]
+    fn action_variants_roundtrip() {
+        let src = r#"[[mappings]]
+trigger = "A"
+actions = [
+    { key = "Space" },
+    { key = "LeftShift", action = "down" },
+    { pad = "A" },
+    { pad = "Start", action = "tap" },
+    { mouse = "left" },
+    { mouse = "x2", action = "up" },
+    { wheel = "up" },
+    { wheel = "down", clicks = 2.5 },
+    { stick = "left", x = 0.0, y = 1.0 },
+    { stick = "right", x = -0.5, y = 0.0, absolute = true, action = "tap" },
+    { trigger = "left" },
+    { trigger = "right", value = 0.5, action = "down" },
+    { mouse_move = "up", speed = 800.0 },
+    { mouse_move = "down_left", speed = 400.0, acceleration = 2.0 },
+    { pause = 50 },
+    { rumble = 200, low = 0.8, high = 0.8 },
+    { rumble = 100, low = 1.0, high = 0.0 },
+    { shake = "-z" },
+    { turn = 90.0 },
+    { mouse_to = [0.5, 0.25] },
+    { mouse_clip = [0.0, 0.0, 1.0, 1.0] },
+    { touch = "tap" },
+    { touch = "swipe_up", ms = 120 },
+    { command = "remap_off" },
+    { command = { crosshair = 2 } },
+    { command = { launch = { path = 'C:\Games\a.exe', args = "-x" } } },
+    { command = { unsupported = "macro" } },
+    { break = true },
+]
+"#;
+        // How Doppelpad writes them (`dp_config::to_toml` adds only a header).
+        let written = r#"name = ""
+
+[[mappings]]
+trigger = "A"
+
+[[mappings.actions]]
+key = "Space"
+
+[[mappings.actions]]
+key = "LeftShift"
+action = "down"
+
+[[mappings.actions]]
+pad = "A"
+
+[[mappings.actions]]
+pad = "Start"
+action = "tap"
+
+[[mappings.actions]]
+mouse = "left"
+
+[[mappings.actions]]
+mouse = "x2"
+action = "up"
+
+[[mappings.actions]]
+wheel = "up"
+
+[[mappings.actions]]
+wheel = "down"
+clicks = 2.5
+
+[[mappings.actions]]
+stick = "left"
+x = 0.0
+y = 1.0
+
+[[mappings.actions]]
+stick = "right"
+x = -0.5
+y = 0.0
+absolute = true
+action = "tap"
+
+[[mappings.actions]]
+trigger = "left"
+
+[[mappings.actions]]
+trigger = "right"
+value = 0.5
+action = "down"
+
+[[mappings.actions]]
+mouse_move = "up"
+speed = 800.0
+
+[[mappings.actions]]
+mouse_move = "down_left"
+speed = 400.0
+acceleration = 2.0
+
+[[mappings.actions]]
+pause = 50
+
+[[mappings.actions]]
+rumble = 200
+low = 0.8
+high = 0.8
+
+[[mappings.actions]]
+rumble = 100
+low = 1.0
+high = 0.0
+
+[[mappings.actions]]
+shake = "-z"
+
+[[mappings.actions]]
+turn = 90.0
+
+[[mappings.actions]]
+mouse_to = [0.5, 0.25]
+
+[[mappings.actions]]
+mouse_clip = [0.0, 0.0, 1.0, 1.0]
+
+[[mappings.actions]]
+touch = "tap"
+
+[[mappings.actions]]
+touch = "swipe_up"
+ms = 120
+
+[[mappings.actions]]
+command = "remap_off"
+
+[[mappings.actions]]
+
+[mappings.actions.command]
+crosshair = 2
+
+[[mappings.actions]]
+
+[mappings.actions.command.launch]
+path = 'C:\Games\a.exe'
+args = "-x"
+
+[[mappings.actions]]
+
+[mappings.actions.command]
+unsupported = "macro"
+
+[[mappings.actions]]
+break = true
+"#;
+        let parsed: Profile = toml::from_str(src).unwrap();
+        assert_eq!(parsed.mappings[0].actions.len(), 28);
+        let text = toml::to_string(&parsed).unwrap();
+        assert_eq!(text, written);
+        assert_eq!(toml::from_str::<Profile>(&text).unwrap(), parsed);
+    }
+
     #[test]
     fn unknown_field_rejected() {
         let src = "[[mappings]]\ntrigger = \"A\"\nactoins = []\n";
