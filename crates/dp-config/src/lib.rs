@@ -175,6 +175,13 @@ pub fn validate(p: &Profile) -> Diagnostics {
                 Action::Pause { pause } if *pause > 60_000 => {
                     d.warn(&path, "pause longer than a minute");
                 }
+                // The engine splits at every break step, whatever its value.
+                Action::Break { r#break: false } => {
+                    d.error(
+                        &path,
+                        "`break = false` would still split the sequence; remove it",
+                    );
+                }
                 Action::Command {
                     command: Command::Unsupported(name),
                 } => d.warn(
@@ -738,6 +745,19 @@ while_held = ["LT", "Mouse:Right"]
             !to_toml(&Profile::default()).unwrap().contains("virtual"),
             "native is the default"
         );
+    }
+
+    #[test]
+    fn validation_rejects_break_false() {
+        let src = "[[mappings]]\ntrigger = \"A\"\nmode = \"once\"\nactions = [{ key = \"A\" }, { break = false }, { key = \"B\" }]\n";
+        let d = validate(&parse_toml(src).unwrap());
+        assert!(d.has_errors(), "{d:?}");
+        assert!(
+            d.iter().any(|d| d.message.contains("break = false")),
+            "{d:?}"
+        );
+        let ok = src.replace("false", "true");
+        assert!(!validate(&parse_toml(&ok).unwrap()).has_errors());
     }
 
     #[test]
