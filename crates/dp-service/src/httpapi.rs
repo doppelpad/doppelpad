@@ -291,14 +291,10 @@ fn error_json(message: &str) -> String {
 fn ask_ipc(tx: &Sender<Job>, req: Request) -> Response {
     let (rtx, rrx) = bounded(1);
     if tx.send(Job::Ipc(req, rtx)).is_err() {
-        return Response::Error {
-            message: "Doppelpad is shutting down".into(),
-        };
+        return Response::error("Doppelpad is shutting down");
     }
     rrx.recv_timeout(REPLY_TIMEOUT)
-        .unwrap_or_else(|_| Response::Error {
-            message: "Doppelpad did not answer".into(),
-        })
+        .unwrap_or_else(|_| Response::error("Doppelpad did not answer"))
 }
 
 fn ask_live(tx: &Sender<Job>) -> Option<LiveState> {
@@ -506,11 +502,7 @@ mod tests {
         });
         match api.jobs().recv_timeout(Duration::from_secs(5)).unwrap() {
             Job::Ipc(Request::Remap { on: false }, reply) => {
-                reply
-                    .send(Response::Ok {
-                        message: "remapping off".into(),
-                    })
-                    .unwrap();
+                reply.send(Response::ok("remapping off")).unwrap();
             }
             _ => panic!("unexpected job"),
         }

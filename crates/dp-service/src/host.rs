@@ -154,19 +154,12 @@ pub fn spawn_with(
                 let result = dp_ipc::serve(|req| {
                     let (rtx, rrx) = bounded(1);
                     if ipc_tx.send((ServiceCmd::Ipc(req), rtx)).is_err() {
-                        return Response::Error {
-                            message: "Doppelpad is shutting down".into(),
-                        };
+                        return Response::error("Doppelpad is shutting down");
                     }
                     match rrx.recv_timeout(REPLY_TIMEOUT) {
                         Ok(ServiceReply::Ipc(r)) => r,
-                        Ok(other) => match other.into_result() {
-                            Ok(message) => Response::Ok { message },
-                            Err(message) => Response::Error { message },
-                        },
-                        Err(_) => Response::Error {
-                            message: "Doppelpad did not answer".into(),
-                        },
+                        Ok(other) => other.into_result().into(),
+                        Err(_) => Response::error("Doppelpad did not answer"),
                     }
                 });
                 if let Err(e) = result {

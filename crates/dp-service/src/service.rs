@@ -494,18 +494,13 @@ impl Service {
 
     /// The reply to a slot or remap command in IPC form; slots are 1–4 over IPC.
     fn ipc_reply(&mut self, cmd: ServiceCmd) -> Response {
-        match self.handle(cmd).into_result() {
-            Ok(message) => Response::Ok { message },
-            Err(message) => Response::Error { message },
-        }
+        self.handle(cmd).into_result().into()
     }
 
     /// Run a slot command for a 1-based slot number from IPC.
     fn ipc_slot(&mut self, slot: usize, cmd: impl FnOnce(usize) -> ServiceCmd) -> Response {
         if !(1..=SLOTS).contains(&slot) {
-            return Response::Error {
-                message: format!("slot {slot} does not exist (1–{SLOTS})"),
-            };
+            return Response::error(format!("slot {slot} does not exist (1–{SLOTS})"));
         }
         self.ipc_reply(cmd(slot - 1))
     }
@@ -533,9 +528,7 @@ impl Service {
     pub fn handle_ipc(&mut self, req: Request) -> Response {
         self.unsaved = None;
         match (self.answer_ipc(req), self.unsaved.take()) {
-            (Response::Ok { message }, Some(e)) => Response::Ok {
-                message: unsaved_note(&message, &e),
-            },
+            (Response::Ok { message }, Some(e)) => Response::ok(unsaved_note(&message, &e)),
             (r, _) => r,
         }
     }
@@ -552,13 +545,9 @@ impl Service {
                         self.state.remap_on = true;
                         self.save_state();
                         self.sync_devices();
-                        Response::Ok {
-                            message: format!("applied {}", path.display()),
-                        }
+                        Response::ok(format!("applied {}", path.display()))
                     }
-                    Err(e) => Response::Error {
-                        message: format!("{e:#}"),
-                    },
+                    Err(e) => Response::error(format!("{e:#}")),
                 }
             }
             Request::Stop => {
@@ -568,9 +557,7 @@ impl Service {
                 self.auto_active = None;
                 self.state.remap_on = false;
                 self.save_state();
-                Response::Ok {
-                    message: "remapping stopped".into(),
-                }
+                Response::ok("remapping stopped")
             }
             Request::ApplyToSlot { path, slot, device } => {
                 self.ipc_slot(slot, |slot| ServiceCmd::ApplyToSlot {
@@ -593,9 +580,7 @@ impl Service {
                         slot,
                     });
                 }
-                Response::Ok {
-                    message: "all slots cleared".into(),
-                }
+                Response::ok("all slots cleared")
             }
             Request::Remap { on } => self.ipc_reply(ServiceCmd::SetRemap(on)),
             Request::Devices => Response::Devices {
@@ -603,22 +588,16 @@ impl Service {
             },
             Request::AutoSwitch { enabled } => {
                 self.set_auto_switch(enabled);
-                Response::Ok {
-                    message: format!(
-                        "automatic profile switching {}",
-                        if enabled { "on" } else { "off" }
-                    ),
-                }
+                Response::ok(format!(
+                    "automatic profile switching {}",
+                    if enabled { "on" } else { "off" }
+                ))
             }
             Request::Reload => {
                 self.reload();
-                Response::Ok {
-                    message: format!("{} profiles", self.profiles.len()),
-                }
+                Response::ok(format!("{} profiles", self.profiles.len()))
             }
-            Request::Shutdown => Response::Ok {
-                message: "shutting down".into(),
-            },
+            Request::Shutdown => Response::ok("shutting down"),
         }
     }
 
