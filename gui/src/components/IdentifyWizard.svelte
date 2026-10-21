@@ -195,7 +195,7 @@
     border-top: 1px solid var(--line);
     padding-top: 10px;
     color: var(--text-dim);
-    font-family: var(--font-mono, monospace);
+    font-family: var(--mono);
     font-size: 11px;
     word-break: break-word;
   }
