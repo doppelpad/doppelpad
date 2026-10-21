@@ -74,6 +74,24 @@ pub struct Message {
     corner: Corner,
 }
 
+#[cfg(test)]
+impl Message {
+    /// A low-battery message, for the bridge contract fixture.
+    pub(crate) fn sample() -> Message {
+        Message {
+            event: Event::BatteryLow {
+                name: "DualSense".into(),
+                level: 15,
+            },
+            id: 3,
+            lang: "en".into(),
+            opacity: 90,
+            scale: 100,
+            corner: Corner::TopRight,
+        }
+    }
+}
+
 #[derive(Default)]
 pub struct OsdState {
     inner: Mutex<Inner>,

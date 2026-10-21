@@ -1,13 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type {
-  AnalogMapping,
-  GyroSettings,
-  Profile,
-  StickConfig,
-  TouchpadSettings,
-  TriggerConfig,
-  VirtualStick,
-} from '../types';
+import type { Catalog, Profile } from '../types';
 import defaultsJson from './fixtures/defaults.json';
 import examples from './fixtures/examples.json';
 import fixture from './fixtures/profile.json';
@@ -47,14 +39,8 @@ import {
 import { setStickLevel, setTriggerLevel, type ZoneDefaults } from './zones';
 
 // Rust's defaults, as the catalog command sends them.
-const def = defaultsJson as unknown as {
-  stick: Required<StickConfig>;
-  trigger: Required<TriggerConfig>;
-  analog: Required<AnalogMapping>;
-  virtual_stick: Required<VirtualStick>;
-  gyro: Required<GyroSettings>;
-  touchpad: Required<TouchpadSettings>;
-};
+// `unknown` until Catalog's types match the fields Rust leaves out (B2).
+const def = defaultsJson as unknown as Catalog['defaults'];
 
 const zd: ZoneDefaults = {
   stickLow: def.stick.zones.low ?? 0.24,
