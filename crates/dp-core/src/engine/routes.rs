@@ -13,27 +13,27 @@ const ACCEL_FROM: f32 = 0.9;
 const ACCEL_MAX: f32 = 4.0;
 
 /// Calibration constants: what `sensitivity = 1.0` means for each route.
-pub mod scale {
+pub(super) mod scale {
     /// Stick → mouse: cursor speed at full deflection, pixels per second.
-    pub const STICK_MOUSE_PX_PER_S: f32 = 1000.0;
+    pub(crate) const STICK_MOUSE_PX_PER_S: f32 = 1000.0;
     /// Mouse → stick: mouse speed (counts per second) that gives full deflection.
-    pub const MOUSE_STICK_COUNTS_PER_S: f32 = 2000.0;
+    pub(crate) const MOUSE_STICK_COUNTS_PER_S: f32 = 2000.0;
     /// Mouse → stick without spring: mouse counts from the centre to full deflection.
-    pub const MOUSE_STICK_COUNTS_FULL: f32 = 500.0;
+    pub(crate) const MOUSE_STICK_COUNTS_FULL: f32 = 500.0;
     /// Gyro → mouse: pixels per degree of rotation.
-    pub const GYRO_MOUSE_PX_PER_DEG: f32 = 10.0;
+    pub(crate) const GYRO_MOUSE_PX_PER_DEG: f32 = 10.0;
     /// Gyro → stick: rotation rate (degrees per second) that gives full deflection.
-    pub const GYRO_STICK_DPS: f32 = 100.0;
+    pub(crate) const GYRO_STICK_DPS: f32 = 100.0;
     /// Touchpad → mouse: pixels for a swipe across the full pad width.
-    pub const TOUCH_MOUSE_PX_PER_PAD: f32 = 1000.0;
+    pub(crate) const TOUCH_MOUSE_PX_PER_PAD: f32 = 1000.0;
     /// Gyro rates below this are treated as noise (degrees per second).
-    pub const GYRO_NOISE_DPS: f32 = 0.5;
+    pub(crate) const GYRO_NOISE_DPS: f32 = 0.5;
     /// Longest trackball glide (friction 0), milliseconds.
-    pub const TRACKBALL_MAX_MS: f32 = 5200.0;
+    pub(crate) const TRACKBALL_MAX_MS: f32 = 5200.0;
 }
 
 #[derive(Clone, Debug, Default)]
-pub struct RouteState {
+pub(super) struct RouteState {
     ema: (f32, f32),
     last_motion: u64,
     last_touch: Option<(f32, f32)>,
@@ -51,7 +51,7 @@ pub struct RouteState {
     pos: (f32, f32),
 }
 
-pub struct RouteInput<'a> {
+pub(super) struct RouteInput<'a> {
     pub pad: Option<&'a PadState>,
     pub sticks: &'a Sticks,
     /// Raw mouse counts since the previous tick (y down).
@@ -69,7 +69,7 @@ pub struct RouteInput<'a> {
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]
-pub enum RouteOutput {
+pub(super) enum RouteOutput {
     None,
     /// Pixels to move this tick (y down).
     Mouse(f32, f32),
@@ -187,7 +187,7 @@ fn flick(
     RouteOutput::Mouse(counts, 0.0)
 }
 
-pub fn run(r: &AnalogMapping, st: &mut RouteState, input: &RouteInput) -> RouteOutput {
+pub(super) fn run(r: &AnalogMapping, st: &mut RouteState, input: &RouteInput) -> RouteOutput {
     let sx = if r.invert_x { -1.0 } else { 1.0 };
     let sy = if r.invert_y { -1.0 } else { 1.0 };
     match r.source {

@@ -4,7 +4,7 @@ use crate::control::{Dir, Zone};
 use crate::profile::{StickConfig, TriggerConfig, ZoneRadius};
 
 /// `tan(22.5°)`: with this sector ratio a stick has eight 45° sectors.
-pub const DIRECTION_SECTOR: f32 = 0.414_213_57;
+pub(super) const DIRECTION_SECTOR: f32 = 0.414_213_57;
 
 /// Smallest usable zone threshold; a zero threshold would count the resting
 /// control as deflected.
@@ -37,7 +37,7 @@ pub fn stick_zone((x, y): (f32, f32), t: [ZoneRadius; 3]) -> Option<Zone> {
 }
 
 /// Rotate a stick vector by `deg` degrees (counter-clockwise, y up).
-pub fn rotate((x, y): (f32, f32), deg: f32) -> (f32, f32) {
+pub(super) fn rotate((x, y): (f32, f32), deg: f32) -> (f32, f32) {
     if deg == 0.0 {
         return (x, y);
     }
@@ -50,7 +50,7 @@ pub fn rotate((x, y): (f32, f32), deg: f32) -> (f32, f32) {
 
 /// Physical stick after inversion and rotation; this is what digital direction
 /// controls are evaluated on (before deadzone and curve).
-pub fn orient(raw: (f32, f32), cfg: &StickConfig) -> (f32, f32) {
+pub(super) fn orient(raw: (f32, f32), cfg: &StickConfig) -> (f32, f32) {
     let x = if cfg.invert_x { -raw.0 } else { raw.0 };
     let y = if cfg.invert_y { -raw.1 } else { raw.1 };
     rotate((x, y), cfg.rotation)
@@ -96,7 +96,7 @@ pub fn shape_stick((x, y): (f32, f32), cfg: &StickConfig) -> (f32, f32) {
 
 /// Which direction controls are active for a vector (indexed by [`Dir`]), or none while
 /// it is shorter than `threshold`.
-pub fn directions((x, y): (f32, f32), threshold: f32, k: f32, diagonals: bool) -> [bool; 8] {
+pub(super) fn directions((x, y): (f32, f32), threshold: f32, k: f32, diagonals: bool) -> [bool; 8] {
     if (x * x + y * y).sqrt() < threshold.max(1e-4) {
         return [false; 8];
     }
@@ -107,7 +107,7 @@ pub fn directions((x, y): (f32, f32), threshold: f32, k: f32, diagonals: bool) -
 ///
 /// Within `atan(k)` of an axis only that cardinal is active. In between, both cardinals
 /// are (4-way), or with `diagonals` only the diagonal (8-way).
-pub fn sectors((x, y): (f32, f32), k: f32, diagonals: bool) -> [bool; 8] {
+pub(super) fn sectors((x, y): (f32, f32), k: f32, diagonals: bool) -> [bool; 8] {
     let mut d = [false; 8];
     if x == 0.0 && y == 0.0 {
         return d;

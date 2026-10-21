@@ -20,7 +20,7 @@ pub struct RadialView {
 }
 
 #[derive(Clone, Debug)]
-pub struct RadialState {
+pub(super) struct RadialState {
     /// The menu shown now; `parents` are the menus it was opened from.
     pub menu: usize,
     parents: Vec<usize>,
@@ -35,13 +35,13 @@ pub struct RadialState {
 
 /// What a command or a closing layer asks the engine to do.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum RadialRun {
+pub(super) enum RadialRun {
     /// Play sector `sector` of menu `menu`.
     Sector { menu: usize, sector: usize },
 }
 
 /// The sector a direction points at: sector 0 at the top, the rest clockwise. `y` is up.
-pub fn sector_at(x: f32, y: f32, n: usize) -> Option<usize> {
+pub(super) fn sector_at(x: f32, y: f32, n: usize) -> Option<usize> {
     if n == 0 {
         return None;
     }
@@ -51,7 +51,7 @@ pub fn sector_at(x: f32, y: f32, n: usize) -> Option<usize> {
 }
 
 impl RadialState {
-    pub fn open(menu: usize, now: u64) -> RadialState {
+    pub(super) fn open(menu: usize, now: u64) -> RadialState {
         RadialState {
             menu,
             parents: Vec::new(),
@@ -63,12 +63,12 @@ impl RadialState {
     }
 
     /// The root menu: the one whose layer keeps this state open.
-    pub fn root(&self) -> usize {
+    pub(super) fn root(&self) -> usize {
         self.parents.first().copied().unwrap_or(self.menu)
     }
 
     /// What to draw now, if anything.
-    pub fn view(&self, menus: &[RadialMenu], now: u64) -> Option<RadialView> {
+    pub(super) fn view(&self, menus: &[RadialMenu], now: u64) -> Option<RadialView> {
         let delay = u64::from(menus.get(self.root())?.delay_ms);
         (!self.closed && now.saturating_sub(self.since) >= delay).then_some(RadialView {
             menu: self.menu,
@@ -77,7 +77,12 @@ impl RadialState {
     }
 
     /// Point with the menu's stick (`x`, `y` up positive) or mouse travel (`dx`, `dy` down).
-    pub fn point(&mut self, menus: &[RadialMenu], stick: Option<(f32, f32)>, mouse: (f32, f32)) {
+    pub(super) fn point(
+        &mut self,
+        menus: &[RadialMenu],
+        stick: Option<(f32, f32)>,
+        mouse: (f32, f32),
+    ) {
         let Some(m) = menus.get(self.menu) else {
             return;
         };
@@ -108,7 +113,7 @@ impl RadialState {
     }
 
     /// Step the pointer `by` sectors clockwise.
-    pub fn step(&mut self, menus: &[RadialMenu], by: isize) {
+    pub(super) fn step(&mut self, menus: &[RadialMenu], by: isize) {
         let n = menus.get(self.menu).map_or(0, |m| m.sectors.len()) as isize;
         if n == 0 || self.closed {
             return;
@@ -122,7 +127,7 @@ impl RadialState {
     }
 
     /// Point at the sector in direction (`x`, `y`), `y` up.
-    pub fn point_dir(&mut self, menus: &[RadialMenu], x: f32, y: f32) {
+    pub(super) fn point_dir(&mut self, menus: &[RadialMenu], x: f32, y: f32) {
         if let Some(m) = menus.get(self.menu)
             && !self.closed
         {
@@ -131,7 +136,7 @@ impl RadialState {
     }
 
     /// Run the pointed sector, or open its sub-menu.
-    pub fn apply(&mut self, menus: &[RadialMenu]) -> Option<RadialRun> {
+    pub(super) fn apply(&mut self, menus: &[RadialMenu]) -> Option<RadialRun> {
         let p = self.pointed.filter(|_| !self.closed)?;
         let sector = menus.get(self.menu)?.sectors.get(p)?;
         if let Some(sub) = sector.submenu
@@ -153,7 +158,7 @@ impl RadialState {
     }
 
     /// Back to the parent menu, or close.
-    pub fn back(&mut self) {
+    pub(super) fn back(&mut self) {
         match self.parents.pop() {
             Some(m) => {
                 self.menu = m;
@@ -165,7 +170,7 @@ impl RadialState {
     }
 
     /// The menu's layer ended: the pointed sector of a release menu runs.
-    pub fn leave(&self, menus: &[RadialMenu]) -> Option<RadialRun> {
+    pub(super) fn leave(&self, menus: &[RadialMenu]) -> Option<RadialRun> {
         let p = self.pointed.filter(|_| !self.closed)?;
         if menus.get(self.root())?.apply != RadialApply::Release {
             return None;

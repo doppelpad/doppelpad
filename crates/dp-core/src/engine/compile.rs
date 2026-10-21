@@ -11,12 +11,12 @@ use crate::profile::{
     Profile, RadialSelect, ShakeAxis,
 };
 
-pub type MaskId = usize;
-pub type BindingId = usize;
+pub(super) type MaskId = usize;
+pub(super) type BindingId = usize;
 
 /// Digital output, reference counted across activations.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub enum Out {
+pub(super) enum Out {
     Key(Key),
     Mouse(MouseButton),
     Pad(PadButton),
@@ -24,7 +24,7 @@ pub enum Out {
 
 /// Analog output contribution while held.
 #[derive(Copy, Clone, Debug, PartialEq)]
-pub enum AnalogOut {
+pub(super) enum AnalogOut {
     /// Stick deflection; `true` replaces the axes it names instead of adding.
     Stick(Stick, f32, f32, bool),
     Trigger(Trigger, f32),
@@ -49,14 +49,14 @@ impl AnalogOut {
         }
     }
 
-    pub fn same_slot(&self, other: &AnalogOut) -> bool {
+    pub(super) fn same_slot(&self, other: &AnalogOut) -> bool {
         self.slot() == other.slot()
     }
 }
 
 /// One instruction of a compiled action sequence.
 #[derive(Clone, Debug, PartialEq)]
-pub enum Step {
+pub(super) enum Step {
     Down(Out),
     Up(Out),
     AnalogDown(AnalogOut),
@@ -92,7 +92,7 @@ impl Step {
 
 /// How an activation's program is driven.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum Policy {
+pub(super) enum Policy {
     /// Run the hold program; it parks at its hold point until End, then releases everything.
     Hold,
     /// Repeat the run program. `max_runs: None` = until stopped.
@@ -107,7 +107,7 @@ pub enum Policy {
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum StopRule {
+pub(super) enum StopRule {
     /// End stops at once and releases outputs (turbo pulses).
     Immediate,
     /// End lets the current run finish, then stops.
@@ -117,7 +117,7 @@ pub enum StopRule {
 }
 
 #[derive(Clone, Debug)]
-pub struct Binding {
+pub(super) struct Binding {
     pub mask: MaskId,
     pub layer: u8,
     pub activator: Activator,
@@ -141,7 +141,7 @@ pub struct Binding {
 }
 
 impl Binding {
-    pub fn policy(&self) -> Policy {
+    pub(super) fn policy(&self) -> Policy {
         match self.mode {
             Mode::Hold => Policy::Hold,
             Mode::Toggle if self.holdable => Policy::Hold,
@@ -185,7 +185,7 @@ impl Binding {
     }
 
     /// The program of one segment (sequences without break steps have one).
-    pub fn program(&self, segment: usize) -> &[Step] {
+    pub(super) fn program(&self, segment: usize) -> &[Step] {
         match (self.policy(), self.mode) {
             (Policy::Hold, _) => &self.hold_programs[segment],
             (_, Mode::Turbo) if self.holdable => &self.pulse_program,
@@ -194,7 +194,7 @@ impl Binding {
     }
 
     /// Number of segments the break steps cut the sequence into.
-    pub fn segments(&self) -> usize {
+    pub(super) fn segments(&self) -> usize {
         self.run_programs.len()
     }
 }
@@ -210,7 +210,7 @@ fn segments(actions: &[Action]) -> Vec<&[Action]> {
 
 /// Per-layer lookup tables (after inheritance).
 #[derive(Clone, Debug, Default)]
-pub struct LayerTable {
+pub(super) struct LayerTable {
     /// Effective bindings of each mask in this layer.
     pub bindings: HashMap<MaskId, Vec<BindingId>>,
     pub rec: HashMap<MaskId, RecConfig>,
@@ -228,7 +228,7 @@ pub struct LayerTable {
 }
 
 #[derive(Clone, Debug)]
-pub struct Compiled {
+pub(super) struct Compiled {
     pub masks: Vec<Vec<Control>>,
     pub bindings: Vec<Binding>,
     /// Indexed by layer id; missing layers fall back to layer 0.
@@ -240,7 +240,7 @@ pub struct Compiled {
 }
 
 impl Compiled {
-    pub fn layer(&self, id: u8) -> &LayerTable {
+    pub(super) fn layer(&self, id: u8) -> &LayerTable {
         self.layers
             .get(&id)
             .or_else(|| self.layers.get(&0))
@@ -540,7 +540,7 @@ fn make_binding(
     }
 }
 
-pub fn compile(p: &Profile) -> Compiled {
+pub(super) fn compile(p: &Profile) -> Compiled {
     let mut warnings = Vec::new();
     let mut mt = MaskTable::default();
 
