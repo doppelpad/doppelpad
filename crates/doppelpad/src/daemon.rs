@@ -2,27 +2,18 @@
 //! `doppelpad shutdown`.
 
 use std::path::PathBuf;
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::Ordering;
 use std::time::Duration;
 
 use anyhow::Result;
 use dp_service::{HostOptions, ServiceOptions};
 
 pub fn run(profiles_dir: PathBuf, initial: Option<PathBuf>, auto_switch: bool) -> Result<()> {
-    let running = Arc::new(AtomicBool::new(true));
-    {
-        let r = running.clone();
-        ctrlc::set_handler(move || r.store(false, Ordering::Relaxed))?;
-    }
+    let running = crate::stop_flag()?;
 
-    let mut service = ServiceOptions::new(profiles_dir);
+    let mut service = ServiceOptions::with_user_files(profiles_dir);
     service.initial_profile = initial;
     service.auto_switch = Some(auto_switch);
-    // Slots and controller hotkeys are shared with the app.
-    service.state_path = Some(dp_config::config_dir().join("state.toml"));
-    service.hotkeys_path = Some(dp_config::config_dir().join("hotkeys.toml"));
-    service.calibration_path = Some(dp_config::config_dir().join("calibration.toml"));
     let mut handle = dp_service::spawn(HostOptions { service, ipc: true })?;
     tracing::info!("daemon running; control it with `doppelpad apply|select-slot|remap|status`");
 
