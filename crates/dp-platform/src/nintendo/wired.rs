@@ -120,4 +120,13 @@ mod tests {
         assert!(s.axis(Axis::LeftY) > 0.99, "HID 0 is up");
         assert!(parse_report(&[0, 0, 0]).is_none());
     }
+
+    #[test]
+    fn truncated_reports_do_not_panic() {
+        let r = [0, 0xFF, 0xFF, 3, 0xFF, 0x00, 0x80, 0x80];
+        assert!(parse_report(&r).is_some());
+        for n in 0..=r.len() {
+            parse_report(&r[..n]);
+        }
+    }
 }

@@ -317,4 +317,49 @@ mod tests {
         assert_eq!(s.axis(Axis::LeftX), 1.0);
         assert_eq!(s.axis(Axis::LeftY), -1.0);
     }
+
+    /// What the virtual Xbox 360 pad sends reads back as the same state.
+    #[test]
+    fn virtual_pad_round_trips() {
+        let read_back = |s: &PadState| {
+            let g = super::super::vigem::to_xgamepad(s);
+            convert(&XInputGamepad {
+                buttons: g.buttons.raw,
+                left_trigger: g.left_trigger,
+                right_trigger: g.right_trigger,
+                thumb_lx: g.thumb_lx,
+                thumb_ly: g.thumb_ly,
+                thumb_rx: g.thumb_rx,
+                thumb_ry: g.thumb_ry,
+            })
+        };
+        assert_eq!(BUTTONS.len(), 15);
+        for (bit, b) in BUTTONS {
+            let mut s = PadState::default();
+            s.set(b, true);
+            assert_eq!(
+                super::super::vigem::to_xgamepad(&s).buttons.raw,
+                bit,
+                "{b:?}"
+            );
+            assert_eq!(read_back(&s).buttons, s.buttons, "{b:?}");
+        }
+        let mut s = PadState::default();
+        s.set_axis(Axis::LeftX, 1.0);
+        s.set_axis(Axis::LeftY, -0.5);
+        s.set_axis(Axis::RightX, -1.0);
+        s.set_axis(Axis::LeftTrigger, 0.5);
+        s.set_axis(Axis::RightTrigger, 1.0);
+        let back = read_back(&s);
+        for a in [
+            Axis::LeftX,
+            Axis::LeftY,
+            Axis::RightX,
+            Axis::RightY,
+            Axis::LeftTrigger,
+            Axis::RightTrigger,
+        ] {
+            assert!((back.axis(a) - s.axis(a)).abs() < 0.005, "{a:?}");
+        }
+    }
 }

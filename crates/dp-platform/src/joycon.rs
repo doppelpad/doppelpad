@@ -396,6 +396,28 @@ mod tests {
     }
 
     #[test]
+    fn joycon2_pair_keeps_its_generation() {
+        let switch2 = |id: &str, side, name: &str, pid| {
+            let mut p = pad(id, side, PadState::default());
+            let mut info = (*p.info).clone();
+            info.name = name.into();
+            info.product_id = pid;
+            p.info = Arc::new(info);
+            p
+        };
+        let mut c = JoyConCombiner::new(Fake::default());
+        c.inner.pads = vec![
+            switch2("l", L, "Joy-Con 2 (L)", 0x2067),
+            switch2("r", R, "Joy-Con 2 (R)", 0x2066),
+        ];
+        let out = poll(&mut c);
+        assert_eq!(ids(&out), ["l+r"]);
+        assert_eq!(out[0].info.name, "Joy-Con 2 (L/R)");
+        assert_eq!(out[0].info.product_id, SWITCH2_PAIR_PID);
+        assert_eq!(out[0].info.family, PadFamily::JoyCon);
+    }
+
+    #[test]
     fn pairs_stay_stable() {
         let mut c = JoyConCombiner::new(Fake::default());
         c.inner.pads = vec![
