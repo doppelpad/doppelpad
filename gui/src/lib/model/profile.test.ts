@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { Mapping, Profile } from '../types';
-import { has } from '../i18n/index.svelte';
+import { has, setLanguage } from '../i18n/index.svelte';
 import {
   POWER_COMMANDS,
   RADIAL_COMMANDS,
   SIMPLE_COMMANDS,
+  actionLabel,
   addLayer,
   clearLayer,
   comboKey,
@@ -131,10 +132,22 @@ describe('shortcuts and labels', () => {
   });
 
   it('summarises mappings', () => {
+    setLanguage('en');
     expect(mappingSummary({ trigger: 'A', actions: [{ key: 'LeftCtrl' }, { key: 'C' }] }, lbl)).toBe('LeftCtrl + C');
     expect(mappingSummary({ trigger: 'A', mode: 'turbo', actions: [{ mouse: 'left' }] }, lbl)).toBe('⚡ Mouse left');
     expect(mappingSummary({ trigger: 'LB', jump: { layer: 1 } }, lbl)).toBe('→ Shift 1');
     expect(mappingSummary({ trigger: 'X' }, lbl)).toBe('⊘');
+  });
+
+  it('label actions in the app language', () => {
+    setLanguage('de');
+    expect(actionLabel({ mouse: 'left' })).toBe('Maus links');
+    expect(actionLabel({ command: 'remap_off' })).toBe('Remapping aus');
+    expect(actionLabel({ touch: 'swipe_up' })).toBe('Touch: nach oben wischen');
+    setLanguage('en');
+    expect(actionLabel({ mouse: 'x1', action: 'down' })).toBe('Mouse x1 ▼');
+    expect(actionLabel({ command: { launch: { path: 'C:\\Games\\a.exe' } } })).toBe('Run a.exe');
+    expect(actionLabel({ rumble: 200 })).toBe('Rumble 200 ms');
   });
 });
 

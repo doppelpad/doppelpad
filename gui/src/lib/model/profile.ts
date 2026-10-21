@@ -1,6 +1,7 @@
 // Pure helpers for editing a Profile in the GUI. They mirror the engine's rules
 // (one binding per layer + trigger + activator, inheritance from the base layer).
 
+import { has, t } from '../i18n/index.svelte';
 import { replaceLayerRoutes, routeLayer } from './analog';
 import type {
   Action,
@@ -334,34 +335,6 @@ export function shortcutMembers(p: Profile, layer: number): Set<ControlName> {
 
 const ARROWS: Record<string, string> = { up: '↑', down: '↓', left: '←', right: '→' };
 
-const COMMAND_LABELS: Record<string, string> = {
-  remap_off: 'Remap off',
-  toggle_gyro: 'Gyro on/off',
-  gyro_on: 'Gyro on',
-  gyro_off: 'Gyro off',
-  reset_tilt: 'Reset tilt',
-  switch_gyro_axis: 'Switch gyro axis',
-  shutdown: 'Shut down',
-  restart: 'Restart',
-  sleep: 'Sleep',
-  hibernate: 'Hibernate',
-  log_off: 'Log off',
-  screenshot: 'Screenshot',
-  close_window: 'Close window',
-  toggle_crosshair: 'Crosshair on/off',
-  radial_next: 'Radial: next',
-  radial_prev: 'Radial: previous',
-  radial_up: 'Radial: up',
-  radial_down: 'Radial: down',
-  radial_left: 'Radial: left',
-  radial_right: 'Radial: right',
-  radial_apply: 'Radial: select',
-  radial_back: 'Radial: back',
-  pad_overlay: 'Controller overlay',
-  mappings_overlay: 'Mappings overlay',
-  power_off: 'Controller off',
-};
-
 /** Commands that end the session or put the computer to sleep: the editor asks first. */
 export const POWER_COMMANDS = ['shutdown', 'restart', 'sleep', 'hibernate', 'log_off'] as const;
 
@@ -395,28 +368,28 @@ export const RADIAL_COMMANDS = [
 /** Short text for one action, e.g. "Space", "Mouse L", "Pad A", "L-stick ↑", "Pause 50 ms". */
 export function actionLabel(a: Action): string {
   if ('key' in a) return a.key + pressSuffix(a.action);
-  if ('pad' in a) return `Pad ${a.pad}${pressSuffix(a.action)}`;
-  if ('mouse' in a) return `Mouse ${a.mouse}${pressSuffix(a.action)}`;
-  if ('wheel' in a) return `Wheel ${ARROWS[a.wheel] ?? a.wheel}`;
+  if ('pad' in a) return t('labels.pad', { name: a.pad }) + pressSuffix(a.action);
+  if ('mouse' in a) return t('labels.mouse', { name: t(`labels.mouse_button.${a.mouse}`) }) + pressSuffix(a.action);
+  if ('wheel' in a) return t('labels.wheel', { dir: ARROWS[a.wheel] ?? a.wheel });
   if ('stick' in a) {
     const dir = a.y > 0.5 ? '↑' : a.y < -0.5 ? '↓' : a.x < -0.5 ? '←' : a.x > 0.5 ? '→' : '•';
-    return `${a.stick === 'left' ? 'L' : 'R'}-stick ${dir}${pressSuffix(a.action)}`;
+    return t(`labels.${a.stick}_stick`, { dir }) + pressSuffix(a.action);
   }
   if ('trigger' in a) return `${a.trigger === 'left' ? 'LT' : 'RT'}${a.value !== undefined && a.value < 1 ? ` ${Math.round(a.value * 100)}%` : ''}`;
-  if ('mouse_move' in a) return `Mouse ${ARROWS[a.mouse_move] ?? a.mouse_move}`;
+  if ('mouse_move' in a) return t('labels.mouse_move', { dir: ARROWS[a.mouse_move] ?? a.mouse_move });
   if ('pause' in a) return `${a.pause} ms`;
-  if ('rumble' in a) return `Rumble ${a.rumble} ms`;
-  if ('shake' in a) return `Shake ${a.shake.toUpperCase()}`;
-  if ('turn' in a) return `Turn ${a.turn > 0 ? '+' : ''}${a.turn}°`;
-  if ('touch' in a) return `Touch ${a.touch.replace(/_/g, ' ')}`;
-  if ('mouse_to' in a) return `Cursor to ${Math.round(a.mouse_to[0] * 100)}%, ${Math.round(a.mouse_to[1] * 100)}%`;
-  if ('mouse_clip' in a) return 'Keep cursor in area';
+  if ('rumble' in a) return t('labels.rumble', { ms: a.rumble });
+  if ('shake' in a) return t('picker.shake_axis', { axis: a.shake.toUpperCase() });
+  if ('turn' in a) return t('labels.turn', { deg: `${a.turn > 0 ? '+' : ''}${a.turn}` });
+  if ('touch' in a) return t('labels.touch', { gesture: t(`picker.touch_out.${a.touch}`).toLowerCase() });
+  if ('mouse_to' in a) return t('labels.mouse_to', { x: Math.round(a.mouse_to[0] * 100), y: Math.round(a.mouse_to[1] * 100) });
+  if ('mouse_clip' in a) return t('labels.mouse_clip');
   if ('break' in a) return '⦀';
   if ('command' in a) {
     const c = a.command;
-    if (typeof c === 'string' && c in COMMAND_LABELS) return COMMAND_LABELS[c];
-    if (typeof c === 'object' && 'launch' in c) return `Run ${c.launch.path.split(/[\\/]/).pop()}`;
-    if (typeof c === 'object' && 'crosshair' in c) return `Crosshair ${c.crosshair}`;
+    if (typeof c === 'string' && has(`labels.commands.${c}`)) return t(`labels.commands.${c}`);
+    if (typeof c === 'object' && 'launch' in c) return t('labels.launch', { name: c.launch.path.split(/[\\/]/).pop() ?? '' });
+    if (typeof c === 'object' && 'crosshair' in c) return t('labels.crosshair', { n: c.crosshair });
     if (typeof c === 'object' && 'unsupported' in c) return c.unsupported;
   }
   return '?';

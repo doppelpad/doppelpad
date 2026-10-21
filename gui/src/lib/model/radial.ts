@@ -65,6 +65,7 @@ import {
   Zap,
 } from '@lucide/svelte';
 import type { Component } from 'svelte';
+import { t } from '../i18n/index.svelte';
 import type { Profile, RadialMenu, RadialSector } from '../types';
 
 /** Icons a sector can show, by the name a profile stores. */
@@ -185,7 +186,7 @@ export function updateSector(p: Profile, i: number, k: number, patch: Partial<Ra
 export function addMenu(p: Profile, layer: number): Profile {
   const all = p.radial_menus ?? [];
   const sectors: RadialSector[] = [{ label: '1' }, { label: '2' }, { label: '3' }, { label: '4' }];
-  return { ...p, radial_menus: [...all, { name: `Menu ${all.length + 1}`, layer, sectors }] };
+  return { ...p, radial_menus: [...all, { name: t('radial.default_name', { n: all.length + 1 }), layer, sectors }] };
 }
 
 /** Remove menu `i`; sub-menu links to later menus keep pointing at the same menus. */
