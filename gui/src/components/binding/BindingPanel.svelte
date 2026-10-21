@@ -793,7 +793,7 @@
     font-size: 12px;
     margin-left: auto;
   }
-  .inline input {
+  .inline input:not([type='checkbox']) {
     width: 72px;
     padding: 4px 6px;
   }
