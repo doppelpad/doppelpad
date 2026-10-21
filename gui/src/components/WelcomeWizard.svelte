@@ -40,14 +40,12 @@
     try {
       const g = await api.gameCreateTemplate(name.trim(), t(`welcome.templates.${template}`), template);
       await app.refreshLibrary();
+      // Opens the new game's config, unless the user keeps unsaved edits of the open one.
       await app.selectGame(g.dir);
       const path = g.configs[0]?.path;
-      if (path) {
-        await app.openConfig(path, true);
-        if (useNow) {
-          await api.applyToSlot(0, path);
-          await api.setRemap(true);
-        }
+      if (path && useNow && app.gameDir === g.dir) {
+        await api.applyToSlot(0, path);
+        await api.setRemap(true);
       }
       app.toast(t('welcome.created', { name: g.meta.name }), 'ok');
       done();
