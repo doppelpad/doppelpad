@@ -156,9 +156,10 @@ impl HotkeyDetector {
                 }
             };
             let (_, since, fired) = &mut self.held[i];
-            if !*fired && now >= *since + u64::from(hotkeys.hold_ms) {
+            // One per call: another one due now fires on the next tick.
+            if fire.is_none() && !*fired && now >= *since + u64::from(hotkeys.hold_ms) {
                 *fired = true;
-                fire = fire.or(Some(action));
+                fire = Some(action);
             }
         }
         self.withheld &= buttons;
@@ -203,6 +204,33 @@ mod tests {
         assert_eq!(d.withheld(), mask(&[LB, RB]));
         assert_eq!(d.update(&hk, 0, 2002), None);
         assert_eq!(d.withheld(), 0);
+    }
+
+    #[test]
+    fn hotkeys_due_together_fire_one_after_the_other() {
+        let off = Hotkeys {
+            slot1: vec![],
+            slot2: vec![],
+            slot3: vec![],
+            slot4: vec![],
+            remap: vec![],
+            stop_macros: vec![],
+            emergency_stop: vec![],
+            pad_overlay: vec![],
+            mappings_overlay: vec![],
+            ..Default::default()
+        };
+        let hk = Hotkeys {
+            slot1: vec![LB, X],
+            slot2: vec![RB, Y],
+            ..off
+        };
+        let mut d = HotkeyDetector::new();
+        let both = mask(&[LB, X, RB, Y]);
+        assert_eq!(d.update(&hk, both, 0), None);
+        assert_eq!(d.update(&hk, both, 500), Some(HotkeyAction::Slot(0)));
+        assert_eq!(d.update(&hk, both, 501), Some(HotkeyAction::Slot(1)));
+        assert_eq!(d.update(&hk, both, 502), None, "each fires once");
     }
 
     #[test]
