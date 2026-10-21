@@ -461,7 +461,7 @@ impl Service {
             layer: self.rt.layer(),
             auto_switch: self.state.auto_switch,
             foreground: self.fg_now.clone(),
-            virtual_pad: self.rt.virtual_pad().map(|k| format!("{k:?}")),
+            virtual_pad: self.rt.virtual_pad().map(|k| k.name().to_owned()),
             hidden_devices: self.rt.hidden_devices(),
             warnings: self.warnings(),
             slots: self
@@ -1316,7 +1316,7 @@ impl Service {
             auto_active: self.auto_active.is_some(),
             suspended: self.rt.is_suspended(),
             foreground: self.fg_now.clone(),
-            virtual_pad: self.rt.virtual_pad().map(|k| format!("{k:?}")),
+            virtual_pad: self.rt.virtual_pad().map(|k| k.name().to_owned()),
             hidden_devices: self.rt.hidden_devices(),
             warnings: self.warnings(),
             drivers: self.drivers.clone(),
@@ -2101,6 +2101,34 @@ Host: 127.0.0.1:{}
         s.handle_ipc(Request::Stop);
         assert_eq!(active_name(&s), None);
         assert!(!s.live().remap_on);
+    }
+
+    #[test]
+    fn virtual_pad_kind_is_spelled_like_the_profile() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("pad.toml");
+        std::fs::write(&path, "name = \"Pad\"\n").unwrap();
+        let (platform, world) = crate::runtime::testing::platform();
+        world
+            .lock()
+            .unwrap()
+            .pads
+            .push(crate::runtime::testing::pad(
+                "p1",
+                dp_platform::PadFamily::Xbox,
+            ));
+        let opts = ServiceOptions::new(dir.path().join("profiles"));
+        let mut s = Service::new(Runtime::with_platform(platform), opts).unwrap();
+        s.tick();
+        s.handle(ServiceCmd::ApplyToSlot {
+            device: None,
+            slot: 0,
+            path,
+        })
+        .into_result()
+        .unwrap();
+        assert_eq!(s.status().virtual_pad.as_deref(), Some("xbox360"));
+        assert_eq!(s.live().virtual_pad.as_deref(), Some("xbox360"));
     }
 
     #[test]

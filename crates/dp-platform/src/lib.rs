@@ -206,6 +206,16 @@ pub enum VirtualPadKind {
     DualShock4,
 }
 
+impl VirtualPadKind {
+    /// The name as profiles and the API write it (`xbox360`, `dual_shock4`).
+    pub fn name(self) -> &'static str {
+        match self {
+            VirtualPadKind::Xbox360 => "xbox360",
+            VirtualPadKind::DualShock4 => "dual_shock4",
+        }
+    }
+}
+
 /// A virtual controller visible to games.
 pub trait VirtualPad: Send {
     fn kind(&self) -> VirtualPadKind;
@@ -460,6 +470,13 @@ pub fn os_version() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn virtual_pad_names_match_serde() {
+        for k in [VirtualPadKind::Xbox360, VirtualPadKind::DualShock4] {
+            assert_eq!(serde_json::to_value(k).unwrap(), k.name());
+        }
+    }
 
     #[test]
     fn family_names_on_the_wire() {
