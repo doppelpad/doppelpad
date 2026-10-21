@@ -717,7 +717,7 @@ impl<'a> Importer<'a> {
                 }
             }
         }
-        self.finish_radial(&mut p);
+        Self::finish_radial(&mut p);
         p
     }
 
@@ -1472,7 +1472,7 @@ impl<'a> Importer<'a> {
 
     /// Menus no mapping navigates point with the right stick; without an apply command they
     /// run the pointed sector when their layer ends.
-    fn finish_radial(&self, p: &mut Profile) {
+    fn finish_radial(p: &mut Profile) {
         let uses = |want: &dyn Fn(&Command) -> bool| {
             p.mappings
                 .iter()

@@ -449,7 +449,7 @@ impl Switch2Driver {
     }
 
     /// Wait for input that another program's initialisation already started.
-    fn wait_for_input(&mut self, io: &mut dyn ReportIo) -> io::Result<bool> {
+    fn wait_for_input(io: &mut dyn ReportIo) -> io::Result<bool> {
         let deadline = io.now() + FOREIGN_INIT_WAIT;
         let mut buf = [0u8; 64];
         loop {
@@ -472,7 +472,7 @@ impl PadDriver for Switch2Driver {
         let result = match &mut bulk {
             Ok(b) => self.start(b.as_mut()).map(|()| self.identity(None)),
             Err(reason) => {
-                if self.wait_for_input(io)? {
+                if Self::wait_for_input(io)? {
                     let until = if self.late.is_some() {
                         " until that interface is free"
                     } else {

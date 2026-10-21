@@ -409,7 +409,7 @@ impl HidHide {
         }
     }
 
-    fn remove_journal(&self) {
+    fn remove_journal() {
         if let Some(dir) = journal_dir() {
             let _ = std::fs::remove_file(dir.join(format!("{}.txt", std::process::id())));
         }
@@ -474,7 +474,7 @@ impl DeviceHider for HidHide {
         self.added_devices.clear();
         self.added_app = None;
         self.previous_active = None;
-        self.remove_journal();
+        Self::remove_journal();
         tracing::info!("HidHide state restored");
         Ok(())
     }
