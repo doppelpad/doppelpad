@@ -294,4 +294,97 @@ mod tests {
             "corrupt file = defaults"
         );
     }
+
+    /// The written form of `state.toml`, byte for byte, so that format changes are deliberate.
+    #[test]
+    fn file_format() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("state.toml");
+        let mut s = SlotState::default();
+        s.slots[1] = Some(PathBuf::from(r"C:\games\a.toml"));
+        s.slots[3] = Some(PathBuf::from("b.toml"));
+        s.active = 1;
+        s.auto_switch = false;
+        let mut own = DeviceSlots::default();
+        own.slots[0] = Some(PathBuf::from("c.toml"));
+        own.active = 2;
+        s.devices.insert("hid:pad".into(), own);
+        s.devices.insert("xinput:0".into(), DeviceSlots::default());
+        s.save(&path).unwrap();
+        let text = std::fs::read_to_string(&path).unwrap();
+        let tail = r#"
+[dsu]
+enabled = false
+lan = false
+port = 26760
+
+[runtime]
+prevent_sleep = true
+pause_unfocused = false
+keep_offline_pads = false
+
+[http]
+enabled = false
+lan = false
+port = 26761
+token = ""
+"#;
+        let head = r#"slots = [
+    "",
+    'C:\games\a.toml',
+    "",
+    "b.toml",
+]
+active = 1
+remap_on = true
+auto_switch = false
+player_lights = "while_remapping"
+mic_led = false
+power_off_after_min = 0
+
+[devices."hid:pad"]
+slots = [
+    "c.toml",
+    "",
+    "",
+    "",
+]
+active = 2
+
+[devices."xinput:0"]
+slots = [
+    "",
+    "",
+    "",
+    "",
+]
+active = 0
+"#;
+        assert_eq!(text, format!("{head}{tail}"));
+        assert_eq!(SlotState::load(&path), s);
+
+        SlotState::default().save(&path).unwrap();
+        let head = r#"slots = [
+    "",
+    "",
+    "",
+    "",
+]
+active = 0
+remap_on = true
+auto_switch = true
+player_lights = "while_remapping"
+mic_led = false
+power_off_after_min = 0
+"#;
+        let text = std::fs::read_to_string(&path).unwrap();
+        assert_eq!(text, format!("{head}{tail}"));
+
+        // A file without the two switches turns both on.
+        std::fs::write(&path, "slots = []\nactive = 0\n").unwrap();
+        assert_eq!(SlotState::load(&path), SlotState::default());
+        std::fs::write(&path, "remap_on = false\n").unwrap();
+        assert!(!SlotState::load(&path).remap_on);
+        assert!(SlotState::load(&path).auto_switch);
+    }
 }
