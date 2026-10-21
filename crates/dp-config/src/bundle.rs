@@ -141,6 +141,16 @@ pub fn import_game(root: &Path, bundle: &Path) -> Result<Game> {
         return Err(invalid(bundle, "made by a newer Doppelpad"));
     }
     let created = library::create_game_empty(root, &b.meta.name)?;
+    let filled = fill_game(&created, b);
+    if filled.is_err() {
+        // No half-written game: the folder goes again.
+        let _ = std::fs::remove_dir_all(&created);
+    }
+    filled
+}
+
+/// Write a bundle's configs, picture and metadata into the new game folder `created`.
+fn fill_game(created: &Path, b: Bundle) -> Result<Game> {
     let mut meta = b.meta;
     meta.image = None;
     for c in &b.configs {
@@ -166,8 +176,8 @@ pub fn import_game(root: &Path, bundle: &Path) -> Result<Game> {
     {
         meta.default_config = None;
     }
-    library::update_game_meta(&created, &meta)?;
-    library::read_game(&created)
+    library::update_game_meta(created, &meta)?;
+    library::read_game(created)
 }
 
 /// One layer to reuse in other configs: its settings, mappings and routes.
@@ -319,5 +329,35 @@ mod tests {
         );
         delete_preset(&path).unwrap();
         assert!(list_presets(dir.path()).is_empty());
+    }
+
+    #[test]
+    fn a_failed_import_leaves_no_half_game() {
+        let root = tempfile::tempdir().unwrap();
+        let bundle = Bundle {
+            doppelpad_game: BUNDLE_VERSION,
+            meta: library::GameMeta {
+                name: "Broken".into(),
+                ..Default::default()
+            },
+            configs: vec![
+                BundledFile {
+                    file: "ok.toml".into(),
+                    data: "name = \"Ok\"\n".into(),
+                },
+                // A name no file system takes: writing it fails halfway through.
+                BundledFile {
+                    file: format!("{}.toml", "x".repeat(300)),
+                    data: String::new(),
+                },
+            ],
+            image: None,
+        };
+        let file = root.path().join("broken.dpgame");
+        std::fs::write(&file, serde_json::to_string(&bundle).unwrap()).unwrap();
+        let games = root.path().join("profiles");
+        assert!(import_game(&games, &file).is_err());
+        let left: Vec<_> = std::fs::read_dir(&games).unwrap().flatten().collect();
+        assert!(left.is_empty(), "{left:?}");
     }
 }
