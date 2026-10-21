@@ -1817,6 +1817,8 @@ pub struct AnalogMapping {
     pub invert_y: bool,
     /// Source deadzone for stick sources (fraction of full deflection).
     pub deadzone: f32,
+    /// Stick sources: deflection treated as fully pushed, `(deadzone, 1]`.
+    pub outer: f32,
     /// Minimum output deflection for stick targets (counteracts in-game deadzones).
     pub anti_deadzone: f32,
     /// Exponential smoothing time constant.
@@ -1853,6 +1855,7 @@ impl Default for AnalogMapping {
             invert_x: false,
             invert_y: false,
             deadzone: 0.1,
+            outer: 1.0,
             anti_deadzone: 0.0,
             smoothing_ms: 0,
             decay_ms: 40,

@@ -13,6 +13,7 @@
   import DiagnosticsBar from './components/DiagnosticsBar.svelte';
   import OutputPanel from './components/OutputPanel.svelte';
   import BindingPanel from './components/binding/BindingPanel.svelte';
+  import StickPanel from './components/binding/StickPanel.svelte';
   import ControlList from './components/views/ControlList.svelte';
   import ControllerView from './components/views/ControllerView.svelte';
   import KeyboardView from './components/views/KeyboardView.svelte';
@@ -98,7 +99,9 @@
             <AnalogView />
           {/if}
         </div>
-        <aside class="side"><BindingPanel /></aside>
+        <aside class="side">
+          {#if app.stick}<StickPanel side={app.stick} />{:else}<BindingPanel />{/if}
+        </aside>
       </div>
     {:else}
       <div class="empty">

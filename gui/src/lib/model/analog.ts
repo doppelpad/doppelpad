@@ -337,6 +337,7 @@ export const ROUTE_TARGETS: AnalogTarget[] = ['mouse', 'right_stick', 'left_stic
 export type RouteField =
   | 'curve'
   | 'deadzone'
+  | 'outer'
   | 'anti_deadzone'
   | 'smoothing_ms'
   | 'decay_ms'
@@ -349,8 +350,8 @@ export type RouteField =
 
 /** What the engine reads per route; `consume` only acts on stick and mouse sources. */
 const ROUTE_FIELDS: Record<string, RouteField[]> = {
-  'stick>mouse': ['curve', 'deadzone', 'smoothing_ms', 'acceleration', 'consume'],
-  'stick>stick': ['deadzone', 'anti_deadzone', 'snap', 'consume'],
+  'stick>mouse': ['curve', 'deadzone', 'outer', 'smoothing_ms', 'acceleration', 'consume'],
+  'stick>stick': ['deadzone', 'outer', 'anti_deadzone', 'snap', 'consume'],
   'mouse>stick': ['curve', 'anti_deadzone', 'snap', 'smoothing_ms', 'decay_ms', 'noise_filter', 'spring', 'consume'],
   'gyro>mouse': ['smoothing_ms'],
   'gyro>stick': ['anti_deadzone', 'snap', 'smoothing_ms'],
@@ -410,6 +411,33 @@ export const ROUTE_PRESETS: { id: string; patch: Partial<AnalogMapping> }[] = [
   { id: 'touchpad_mouse', patch: { source: 'touchpad', target: 'mouse' } },
   { id: 'flick_stick', patch: { source: 'right_stick', target: 'flick', deadzone: 0.6 } },
 ];
+
+/** Stick → mouse response presets: the fields they set; sensitivity and the rest stay. */
+export type MousePreset = 'standard' | 'precise' | 'fast' | 'smooth';
+type PresetFields = Pick<Required<AnalogMapping>, 'curve' | 'deadzone' | 'outer' | 'smoothing_ms' | 'acceleration'>;
+export const MOUSE_PRESETS: Record<MousePreset, PresetFields> = {
+  standard: { curve: 1.6, deadzone: 0.1, outer: 0.95, smoothing_ms: 8, acceleration: 1 },
+  precise: { curve: 2.2, deadzone: 0.1, outer: 0.95, smoothing_ms: 12, acceleration: 0.5 },
+  fast: { curve: 1, deadzone: 0.08, outer: 0.9, smoothing_ms: 4, acceleration: 2 },
+  smooth: { curve: 1.6, deadzone: 0.12, outer: 0.95, smoothing_ms: 30, acceleration: 1 },
+};
+
+/** The preset a route's values match, or null for custom values. */
+export function mousePresetOf(r: Required<AnalogMapping>): MousePreset | null {
+  const ids = Object.keys(MOUSE_PRESETS) as MousePreset[];
+  return (
+    ids.find((id) =>
+      (Object.entries(MOUSE_PRESETS[id]) as [keyof PresetFields, number][]).every(([f, v]) => Math.abs(r[f] - v) < 1e-3),
+    ) ?? null
+  );
+}
+
+/** Stick → mouse: cursor speed as a fraction of full speed at a stick deflection (before acceleration). */
+export function mouseResponse(mag: number, r: Pick<Required<AnalogMapping>, 'deadzone' | 'outer' | 'curve'>): number {
+  if (mag <= r.deadzone) return 0;
+  const t = Math.min(Math.max((mag - r.deadzone) / Math.max(r.outer - r.deadzone, 0.01), 0), 1);
+  return r.curve > 0 && r.curve !== 1 ? t ** r.curve : t;
+}
 
 /** A new route on a layer, with every field written like Rust does. */
 export function newRoute(def: Required<AnalogMapping>, layer: number, patch: Partial<AnalogMapping> = {}): AnalogMapping {

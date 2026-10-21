@@ -22,12 +22,14 @@
   import Slider from '../ui/Slider.svelte';
   import Toggle from '../ui/Toggle.svelte';
 
-  let { index, route }: { index: number; route: AnalogMapping } = $props();
+  /** `fixedSource`: shown for one source (a whole stick), so the source cannot change here. */
+  let { index, route, fixedSource = false }: { index: number; route: AnalogMapping; fixedSource?: boolean } = $props();
 
   type SliderField = Exclude<RouteField, 'consume' | 'spring'>;
   const SLIDERS: Record<SliderField, { min: number; max: number; step: number; scale?: number; unit?: string; hint?: boolean }> = {
     curve: { min: 0.2, max: 4, step: 0.05, hint: true },
     deadzone: { min: 0, max: 0.9, step: 0.01, scale: 100, unit: '%' },
+    outer: { min: 0.5, max: 1, step: 0.01, scale: 100, unit: '%', hint: true },
     anti_deadzone: { min: 0, max: 0.9, step: 0.01, scale: 100, unit: '%', hint: true },
     smoothing_ms: { min: 0, max: 100, step: 1, unit: 'ms' },
     decay_ms: { min: 0, max: 500, step: 5, unit: 'ms', hint: true },
@@ -111,13 +113,15 @@
 
 <section class="route">
   <header>
-    <label class="end">
-      <span>{t('analog.routes.from')}</span>
-      <select value={source} {disabled} onchange={(e) => set(sourcePatch(route, e.currentTarget.value as AnalogSource))}>
-        {#each ROUTE_SOURCES as s (s)}<option value={s}>{t(`analog.routes.sources.${s}`)}</option>{/each}
-      </select>
-    </label>
-    <ArrowRight size={16} />
+    {#if !fixedSource}
+      <label class="end">
+        <span>{t('analog.routes.from')}</span>
+        <select value={source} {disabled} onchange={(e) => set(sourcePatch(route, e.currentTarget.value as AnalogSource))}>
+          {#each ROUTE_SOURCES as s (s)}<option value={s}>{t(`analog.routes.sources.${s}`)}</option>{/each}
+        </select>
+      </label>
+      <ArrowRight size={16} />
+    {/if}
     <label class="end">
       <span>{t('analog.routes.to')}</span>
       <select value={target} {disabled} onchange={(e) => set({ target: e.currentTarget.value as AnalogTarget })}>

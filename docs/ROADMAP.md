@@ -24,6 +24,7 @@ unit-tested but have not run against the real device yet.
 | Trigger deadzone / full pull | ✅ |
 | Virtual stick shaping for buttons and keys: ramp (initial deflection, speed, acceleration, maximum), output curve, jitter, motion shake | ✅ |
 | Stick → mouse, mouse → stick (spring, noise filter, snap), gyro → mouse/stick, touchpad → mouse (trackball), mouse acceleration, cursor placement and clipping | ✅ |
+| Whole stick as mouse, WASD, arrow keys or flick stick in one click; stick → mouse response presets with a graph | ✅ |
 | Flick stick, with a test turn to calibrate | ✅ |
 | Gyro: motion or tilt mode (lean left/right), roll or yaw steering, player space, automatic and manual calibration | ✅ (⏳ hardware testing) |
 | Touchpad: taps, one- and two-finger swipes, pinch zoom, grid zones, split into two trackpads | ✅ (⏳ hardware testing) |

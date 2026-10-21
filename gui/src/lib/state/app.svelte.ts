@@ -2,7 +2,9 @@
 
 import { api, errorText } from '../api';
 import { setLanguage, t } from '../i18n/index.svelte';
+import type { Side } from '../model/analog';
 import { controlsFromPad, drawingsFor, sideShowing } from '../model/devices';
+import { setStickGroup, stickGroupConflicts, stickGroupOf, type StickGroup } from '../model/stickgroups';
 import {
   activatorOf,
   comboKey,
@@ -95,6 +97,8 @@ class AppState {
   layer = $state(0);
   view = $state<View>('front');
   selected = $state<Combo | null>(null);
+  /** A whole stick shown in the side panel (its route or group), instead of `selected`. */
+  stick = $state<Side | null>(null);
   activator = $state<Activator>('single');
   /** Mapping opened in the macro editor (layer + trigger + activator of it). */
   macroTarget = $state<{ layer: number; trigger: Combo; activator: Activator } | null>(null);
@@ -244,6 +248,7 @@ class AppState {
     this.profile = null;
     this.savedJson = '';
     this.selected = null;
+    this.stick = null;
   }
 
   async openConfig(path: string, force = false) {
@@ -257,6 +262,7 @@ class AppState {
       this.diagnostics = loaded.diagnostics;
       this.layer = 0;
       this.selected = null;
+      this.stick = null;
       this.macroTarget = null;
       if (this.view === 'macro') this.view = 'front';
     } catch (e) {
@@ -333,8 +339,27 @@ class AppState {
 
   select(c: Combo | null) {
     this.selected = c;
+    this.stick = null;
     this.macroTarget = null;
     if (c && this.view === 'macro') this.view = 'front';
+  }
+
+  /** Show what a whole stick does in the side panel instead of a control's mappings. */
+  selectStick(s: Side) {
+    this.select(null);
+    this.stick = s;
+  }
+
+  /** Make the whole stick a mouse, WASD, the arrow keys or a flick stick on the current layer (`null`: nothing). */
+  setStickGroup(s: Side, group: StickGroup | null) {
+    const p = this.profile;
+    const def = this.catalog?.defaults.analog;
+    if (!p || !def || this.readOnly) return;
+    if (group && stickGroupOf(p, this.layer, s) === group) return this.selectStick(s);
+    const n = stickGroupConflicts(p, this.layer, s);
+    if (n > 0 && !confirm(t('binding.whole_stick_replace', { n }))) return;
+    this.update(setStickGroup(p, this.layer, s, group, def));
+    this.selectStick(s);
   }
 
   /** Show the analog view on one of its pages (from the controller drawing or the binding panel). */

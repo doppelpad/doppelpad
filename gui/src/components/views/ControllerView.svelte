@@ -17,8 +17,10 @@
     zoneParts,
     zoneTag,
   } from '../../lib/model/controls';
+  import { layerRoutes, sourceOf, targetOf, type Side } from '../../lib/model/analog';
   import { hasMotion } from '../../lib/model/devices';
   import { effectiveMappings, mappingSummary, shortcutMembers } from '../../lib/model/profile';
+  import { STICK_GROUPS, stickGroupOf, type StickGroup } from '../../lib/model/stickgroups';
   import { app } from '../../lib/state/app.svelte';
   import type { ControlName } from '../../lib/types';
 
@@ -33,6 +35,19 @@
   let menu = $state<{ kind: 'stick' | 'touch' | 'gyro'; stick?: 'Left' | 'Right'; click?: ControlName; x: number; y: number } | null>(null);
   /** On a split touchpad, which half the touch menu shows. */
   let half = $state<'Left' | 'Right'>('Left');
+  let stageEl: HTMLDivElement | undefined = $state();
+  let deviceEl: HTMLDivElement | undefined = $state();
+  let menuEl: HTMLDivElement | undefined = $state();
+  /** The menu opens upward when it would run past the bottom of the view and fits above. */
+  let menuUp = $state(false);
+  $effect(() => {
+    if (!menu || !menuEl || !deviceEl || !stageEl) return;
+    const h = menuEl.offsetHeight;
+    const d = deviceEl.getBoundingClientRect();
+    const s = stageEl.getBoundingClientRect();
+    const y = d.top + (((menu.y - vy) / vh) * d.height);
+    menuUp = y + 12 + h > s.bottom && y - 12 - h >= s.top;
+  });
   const split = $derived(!!app.profile?.touchpad?.split);
   const GESTURES = ['Tap', 'TapLeft', 'TapCenter', 'TapRight', 'MultiTap', 'ZoomIn', 'ZoomOut', 'SwipeUp', 'SwipeDown', 'SwipeLeft', 'SwipeRight', 'Swipe2Up', 'Swipe2Down', 'Swipe2Left', 'Swipe2Right'] as const;
 
@@ -61,6 +76,23 @@
   /** Stick name for a stick-click control (`LS` → `LeftStick`). */
   function stickOf(c: ControlName): string | null {
     return c === 'LS' ? 'LeftStick' : c === 'RS' ? 'RightStick' : null;
+  }
+
+  /** What the routes on this layer make of each whole stick ("Mouse", "Flick stick"). */
+  const stickRoutes = $derived.by(() => {
+    const out = new Map<Side, { text: string; inherited: boolean }>();
+    for (const ref of app.profile ? layerRoutes(app.profile, app.layer) : []) {
+      const s = sourceOf(ref.route);
+      if (s !== 'left_stick' && s !== 'right_stick') continue;
+      const side: Side = s === 'left_stick' ? 'left' : 'right';
+      if (!out.has(side)) out.set(side, { text: t(`analog.routes.targets.${targetOf(ref.route)}`), inherited: ref.inherited });
+    }
+    return out;
+  });
+
+  function wholeStick(side: Side, g: StickGroup) {
+    menu = null;
+    app.setStickGroup(side, g);
   }
 
   /** Zone tag of a control ("H"), or "" for a control without a zone. */
@@ -122,6 +154,11 @@
       let isPressed = app.pressed.has(c);
       // Stick chips also show the directions and zones, trigger chips the zones.
       const parts: string[] = [];
+      // A whole-stick route comes first: it is what the stick mostly does.
+      const side: Side | null = c === 'LS' ? 'left' : c === 'RS' ? 'right' : null;
+      const route = side ? stickRoutes.get(side) : undefined;
+      if (route) parts.push(route.text);
+      if (side && app.stick === side) selected = true;
       for (const r of related(c)) {
         const s = summaryOf(r.c);
         if (s) parts.push(`${r.tag} ${s.text}`);
@@ -211,8 +248,8 @@
   });
 </script>
 
-<div class="stage">
-  <div class="device" style="aspect-ratio: {vw} / {vh}">
+<div class="stage" bind:this={stageEl}>
+  <div class="device" style="aspect-ratio: {vw} / {vh}" bind:this={deviceEl}>
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div class="drawing" bind:this={drawing} onclick={onDrawingClick}>
@@ -276,7 +313,7 @@
       {@const p = pct(m.x, m.y)}
       {@const prefix = m.kind === 'stick' ? (m.stick === 'Left' ? 'LeftStick' : 'RightStick') : m.kind === 'touch' ? (split ? `Trackpad${half}` : 'Touch') : 'Gyro'}
       {@const diag = m.kind === 'touch' || (m.kind === 'stick' && !!app.profile?.sticks?.[m.stick === 'Left' ? 'left' : 'right']?.diagonals)}
-      <div class="stick-menu" style="left: {p.left}%; top: {p.top}%">
+      <div class="stick-menu" class:up={menuUp} style="left: {p.left}%; top: {p.top}%" bind:this={menuEl}>
         <div class="sm-title">{t(`binding.${m.kind}_choose`)}</div>
         {#if m.kind === 'touch' && split}
           <div class="sm-lean">
@@ -306,7 +343,17 @@
           {@render corner('DownRight', '↘')}
         </div>
         {#if m.kind === 'stick'}
+          {@const side = m.stick === 'Left' ? 'left' : 'right'}
+          {@const group = app.profile ? stickGroupOf(app.profile, app.layer, side) : null}
           <button class="sm-any" onclick={() => choose(`${prefix}Low`)}>{t('zones.any_direction_button')}</button>
+          <div class="sm-sub">{t('binding.whole_stick')}</div>
+          <div class="sm-lean">
+            {#each STICK_GROUPS as g (g)}
+              <button class:on={group === g} disabled={app.readOnly} onclick={() => wholeStick(side, g)}>
+                {t(`binding.stick_groups.${g}`)}
+              </button>
+            {/each}
+          </div>
           <button class="sm-settings" onclick={() => app.openAnalog(m.stick === 'Left' ? 'left' : 'right')}>
             <SlidersHorizontal size={13} />
             {t('binding.stick_settings')}
@@ -509,6 +556,9 @@
     box-shadow: var(--shadow);
     padding: 8px;
     z-index: 10;
+  }
+  .stick-menu.up {
+    transform: translate(-50%, calc(-100% - 12px));
   }
   .sm-title {
     font-size: 11px;

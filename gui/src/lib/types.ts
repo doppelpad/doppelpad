@@ -329,6 +329,8 @@ export interface AnalogMapping {
   invert_x?: boolean;
   invert_y?: boolean;
   deadzone?: number;
+  /** Stick sources: deflection treated as fully pushed. */
+  outer?: number;
   anti_deadzone?: number;
   smoothing_ms?: number;
   decay_ms?: number;
