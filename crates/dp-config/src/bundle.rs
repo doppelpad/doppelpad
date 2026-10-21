@@ -211,9 +211,12 @@ pub fn list_presets(profiles: &Path) -> Vec<PresetEntry> {
         .flatten()
         .map(|e| e.path())
         .filter(|p| p.extension().is_some_and(|e| e == "toml"))
-        .filter_map(|path| {
-            let p = load_preset(&path).ok()?;
-            Some(PresetEntry { name: p.name, path })
+        .filter_map(|path| match load_preset(&path) {
+            Ok(p) => Some(PresetEntry { name: p.name, path }),
+            Err(e) => {
+                tracing::warn!("ignoring preset: {e}");
+                None
+            }
         })
         .collect();
     out.sort_by_key(|p| p.name.to_lowercase());
@@ -339,9 +342,6 @@ mod tests {
     }
 
     #[test]
-    fn a_failed_import_leaves_no_half_game() {
-        let root = tempfile::tempdir().unwrap();
-    #[test]
     fn presets_with_alike_names_keep_their_own_files() {
         let dir = tempfile::tempdir().unwrap();
         let named = |name: &str| LayerPreset {
@@ -363,6 +363,9 @@ mod tests {
         assert_eq!(names, ["Aim!", "Aim?"]);
     }
 
+    #[test]
+    fn a_failed_import_leaves_no_half_game() {
+        let root = tempfile::tempdir().unwrap();
         let bundle = Bundle {
             doppelpad_game: BUNDLE_VERSION,
             meta: library::GameMeta {
