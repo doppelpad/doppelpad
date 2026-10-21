@@ -155,9 +155,12 @@ class AppState {
           await api.showWindow();
         }
       }
-      // Open the game of the config that is currently applied, else the first game.
-      const first = this.library.games[0];
-      if (first) this.selectGame(first.dir);
+      // Open the game of the config that is currently applied (when the first live state is
+      // already here), else the first game.
+      const applied = this.live?.profile_path;
+      const game =
+        this.library.games.find((g) => g.configs.some((c) => c.path === applied)) ?? this.library.games[0];
+      if (game) this.selectGame(game.dir);
     } catch (e) {
       this.toast(errorText(e), 'error');
     }
