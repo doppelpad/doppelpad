@@ -29,7 +29,8 @@
       onclick={(e) => e.stopPropagation()}
       onkeydown={(e) => {
         if (e.key === 'Escape') finish(false);
-        if (e.key === 'Enter' && !app.prompt?.multiline) finish(true);
+        // Enter in the field confirms; on a button it presses that button.
+        if (e.key === 'Enter' && !app.prompt?.multiline && e.target === input) finish(true);
       }}
     >
       <h3>{app.prompt.title}</h3>
