@@ -1384,19 +1384,39 @@ impl Combo {
     }
 }
 
+// A visitor rather than an untagged enum, so a misspelt control is reported by name
+// instead of as "data did not match any variant".
 impl<'de> Deserialize<'de> for Combo {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        #[derive(Deserialize)]
-        #[serde(untagged)]
-        enum Repr {
-            One(Control),
-            Many(Vec<Control>),
+        struct ComboVisitor;
+
+        impl<'de> serde::de::Visitor<'de> for ComboVisitor {
+            type Value = Combo;
+
+            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                f.write_str("a control name or a list of control names")
+            }
+
+            fn visit_str<E: serde::de::Error>(self, s: &str) -> Result<Combo, E> {
+                s.parse().map(Combo::single).map_err(E::custom)
+            }
+
+            fn visit_seq<A: serde::de::SeqAccess<'de>>(
+                self,
+                mut seq: A,
+            ) -> Result<Combo, A::Error> {
+                let mut controls = Vec::new();
+                while let Some(c) = seq.next_element()? {
+                    controls.push(c);
+                }
+                if controls.is_empty() {
+                    return Err(serde::de::Error::custom("empty trigger combo"));
+                }
+                Ok(Combo(controls))
+            }
         }
-        match Repr::deserialize(d)? {
-            Repr::One(c) => Ok(Combo(vec![c])),
-            Repr::Many(v) if v.is_empty() => Err(serde::de::Error::custom("empty trigger combo")),
-            Repr::Many(v) => Ok(Combo(v)),
-        }
+
+        d.deserialize_any(ComboVisitor)
     }
 }
 
@@ -2161,6 +2181,17 @@ break = true
         let text = toml::to_string(&parsed).unwrap();
         assert_eq!(text, written);
         assert_eq!(toml::from_str::<Profile>(&text).unwrap(), parsed);
+    }
+
+    #[test]
+    fn misspelt_controls_are_named() {
+        let err = |src: &str| toml::from_str::<Profile>(src).unwrap_err().to_string();
+        let one = err("[[mappings]]\ntrigger = \"Bogus\"\n");
+        assert!(one.contains("unknown control `Bogus`"), "{one}");
+        let many = err("[[mappings]]\ntrigger = [\"LB\", \"Bogsu\"]\n");
+        assert!(many.contains("unknown control `Bogsu`"), "{many}");
+        let empty = err("[[mappings]]\ntrigger = []\n");
+        assert!(empty.contains("empty trigger combo"), "{empty}");
     }
 
     #[test]
