@@ -189,6 +189,7 @@ pub struct Service {
     oneoff: Option<PathBuf>,
     /// Profile applied because its application is in the foreground.
     auto_active: Option<PathBuf>,
+    /// The application auto-switch last acted on (`None` while it is off).
     foreground: Option<String>,
     last_fg_check: Option<u64>,
     drivers: DriverStatus,
@@ -196,6 +197,8 @@ pub struct Service {
     /// [`Runtime::hiding_problems`], refreshed with the driver status.
     hiding_problems: Vec<String>,
     last_error: Option<String>,
+    /// Why saving the state failed during the command being handled.
+    unsaved: Option<String>,
     /// Why a controller's own profile could not be applied, by device id.
     device_errors: std::collections::BTreeMap<String, String>,
     /// Connected controllers when their sessions were last brought in line.
@@ -280,6 +283,7 @@ impl Service {
             drivers_checked: None,
             hiding_problems: Vec::new(),
             last_error: None,
+            unsaved: None,
             device_errors: Default::default(),
             connected: Vec::new(),
             dsu: None,
@@ -416,11 +420,13 @@ impl Service {
             .or_else(|| dp_config::profile_for_process(&self.profiles, exe).map(|(p, _)| p.clone()))
     }
 
-    fn save_state(&self) {
+    fn save_state(&mut self) {
         if let Some(path) = &self.opts.state_path
             && let Err(e) = self.state.save(path)
         {
-            tracing::warn!("cannot save {}: {e}", path.display());
+            let msg = format!("cannot save {}: {e}", path.display());
+            tracing::warn!("{msg}");
+            self.unsaved = Some(msg);
         }
     }
 
@@ -459,8 +465,8 @@ impl Service {
             profile_path: self.rt.profile_path().map(|p| p.display().to_string()),
             layer: self.rt.layer(),
             auto_switch: self.state.auto_switch,
-            foreground: self.foreground.clone(),
-            virtual_pad: self.rt.virtual_pad().map(|k| format!("{k:?}")),
+            foreground: self.fg_now.clone(),
+            virtual_pad: self.rt.virtual_pad().map(|k| k.name().to_owned()),
             hidden_devices: self.rt.hidden_devices(),
             warnings: self.warnings(),
             slots: self
@@ -513,6 +519,16 @@ impl Service {
 
     /// Answer one IPC request. `Shutdown` only acknowledges; the host stops the loop.
     pub fn handle_ipc(&mut self, req: Request) -> Response {
+        self.unsaved = None;
+        match (self.answer_ipc(req), self.unsaved.take()) {
+            (Response::Ok { message }, Some(e)) => Response::Ok {
+                message: unsaved_note(&message, &e),
+            },
+            (r, _) => r,
+        }
+    }
+
+    fn answer_ipc(&mut self, req: Request) -> Response {
         match req {
             Request::Status => Response::Status(self.status()),
             Request::Apply { path } => {
@@ -535,6 +551,7 @@ impl Service {
             }
             Request::Stop => {
                 self.rt.stop();
+                self.last_error = None;
                 self.oneoff = None;
                 self.auto_active = None;
                 self.state.remap_on = false;
@@ -559,7 +576,7 @@ impl Service {
             } => self.ipc_slot(slot, |slot| ServiceCmd::ClearSlot { device, slot }),
             Request::ClearSlot { slot: None, device } => {
                 for slot in 0..SLOTS {
-                    self.handle(ServiceCmd::ClearSlot {
+                    self.run(ServiceCmd::ClearSlot {
                         device: device.clone(),
                         slot,
                     });
@@ -616,8 +633,16 @@ impl Service {
         }
     }
 
-    /// Execute one command.
+    /// Execute one command. When a change could not be saved, the reply says so.
     pub fn handle(&mut self, cmd: ServiceCmd) -> ServiceReply {
+        self.unsaved = None;
+        match (self.run(cmd), self.unsaved.take()) {
+            (ServiceReply::Ok(m), Some(e)) => ServiceReply::Ok(unsaved_note(&m, &e)),
+            (r, _) => r,
+        }
+    }
+
+    fn run(&mut self, cmd: ServiceCmd) -> ServiceReply {
         match cmd {
             ServiceCmd::Ipc(req) => ServiceReply::Ipc(self.handle_ipc(req)),
             ServiceCmd::ApplyToSlot { device, slot, path } => {
@@ -1313,8 +1338,8 @@ impl Service {
             auto_switch: self.state.auto_switch,
             auto_active: self.auto_active.is_some(),
             suspended: self.rt.is_suspended(),
-            foreground: self.foreground.clone(),
-            virtual_pad: self.rt.virtual_pad().map(|k| format!("{k:?}")),
+            foreground: self.fg_now.clone(),
+            virtual_pad: self.rt.virtual_pad().map(|k| k.name().to_owned()),
             hidden_devices: self.rt.hidden_devices(),
             warnings: self.warnings(),
             drivers: self.drivers.clone(),
@@ -1354,6 +1379,11 @@ impl Service {
     pub fn shutdown(&mut self) {
         self.rt.stop();
     }
+}
+
+/// A reply to a change that took effect but could not be saved.
+fn unsaved_note(reply: &str, error: &str) -> String {
+    format!("{reply}; {error}, so the change is lost when Doppelpad restarts")
 }
 
 /// Why a generic pad layout cannot be stored, if it cannot.
@@ -1762,6 +1792,18 @@ Host: 127.0.0.1:{}
     }
 
     #[test]
+    fn foreground_is_reported_without_auto_switch() {
+        let dir = tempfile::tempdir().unwrap();
+        let (mut s, fg) = service(dir.path(), None);
+        s.handle(ServiceCmd::SetAutoSwitch(false));
+        s.handle(ServiceCmd::SetRemap(false));
+        *fg.lock().unwrap() = Some("notepad.exe".into());
+        s.tick();
+        assert_eq!(s.live().foreground.as_deref(), Some("notepad.exe"));
+        assert_eq!(s.status().foreground.as_deref(), Some("notepad.exe"));
+    }
+
+    #[test]
     fn auto_switch_waits_while_remapping_is_off() {
         let dir = tempfile::tempdir().unwrap();
         let profiles = dir.path().join("profiles");
@@ -2087,5 +2129,74 @@ Host: 127.0.0.1:{}
         s.handle_ipc(Request::Stop);
         assert_eq!(active_name(&s), None);
         assert!(!s.live().remap_on);
+    }
+
+    #[test]
+    fn virtual_pad_kind_is_spelled_like_the_profile() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("pad.toml");
+        std::fs::write(&path, "name = \"Pad\"\n").unwrap();
+        let (platform, world) = crate::runtime::testing::platform();
+        world
+            .lock()
+            .unwrap()
+            .pads
+            .push(crate::runtime::testing::pad(
+                "p1",
+                dp_platform::PadFamily::Xbox,
+            ));
+        let opts = ServiceOptions::new(dir.path().join("profiles"));
+        let mut s = Service::new(Runtime::with_platform(platform), opts).unwrap();
+        s.tick();
+        s.handle(ServiceCmd::ApplyToSlot {
+            device: None,
+            slot: 0,
+            path,
+        })
+        .into_result()
+        .unwrap();
+        assert_eq!(s.status().virtual_pad.as_deref(), Some("xbox360"));
+        assert_eq!(s.live().virtual_pad.as_deref(), Some("xbox360"));
+    }
+
+    #[test]
+    fn replies_say_when_the_state_cannot_be_saved() {
+        let dir = tempfile::tempdir().unwrap();
+        // A file where the state's folder should be: saving always fails.
+        let blocker = dir.path().join("blocker");
+        std::fs::write(&blocker, "").unwrap();
+        let (mut s, _) = service(dir.path(), Some(blocker.join("state.toml")));
+        let reply = s.handle(ServiceCmd::SetLights {
+            player: PlayerLights::Always,
+            mic: false,
+        });
+        let msg = reply.into_result().unwrap();
+        assert!(
+            msg.starts_with("lights set") && msg.contains("cannot save"),
+            "{msg}"
+        );
+        match s.handle_ipc(Request::Remap { on: false }) {
+            Response::Ok { message } => assert!(message.contains("cannot save"), "{message}"),
+            r => panic!("{r:?}"),
+        }
+        assert!(
+            matches!(s.handle_ipc(Request::Status), Response::Status(_)),
+            "only replies to changes carry it"
+        );
+    }
+
+    #[test]
+    fn stop_forgets_a_failed_apply() {
+        let dir = tempfile::tempdir().unwrap();
+        let (mut s, _) = service(dir.path(), None);
+        let missing = dir.path().join("missing.toml");
+        let r = s.handle_ipc(Request::Apply {
+            path: missing.display().to_string(),
+        });
+        assert!(matches!(r, Response::Error { .. }), "{r:?}");
+        let mentions = |s: &Service| s.status().warnings.iter().any(|w| w.contains("missing"));
+        assert!(mentions(&s), "the failure is reported");
+        s.handle_ipc(Request::Stop);
+        assert!(!mentions(&s), "and forgotten once stopped");
     }
 }

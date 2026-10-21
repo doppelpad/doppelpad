@@ -65,6 +65,7 @@ pub struct Status {
     pub profile_path: Option<String>,
     pub layer: u8,
     pub auto_switch: bool,
+    /// Executable of the application in front.
     pub foreground: Option<String>,
     pub virtual_pad: Option<String>,
     pub hidden_devices: usize,

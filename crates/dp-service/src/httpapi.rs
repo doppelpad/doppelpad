@@ -307,12 +307,12 @@ fn ask_live(tx: &Sender<Job>) -> Option<LiveState> {
     rrx.recv_timeout(REPLY_TIMEOUT).ok()
 }
 
-/// The parts of the live state the event stream reports.
+/// The parts of the live state the event stream reports. Slots count 1–4, as in the status.
 fn summary(l: &LiveState) -> serde_json::Value {
     serde_json::json!({
         "remap_on": l.remap_on,
         "suspended": l.suspended,
-        "active_slot": l.active_slot,
+        "active_slot": l.active_slot + 1,
         "profile": l.profile,
         "layer": l.layer,
         "layer_name": l.layer_name,
@@ -458,6 +458,19 @@ mod tests {
             "GET /api/status HTTP/1.1\r\nHost: 192.168.1.5:26761\r\nAuthorization: Bearer secret\r\n\r\n",
         );
         assert_eq!(refused(&with_token, &access(true)), None);
+    }
+
+    #[test]
+    fn events_number_slots_like_the_status() {
+        let live = LiveState {
+            active_slot: 1,
+            ..LiveState::default()
+        };
+        assert_eq!(
+            summary(&live)["active_slot"],
+            2,
+            "slots are 1–4 on the wire"
+        );
     }
 
     #[test]
