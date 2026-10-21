@@ -3,6 +3,7 @@
   // jump, description and timing overrides.
   import { Plus, X, Trash2, Info, ChevronRight, Zap, Repeat, Ban, Clapperboard, SlidersHorizontal } from '@lucide/svelte';
   import { t } from '../../lib/i18n/index.svelte';
+  import { layerColor } from '../../lib/theme/layers';
   import { ZONES, controlLabel, isAnyDirection, withZone, zoneParts, type ZoneName } from '../../lib/model/controls';
   import {
     ACTIVATORS,
@@ -223,7 +224,7 @@
     <div class="head">
       <div class="title">
         <span class="name">{title}</span>
-        <span class="layer" style="--c: var(--layer-{Math.min(app.layer, 6)})">{app.layerLabel(app.layer)}</span>
+        <span class="layer" style="--c: {layerColor(app.layer)}">{app.layerLabel(app.layer)}</span>
       </div>
       <button class="icon-btn" title={t('common.close')} onclick={() => app.select(null)}><X size={16} /></button>
     </div>

@@ -6,6 +6,7 @@
   import { BatteryLow, BatteryWarning, Bell, Gamepad2, Hash, Layers, Power, PowerOff, Unplug } from '@lucide/svelte';
   import { setLanguage, t } from '../../lib/i18n/index.svelte';
   import { overlayContent } from '../../lib/overlay';
+  import { layerColor } from '../../lib/theme/layers';
   import type { OsdMessage } from '../../lib/types';
 
   let msg = $state<OsdMessage | null>(null);
@@ -31,7 +32,7 @@
       case 'slot':
         return { icon: Hash, title: t('osd.slot', { n: msg.slot }), detail: msg.config ?? t('osd.slot_empty'), color: 'var(--accent)' };
       case 'layer':
-        return { icon: Layers, title: layerName(msg.layer, msg.name), detail: t('osd.layer'), color: `var(--layer-${msg.layer % 7})` };
+        return { icon: Layers, title: layerName(msg.layer, msg.name), detail: t('osd.layer'), color: layerColor(msg.layer) };
       case 'connected':
         return { icon: Gamepad2, title: msg.name, detail: t('osd.connected'), color: 'var(--ok)' };
       case 'disconnected':
