@@ -834,8 +834,7 @@ impl<'a> Importer<'a> {
         let virt = get(devices, "virtual");
         let pads = virt.map(|v| array(v, "gamepads")).unwrap_or(&[]);
         p.output.virtual_pad = match pads.first().and_then(|g| enum_str(g, "type")).as_deref() {
-            None => VirtualPadType::Xbox360,
-            Some("360") => VirtualPadType::Xbox360,
+            None | Some("360") => VirtualPadType::Xbox360,
             Some("ds4") => VirtualPadType::DualShock4,
             Some("keyboardandmouse") => VirtualPadType::None,
             Some(other) => {

@@ -45,6 +45,7 @@ redundant_clone = "warn"
 unused_self = "warn"
 needless_pass_by_ref_mut = "warn"
 semicolon_if_nothing_returned = "warn"
+match_same_arms = "warn"
 
 [profile.release]
 lto = "thin"

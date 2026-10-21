@@ -146,7 +146,8 @@ impl Binding {
         match self.mode {
             Mode::Hold => Policy::Hold,
             Mode::Toggle if self.holdable => Policy::Hold,
-            Mode::Toggle => Policy::Loop {
+            // A toggled sequence loops until the next activation, like a held one.
+            Mode::Toggle | Mode::WhileHeld => Policy::Loop {
                 max_runs: None,
                 stop: StopRule::FinishRun,
                 gap_ms: self.repeat_pause_ms,
@@ -177,13 +178,6 @@ impl Binding {
             Mode::Repeat => Policy::Loop {
                 max_runs: Some(self.repeat.max(1)),
                 stop: StopRule::Never,
-                gap_ms: self.repeat_pause_ms,
-                period_ms: None,
-                random_ms: self.random_ms,
-            },
-            Mode::WhileHeld => Policy::Loop {
-                max_runs: None,
-                stop: StopRule::FinishRun,
                 gap_ms: self.repeat_pause_ms,
                 period_ms: None,
                 random_ms: self.random_ms,

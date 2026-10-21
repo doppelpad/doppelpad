@@ -89,11 +89,10 @@ impl ControllerType {
     pub fn fallback(vid: u16, pid: u16, grip_slot: Option<JoyConSide>) -> Self {
         match (vid, pid) {
             (NINTENDO_VID, 0x2006) => ControllerType::JoyConLeft,
-            (NINTENDO_VID, 0x2007) => ControllerType::JoyConRight,
             (NINTENDO_VID, 0x200E) if grip_slot == Some(JoyConSide::Left) => {
                 ControllerType::JoyConLeft
             }
-            (NINTENDO_VID, 0x200E) => ControllerType::JoyConRight,
+            (NINTENDO_VID, 0x2007 | 0x200E) => ControllerType::JoyConRight,
             (NINTENDO_VID, 0x2017) => ControllerType::Snes,
             (NINTENDO_VID, 0x2019) => ControllerType::N64,
             (NINTENDO_VID, 0x201E) => ControllerType::Genesis,
