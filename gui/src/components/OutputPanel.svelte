@@ -1,6 +1,6 @@
 <script lang="ts">
   import { Gamepad2, Keyboard, RotateCw, TriangleAlert } from '@lucide/svelte';
-  import { api } from '../lib/api';
+  import { api, errorText } from '../lib/api';
   import { t } from '../lib/i18n/index.svelte';
   import { setProfileTiming, setVirtualDevice, type TimingField } from '../lib/model/profile';
   import { app } from '../lib/state/app.svelte';
@@ -59,7 +59,7 @@
       await api.testTurn(turn.counts_per_turn);
       app.toast(t('output.test_turn_started'), 'ok');
     } catch (e) {
-      app.toast(String(e), 'error');
+      app.toast(errorText(e), 'error');
     }
   }
 
