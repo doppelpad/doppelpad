@@ -500,6 +500,11 @@ tests. They check that the frontend's key table, JSON shapes and default values 
 Rust model, using the fixtures in `gui/src/lib/model/fixtures`. Regenerate them with
 `DOPPELPAD_UPDATE_FIXTURES=1 cargo test -p dp-gui`.
 
+The npm packages `@tauri-apps/api` and `@tauri-apps/plugin-dialog` are pinned to the minor
+versions of the `tauri` and `tauri-plugin-dialog` crates in `Cargo.lock` (`~2.11`, `~2.7`),
+because `tauri build` refuses mismatched minor versions. When a `cargo update` moves those
+crates to a newer minor version, move the npm pins with them.
+
 ## Installer
 
 `npx tauri build` without `--no-bundle` also builds the Windows setup,

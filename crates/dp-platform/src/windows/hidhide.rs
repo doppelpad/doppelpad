@@ -120,8 +120,10 @@ fn get_list(h: &OwnedHandle, code: u32) -> Result<Vec<String>> {
     let mut buf = vec![0u8; needed];
     let n = ioctl(h, code, &[], &mut buf)?;
     let words: Vec<u16> = buf[..n]
-        .chunks_exact(2)
-        .map(|c| u16::from_le_bytes([c[0], c[1]]))
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .map(|&c| u16::from_le_bytes(c))
         .collect();
     Ok(words
         .split(|&c| c == 0)
