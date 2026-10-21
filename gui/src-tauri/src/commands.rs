@@ -6,10 +6,10 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+use dp_config::Diagnostic;
 use dp_config::bundle::{self, LayerPreset, PresetEntry};
 use dp_config::library::{self, Game, GameMeta, Library};
 use dp_config::templates::{self, Template};
-use dp_config::{Diagnostics, Severity};
 use dp_core::control::{Control, mouse_button_name, pad_button_name};
 use dp_core::hotkeys::Hotkeys;
 use dp_core::keys::{Key, MouseButton};
@@ -246,30 +246,9 @@ pub fn sheet_save(path: PathBuf, html: String) -> CmdResult<()> {
 }
 
 #[derive(Serialize)]
-pub struct DiagMsg {
-    severity: &'static str,
-    path: String,
-    message: String,
-}
-
-fn diag_msgs(d: &Diagnostics) -> Vec<DiagMsg> {
-    d.iter()
-        .map(|d| DiagMsg {
-            severity: match d.severity {
-                Severity::Info => "info",
-                Severity::Warning => "warning",
-                Severity::Error => "error",
-            },
-            path: d.path.clone(),
-            message: d.message.clone(),
-        })
-        .collect()
-}
-
-#[derive(Serialize)]
 pub struct LoadedConfig {
     profile: Profile,
-    diagnostics: Vec<DiagMsg>,
+    diagnostics: Vec<Diagnostic>,
     /// Imported JSON files are never written; edits must be saved as a new config.
     read_only: bool,
 }
@@ -281,20 +260,20 @@ pub fn config_load(path: PathBuf) -> CmdResult<LoadedConfig> {
     let read_only = dp_config::Format::detect(&path, &src) == dp_config::Format::Json;
     Ok(LoadedConfig {
         profile,
-        diagnostics: diag_msgs(&diags),
+        diagnostics: diags.0,
         read_only,
     })
 }
 
 /// Validate and save; returns the validation diagnostics (errors block saving).
 #[tauri::command]
-pub fn config_save(app: AppHandle, path: PathBuf, profile: Profile) -> CmdResult<Vec<DiagMsg>> {
+pub fn config_save(app: AppHandle, path: PathBuf, profile: Profile) -> CmdResult<Vec<Diagnostic>> {
     let diags = dp_config::validate(&profile);
     if diags.has_errors() {
-        return Ok(diag_msgs(&diags));
+        return Ok(diags.0);
     }
     library_change(&app, library::save_profile_atomic(&path, &profile))?;
-    Ok(diag_msgs(&diags))
+    Ok(diags.0)
 }
 
 #[tauri::command]
@@ -320,7 +299,7 @@ pub fn config_delete(app: AppHandle, path: PathBuf) -> CmdResult<()> {
 #[derive(Serialize)]
 pub struct Imported {
     path: PathBuf,
-    diagnostics: Vec<DiagMsg>,
+    diagnostics: Vec<Diagnostic>,
 }
 
 #[tauri::command]
@@ -328,7 +307,7 @@ pub fn config_import(app: AppHandle, game_dir: PathBuf, source: PathBuf) -> CmdR
     let (path, diags) = library_change(&app, library::import_into(&game_dir, &source))?;
     Ok(Imported {
         path,
-        diagnostics: diag_msgs(&diags),
+        diagnostics: diags.0,
     })
 }
 
