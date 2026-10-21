@@ -65,6 +65,14 @@ fn library_changed(app: &AppHandle) {
     crate::tray::refresh(app);
 }
 
+/// The outcome of a change to the games and configs on disk; when it worked, the service
+/// and the tray are told.
+fn library_change<T, E: std::fmt::Display>(app: &AppHandle, result: Result<T, E>) -> CmdResult<T> {
+    let out = result.map_err(err)?;
+    library_changed(app);
+    Ok(out)
+}
+
 // ----- catalog -----------------------------------------------------------------------
 
 #[derive(Serialize)]
@@ -137,23 +145,17 @@ pub fn library_scan(state: State<AppState>) -> Library {
 
 #[tauri::command]
 pub fn game_create(app: AppHandle, state: State<AppState>, name: String) -> CmdResult<Game> {
-    let g = library::create_game(&state.profiles_dir, &name).map_err(err)?;
-    library_changed(&app);
-    Ok(g)
+    library_change(&app, library::create_game(&state.profiles_dir, &name))
 }
 
 #[tauri::command]
 pub fn game_update(app: AppHandle, dir: PathBuf, meta: GameMeta) -> CmdResult<()> {
-    library::update_game_meta(&dir, &meta).map_err(err)?;
-    library_changed(&app);
-    Ok(())
+    library_change(&app, library::update_game_meta(&dir, &meta))
 }
 
 #[tauri::command]
 pub fn game_delete(app: AppHandle, dir: PathBuf) -> CmdResult<()> {
-    library::delete_game(&dir).map_err(err)?;
-    library_changed(&app);
-    Ok(())
+    library_change(&app, library::delete_game(&dir))
 }
 
 /// A new game whose first config (`config`) starts from a template.
@@ -166,19 +168,22 @@ pub fn game_create_template(
     template: Template,
 ) -> CmdResult<Game> {
     let profile = templates::profile(template, &config);
-    let g = library::create_game_with(&state.profiles_dir, &name, &profile).map_err(err)?;
-    library_changed(&app);
-    Ok(g)
+    library_change(
+        &app,
+        library::create_game_with(&state.profiles_dir, &name, &profile),
+    )
 }
 
 /// A new config in a game, starting from a template.
 #[tauri::command]
 pub fn config_from_template(
+    app: AppHandle,
     game_dir: PathBuf,
     name: String,
     template: Template,
 ) -> CmdResult<PathBuf> {
-    library::create_config_with(&game_dir, &templates::profile(template, &name)).map_err(err)
+    let profile = templates::profile(template, &name);
+    library_change(&app, library::create_config_with(&game_dir, &profile))
 }
 
 /// Open the download page of a driver Doppelpad uses.
@@ -205,9 +210,7 @@ pub fn game_export(dir: PathBuf, out: PathBuf) -> CmdResult<()> {
 /// Unpack a game bundle into a new game folder.
 #[tauri::command]
 pub fn game_import(app: AppHandle, state: State<AppState>, file: PathBuf) -> CmdResult<Game> {
-    let g = bundle::import_game(&state.profiles_dir, &file).map_err(err)?;
-    library_changed(&app);
-    Ok(g)
+    library_change(&app, bundle::import_game(&state.profiles_dir, &file))
 }
 
 #[tauri::command]
@@ -290,33 +293,28 @@ pub fn config_save(app: AppHandle, path: PathBuf, profile: Profile) -> CmdResult
     if diags.has_errors() {
         return Ok(diag_msgs(&diags));
     }
-    library::save_profile_atomic(&path, &profile).map_err(err)?;
-    library_changed(&app);
+    library_change(&app, library::save_profile_atomic(&path, &profile))?;
     Ok(diag_msgs(&diags))
 }
 
 #[tauri::command]
-pub fn config_create(game_dir: PathBuf, name: String) -> CmdResult<PathBuf> {
-    library::create_config(&game_dir, &name).map_err(err)
+pub fn config_create(app: AppHandle, game_dir: PathBuf, name: String) -> CmdResult<PathBuf> {
+    library_change(&app, library::create_config(&game_dir, &name))
 }
 
 #[tauri::command]
-pub fn config_duplicate(path: PathBuf) -> CmdResult<PathBuf> {
-    library::duplicate_config(&path).map_err(err)
+pub fn config_duplicate(app: AppHandle, path: PathBuf) -> CmdResult<PathBuf> {
+    library_change(&app, library::duplicate_config(&path))
 }
 
 #[tauri::command]
 pub fn config_rename(app: AppHandle, path: PathBuf, name: String) -> CmdResult<()> {
-    library::rename_config(&path, &name).map_err(err)?;
-    library_changed(&app);
-    Ok(())
+    library_change(&app, library::rename_config(&path, &name))
 }
 
 #[tauri::command]
 pub fn config_delete(app: AppHandle, path: PathBuf) -> CmdResult<()> {
-    library::delete_config(&path).map_err(err)?;
-    library_changed(&app);
-    Ok(())
+    library_change(&app, library::delete_config(&path))
 }
 
 #[derive(Serialize)]
@@ -326,8 +324,8 @@ pub struct Imported {
 }
 
 #[tauri::command]
-pub fn config_import(game_dir: PathBuf, source: PathBuf) -> CmdResult<Imported> {
-    let (path, diags) = library::import_into(&game_dir, &source).map_err(err)?;
+pub fn config_import(app: AppHandle, game_dir: PathBuf, source: PathBuf) -> CmdResult<Imported> {
+    let (path, diags) = library_change(&app, library::import_into(&game_dir, &source))?;
     Ok(Imported {
         path,
         diagnostics: diag_msgs(&diags),
