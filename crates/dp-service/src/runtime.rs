@@ -16,7 +16,7 @@ use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result};
 use crossbeam_channel::Receiver;
-use dp_core::control::{Control, mouse_button_name, pad_button_name};
+use dp_core::control::Control;
 use dp_core::engine::radial::RadialView;
 use dp_core::engine::{Engine, Input, Output};
 use dp_core::hotkeys::{HotkeyAction, HotkeyDetector, Hotkeys};
@@ -290,7 +290,7 @@ impl Echo {
                 if changed & b.bit() != 0 {
                     let what = if p.pressed(b) { "pressed" } else { "released" };
                     self.events
-                        .push(format!("controller  {:<9} {what}", pad_button_name(b)));
+                        .push(format!("controller  {:<9} {what}", b.name()));
                 }
             }
             self.pad_buttons = p.buttons;
@@ -314,10 +314,8 @@ impl Echo {
         }
         for (b, down) in &out.mouse_buttons {
             let what = if *down { "down" } else { "up" };
-            self.events.push(format!(
-                "  -> mouse button  {} {what}",
-                mouse_button_name(*b)
-            ));
+            self.events
+                .push(format!("  -> mouse button  {} {what}", b.name()));
         }
         for (w, n) in &out.wheel {
             self.events.push(format!("  -> mouse wheel   {w:?} x{n}"));
@@ -328,7 +326,7 @@ impl Echo {
                 if changed & b.bit() != 0 {
                     let what = if vp.pressed(b) { "down" } else { "up" };
                     self.events
-                        .push(format!("  -> virtual pad   {} {what}", pad_button_name(b)));
+                        .push(format!("  -> virtual pad   {} {what}", b.name()));
                 }
             }
             self.virtual_buttons = vp.buttons;

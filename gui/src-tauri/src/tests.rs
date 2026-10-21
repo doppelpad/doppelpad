@@ -225,16 +225,8 @@ fn controls_fixture_is_current() {
     let controls = PadButton::ALL
         .map(Control::Button)
         .into_iter()
-        .chain(
-            [Stick::Left, Stick::Right]
-                .into_iter()
-                .flat_map(Control::of_stick),
-        )
-        .chain(
-            [Trigger::Left, Trigger::Right]
-                .into_iter()
-                .flat_map(Control::of_trigger),
-        )
+        .chain(Stick::ALL.into_iter().flat_map(Control::of_stick))
+        .chain(Trigger::ALL.into_iter().flat_map(Control::of_trigger))
         .chain(Control::of_touchpad())
         .chain(Control::of_gyro());
     let names: Vec<String> = controls.map(|c| c.to_string()).collect();

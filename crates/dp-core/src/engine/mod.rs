@@ -604,7 +604,7 @@ impl Engine {
     /// Stick and trigger controls under the current layer's settings.
     fn analog_controls(&self, pad: &PadState) -> HashSet<Control> {
         let mut set = HashSet::new();
-        for s in [Stick::Left, Stick::Right] {
+        for s in Stick::ALL {
             let cfg = self.sticks().get(s);
             let v = orient(pad.stick(s), cfg);
             let Some(zone) = stick_zone(v, cfg.zone_thresholds()) else {
@@ -612,14 +612,14 @@ impl Engine {
             };
             set.insert(Control::StickZone(s, None, zone));
             let d = sectors(v, cfg.direction_ratio(), cfg.diagonals);
-            for dir in Dir::ALL8 {
+            for dir in Dir::ALL {
                 if d[dir as usize] {
                     set.insert(Control::StickDir(s, dir));
                     set.insert(Control::StickZone(s, Some(dir), zone));
                 }
             }
         }
-        for t in [Trigger::Left, Trigger::Right] {
+        for t in Trigger::ALL {
             let cfg = self.triggers().get(t);
             let v = pad.axis(t.axis());
             if let Some(zone) = trigger_zone(v, cfg.zone_thresholds()) {
@@ -726,7 +726,7 @@ impl Engine {
         if self.mouse_diagonals {
             // Screen y grows downwards; directions are y up.
             let d = directions((vx, -vy), low, DIRECTION_SECTOR, true);
-            dirs.extend(Dir::ALL8.into_iter().filter(|d8| d[*d8 as usize]));
+            dirs.extend(Dir::ALL.into_iter().filter(|d8| d[*d8 as usize]));
         } else {
             if vx > low {
                 dirs.push(Dir::Right);
@@ -1521,7 +1521,7 @@ impl Engine {
                     || self.pending.iter().any(|(p, _)| p == c)
             };
             // A split pad's clicks come from the touchpad button.
-            let click_used = [Half::Left, Half::Right]
+            let click_used = Half::ALL
                 .iter()
                 .any(|h| hidden(&Control::Trackpad(*h, TrackpadPart::Click)));
             for b in PadButton::ALL {
@@ -1530,7 +1530,7 @@ impl Engine {
                     pad.set(b, true);
                 }
             }
-            for s in [Stick::Left, Stick::Right] {
+            for s in Stick::ALL {
                 let src = if s == Stick::Left {
                     AnalogSource::LeftStick
                 } else {
@@ -1545,7 +1545,7 @@ impl Engine {
                 let cfg = self.sticks().get(s);
                 pad.set_stick(s, shape_stick(orient(phys.stick(s), cfg), cfg));
             }
-            for t in [Trigger::Left, Trigger::Right] {
+            for t in Trigger::ALL {
                 if Control::of_trigger(t).iter().any(hidden) {
                     continue;
                 }
@@ -1629,7 +1629,7 @@ impl Engine {
             out.mouse_move.0 += step * turn.counts_per_turn / 360.0;
         }
         self.outs.turns.retain(|(_, left)| left.abs() > 1e-4);
-        for s in [Stick::Left, Stick::Right] {
+        for s in Stick::ALL {
             let axis = |[pos, neg]: [f32; 2]| {
                 if pos > 0.0 && neg > 0.0 {
                     0.0
@@ -1702,7 +1702,7 @@ impl Engine {
             }
         }
         // The virtual stick's own output curve, over every source.
-        for s in [Stick::Left, Stick::Right] {
+        for s in Stick::ALL {
             let curve = &self.virtual_stick(s).curve;
             let (x, y) = pad.stick(s);
             let mag = x.hypot(y).min(1.0);
@@ -1712,7 +1712,7 @@ impl Engine {
             }
         }
         // Jitter: an offset that steps through its pattern after random delays.
-        for s in [Stick::Left, Stick::Right] {
+        for s in Stick::ALL {
             let j = self.virtual_stick(s).jitter.clone();
             let st = &mut self.jitter[s as usize];
             if !j.enabled {

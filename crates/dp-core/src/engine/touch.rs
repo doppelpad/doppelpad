@@ -33,7 +33,7 @@ pub fn regions(
             let k = if diagonals { DIRECTION_SECTOR } else { 1.0 };
             let d = directions(v, cfg.centre, k, diagonals);
             let mut any = false;
-            for dir in Dir::ALL8.into_iter().filter(|x| d[*x as usize]) {
+            for dir in Dir::ALL.into_iter().filter(|x| d[*x as usize]) {
                 out.extend([TouchRegion::of(dir)]);
                 any = true;
             }

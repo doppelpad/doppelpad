@@ -10,7 +10,7 @@ use dp_config::Diagnostic;
 use dp_config::bundle::{self, LayerPreset, PresetEntry};
 use dp_config::library::{self, Game, GameMeta, Library};
 use dp_config::templates::{self, Template};
-use dp_core::control::{Control, mouse_button_name, pad_button_name};
+use dp_core::control::Control;
 use dp_core::hotkeys::Hotkeys;
 use dp_core::keys::{Key, MouseButton};
 use dp_core::pad::PadButton;
@@ -110,11 +110,8 @@ pub struct Catalog {
 pub fn catalog() -> Catalog {
     Catalog {
         keys: Key::ALL.iter().map(|k| k.name()).collect(),
-        pad_buttons: PadButton::ALL.iter().map(|b| pad_button_name(*b)).collect(),
-        mouse_buttons: MouseButton::ALL
-            .iter()
-            .map(|b| mouse_button_name(*b))
-            .collect(),
+        pad_buttons: PadButton::ALL.iter().map(|b| b.name()).collect(),
+        mouse_buttons: MouseButton::ALL.iter().map(|b| b.name()).collect(),
         defaults: Defaults {
             profile: Profile::default(),
             mapping: Mapping::new(Control::Button(PadButton::A), Vec::new()),

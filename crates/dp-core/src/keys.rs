@@ -6,6 +6,8 @@
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
+use crate::names::named_enum;
+
 macro_rules! keys {
     ($( $(#[$m:meta])* $v:ident = ($sc:expr, $ev:expr) ),+ $(,)?) => {
         /// A physical keyboard key, identified by position (US layout names).
@@ -84,6 +86,20 @@ keys! {
     LaunchMyComputer = (0xE06B, 157), LaunchMail = (0xE06C, 155), LaunchMediaSelect = (0xE06D, 226),
 }
 
+/// The digit keys by their value, for the `0`-`9` aliases.
+const DIGITS: [Key; 10] = [
+    Key::Digit0,
+    Key::Digit1,
+    Key::Digit2,
+    Key::Digit3,
+    Key::Digit4,
+    Key::Digit5,
+    Key::Digit6,
+    Key::Digit7,
+    Key::Digit8,
+    Key::Digit9,
+];
+
 impl Key {
     /// Look up a key by its canonical name, case-insensitively. A few common
     /// aliases (`Ctrl`, `Shift`, `Alt`, `Win`, `Esc`, `Return`, digits `0`-`9`) are accepted.
@@ -101,12 +117,7 @@ impl Key {
             "pgdn" => Some(Key::PageDown),
             "menu" | "apps" => Some(Key::ContextMenu),
             d if d.len() == 1 && d.as_bytes()[0].is_ascii_digit() => {
-                let n = d.as_bytes()[0] - b'0';
-                Some(if n == 0 {
-                    Key::Digit0
-                } else {
-                    Key::ALL[Key::Digit1 as usize + n as usize - 1]
-                })
+                Some(DIGITS[usize::from(d.as_bytes()[0] - b'0')])
             }
             _ => None,
         };
@@ -189,6 +200,7 @@ impl<'de> Deserialize<'de> for Key {
     }
 }
 
+named_enum! {
 /// Mouse buttons.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -201,17 +213,9 @@ pub enum MouseButton {
     /// "Forward" side button (XButton2).
     X2,
 }
-
-impl MouseButton {
-    pub const ALL: [MouseButton; 5] = [
-        MouseButton::Left,
-        MouseButton::Right,
-        MouseButton::Middle,
-        MouseButton::X1,
-        MouseButton::X2,
-    ];
 }
 
+named_enum! {
 /// Mouse wheel directions, usable as digital inputs or outputs.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -220,6 +224,7 @@ pub enum WheelDir {
     Down,
     Left,
     Right,
+}
 }
 
 #[cfg(test)]
