@@ -168,18 +168,11 @@ fn path() -> PathBuf {
 
 impl GuiSettings {
     pub fn load() -> GuiSettings {
-        std::fs::read_to_string(path())
-            .ok()
-            .and_then(|s| toml::from_str(&s).ok())
-            .unwrap_or_default()
+        dp_config::load_toml_or_default(&path())
     }
 
+    /// Write atomically (temporary file, then rename).
     pub fn save(&self) -> std::io::Result<()> {
-        let p = path();
-        if let Some(dir) = p.parent() {
-            std::fs::create_dir_all(dir)?;
-        }
-        let text = toml::to_string_pretty(self).map_err(std::io::Error::other)?;
-        std::fs::write(p, text)
+        dp_config::save_toml(&path(), self)
     }
 }

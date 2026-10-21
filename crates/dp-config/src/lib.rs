@@ -5,6 +5,7 @@ pub mod bundle;
 pub mod compat;
 pub mod diag;
 pub mod library;
+pub mod store;
 pub mod templates;
 
 use std::path::{Path, PathBuf};
@@ -15,6 +16,7 @@ use dp_core::profile::{
     Action, AnalogSource, AnalogTarget, Command, JumpMode, Light, Mode, Profile, Sticks,
     TriggerEffect, Triggers, VirtualSticks,
 };
+pub use store::{load_toml_or_default, save_toml, write_atomic};
 
 #[derive(Debug, thiserror::Error)]
 pub enum LoadError {

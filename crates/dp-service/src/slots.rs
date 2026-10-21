@@ -168,16 +168,7 @@ fn slots_to(slots: &[Option<PathBuf>; SLOTS]) -> Vec<String> {
 impl SlotState {
     /// Load from `path`. A missing or unreadable file yields the defaults.
     pub fn load(path: &Path) -> SlotState {
-        let Ok(src) = std::fs::read_to_string(path) else {
-            return SlotState::default();
-        };
-        let file: StateFile = match toml::from_str(&src) {
-            Ok(f) => f,
-            Err(e) => {
-                tracing::warn!("ignoring {}: {e}", path.display());
-                return SlotState::default();
-            }
-        };
+        let file: StateFile = dp_config::load_toml_or_default(path);
         SlotState {
             slots: slots_from(file.slots),
             active: file.active.min(SLOTS - 1),
@@ -234,13 +225,7 @@ impl SlotState {
             runtime: self.runtime,
             http: self.http.clone(),
         };
-        let text = toml::to_string_pretty(&file).map_err(std::io::Error::other)?;
-        if let Some(dir) = path.parent() {
-            std::fs::create_dir_all(dir)?;
-        }
-        let tmp = path.with_extension("toml.tmp");
-        std::fs::write(&tmp, text)?;
-        std::fs::rename(&tmp, path)
+        dp_config::save_toml(path, &file)
     }
 
     /// Config file of the active shared slot.

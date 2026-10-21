@@ -129,7 +129,7 @@ pub fn export_game(dir: &Path, out: &Path) -> Result<()> {
         image,
     };
     let text = serde_json::to_string_pretty(&bundle).map_err(|e| invalid(out, e.to_string()))?;
-    std::fs::write(out, text).map_err(io(out))
+    crate::store::write_atomic(out, text).map_err(io(out))
 }
 
 /// Unpack a bundle into a new game folder under `root`.
@@ -241,7 +241,8 @@ pub fn save_preset(profiles: &Path, preset: &LayerPreset) -> Result<PathBuf> {
         None => library::unique_path(&dir, &library::slugify(&preset.name), Some("toml")),
     };
     let text = toml::to_string_pretty(preset).map_err(|e| invalid(&path, e.to_string()))?;
-    std::fs::write(&path, format!("# Doppelpad layer preset\n{text}")).map_err(io(&path))?;
+    crate::store::write_atomic(&path, format!("# Doppelpad layer preset\n{text}"))
+        .map_err(io(&path))?;
     Ok(path)
 }
 
