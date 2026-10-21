@@ -156,7 +156,7 @@ impl HotkeyDetector {
                 }
             };
             let (_, since, fired) = &mut self.held[i];
-            if !*fired && now >= *since + hotkeys.hold_ms as u64 {
+            if !*fired && now >= *since + u64::from(hotkeys.hold_ms) {
                 *fired = true;
                 fire = fire.or(Some(action));
             }

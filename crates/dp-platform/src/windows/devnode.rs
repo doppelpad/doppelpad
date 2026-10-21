@@ -44,7 +44,7 @@ pub fn enumerate_interfaces(class: &GUID) -> Vec<InterfaceEntry> {
             null_mut(),
             DIGCF_PRESENT | DIGCF_DEVICEINTERFACE,
         );
-        if set as isize == -1 || set as isize == 0 {
+        if set == -1 || set == 0 {
             return out;
         }
         let mut index = 0;

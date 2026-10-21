@@ -89,11 +89,10 @@ impl ControllerType {
     pub fn fallback(vid: u16, pid: u16, grip_slot: Option<JoyConSide>) -> Self {
         match (vid, pid) {
             (NINTENDO_VID, 0x2006) => ControllerType::JoyConLeft,
-            (NINTENDO_VID, 0x2007) => ControllerType::JoyConRight,
             (NINTENDO_VID, 0x200E) if grip_slot == Some(JoyConSide::Left) => {
                 ControllerType::JoyConLeft
             }
-            (NINTENDO_VID, 0x200E) => ControllerType::JoyConRight,
+            (NINTENDO_VID, 0x2007 | 0x200E) => ControllerType::JoyConRight,
             (NINTENDO_VID, 0x2017) => ControllerType::Snes,
             (NINTENDO_VID, 0x2019) => ControllerType::N64,
             (NINTENDO_VID, 0x201E) => ControllerType::Genesis,
@@ -241,7 +240,7 @@ impl ImuCal {
     /// sensitivity) and the optional user block (magic, accel origin, accel sensitivity,
     /// gyro origin), whose origins win when its magic is set.
     pub fn from_spi(factory: &[u8], user: Option<&[u8]>) -> ImuCal {
-        let word = |b: &[u8], i: usize| i16::from_le_bytes([b[2 * i], b[2 * i + 1]]) as f32;
+        let word = |b: &[u8], i: usize| f32::from(i16::from_le_bytes([b[2 * i], b[2 * i + 1]]));
         if factory.len() < 24 {
             return Self::DEFAULT;
         }
@@ -271,11 +270,11 @@ impl ImuCal {
     }
 
     pub fn accel_g(&self, raw: [i16; 3]) -> [f32; 3] {
-        std::array::from_fn(|i| raw[i] as f32 * self.accel_scale[i])
+        std::array::from_fn(|i| f32::from(raw[i]) * self.accel_scale[i])
     }
 
     pub fn gyro_dps(&self, raw: [i16; 3]) -> [f32; 3] {
-        std::array::from_fn(|i| (raw[i] as f32 - self.gyro_offset[i]) * self.gyro_scale[i])
+        std::array::from_fn(|i| (f32::from(raw[i]) - self.gyro_offset[i]) * self.gyro_scale[i])
     }
 }
 
@@ -955,9 +954,9 @@ mod tests {
         io.writes()
             .iter()
             .map(|w| match w[0] {
-                0x80 => 0x8000 | w[1] as u16,
-                0x01 => w[10] as u16,
-                id => 0x1000 | id as u16,
+                0x80 => 0x8000 | u16::from(w[1]),
+                0x01 => u16::from(w[10]),
+                id => 0x1000 | u16::from(id),
             })
             .collect()
     }

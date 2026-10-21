@@ -124,8 +124,8 @@ fn dimmed(icon: &Image<'_>) -> Image<'static> {
         .0
         .iter()
         .flat_map(|&[r, g, b, a]| {
-            let grey = ((r as u32 * 30 + g as u32 * 59 + b as u32 * 11) / 100) as u8;
-            [grey, grey, grey, (a as u32 * 3 / 5) as u8]
+            let grey = ((u32::from(r) * 30 + u32::from(g) * 59 + u32::from(b) * 11) / 100) as u8;
+            [grey, grey, grey, (u32::from(a) * 3 / 5) as u8]
         })
         .collect();
     Image::new_owned(rgba, icon.width(), icon.height())

@@ -288,6 +288,7 @@ fn scan(adapters: &Adapters, problems: &Mutex<Vec<String>>) {
             .contains_key(&instance.to_ascii_uppercase())
     };
     // On the HID driver (Windows' default). Keyed by the USB device, as WinUSB ones are.
+    // SAFETY: GUID is plain data, for which all zeroes is a valid value.
     let mut guid: GUID = unsafe { std::mem::zeroed() };
     // SAFETY: valid out-pointer.
     unsafe { HidD_GetHidGuid(&mut guid) };

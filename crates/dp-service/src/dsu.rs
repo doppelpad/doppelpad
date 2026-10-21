@@ -62,7 +62,7 @@ pub struct SlotPad {
 fn crc32(data: &[u8]) -> u32 {
     let mut c = !0u32;
     for &b in data {
-        c ^= b as u32;
+        c ^= u32::from(b);
         for _ in 0..8 {
             c = if c & 1 != 0 {
                 (c >> 1) ^ 0xEDB8_8320
@@ -162,8 +162,8 @@ fn data_payload(slot: u8, pad: &SlotPad, packet_no: u32) -> [u8; 80] {
         (0x02, rt > 0.5),
         (0x01, lt > 0.5),
     ]);
-    out[18] = s.pressed(Guide) as u8;
-    out[19] = s.pressed(Touchpad) as u8;
+    out[18] = u8::from(s.pressed(Guide));
+    out[19] = u8::from(s.pressed(Touchpad));
     out[20] = stick(s.axis(Axis::LeftX));
     out[21] = stick(s.axis(Axis::LeftY));
     out[22] = stick(s.axis(Axis::RightX));
@@ -557,7 +557,7 @@ mod tests {
                 mac: None
             })
         );
-        let mut bad = one.clone();
+        let mut bad = one;
         bad[21] = 3;
         assert_eq!(parse_request(&bad), None, "CRC mismatch");
     }

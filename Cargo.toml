@@ -32,6 +32,21 @@ vigem-client = { version = "0.1.4", features = ["unstable_xtarget_notification"]
 windows-sys = "0.61"
 nusb = "0.2"
 
+# Lints on top of the defaults, for every member crate (`[lints] workspace = true`).
+[workspace.lints.rust]
+trivial_numeric_casts = "warn"
+unused_lifetimes = "warn"
+redundant_lifetimes = "warn"
+
+[workspace.lints.clippy]
+undocumented_unsafe_blocks = "warn"
+cast_lossless = "warn"
+redundant_clone = "warn"
+unused_self = "warn"
+needless_pass_by_ref_mut = "warn"
+semicolon_if_nothing_returned = "warn"
+match_same_arms = "warn"
+
 [profile.release]
 lto = "thin"
 codegen-units = 1

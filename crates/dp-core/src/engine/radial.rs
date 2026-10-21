@@ -69,7 +69,7 @@ impl RadialState {
 
     /// What to draw now, if anything.
     pub fn view(&self, menus: &[RadialMenu], now: u64) -> Option<RadialView> {
-        let delay = menus.get(self.root())?.delay_ms as u64;
+        let delay = u64::from(menus.get(self.root())?.delay_ms);
         (!self.closed && now.saturating_sub(self.since) >= delay).then_some(RadialView {
             menu: self.menu,
             pointed: self.pointed,

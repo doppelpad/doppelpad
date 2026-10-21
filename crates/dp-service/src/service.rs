@@ -1575,7 +1575,7 @@ Host: 127.0.0.1:{}
             s.handle(ServiceCmd::ApplyToSlot {
                 device: None,
                 slot: 0,
-                path: a.clone()
+                path: a
             })
             .into_result()
             .is_ok()

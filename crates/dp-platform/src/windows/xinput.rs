@@ -101,21 +101,26 @@ impl XInputBackend {
             // Ordinal 100 is the undocumented XInputGetStateEx, which also reports the Guide button.
             // SAFETY: GetProcAddress with an ordinal is the documented MAKEINTRESOURCE pattern.
             let ex = unsafe { GetProcAddress(h, 100usize as *const u8) };
+            // SAFETY: `h` is a loaded module and the name a NUL-terminated string.
             let plain = unsafe { GetProcAddress(h, c"XInputGetState".as_ptr().cast()) };
+            // SAFETY: as above.
             let set = unsafe { GetProcAddress(h, c"XInputSetState".as_ptr().cast()) };
             // SAFETY: the signatures match the XInput ABI.
             get_state = ex
                 .or(plain)
                 .map(|f| unsafe { std::mem::transmute::<_, GetStateFn>(f) });
+            // SAFETY: the signature matches the XInput ABI.
             set_state = set.map(|f| unsafe { std::mem::transmute::<_, SetStateFn>(f) });
             // Missing from xinput9_1_0.dll.
+            // SAFETY: `h` is a loaded module and the name a NUL-terminated string.
             let battery =
                 unsafe { GetProcAddress(h, c"XInputGetBatteryInformation".as_ptr().cast()) };
             // SAFETY: the signature matches the XInput ABI.
             get_battery = battery.map(|f| unsafe { std::mem::transmute::<_, GetBatteryFn>(f) });
             // Ordinal 103 turns a wireless controller off (not in xinput9_1_0.dll).
-            // SAFETY: ordinal lookup as above; the signature matches.
+            // SAFETY: ordinal lookup as above.
             let off = unsafe { GetProcAddress(h, 103usize as *const u8) };
+            // SAFETY: the signature matches the XInput ABI.
             power_off = off.map(|f| unsafe { std::mem::transmute::<_, PowerOffFn>(f) });
             if get_state.is_some() {
                 break;
@@ -201,8 +206,8 @@ fn convert(g: &XInputGamepad) -> PadState {
     s.set_axis(Axis::LeftY, axis_from_i16(g.thumb_ly));
     s.set_axis(Axis::RightX, axis_from_i16(g.thumb_rx));
     s.set_axis(Axis::RightY, axis_from_i16(g.thumb_ry));
-    s.set_axis(Axis::LeftTrigger, g.left_trigger as f32 / 255.0);
-    s.set_axis(Axis::RightTrigger, g.right_trigger as f32 / 255.0);
+    s.set_axis(Axis::LeftTrigger, f32::from(g.left_trigger) / 255.0);
+    s.set_axis(Axis::RightTrigger, f32::from(g.right_trigger) / 255.0);
     s
 }
 

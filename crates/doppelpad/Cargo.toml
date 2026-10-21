@@ -26,3 +26,6 @@ ctrlc = "3"
 [build-dependencies]
 tauri-winres = "0.3"
 
+
+[lints]
+workspace = true

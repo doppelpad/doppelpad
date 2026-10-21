@@ -51,3 +51,6 @@ windows-sys = { workspace = true, features = [
 evdev = "0.13"
 libc = "0.2"
 x11rb = "0.13"
+
+[lints]
+workspace = true

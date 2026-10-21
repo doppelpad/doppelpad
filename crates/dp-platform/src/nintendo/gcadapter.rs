@@ -50,15 +50,15 @@ const STICK_RANGE: f32 = 100.0;
 const TRIGGER_END: f32 = 232.0;
 
 fn stick(v: u8, origin: u8) -> f32 {
-    ((v as f32 - origin as f32) / STICK_RANGE).clamp(-1.0, 1.0)
+    ((f32::from(v) - f32::from(origin)) / STICK_RANGE).clamp(-1.0, 1.0)
 }
 
 fn trigger(v: u8, origin: u8, click: bool) -> f32 {
     if click {
         return 1.0;
     }
-    let zero = origin.min(200) as f32;
-    ((v as f32 - zero) / (TRIGGER_END - zero)).clamp(0.0, 1.0)
+    let zero = f32::from(origin.min(200));
+    ((f32::from(v) - zero) / (TRIGGER_END - zero)).clamp(0.0, 1.0)
 }
 
 fn port_state(b: &[u8], o: &Origin) -> PadState {
@@ -133,7 +133,7 @@ impl Adapter {
 pub fn rumble_report(on: [bool; PORTS]) -> [u8; 5] {
     let mut r = [RUMBLE, 0, 0, 0, 0];
     for (i, &m) in on.iter().enumerate() {
-        r[1 + i] = m as u8;
+        r[1 + i] = u8::from(m);
     }
     r
 }

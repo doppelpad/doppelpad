@@ -64,8 +64,8 @@ impl VirtualPadFactory for VigemFactory {
                         let sink = rumble.clone();
                         req.spawn_thread(move |_, n| {
                             *sink.lock().unwrap() = Some(Rumble {
-                                low: n.large_motor as f32 / 255.0,
-                                high: n.small_motor as f32 / 255.0,
+                                low: f32::from(n.large_motor) / 255.0,
+                                high: f32::from(n.small_motor) / 255.0,
                             });
                         });
                     }
@@ -361,8 +361,8 @@ impl Ds4Pad {
                         Ok(()) => {
                             let mut f = sink.lock().unwrap();
                             f.rumble = Some(Rumble {
-                                low: n.large_motor as f32 / 255.0,
-                                high: n.small_motor as f32 / 255.0,
+                                low: f32::from(n.large_motor) / 255.0,
+                                high: f32::from(n.small_motor) / 255.0,
                             });
                             f.lightbar = Some(Rgb {
                                 r: n.red,

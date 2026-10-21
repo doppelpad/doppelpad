@@ -717,7 +717,7 @@ impl<'a> Importer<'a> {
                 }
             }
         }
-        self.finish_radial(&mut p);
+        Self::finish_radial(&mut p);
         p
     }
 
@@ -834,8 +834,7 @@ impl<'a> Importer<'a> {
         let virt = get(devices, "virtual");
         let pads = virt.map(|v| array(v, "gamepads")).unwrap_or(&[]);
         p.output.virtual_pad = match pads.first().and_then(|g| enum_str(g, "type")).as_deref() {
-            None => VirtualPadType::Xbox360,
-            Some("360") => VirtualPadType::Xbox360,
+            None | Some("360") => VirtualPadType::Xbox360,
             Some("ds4") => VirtualPadType::DualShock4,
             Some("keyboardandmouse") => VirtualPadType::None,
             Some(other) => {
@@ -1472,7 +1471,7 @@ impl<'a> Importer<'a> {
 
     /// Menus no mapping navigates point with the right stick; without an apply command they
     /// run the pointed sector when their layer ends.
-    fn finish_radial(&self, p: &mut Profile) {
+    fn finish_radial(p: &mut Profile) {
         let uses = |want: &dyn Fn(&Command) -> bool| {
             p.mappings
                 .iter()
@@ -1681,7 +1680,7 @@ impl<'a> Importer<'a> {
                     }
                 }
                 if zoned {
-                    self.zoned.push((combo.clone(), out.trigger.clone()));
+                    self.zoned.push((combo, out.trigger.clone()));
                 } else {
                     self.diags.warn(
                         path,

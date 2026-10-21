@@ -303,6 +303,7 @@ impl Drop for HidBackend {
 
 impl Scanner {
     fn scan(&mut self) {
+        // SAFETY: GUID is plain data, for which all zeroes is a valid value.
         let mut guid: GUID = unsafe { std::mem::zeroed() };
         // SAFETY: valid out-pointer.
         unsafe { HidD_GetHidGuid(&mut guid) };
@@ -531,7 +532,7 @@ fn run_device(mut io: HidIo, base: &Base, shared: &Shared) {
                 Ok(true) => tracing::info!(path = %base.path, "controller told to turn off"),
                 Ok(false) => {}
                 Err(e) => {
-                    tracing::warn!(path = %base.path, "turning the controller off failed: {e}")
+                    tracing::warn!(path = %base.path, "turning the controller off failed: {e}");
                 }
             }
         }

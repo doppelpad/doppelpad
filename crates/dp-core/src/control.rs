@@ -216,7 +216,6 @@ impl TouchGesture {
             (Dir::Up, false) => SwipeUp,
             (Dir::Down, false) => SwipeDown,
             (Dir::Left, false) => SwipeLeft,
-            (Dir::Right, false) => SwipeRight,
             (Dir::Up, true) => Swipe2Up,
             (Dir::Down, true) => Swipe2Down,
             (Dir::Left, true) => Swipe2Left,

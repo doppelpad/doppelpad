@@ -43,7 +43,7 @@ fn key_names_fixture_is_current() {
 /// equals `1.0` from Rust, `0.1` equals the `f32` nearest to it).
 fn normalize(v: Value) -> Value {
     match v {
-        Value::Number(n) => Value::from(n.as_f64().unwrap() as f32 as f64),
+        Value::Number(n) => Value::from(f64::from(n.as_f64().unwrap() as f32)),
         Value::Array(a) => Value::Array(a.into_iter().map(normalize).collect()),
         Value::Object(o) => Value::Object(o.into_iter().map(|(k, v)| (k, normalize(v))).collect()),
         other => other,

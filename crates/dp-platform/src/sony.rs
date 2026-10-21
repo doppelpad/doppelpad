@@ -103,7 +103,7 @@ fn sticks(state: &mut PadState, r: &[u8]) {
 }
 
 fn i16le(r: &[u8], at: usize) -> f32 {
-    i16::from_le_bytes([r[at], r[at + 1]]) as f32
+    f32::from(i16::from_le_bytes([r[at], r[at + 1]]))
 }
 
 fn motion(r: &[u8], gyro_at: usize, accel_at: usize) -> Motion {
@@ -126,11 +126,11 @@ fn touch(r: &[u8], at: usize, (w, h): (f32, f32)) -> Option<TouchPoint> {
     if r[at] & 0x80 != 0 {
         return None;
     }
-    let x = r[at + 1] as u16 | ((r[at + 2] as u16 & 0x0F) << 8);
-    let y = (r[at + 2] as u16 >> 4) | ((r[at + 3] as u16) << 4);
+    let x = u16::from(r[at + 1]) | ((u16::from(r[at + 2]) & 0x0F) << 8);
+    let y = (u16::from(r[at + 2]) >> 4) | (u16::from(r[at + 3]) << 4);
     Some(TouchPoint {
-        x: (x as f32 / w).clamp(0.0, 1.0),
-        y: (y as f32 / h).clamp(0.0, 1.0),
+        x: (f32::from(x) / w).clamp(0.0, 1.0),
+        y: (f32::from(y) / h).clamp(0.0, 1.0),
     })
 }
 
@@ -148,8 +148,8 @@ pub fn parse_report(model: SonyModel, r: &[u8]) -> Option<PadState> {
             face_buttons(&mut s, r[5], r[6]);
             s.set(PadButton::Guide, r[7] & 0x01 != 0);
             s.set(PadButton::Touchpad, r[7] & 0x02 != 0);
-            s.set_axis(Axis::LeftTrigger, r[8] as f32 / 255.0);
-            s.set_axis(Axis::RightTrigger, r[9] as f32 / 255.0);
+            s.set_axis(Axis::LeftTrigger, f32::from(r[8]) / 255.0);
+            s.set_axis(Axis::RightTrigger, f32::from(r[9]) / 255.0);
         }
         (SonyModel::DualShock4, &id @ (0x01 | 0x11)) => {
             let c = if id == 0x11 { 3 } else { 1 };
@@ -160,8 +160,8 @@ pub fn parse_report(model: SonyModel, r: &[u8]) -> Option<PadState> {
             face_buttons(&mut s, r[c + 4], r[c + 5]);
             s.set(PadButton::Guide, r[c + 6] & 0x01 != 0);
             s.set(PadButton::Touchpad, r[c + 6] & 0x02 != 0);
-            s.set_axis(Axis::LeftTrigger, r[c + 7] as f32 / 255.0);
-            s.set_axis(Axis::RightTrigger, r[c + 8] as f32 / 255.0);
+            s.set_axis(Axis::LeftTrigger, f32::from(r[c + 7]) / 255.0);
+            s.set_axis(Axis::RightTrigger, f32::from(r[c + 8]) / 255.0);
             s.motion = Some(motion(r, c + 12, c + 18));
             let ext = model.touch_extent();
             s.touch = [touch(r, c + 34, ext), touch(r, c + 38, ext)];
@@ -172,8 +172,8 @@ pub fn parse_report(model: SonyModel, r: &[u8]) -> Option<PadState> {
                 return None;
             }
             sticks(&mut s, &r[c..c + 4]);
-            s.set_axis(Axis::LeftTrigger, r[c + 4] as f32 / 255.0);
-            s.set_axis(Axis::RightTrigger, r[c + 5] as f32 / 255.0);
+            s.set_axis(Axis::LeftTrigger, f32::from(r[c + 4]) / 255.0);
+            s.set_axis(Axis::RightTrigger, f32::from(r[c + 5]) / 255.0);
             face_buttons(&mut s, r[c + 7], r[c + 8]);
             let b2 = r[c + 9];
             s.set(PadButton::Guide, b2 & 0x01 != 0);
@@ -239,7 +239,7 @@ fn zones_from(start: u8) -> u16 {
 
 /// `value` (1–8) as three bits in every zone of `zones`.
 fn per_zone(zones: u16, value: u8) -> u32 {
-    let v = (value.clamp(1, 8) - 1) as u32;
+    let v = u32::from(value.clamp(1, 8) - 1);
     (0..10)
         .filter(|i| zones & (1 << i) != 0)
         .fold(0, |acc, i| acc | v << (3 * i))
@@ -288,7 +288,7 @@ pub fn effect_bytes(e: TriggerEffect) -> [u8; 11] {
 fn crc32(data: impl IntoIterator<Item = u8>) -> u32 {
     let mut c = !0u32;
     for b in data {
-        c ^= b as u32;
+        c ^= u32::from(b);
         for _ in 0..8 {
             c = if c & 1 != 0 {
                 (c >> 1) ^ 0xEDB8_8320
@@ -328,7 +328,7 @@ fn dualsense_common(c: &mut [u8], o: &SonyOutput) {
     c[3] = (o.rumble.low.clamp(0.0, 1.0) * 255.0) as u8;
     if let Some(on) = o.leds.mic {
         c[1] |= 0x01; // microphone LED control
-        c[8] = on as u8;
+        c[8] = u8::from(on);
     }
     if o.setup {
         c[38] |= 0x02; // light bar setup control
@@ -461,7 +461,7 @@ impl Ds4Calibration {
         if r.len() < 35 || r[0] != 0x02 {
             return None;
         }
-        let v = |at: usize| i16::from_le_bytes([r[at], r[at + 1]]) as f32;
+        let v = |at: usize| f32::from(i16::from_le_bytes([r[at], r[at + 1]]));
         let speed = v(19) + v(21);
         let mut c = Ds4Calibration::default();
         for i in 0..3 {
@@ -487,7 +487,7 @@ impl Ds4Calibration {
     fn encode(value: f32, scale: f32, bias: f32) -> [u8; 2] {
         let raw = (value * scale + bias)
             .round()
-            .clamp(i16::MIN as f32, i16::MAX as f32);
+            .clamp(f32::from(i16::MIN), f32::from(i16::MAX));
         (raw as i16).to_le_bytes()
     }
 }
@@ -924,8 +924,8 @@ mod tests {
         s.touch[0] = Some(TouchPoint { x: 1.0, y: 1.0 });
         let r = b.build(&s, 4000);
         assert_eq!(r[34], 0, "first contact gets id 0");
-        let x = r[35] as u16 | ((r[36] as u16 & 0x0F) << 8);
-        let y = (r[36] as u16 >> 4) | ((r[37] as u16) << 4);
+        let x = u16::from(r[35]) | ((u16::from(r[36]) & 0x0F) << 8);
+        let y = (u16::from(r[36]) >> 4) | (u16::from(r[37]) << 4);
         assert_eq!((x, y), (1919, 942));
         let counter = r[33];
         s.touch[0] = None;
@@ -961,7 +961,7 @@ mod tests {
             ..Default::default()
         };
         let r = b.build(&s, 0);
-        let raw = |at: usize| i16::from_le_bytes([r[at], r[at + 1]]) as f32;
+        let raw = |at: usize| f32::from(i16::from_le_bytes([r[at], r[at + 1]]));
         // What a reader that applies this calibration gets back.
         let pitch = (raw(12) - 1.0) * 1080.0 / 17676.0;
         let z = (raw(22) - c.accel_bias[2]) / c.accel_scale[2];

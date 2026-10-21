@@ -48,7 +48,7 @@ impl KeyRepeater {
             KeyRepeat::Native => Some(self.native_interval()),
             KeyRepeat::Fast => Some(FAST_MS),
             KeyRepeat::Slow => Some(SLOW_MS),
-            KeyRepeat::Every(ms) => Some(ms.max(1) as u64),
+            KeyRepeat::Every(ms) => Some(u64::from(ms.max(1))),
             KeyRepeat::Off => None,
         }
     }

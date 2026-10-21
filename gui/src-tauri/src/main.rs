@@ -64,7 +64,7 @@ fn create_main_window(app: &tauri::App, visible: bool) -> tauri::Result<WebviewW
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            tray::show_main(app)
+            tray::show_main(app);
         }))
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {

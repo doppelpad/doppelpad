@@ -157,7 +157,7 @@ fn get_active(h: &OwnedHandle) -> Result<bool> {
 }
 
 fn set_active(h: &OwnedHandle, active: bool) -> Result<()> {
-    ioctl(h, IOCTL_SET_ACTIVE, &[active as u8], &mut []).map(drop)
+    ioctl(h, IOCTL_SET_ACTIVE, &[u8::from(active)], &mut []).map(drop)
 }
 
 /// In inverse mode the application list names the programs that may *not* see hidden
@@ -295,7 +295,7 @@ impl Journal {
     fn encode(&self) -> String {
         let mut s = format!("pid={}\nstarted={}\n", self.pid, self.started);
         if let Some(active) = self.previous_active {
-            let _ = writeln!(s, "active={}", active as u8);
+            let _ = writeln!(s, "active={}", u8::from(active));
         }
         if let Some(app) = &self.app {
             let _ = writeln!(s, "app={app}");
@@ -409,7 +409,7 @@ impl HidHide {
         }
     }
 
-    fn remove_journal(&self) {
+    fn remove_journal() {
         if let Some(dir) = journal_dir() {
             let _ = std::fs::remove_file(dir.join(format!("{}.txt", std::process::id())));
         }
@@ -474,7 +474,7 @@ impl DeviceHider for HidHide {
         self.added_devices.clear();
         self.added_app = None;
         self.previous_active = None;
-        self.remove_journal();
+        Self::remove_journal();
         tracing::info!("HidHide state restored");
         Ok(())
     }

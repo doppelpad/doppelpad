@@ -423,7 +423,7 @@ fn feedback(s: &mut Session, platform: &mut Platform, mapping_rumble: Option<Rum
     let Some(id) = s.device.clone() else { return };
     let vibration = &s.engine.profile().vibration;
     let game = vibration.apply(s.game_rumble);
-    let gap = vibration.min_delay_ms.clamp(10, 200) as u64;
+    let gap = u64::from(vibration.min_delay_ms.clamp(10, 200));
     let rumble = (id.clone(), mapping_rumble.unwrap_or(game));
     // At most one command per gap; a change held back goes out with a later tick.
     if s.sent_rumble.as_ref() != Some(&rumble) && s.rumble_at.is_none_or(|t| now >= t + gap) {
@@ -1237,7 +1237,7 @@ impl Runtime {
             | Command::GyroOff
             | Command::ResetTilt
             | Command::SwitchGyroAxis => {
-                tracing::info!(command = ?c, "gyro switched")
+                tracing::info!(command = ?c, "gyro switched");
             }
             Command::Shutdown
             | Command::Restart
@@ -1293,7 +1293,7 @@ impl Runtime {
                 }
             }
             Command::Unsupported(name) => {
-                tracing::debug!(session = i, "ignoring unsupported command {name}")
+                tracing::debug!(session = i, "ignoring unsupported command {name}");
             }
         }
         true
@@ -2047,7 +2047,7 @@ mod tests {
             let w = world.lock().unwrap();
             let id = DeviceId("pad1".into());
             assert_eq!(w.rumble.last(), Some(&(id.clone(), buzz)));
-            assert_eq!(w.lightbar.last(), Some(&(id.clone(), Some(red))));
+            assert_eq!(w.lightbar.last(), Some(&(id, Some(red))));
             assert_eq!(
                 w.lightbar.iter().filter(|(_, c)| *c == Some(red)).count(),
                 1,

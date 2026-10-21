@@ -121,13 +121,13 @@ impl Default for Calibration {
 }
 
 fn i16le(r: &[u8], at: usize) -> f32 {
-    i16::from_le_bytes([r[at], r[at + 1]]) as f32
+    f32::from(i16::from_le_bytes([r[at], r[at + 1]]))
 }
 
 /// GameCube triggers end at about 232.
 fn gc_trigger(v: u8, zero: u8) -> f32 {
-    let zero = zero.min(200) as f32;
-    ((v as f32 - zero) / (232.0 - zero)).clamp(0.0, 1.0)
+    let zero = f32::from(zero.min(200));
+    ((f32::from(v) - zero) / (232.0 - zero)).clamp(0.0, 1.0)
 }
 
 fn apply_gamecube(s: &mut PadState, r: &[u8], cal: &Calibration) {
@@ -203,10 +203,10 @@ pub fn parse_report(
 /// One HD rumble sample: four packed 10-bit little-endian fields (high frequency, high
 /// amplitude, low frequency, low amplitude); amplitudes are 16-bit values shifted by 6.
 pub fn hd_sample(high_freq: u16, high_amp: u16, low_freq: u16, low_amp: u16) -> [u8; 5] {
-    let bits = (high_freq as u64 & 0x3FF)
-        | ((high_amp as u64 >> 6) & 0x3FF) << 10
-        | (low_freq as u64 & 0x3FF) << 20
-        | ((low_amp as u64 >> 6) & 0x3FF) << 30;
+    let bits = (u64::from(high_freq) & 0x3FF)
+        | ((u64::from(high_amp) >> 6) & 0x3FF) << 10
+        | (u64::from(low_freq) & 0x3FF) << 20
+        | ((u64::from(low_amp) >> 6) & 0x3FF) << 30;
     let b = bits.to_le_bytes();
     [b[0], b[1], b[2], b[3], b[4]]
 }
@@ -272,7 +272,7 @@ impl ImuClock {
         if host < Self::MEASURE {
             return;
         }
-        let ratio = ts.wrapping_sub(ts0) as f64 / host.as_micros() as f64;
+        let ratio = f64::from(ts.wrapping_sub(ts0)) / host.as_micros() as f64;
         let full_scale_rad = if (0.9..=1.1).contains(&ratio) {
             34.8
         } else {
@@ -346,7 +346,7 @@ impl Switch2Driver {
                 self.notice_cleared = true;
             }
             Err(e) => {
-                tracing::warn!("Switch 2 controller: cannot use its USB command interface: {e}")
+                tracing::warn!("Switch 2 controller: cannot use its USB command interface: {e}");
             }
         }
     }
@@ -449,7 +449,7 @@ impl Switch2Driver {
     }
 
     /// Wait for input that another program's initialisation already started.
-    fn wait_for_input(&mut self, io: &mut dyn ReportIo) -> io::Result<bool> {
+    fn wait_for_input(io: &mut dyn ReportIo) -> io::Result<bool> {
         let deadline = io.now() + FOREIGN_INIT_WAIT;
         let mut buf = [0u8; 64];
         loop {
@@ -472,7 +472,7 @@ impl PadDriver for Switch2Driver {
         let result = match &mut bulk {
             Ok(b) => self.start(b.as_mut()).map(|()| self.identity(None)),
             Err(reason) => {
-                if self.wait_for_input(io)? {
+                if Self::wait_for_input(io)? {
                     let until = if self.late.is_some() {
                         " until that interface is free"
                     } else {
@@ -784,7 +784,7 @@ mod tests {
         for i in 0..200u32 {
             let ts = 1_000_000 + i * 4000; // microseconds, 4 ms apart
             r[0x2B..0x2F].copy_from_slice(&ts.to_le_bytes());
-            last = d.parse(&r, t0 + Duration::from_micros(4000 * i as u64));
+            last = d.parse(&r, t0 + Duration::from_micros(4000 * u64::from(i)));
         }
         let m = last
             .unwrap()
@@ -802,7 +802,7 @@ mod tests {
         for i in 0..200u32 {
             let ts = i * 1000; // not microseconds
             r[0x2B..0x2F].copy_from_slice(&(ts + 1).to_le_bytes());
-            last = d.parse(&r, t0 + Duration::from_micros(4000 * i as u64));
+            last = d.parse(&r, t0 + Duration::from_micros(4000 * u64::from(i)));
         }
         let m = last.unwrap().motion.unwrap();
         let expected = 1000.0 * 40.0f32.to_degrees() / 32767.0;
@@ -828,7 +828,7 @@ mod tests {
         assert_eq!(r[0], 0x02);
         assert_eq!(r[1], 0x53);
         assert_eq!(r[0x11..0x17], r[1..7], "second motor mirrors the first");
-        let la = ((r[5] as u16 >> 6) | (r[6] as u16) << 2) as u32;
+        let la = u32::from((u16::from(r[5]) >> 6) | u16::from(r[6]) << 2);
         assert_eq!(la, 29000 >> 6);
         let jc = rumble_report(Switch2Model::JoyConLeft, 0, Rumble::default());
         assert_eq!(jc[0], 0x01);

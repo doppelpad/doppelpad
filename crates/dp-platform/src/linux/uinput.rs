@@ -302,11 +302,11 @@ impl UinputKbm {
 
 impl KbmOutput for UinputKbm {
     fn key(&mut self, key: Key, down: bool) {
-        self.emit(&[(EV_KEY, key.evdev(), down as i32)]);
+        self.emit(&[(EV_KEY, key.evdev(), i32::from(down))]);
     }
 
     fn mouse_button(&mut self, button: MouseButton, down: bool) {
-        self.emit(&[(EV_KEY, mouse_button_code(button), down as i32)]);
+        self.emit(&[(EV_KEY, mouse_button_code(button), i32::from(down))]);
     }
 
     fn mouse_move(&mut self, dx: f32, dy: f32) {

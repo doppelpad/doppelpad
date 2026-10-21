@@ -114,8 +114,8 @@ pub fn player_mask(n: u8) -> u8 {
 }
 
 pub fn unpack12(b: &[u8]) -> (u16, u16) {
-    let x = b[0] as u16 | ((b[1] as u16 & 0x0F) << 8);
-    let y = (b[1] as u16 >> 4) | ((b[2] as u16) << 4);
+    let x = u16::from(b[0]) | ((u16::from(b[1]) & 0x0F) << 8);
+    let y = (u16::from(b[1]) >> 4) | (u16::from(b[2]) << 4);
     (x, y)
 }
 
@@ -129,7 +129,7 @@ pub struct AxisCal {
 
 impl AxisCal {
     fn normalize(&mut self, raw: u16, grow: bool) -> f32 {
-        let d = raw as f32 - self.center;
+        let d = f32::from(raw) - self.center;
         let extent = if d >= 0.0 {
             &mut self.above
         } else {
@@ -178,8 +178,8 @@ impl StickCal {
     /// grow with use. Unset fields fall back to centre 2048 and range 0.7 × centre.
     pub fn switch1(center: (u16, u16), above: (u16, u16), below: (u16, u16)) -> StickCal {
         let axis = |c: u16, a: u16, b: u16| {
-            let c = if c == UNSET { 2048.0 } else { c as f32 };
-            let range = |v: u16| if v == UNSET { c * 0.7 } else { v as f32 };
+            let c = if c == UNSET { 2048.0 } else { f32::from(c) };
+            let range = |v: u16| if v == UNSET { c * 0.7 } else { f32::from(v) };
             AxisCal {
                 center: c,
                 above: range(a) * 0.7,
@@ -200,9 +200,9 @@ impl StickCal {
                 default
             } else {
                 AxisCal {
-                    center: c as f32,
-                    above: a as f32,
-                    below: b as f32,
+                    center: f32::from(c),
+                    above: f32::from(a),
+                    below: f32::from(b),
                 }
             }
         };

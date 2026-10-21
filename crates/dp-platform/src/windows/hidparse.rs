@@ -34,15 +34,15 @@ impl Value {
     /// `-1..=1` for axes; 0–7 or `None` for hats.
     fn read(&self, raw: u32) -> (f32, Option<u8>) {
         let (min, max) = if self.max > self.min {
-            (self.min as i64, self.max as i64)
+            (i64::from(self.min), i64::from(self.max))
         } else {
             // A full-width unsigned range that the parser read as signed (max = -1).
             (0, (1i64 << self.bits.min(32)) - 1)
         };
         let v = if min < 0 && self.bits > 0 && self.bits < 32 && raw & (1 << (self.bits - 1)) != 0 {
-            raw as i64 - (1i64 << self.bits)
+            i64::from(raw) - (1i64 << self.bits)
         } else {
-            raw as i64
+            i64::from(raw)
         };
         if self.hat {
             let steps = max - min + 1;
@@ -103,6 +103,7 @@ impl HidDecoder {
         };
         // SAFETY: zeroed plain struct filled by the parser.
         let mut caps: HIDP_CAPS = unsafe { std::mem::zeroed() };
+        // SAFETY: `pp` is valid until the decoder drops, `caps` a valid out-pointer.
         if unsafe { HidP_GetCaps(pp, &mut caps) } != HIDP_STATUS_SUCCESS {
             return None;
         }
@@ -110,8 +111,8 @@ impl HidDecoder {
 
         let mut n = caps.NumberInputButtonCaps;
         let mut bcaps = vec![HIDP_BUTTON_CAPS::default(); n as usize];
-        // SAFETY: the buffer holds `n` entries.
         if n > 0
+            // SAFETY: the buffer holds `n` entries.
             && unsafe { HidP_GetButtonCaps(HidP_Input, bcaps.as_mut_ptr(), &mut n, pp) }
                 == HIDP_STATUS_SUCCESS
         {
@@ -140,8 +141,8 @@ impl HidDecoder {
 
         let mut n = caps.NumberInputValueCaps;
         let mut vcaps = vec![HIDP_VALUE_CAPS::default(); n as usize];
-        // SAFETY: the buffer holds `n` entries.
         if n > 0
+            // SAFETY: the buffer holds `n` entries.
             && unsafe { HidP_GetValueCaps(HidP_Input, vcaps.as_mut_ptr(), &mut n, pp) }
                 == HIDP_STATUS_SUCCESS
         {

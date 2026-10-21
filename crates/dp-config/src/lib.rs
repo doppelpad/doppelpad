@@ -171,7 +171,7 @@ pub fn validate(p: &Profile) -> Diagnostics {
         for a in &m.actions {
             match a {
                 Action::Pause { pause } if *pause > 60_000 => {
-                    d.warn(&path, "pause longer than a minute")
+                    d.warn(&path, "pause longer than a minute");
                 }
                 Action::Command {
                     command: Command::Unsupported(name),
@@ -180,26 +180,26 @@ pub fn validate(p: &Profile) -> Diagnostics {
                     format!("command `{name}` is not supported and does nothing"),
                 ),
                 Action::Stick { x, y, .. } if x.abs() > 1.0 || y.abs() > 1.0 => {
-                    d.warn(&path, "stick deflection outside [-1, 1] is clamped")
+                    d.warn(&path, "stick deflection outside [-1, 1] is clamped");
                 }
                 Action::Turn { turn } if !turn.is_finite() || turn.abs() > 3600.0 => {
-                    d.error(&path, "a turn must be within ±3600 degrees")
+                    d.error(&path, "a turn must be within ±3600 degrees");
                 }
                 Action::Touch { ms: Some(ms), .. } if !(10..=10_000).contains(ms) => {
-                    d.error(&path, "a touch gesture takes 10–10000 ms")
+                    d.error(&path, "a touch gesture takes 10–10000 ms");
                 }
                 Action::MouseTo { mouse_to }
                     if mouse_to.iter().any(|v| !(0.0..=1.0).contains(v)) =>
                 {
-                    d.error(&path, "mouse_to coordinates must be in [0, 1]")
+                    d.error(&path, "mouse_to coordinates must be in [0, 1]");
                 }
                 Action::MouseClip { mouse_clip }
                     if mouse_clip.iter().any(|v| !(0.0..=1.0).contains(v)) =>
                 {
-                    d.error(&path, "mouse_clip coordinates must be in [0, 1]")
+                    d.error(&path, "mouse_clip coordinates must be in [0, 1]");
                 }
                 Action::MouseMove { acceleration, .. } if !(0.0..=100.0).contains(acceleration) => {
-                    d.error(&path, "mouse acceleration must be 0–100")
+                    d.error(&path, "mouse acceleration must be 0–100");
                 }
                 Action::Command {
                     command: Command::Crosshair(n),

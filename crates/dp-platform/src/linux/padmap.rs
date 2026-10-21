@@ -36,7 +36,7 @@ impl AbsRange {
     /// The center is the upper middle value (0 for `-32768..=32767`, 128 for `0..=255`), so
     /// a resting stick maps to exactly 0 and both ends to exactly ±1.
     pub fn centered(&self, v: i32) -> f32 {
-        let (min, max, v) = (self.min as i64, self.max as i64, v as i64);
+        let (min, max, v) = (i64::from(self.min), i64::from(self.max), i64::from(v));
         let center = (min + max + 1).div_euclid(2);
         let span = if v >= center {
             max - center
@@ -485,12 +485,12 @@ pub const X360_EVENTS: usize = X360_KEYS.len() + X360_AXES.len();
 /// The `(type, code, value)` of every key and axis a real Xbox 360 pad would report in `s`.
 pub fn x360_events(s: &PadState) -> [(u16, u16, i32); X360_EVENTS] {
     let trigger = |a| (s.axis(a).clamp(0.0, 1.0) * 255.0).round() as i32;
-    let dpad = |neg, pos| s.pressed(pos) as i32 - s.pressed(neg) as i32;
+    let dpad = |neg, pos| i32::from(s.pressed(pos)) - i32::from(s.pressed(neg));
     let values = [
-        axis_to_i16(s.axis(Axis::LeftX)) as i32,
-        axis_to_i16(-s.axis(Axis::LeftY)) as i32, // evdev: up is negative
-        axis_to_i16(s.axis(Axis::RightX)) as i32,
-        axis_to_i16(-s.axis(Axis::RightY)) as i32,
+        i32::from(axis_to_i16(s.axis(Axis::LeftX))),
+        i32::from(axis_to_i16(-s.axis(Axis::LeftY))), // evdev: up is negative
+        i32::from(axis_to_i16(s.axis(Axis::RightX))),
+        i32::from(axis_to_i16(-s.axis(Axis::RightY))),
         trigger(Axis::LeftTrigger),
         trigger(Axis::RightTrigger),
         dpad(PadButton::DpadLeft, PadButton::DpadRight),
@@ -498,7 +498,7 @@ pub fn x360_events(s: &PadState) -> [(u16, u16, i32); X360_EVENTS] {
     ];
     let mut out = [(0, 0, 0); X360_EVENTS];
     for (o, &(b, code)) in out.iter_mut().zip(&X360_KEYS) {
-        *o = (EV_KEY, code, s.pressed(b) as i32);
+        *o = (EV_KEY, code, i32::from(s.pressed(b)));
     }
     for (o, (&(code, ..), v)) in out[X360_KEYS.len()..]
         .iter_mut()
@@ -582,16 +582,16 @@ impl FfMixer {
             let Some((start, count)) = e.playing else {
                 continue;
             };
-            let Some(t) = now_ms.checked_sub(start + e.delay_ms as u64) else {
+            let Some(t) = now_ms.checked_sub(start + u64::from(e.delay_ms)) else {
                 continue;
             };
-            if e.length_ms != 0 && t >= e.length_ms as u64 * count as u64 {
+            if e.length_ms != 0 && t >= u64::from(e.length_ms) * count as u64 {
                 continue;
             }
-            strong += e.strong as u32;
-            weak += e.weak as u32;
+            strong += u32::from(e.strong);
+            weak += u32::from(e.weak);
         }
-        let gain = self.gain as f32 / 65535.0;
+        let gain = f32::from(self.gain) / 65535.0;
         Rumble {
             low: strong.min(65535) as f32 / 65535.0 * gain,
             high: weak.min(65535) as f32 / 65535.0 * gain,
