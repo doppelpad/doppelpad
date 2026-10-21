@@ -600,9 +600,9 @@ pub fn compile(p: &Profile) -> Compiled {
         for (&mask, bids) in &table.bindings {
             let mut rec = RecConfig {
                 single: false,
-                t_long: p.timing.long_press_ms as u64,
-                t_double: p.timing.double_tap_ms as u64,
-                t_triple: p.timing.triple_tap_ms as u64,
+                t_long: u64::from(p.timing.long_press_ms),
+                t_double: u64::from(p.timing.double_tap_ms),
+                t_triple: u64::from(p.timing.triple_tap_ms),
                 t_pulse: PULSE_KEY_MS,
                 ..Default::default()
             };
@@ -621,13 +621,13 @@ pub fn compile(p: &Profile) -> Compiled {
                 }
                 let (m, _) = &mappings_expanded[bid];
                 if let Some(t) = m.long_press_ms {
-                    rec.t_long = t as u64;
+                    rec.t_long = u64::from(t);
                 }
                 if let Some(t) = m.double_tap_ms {
-                    rec.t_double = t as u64;
+                    rec.t_double = u64::from(t);
                 }
                 if let Some(t) = m.triple_tap_ms {
-                    rec.t_triple = t as u64;
+                    rec.t_triple = u64::from(t);
                 }
             }
             if rec.t_triple <= rec.t_double {

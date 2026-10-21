@@ -23,8 +23,8 @@ fn centre(app: &AppHandle, c: &Crosshair) -> Option<((i32, i32), f64, u32)> {
     let m = monitors.first()?;
     let sf = m.scale_factor();
     let (pos, size) = (m.position(), m.size());
-    let x = pos.x + size.width as i32 / 2 + (c.offset[0] as f64 * sf).round() as i32;
-    let y = pos.y + size.height as i32 / 2 + (c.offset[1] as f64 * sf).round() as i32;
+    let x = pos.x + size.width as i32 / 2 + (f64::from(c.offset[0]) * sf).round() as i32;
+    let y = pos.y + size.height as i32 / 2 + (f64::from(c.offset[1]) * sf).round() as i32;
     Some(((x, y), sf, size.height))
 }
 
@@ -43,8 +43,8 @@ fn show(app: &AppHandle, c: &Crosshair, magnifier: &mut Magnifier) {
         match overlay::window(app, KIND) {
             Ok((w, created)) => {
                 // As the page draws it: the shape plus outline and line width on each side.
-                let line = (c.size as f64 / 5.0 * c.thickness as f64 / 100.0).max(1.0);
-                let logical = c.size as f64 + 2.0 * (c.outline as f64 + line + PAD);
+                let line = (f64::from(c.size) / 5.0 * f64::from(c.thickness) / 100.0).max(1.0);
+                let logical = f64::from(c.size) + 2.0 * (f64::from(c.outline) + line + PAD);
                 let side = (logical * sf).round() as i32;
                 let _ = w.set_size(PhysicalSize::new(side as u32, side as u32));
                 let _ = w.set_position(PhysicalPosition::new(x - side / 2, y - side / 2));
@@ -62,7 +62,7 @@ fn show(app: &AppHandle, c: &Crosshair, magnifier: &mut Magnifier) {
             let hwnd = window.and_then(|w| w.hwnd().ok()).map(|h| h.0 as isize);
             let view = dp_platform::windows::MagnifierView {
                 centre: (x, y),
-                size: (m.size as f64 * height as f64).round() as i32,
+                size: (f64::from(m.size) * f64::from(height)).round() as i32,
                 zoom: m.zoom,
                 exclude: hwnd.into_iter().collect(),
                 below: hwnd,

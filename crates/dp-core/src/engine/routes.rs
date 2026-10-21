@@ -256,7 +256,7 @@ pub fn run(r: &AnalogMapping, st: &mut RouteState, input: &RouteInput) -> RouteO
             }
             if dx != 0.0 || dy != 0.0 {
                 st.last_motion = input.now;
-            } else if input.now.saturating_sub(st.last_motion) >= r.decay_ms as u64 {
+            } else if input.now.saturating_sub(st.last_motion) >= u64::from(r.decay_ms) {
                 st.ema = (0.0, 0.0);
                 return to_stick(r, (0.0, 0.0));
             }

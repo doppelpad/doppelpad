@@ -206,8 +206,8 @@ fn convert(g: &XInputGamepad) -> PadState {
     s.set_axis(Axis::LeftY, axis_from_i16(g.thumb_ly));
     s.set_axis(Axis::RightX, axis_from_i16(g.thumb_rx));
     s.set_axis(Axis::RightY, axis_from_i16(g.thumb_ry));
-    s.set_axis(Axis::LeftTrigger, g.left_trigger as f32 / 255.0);
-    s.set_axis(Axis::RightTrigger, g.right_trigger as f32 / 255.0);
+    s.set_axis(Axis::LeftTrigger, f32::from(g.left_trigger) / 255.0);
+    s.set_axis(Axis::RightTrigger, f32::from(g.right_trigger) / 255.0);
     s
 }
 

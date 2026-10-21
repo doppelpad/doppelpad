@@ -423,7 +423,7 @@ fn feedback(s: &mut Session, platform: &mut Platform, mapping_rumble: Option<Rum
     let Some(id) = s.device.clone() else { return };
     let vibration = &s.engine.profile().vibration;
     let game = vibration.apply(s.game_rumble);
-    let gap = vibration.min_delay_ms.clamp(10, 200) as u64;
+    let gap = u64::from(vibration.min_delay_ms.clamp(10, 200));
     let rumble = (id.clone(), mapping_rumble.unwrap_or(game));
     // At most one command per gap; a change held back goes out with a later tick.
     if s.sent_rumble.as_ref() != Some(&rumble) && s.rumble_at.is_none_or(|t| now >= t + gap) {

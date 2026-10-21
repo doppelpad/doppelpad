@@ -145,7 +145,7 @@ unsafe extern "system" fn mouse_proc(code: i32, wparam: WPARAM, lparam: LPARAM) 
                     down: w == WM_XBUTTONDOWN,
                 }),
                 WM_MOUSEWHEEL => {
-                    let d = hi as i16 as f32 / 120.0;
+                    let d = f32::from(hi as i16) / 120.0;
                     Some(KbmEvent::Wheel {
                         dir: if d >= 0.0 {
                             WheelDir::Up
@@ -156,7 +156,7 @@ unsafe extern "system" fn mouse_proc(code: i32, wparam: WPARAM, lparam: LPARAM) 
                     })
                 }
                 WM_MOUSEHWHEEL => {
-                    let d = hi as i16 as f32 / 120.0;
+                    let d = f32::from(hi as i16) / 120.0;
                     Some(KbmEvent::Wheel {
                         dir: if d >= 0.0 {
                             WheelDir::Right

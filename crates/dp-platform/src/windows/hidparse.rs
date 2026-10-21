@@ -34,15 +34,15 @@ impl Value {
     /// `-1..=1` for axes; 0–7 or `None` for hats.
     fn read(&self, raw: u32) -> (f32, Option<u8>) {
         let (min, max) = if self.max > self.min {
-            (self.min as i64, self.max as i64)
+            (i64::from(self.min), i64::from(self.max))
         } else {
             // A full-width unsigned range that the parser read as signed (max = -1).
             (0, (1i64 << self.bits.min(32)) - 1)
         };
         let v = if min < 0 && self.bits > 0 && self.bits < 32 && raw & (1 << (self.bits - 1)) != 0 {
-            raw as i64 - (1i64 << self.bits)
+            i64::from(raw) - (1i64 << self.bits)
         } else {
-            raw as i64
+            i64::from(raw)
         };
         if self.hat {
             let steps = max - min + 1;

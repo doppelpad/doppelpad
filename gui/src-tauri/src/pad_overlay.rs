@@ -105,7 +105,7 @@ fn update_pad(app: &AppHandle, pad: &mut Pad, on: bool, device: Option<LiveDevic
     let idle = s.hide_after > 0
         && pad
             .last_input
-            .is_some_and(|t| now - t >= Duration::from_secs(s.hide_after as u64));
+            .is_some_and(|t| now - t >= Duration::from_secs(u64::from(s.hide_after)));
     if idle {
         if pad.shown.take().is_some() {
             overlay::dismiss(app, PAD);
@@ -113,7 +113,7 @@ fn update_pad(app: &AppHandle, pad: &mut Pad, on: bool, device: Option<LiveDevic
         return;
     }
     if pad.shown.as_ref() != Some(&d) {
-        let k = s.size.clamp(30, 150) as f64 / 100.0;
+        let k = f64::from(s.size.clamp(30, 150)) / 100.0;
         let content = PadContent {
             device: d.clone(),
             opacity: s.opacity.clamp(20, 100),

@@ -208,7 +208,7 @@ pub fn notify(app: &AppHandle, event: Event, keep: bool) {
             return;
         }
     };
-    let k = s.scale as f64 / 100.0;
+    let k = f64::from(s.scale) / 100.0;
     if let Err(e) = overlay::place(app, &w, s.monitor, s.corner, (SIZE.0 * k, SIZE.1 * k)) {
         tracing::warn!("cannot place the notification overlay: {e}");
     }
@@ -223,7 +223,7 @@ pub fn notify(app: &AppHandle, event: Event, keep: bool) {
         scale: s.scale,
         corner: s.corner,
     };
-    inner.until = (!keep).then(|| Instant::now() + Duration::from_secs(s.seconds as u64));
+    inner.until = (!keep).then(|| Instant::now() + Duration::from_secs(u64::from(s.seconds)));
     drop(inner);
     overlay::present(app, &w, created, KIND, &msg);
 }

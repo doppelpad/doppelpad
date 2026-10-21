@@ -73,7 +73,7 @@ const EVIOCGRAB: libc::Ioctl = libc::_IOW::<libc::c_int>(b'E' as u32, 0x90);
 /// has been unplugged in the meantime.
 pub fn set_grab(fd: RawFd, grab: bool) -> io::Result<()> {
     // SAFETY: EVIOCGRAB takes its int argument by value.
-    if unsafe { libc::ioctl(fd, EVIOCGRAB, grab as libc::c_int) } < 0 {
+    if unsafe { libc::ioctl(fd, EVIOCGRAB, libc::c_int::from(grab)) } < 0 {
         Err(io::Error::last_os_error())
     } else {
         Ok(())

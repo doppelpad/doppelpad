@@ -20,7 +20,7 @@ pub fn parse_hex(s: &str) -> Option<Rgb> {
 }
 
 fn scale(c: Rgb, k: f32) -> Rgb {
-    let f = |v: u8| (v as f32 * k.clamp(0.0, 1.0)).round() as u8;
+    let f = |v: u8| (f32::from(v) * k.clamp(0.0, 1.0)).round() as u8;
     Rgb {
         r: f(c.r),
         g: f(c.g),
@@ -61,7 +61,7 @@ fn pulse(phase: f32, at: f32, width: f32) -> f32 {
 /// The colour `light` shows `t_ms` after it started; `None` when it shows nothing of its own.
 pub fn color_at(light: &Light, t_ms: u64) -> Option<Rgb> {
     let colors: Vec<Rgb> = light.colors.iter().filter_map(|c| parse_hex(c)).collect();
-    let period = light.period_ms.max(100) as u64;
+    let period = u64::from(light.period_ms.max(100));
     let cycle = (t_ms / period) as usize;
     let phase = (t_ms % period) as f32 / period as f32;
     let base = match colors.len() {

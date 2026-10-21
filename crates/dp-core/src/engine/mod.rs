@@ -267,13 +267,13 @@ fn step(act: &mut Activation, program: &[Step], outs: &mut Outputs, until: u64) 
                         break;
                     }
                     let extra = if random_ms > 0 {
-                        outs.rng.upto(random_ms as u64)
+                        outs.rng.upto(u64::from(random_ms))
                     } else {
                         0
                     };
                     let next = match period_ms {
-                        Some(p) => (act.run_start + p as u64 + extra).max(t),
-                        None => t + gap_ms as u64 + extra,
+                        Some(p) => (act.run_start + u64::from(p) + extra).max(t),
+                        None => t + u64::from(gap_ms) + extra,
                     };
                     act.run_start = next;
                     act.pc = 0;
@@ -298,7 +298,7 @@ fn step(act: &mut Activation, program: &[Step], outs: &mut Outputs, until: u64) 
             }
             Step::Wait(ms) => {
                 act.pc += 1;
-                act.wait_until = t + *ms as u64;
+                act.wait_until = t + u64::from(*ms);
                 continue;
             }
             Step::HoldPoint => {
@@ -315,7 +315,7 @@ fn step(act: &mut Activation, program: &[Step], outs: &mut Outputs, until: u64) 
                         low: *low,
                         high: *high,
                     },
-                    t + *ms as u64,
+                    t + u64::from(*ms),
                 ))
             }
             Step::Command(c) => outs.commands.push(c.clone()),
@@ -324,7 +324,7 @@ fn step(act: &mut Activation, program: &[Step], outs: &mut Outputs, until: u64) 
                 outs.shakes.push((*axis, t));
             }
             Step::Turn(deg) => outs.turns.push((*deg, *deg)),
-            Step::Touch(g, ms) => outs.touch = Some((*g, t, *ms as u64)),
+            Step::Touch(g, ms) => outs.touch = Some((*g, t, u64::from(*ms))),
             Step::MouseTo(x, y) => outs.mouse_to = Some((*x, *y)),
         }
         act.pc += 1;
@@ -761,7 +761,7 @@ impl Engine {
     // ----- combos ------------------------------------------------------------------
 
     fn combo_window(&self) -> u64 {
-        self.profile.timing.combo_window_ms as u64
+        u64::from(self.profile.timing.combo_window_ms)
     }
 
     fn on_press(&mut self, c: Control, t: u64) {
@@ -1051,7 +1051,7 @@ impl Engine {
         if let Some((target, Some(delay), postpone)) = jump
             && delay > 0
         {
-            let at = t + delay as u64;
+            let at = t + u64::from(delay);
             act.jump_at = Some((at, target));
             if postpone {
                 act.deferred = true;
@@ -1479,7 +1479,7 @@ impl Engine {
         };
         self.drain_digital(&mut out);
         // Held wheel actions repeat at the virtual mouse's interval.
-        let every = self.profile.virtual_devices.mouse.wheel_repeat_ms as u64;
+        let every = u64::from(self.profile.virtual_devices.mouse.wheel_repeat_ms);
         for act in &mut self.acts {
             if let Some((d, n, since, sent)) = &mut act.wheel_held
                 && let Some(due) = now.saturating_sub(*since).checked_div(every)
@@ -1727,8 +1727,8 @@ impl Engine {
                 let size = j.min + (j.max - j.min).max(0.0) * self.outs.rng.unit();
                 let (px, py) = points[st.point];
                 st.offset = (px * size, py * size);
-                let spread = j.delay_max_ms.saturating_sub(j.delay_min_ms) as u64;
-                st.next_at = now + j.delay_min_ms.max(1) as u64 + self.outs.rng.upto(spread);
+                let spread = u64::from(j.delay_max_ms.saturating_sub(j.delay_min_ms));
+                st.next_at = now + u64::from(j.delay_min_ms.max(1)) + self.outs.rng.upto(spread);
                 st.active = true;
             }
             let (x, y) = pad.stick(s);
@@ -1751,7 +1751,7 @@ impl Engine {
         }
         // Shakes: a square wave on one accelerometer axis, starting in its direction.
         let motion = &self.profile.virtual_devices.motion;
-        let shake_ms = motion.shake_ms as u64;
+        let shake_ms = u64::from(motion.shake_ms);
         self.outs.shakes.retain(|(_, t0)| now < t0 + shake_ms);
         if !self.outs.shakes.is_empty() {
             let mut m = pad.motion.unwrap_or(Motion {

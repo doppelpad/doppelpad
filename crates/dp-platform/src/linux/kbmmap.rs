@@ -199,7 +199,7 @@ impl Passthrough {
                 };
                 let vertical = matches!(dir, WheelDir::Up | WheelDir::Down);
                 let hires_code = code == REL_WHEEL_HI_RES || code == REL_HWHEEL_HI_RES;
-                if hires_code == self.hires[!vertical as usize] {
+                if hires_code == self.hires[usize::from(!vertical)] {
                     let detents = if hires_code {
                         value.abs() as f32 / HI_RES_PER_DETENT as f32
                     } else {

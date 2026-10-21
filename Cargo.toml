@@ -40,6 +40,7 @@ redundant_lifetimes = "warn"
 
 [workspace.lints.clippy]
 undocumented_unsafe_blocks = "warn"
+cast_lossless = "warn"
 
 [profile.release]
 lto = "thin"

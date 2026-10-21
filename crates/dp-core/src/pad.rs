@@ -225,9 +225,9 @@ pub struct Rgb {
 #[inline]
 pub fn axis_from_i16(v: i16) -> f32 {
     if v < 0 {
-        v as f32 / 32768.0
+        f32::from(v) / 32768.0
     } else {
-        v as f32 / 32767.0
+        f32::from(v) / 32767.0
     }
 }
 
@@ -247,7 +247,7 @@ pub fn axis_to_i16(v: f32) -> i16 {
 /// where 0 means *up*).
 #[inline]
 pub fn axis_from_u8(v: u8, invert: bool) -> f32 {
-    let f = (v as f32 - 127.5) / 127.5;
+    let f = (f32::from(v) - 127.5) / 127.5;
     if invert { -f } else { f }
 }
 

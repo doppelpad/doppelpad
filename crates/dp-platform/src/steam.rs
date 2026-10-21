@@ -106,8 +106,8 @@ fn payload(report: &[u8]) -> Option<&[u8]> {
 
 /// A pad position as a touch point in its half of a shared surface, y from the top.
 fn pad_point(d: &[u8], at: usize, right: bool) -> TouchPoint {
-    let x = (i16_at(d, at) as f32 / 65536.0 + 0.5).clamp(0.0, 1.0);
-    let y = (0.5 - i16_at(d, at + 2) as f32 / 65536.0).clamp(0.0, 1.0);
+    let x = (f32::from(i16_at(d, at)) / 65536.0 + 0.5).clamp(0.0, 1.0);
+    let y = (0.5 - f32::from(i16_at(d, at + 2)) / 65536.0).clamp(0.0, 1.0);
     TouchPoint {
         x: if right { 0.5 + x * 0.5 } else { x * 0.5 },
         y,
@@ -115,7 +115,7 @@ fn pad_point(d: &[u8], at: usize, right: bool) -> TouchPoint {
 }
 
 fn motion(d: &[u8], accel_at: usize, gyro_at: usize, deck: bool) -> Motion {
-    let v = |at: usize| i16_at(d, at) as f32;
+    let v = |at: usize| f32::from(i16_at(d, at));
     let (ax, ay, az) = (v(accel_at), v(accel_at + 2), v(accel_at + 4));
     let (gx, gy, gz) = (v(gyro_at), v(gyro_at + 2), v(gyro_at + 4));
     // The controller's z points out of its face and y away from the player.
@@ -185,7 +185,7 @@ fn parse_controller(d: &[u8], last: &mut Shared) -> PadState {
             (0x40, PadButton::LS),
         ],
     );
-    let trigger = |v: u8| ((((v as u32) << 7) | v as u32) as f32 / TRIGGER_FULL).min(1.0);
+    let trigger = |v: u8| (((u32::from(v) << 7) | u32::from(v)) as f32 / TRIGGER_FULL).min(1.0);
     s.set_axis(Axis::LeftTrigger, trigger(d[11]));
     s.set_axis(Axis::RightTrigger, trigger(d[12]));
     // Stick and left pad share bytes 16–19; with both in use, reports alternate.
@@ -240,10 +240,13 @@ fn parse_deck(d: &[u8]) -> PadState {
         s.touch[1] = Some(pad_point(d, 20, true));
     }
     s.motion = Some(motion(d, 24, 30, true));
-    s.set_axis(Axis::LeftTrigger, (u16_at(d, 44) as f32 / 32767.0).min(1.0));
+    s.set_axis(
+        Axis::LeftTrigger,
+        (f32::from(u16_at(d, 44)) / 32767.0).min(1.0),
+    );
     s.set_axis(
         Axis::RightTrigger,
-        (u16_at(d, 46) as f32 / 32767.0).min(1.0),
+        (f32::from(u16_at(d, 46)) / 32767.0).min(1.0),
     );
     for (axis, at) in [
         (Axis::LeftX, 48),

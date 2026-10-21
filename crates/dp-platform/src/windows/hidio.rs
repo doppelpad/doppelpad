@@ -59,7 +59,7 @@ impl Waker {
 
 fn event(manual_reset: bool) -> io::Result<OwnedHandle> {
     // SAFETY: plain unnamed event.
-    let h = OwnedHandle(unsafe { CreateEventW(null(), manual_reset as i32, 0, null()) });
+    let h = OwnedHandle(unsafe { CreateEventW(null(), i32::from(manual_reset), 0, null()) });
     if h.valid() {
         Ok(h)
     } else {
@@ -225,7 +225,7 @@ impl HidIo {
     pub fn wait(&mut self, timeout: Duration) -> io::Result<Wait> {
         self.start_read()?;
         let handles: [HANDLE; 2] = [self.read.event.0, self.waker.0.0];
-        let ms = timeout.as_millis().min(u32::MAX as u128 - 1) as u32;
+        let ms = timeout.as_millis().min(u128::from(u32::MAX) - 1) as u32;
         // SAFETY: two valid event handles.
         let rc = unsafe { WaitForMultipleObjects(2, handles.as_ptr(), 0, ms) };
         match rc {
