@@ -2047,7 +2047,7 @@ mod tests {
             let w = world.lock().unwrap();
             let id = DeviceId("pad1".into());
             assert_eq!(w.rumble.last(), Some(&(id.clone(), buzz)));
-            assert_eq!(w.lightbar.last(), Some(&(id.clone(), Some(red))));
+            assert_eq!(w.lightbar.last(), Some(&(id, Some(red))));
             assert_eq!(
                 w.lightbar.iter().filter(|(_, c)| *c == Some(red)).count(),
                 1,

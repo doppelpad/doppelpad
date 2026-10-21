@@ -1681,7 +1681,7 @@ impl<'a> Importer<'a> {
                     }
                 }
                 if zoned {
-                    self.zoned.push((combo.clone(), out.trigger.clone()));
+                    self.zoned.push((combo, out.trigger.clone()));
                 } else {
                     self.diags.warn(
                         path,

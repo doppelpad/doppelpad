@@ -557,7 +557,7 @@ mod tests {
                 mac: None
             })
         );
-        let mut bad = one.clone();
+        let mut bad = one;
         bad[21] = 3;
         assert_eq!(parse_request(&bad), None, "CRC mismatch");
     }
