@@ -1,0 +1,284 @@
+{
+  "live": {
+    "devices": [
+      {
+        "id": "hid:pad",
+        "name": "DualSense",
+        "family": "dual_sense",
+        "backend": "hid",
+        "vendor_id": 1356,
+        "product_id": 3302,
+        "state": {
+          "buttons": 1,
+          "axes": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "motion": {
+            "gyro": [
+              1.0,
+              2.0,
+              3.0
+            ],
+            "accel": [
+              0.0,
+              1.0,
+              0.0
+            ]
+          },
+          "touch": [
+            {
+              "x": 0.25,
+              "y": 0.5
+            },
+            null
+          ]
+        },
+        "gyro_calibration": {
+          "gyro_bias": [
+            0.5,
+            -0.25,
+            0.0
+          ],
+          "auto": true,
+          "measuring": 0.5,
+          "last_manual": true
+        },
+        "battery": {
+          "level": 60,
+          "charging": true,
+          "wired": false
+        },
+        "raw": {
+          "buttons": [
+            true,
+            false
+          ],
+          "axes": [
+            0.5
+          ],
+          "hats": [
+            2,
+            null
+          ]
+        }
+      }
+    ],
+    "primary": "hid:pad",
+    "profile": "Racing",
+    "profile_path": "C:\\p\\racing.toml",
+    "layer": 1,
+    "layer_name": "Shift",
+    "slots": [
+      "C:\\p\\racing.toml",
+      null,
+      null,
+      null
+    ],
+    "active_slot": 0,
+    "remap_on": false,
+    "auto_switch": false,
+    "auto_active": false,
+    "player_lights": "while_remapping",
+    "mic_led": false,
+    "seen_devices": [
+      {
+        "id": "hid:pad",
+        "name": "DualSense"
+      }
+    ],
+    "blocked": [
+      "xinput:3"
+    ],
+    "groups": [
+      {
+        "name": "Cockpit",
+        "members": [
+          "hid:a",
+          "hid:b"
+        ]
+      }
+    ],
+    "power_off_after_min": 0,
+    "layouts": [
+      "0079:0006"
+    ],
+    "dsu": {
+      "settings": {
+        "enabled": false,
+        "lan": false,
+        "port": 26760
+      },
+      "address": null,
+      "clients": 0,
+      "error": null
+    },
+    "http": {
+      "settings": {
+        "enabled": false,
+        "lan": false,
+        "port": 26761,
+        "token": ""
+      },
+      "address": null,
+      "error": null
+    },
+    "runtime": {
+      "prevent_sleep": true,
+      "pause_unfocused": false,
+      "keep_offline_pads": false
+    },
+    "locked": false,
+    "focus_paused": false,
+    "suspended": false,
+    "foreground": "game.exe",
+    "virtual_pad": "xbox360",
+    "hidden_devices": 0,
+    "warnings": [
+      "ViGEmBus is missing"
+    ],
+    "drivers": {
+      "virtual_pads": {
+        "available": false,
+        "error": null
+      },
+      "device_hiding": {
+        "available": false,
+        "error": null
+      }
+    },
+    "device_slots": [
+      {
+        "id": "hid:pad",
+        "slots": [
+          null,
+          "own.toml",
+          null,
+          null
+        ],
+        "active_slot": 1
+      }
+    ],
+    "sessions": [
+      {
+        "owner": "hid:pad",
+        "device": "hid:pad",
+        "profile": "Racing",
+        "profile_path": "C:\\p\\racing.toml",
+        "layer": 1,
+        "virtual_pad": "xbox360"
+      }
+    ],
+    "crosshair": {
+      "shape": "cross",
+      "color": "#00ff66",
+      "opacity": 1.0,
+      "size": 30,
+      "thickness": 50,
+      "outline": 0,
+      "outline_color": "#000000",
+      "offset": [
+        0,
+        0
+      ],
+      "visible": true
+    },
+    "radial": {
+      "menu": {
+        "layer": 1,
+        "select": "right_stick",
+        "apply": "release",
+        "delay_ms": 0,
+        "tint": 0.0,
+        "scale": 1.0,
+        "offset": [
+          0,
+          0
+        ],
+        "sectors": []
+      },
+      "pointed": 2
+    },
+    "has_radial": false,
+    "pad_overlay": false,
+    "mappings_overlay": false
+  },
+  "gui_settings": {
+    "language": "en",
+    "stay_live": false,
+    "hook_buttons": true,
+    "rewasd_at_start": "ask",
+    "osd": {
+      "enabled": true,
+      "remap": true,
+      "slot": true,
+      "layer": true,
+      "keep_layer": false,
+      "controller": true,
+      "battery": true,
+      "monitor": 0,
+      "corner": "bottom_right",
+      "scale": 100,
+      "opacity": 80,
+      "seconds": 5
+    },
+    "pad_overlay": {
+      "corner": "top_left",
+      "size": 70,
+      "opacity": 90,
+      "hide_after": 5
+    },
+    "mappings_overlay": {
+      "corner": "top_right",
+      "opacity": 90
+    },
+    "welcome_done": false
+  },
+  "hotkeys": {
+    "hold_ms": 500,
+    "slot1": [
+      "LB",
+      "RB",
+      "X"
+    ],
+    "slot2": [
+      "LB",
+      "RB",
+      "Y"
+    ],
+    "slot3": [
+      "LB",
+      "RB",
+      "B"
+    ],
+    "slot4": [
+      "LB",
+      "RB",
+      "A"
+    ],
+    "remap": [],
+    "stop_macros": [],
+    "emergency_stop": [
+      "Back",
+      "Start",
+      "LB",
+      "RB"
+    ],
+    "pad_overlay": [],
+    "mappings_overlay": []
+  },
+  "osd_message": {
+    "kind": "battery_low",
+    "name": "DualSense",
+    "level": 15,
+    "id": 3,
+    "lang": "en",
+    "opacity": 90,
+    "scale": 100,
+    "corner": "top_right"
+  }
+}

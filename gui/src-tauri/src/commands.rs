@@ -94,7 +94,7 @@ pub struct Catalog {
     /// Gamepad buttons in bit order of `PadState.buttons`.
     pad_buttons: Vec<&'static str>,
     mouse_buttons: Vec<&'static str>,
-    defaults: Defaults,
+    pub(crate) defaults: Defaults,
 }
 
 /// Names and default values, so the frontend never duplicates them.

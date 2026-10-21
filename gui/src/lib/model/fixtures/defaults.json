@@ -1,4 +1,25 @@
 {
+  "profile": {
+    "name": "",
+    "mappings": []
+  },
+  "mapping": {
+    "trigger": "A"
+  },
+  "output": {
+    "virtual_pad": "xbox360",
+    "hide_physical": true,
+    "passthrough": true,
+    "mute_mapped_inputs": true
+  },
+  "timing": {
+    "long_press_ms": 300,
+    "double_tap_ms": 150,
+    "triple_tap_ms": 300,
+    "key_delay_ms": 10,
+    "turbo_ms": 200,
+    "combo_window_ms": 50
+  },
   "stick": {
     "deadzone": 0.0,
     "outer": 1.0,
@@ -81,5 +102,53 @@
     "zones": "radial",
     "centre": 0.35,
     "click_required": false
+  },
+  "crosshair": {
+    "shape": "cross",
+    "color": "#00ff66",
+    "opacity": 1.0,
+    "size": 30,
+    "thickness": 50,
+    "outline": 0,
+    "outline_color": "#000000",
+    "offset": [
+      0,
+      0
+    ],
+    "visible": true
+  },
+  "magnifier": {
+    "zoom": 2.0,
+    "size": 0.2
+  },
+  "radial_menu": {
+    "layer": 1,
+    "select": "right_stick",
+    "apply": "release",
+    "delay_ms": 0,
+    "tint": 0.0,
+    "scale": 1.0,
+    "offset": [
+      0,
+      0
+    ],
+    "sectors": []
+  },
+  "radial_sector": {
+    "close": true
+  },
+  "light": {
+    "mode": "solid",
+    "colors": [
+      "#14b8a6"
+    ],
+    "cycle": false,
+    "period_ms": 2000
+  },
+  "vibration": {
+    "left": 1.0,
+    "right": 1.0,
+    "swap": false,
+    "min_delay_ms": 20
   }
 }

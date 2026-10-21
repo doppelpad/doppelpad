@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import type { AnalogMapping, Profile } from '../types';
+import type { Catalog, Profile } from '../types';
 import defaultsJson from './fixtures/defaults.json';
 import { MOUSE_PRESETS, mousePresetOf, mouseResponse } from './analog';
 import { setStickGroup, stickGroupConflicts, stickGroupOf, stickRouteIndex } from './stickgroups';
 
 // Rust's defaults, as the catalog command sends them.
-const def = (defaultsJson as unknown as { analog: Required<AnalogMapping> }).analog;
+const def = (defaultsJson as unknown as Catalog['defaults']).analog;
 
 /** The Minecraft case: the right stick's four directions move the mouse at a fixed speed. */
 function profile(): Profile {
