@@ -203,6 +203,9 @@ export interface Crosshair {
   layers?: number[];
 }
 
+/** A crosshair with its defaults filled in; Rust leaves `name` and `layers` out while empty. */
+export type CrosshairFull = Required<Omit<Crosshair, 'magnifier' | 'name' | 'layers'>> & Pick<Crosshair, 'name' | 'layers'>;
+
 /** What points at a sector of an open radial menu. */
 export type RadialSelect = 'left_stick' | 'right_stick' | 'mouse' | 'commands';
 
@@ -305,6 +308,9 @@ export interface TriggerConfig {
   /** Resistance or vibration against the finger (DualSense). */
   effect?: TriggerEffect;
 }
+
+/** A trigger's settings with the defaults filled in; `effect` stays optional (none by default). */
+export type TriggerFull = Required<Omit<TriggerConfig, 'effect'>> & Pick<TriggerConfig, 'effect'>;
 
 export interface Sticks {
   left?: StickConfig;
@@ -675,12 +681,12 @@ export interface Catalog {
     output: Required<Output>;
     timing: Required<Timing>;
     stick: Required<StickConfig>;
-    trigger: Required<TriggerConfig>;
+    trigger: TriggerFull;
     analog: Required<AnalogMapping>;
     virtual_stick: Required<VirtualStick>;
     gyro: Required<GyroSettings>;
     touchpad: Required<TouchpadSettings>;
-    crosshair: Required<Omit<Crosshair, 'magnifier'>>;
+    crosshair: CrosshairFull;
     magnifier: Magnifier;
     radial_menu: Required<Omit<RadialMenu, 'sectors' | 'name'>>;
     radial_sector: RadialSector;

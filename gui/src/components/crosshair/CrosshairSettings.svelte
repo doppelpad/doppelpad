@@ -7,6 +7,7 @@
     CROSSHAIR_SHAPES,
     MAX_CROSSHAIRS,
     addCrosshair,
+    crosshairConfig,
     removeCrosshair,
     updateCrosshair,
   } from '../../lib/model/crosshair';
@@ -17,14 +18,13 @@
   import Toggle from '../ui/Toggle.svelte';
   import CrosshairShape from './CrosshairShape.svelte';
 
-  type Full = Required<Omit<Crosshair, 'magnifier'>>;
   const crosshairs = $derived(app.profile?.crosshairs ?? []);
   const def = $derived(app.catalog?.defaults.crosshair);
   const magDef = $derived(app.catalog?.defaults.magnifier ?? { zoom: 2, size: 0.2 });
   const layers = $derived(app.profile ? layerIds(app.profile) : [0]);
   const disabled = $derived(app.readOnly);
 
-  const full = (c: Crosshair) => ({ ...def, ...c }) as Full;
+  const full = (c: Crosshair) => crosshairConfig(c, def);
 
   function set(i: number, patch: Partial<Crosshair>) {
     if (app.profile) app.update(updateCrosshair(app.profile, i, patch));

@@ -2,10 +2,9 @@
   // A crosshair drawn as SVG: the outline first (wider strokes), then the shape. Fills its
   // box; `size` logical pixels of crosshair map to `px` pixels on screen.
   import { crosshairParts, lineWidth, type Part } from '../../lib/model/crosshair';
-  import type { Crosshair } from '../../lib/types';
+  import type { CrosshairFull } from '../../lib/types';
 
-  type Full = Required<Omit<Crosshair, 'magnifier'>>;
-  let { crosshair: c, px }: { crosshair: Full; px?: number } = $props();
+  let { crosshair: c, px }: { crosshair: CrosshairFull; px?: number } = $props();
 
   const w = $derived(lineWidth(c));
   const parts = $derived(crosshairParts(c.shape, c.size, w));

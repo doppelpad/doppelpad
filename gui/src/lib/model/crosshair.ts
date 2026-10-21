@@ -1,7 +1,7 @@
 // Crosshair shapes as SVG parts, and edits of a profile's crosshairs. Coordinates are logical
 // pixels around the centre (0, 0).
 
-import type { Crosshair, CrosshairShape, Profile } from '../types';
+import type { Crosshair, CrosshairFull, CrosshairShape, Profile } from '../types';
 
 export const CROSSHAIR_SHAPES: CrosshairShape[] = [
   'cross',
@@ -22,8 +22,13 @@ export const MAX_CROSSHAIRS = 10;
 /** One stroke of a shape: a polyline, or a circle (`fill`: a dot). */
 export type Part = { points: [number, number][] } | { r: number; fill: boolean };
 
+/** A crosshair with the defaults filled in, and its layers as a list (empty when none are set). */
+export function crosshairConfig(c: Crosshair, def: CrosshairFull | undefined): CrosshairFull & { layers: number[] } {
+  return { ...(def as CrosshairFull), ...c, layers: c.layers ?? [] };
+}
+
 /** Line width of a crosshair: `thickness` percent of a fifth of its size, at least 1 px. */
-export function lineWidth(c: Required<Omit<Crosshair, 'magnifier'>>): number {
+export function lineWidth(c: CrosshairFull): number {
   return Math.max(1, (c.size / 5) * (c.thickness / 100));
 }
 

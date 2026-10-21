@@ -223,7 +223,7 @@ describe('control names', () => {
   });
 });
 
-// `unknown` until Catalog's types match the fields Rust leaves out (B2).
+// Through `unknown`: JSON imports type arrays as `number[]`, the model uses tuples.
 const def = defaultsJson as unknown as Catalog['defaults'];
 const zd: ZoneDefaults = {
   stickLow: def.stick.zones.low!,
