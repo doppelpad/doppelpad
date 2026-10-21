@@ -197,6 +197,8 @@ pub struct Service {
     /// [`Runtime::hiding_problems`], refreshed with the driver status.
     hiding_problems: Vec<String>,
     last_error: Option<String>,
+    /// Why saving the state failed during the command being handled.
+    unsaved: Option<String>,
     /// Why a controller's own profile could not be applied, by device id.
     device_errors: std::collections::BTreeMap<String, String>,
     /// Connected controllers when their sessions were last brought in line.
@@ -281,6 +283,7 @@ impl Service {
             drivers_checked: None,
             hiding_problems: Vec::new(),
             last_error: None,
+            unsaved: None,
             device_errors: Default::default(),
             connected: Vec::new(),
             dsu: None,
@@ -417,11 +420,13 @@ impl Service {
             .or_else(|| dp_config::profile_for_process(&self.profiles, exe).map(|(p, _)| p.clone()))
     }
 
-    fn save_state(&self) {
+    fn save_state(&mut self) {
         if let Some(path) = &self.opts.state_path
             && let Err(e) = self.state.save(path)
         {
-            tracing::warn!("cannot save {}: {e}", path.display());
+            let msg = format!("cannot save {}: {e}", path.display());
+            tracing::warn!("{msg}");
+            self.unsaved = Some(msg);
         }
     }
 
@@ -514,6 +519,16 @@ impl Service {
 
     /// Answer one IPC request. `Shutdown` only acknowledges; the host stops the loop.
     pub fn handle_ipc(&mut self, req: Request) -> Response {
+        self.unsaved = None;
+        match (self.answer_ipc(req), self.unsaved.take()) {
+            (Response::Ok { message }, Some(e)) => Response::Ok {
+                message: unsaved_note(&message, &e),
+            },
+            (r, _) => r,
+        }
+    }
+
+    fn answer_ipc(&mut self, req: Request) -> Response {
         match req {
             Request::Status => Response::Status(self.status()),
             Request::Apply { path } => {
@@ -561,7 +576,7 @@ impl Service {
             } => self.ipc_slot(slot, |slot| ServiceCmd::ClearSlot { device, slot }),
             Request::ClearSlot { slot: None, device } => {
                 for slot in 0..SLOTS {
-                    self.handle(ServiceCmd::ClearSlot {
+                    self.run(ServiceCmd::ClearSlot {
                         device: device.clone(),
                         slot,
                     });
@@ -618,8 +633,16 @@ impl Service {
         }
     }
 
-    /// Execute one command.
+    /// Execute one command. When a change could not be saved, the reply says so.
     pub fn handle(&mut self, cmd: ServiceCmd) -> ServiceReply {
+        self.unsaved = None;
+        match (self.run(cmd), self.unsaved.take()) {
+            (ServiceReply::Ok(m), Some(e)) => ServiceReply::Ok(unsaved_note(&m, &e)),
+            (r, _) => r,
+        }
+    }
+
+    fn run(&mut self, cmd: ServiceCmd) -> ServiceReply {
         match cmd {
             ServiceCmd::Ipc(req) => ServiceReply::Ipc(self.handle_ipc(req)),
             ServiceCmd::ApplyToSlot { device, slot, path } => {
@@ -1356,6 +1379,11 @@ impl Service {
     pub fn shutdown(&mut self) {
         self.rt.stop();
     }
+}
+
+/// A reply to a change that took effect but could not be saved.
+fn unsaved_note(reply: &str, error: &str) -> String {
+    format!("{reply}; {error}, so the change is lost when Doppelpad restarts")
 }
 
 /// Why a generic pad layout cannot be stored, if it cannot.
@@ -2129,6 +2157,32 @@ Host: 127.0.0.1:{}
         .unwrap();
         assert_eq!(s.status().virtual_pad.as_deref(), Some("xbox360"));
         assert_eq!(s.live().virtual_pad.as_deref(), Some("xbox360"));
+    }
+
+    #[test]
+    fn replies_say_when_the_state_cannot_be_saved() {
+        let dir = tempfile::tempdir().unwrap();
+        // A file where the state's folder should be: saving always fails.
+        let blocker = dir.path().join("blocker");
+        std::fs::write(&blocker, "").unwrap();
+        let (mut s, _) = service(dir.path(), Some(blocker.join("state.toml")));
+        let reply = s.handle(ServiceCmd::SetLights {
+            player: PlayerLights::Always,
+            mic: false,
+        });
+        let msg = reply.into_result().unwrap();
+        assert!(
+            msg.starts_with("lights set") && msg.contains("cannot save"),
+            "{msg}"
+        );
+        match s.handle_ipc(Request::Remap { on: false }) {
+            Response::Ok { message } => assert!(message.contains("cannot save"), "{message}"),
+            r => panic!("{r:?}"),
+        }
+        assert!(
+            matches!(s.handle_ipc(Request::Status), Response::Status(_)),
+            "only replies to changes carry it"
+        );
     }
 
     #[test]
