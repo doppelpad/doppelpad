@@ -8,10 +8,8 @@ export const dualsenseEdgeBack: DeviceLayout = {
   svg,
   viewBox: [0, 0, 1000, 700],
   controls: [
-    { control: 'LB', anchor: [297.8, 223.5], side: 'left', labelAt: [200, 206.6] },
-    { control: 'LT', anchor: [285.8, 287.8], side: 'left', labelAt: [200, 272.6] },
-    { control: 'RB', anchor: [702.2, 223.5], side: 'right', labelAt: [800, 206.6] },
-    { control: 'RT', anchor: [714.2, 287.8], side: 'right', labelAt: [800, 272.6] },
+    { control: 'LT', anchor: [313.9, 227.7], side: 'left', labelAt: [200, 200] },
+    { control: 'RT', anchor: [686.1, 227.7], side: 'right', labelAt: [800, 200] },
     { control: 'PaddleLL', anchor: [310.4, 480.9], side: 'left', labelAt: [200, 490.4] },
     { control: 'PaddleLR', anchor: [689.6, 480.9], side: 'right', labelAt: [800, 490.4] },
   ],

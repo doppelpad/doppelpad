@@ -2,7 +2,7 @@
 // exactly the back buttons that model has. Families cover several models, so the USB
 // vendor and product IDs pick the variant.
 
-import type { DeviceId } from '../../assets/devices/layouts';
+import { DEVICE_LAYOUTS, type DeviceId } from '../../assets/devices/layouts';
 import type { ControlName, LiveDevice } from '../types';
 
 export interface Drawings {
@@ -55,6 +55,16 @@ export function drawingsFor(dev: Pick<LiveDevice, 'family' | 'vendor_id' | 'prod
       // Steam Controller and Deck: their grips are paddles.
       return { front: 'xbox', back: is(MICROSOFT, XBOX_ELITE) || dev.vendor_id === VALVE ? 'xboxEliteBack' : 'xboxBack' };
   }
+}
+
+/**
+ * The side to show for control `c`: the current one, unless only the other side's drawing
+ * has it. The front shows no triggers and the back no face buttons, as on the controller.
+ */
+export function sideShowing(drawings: Drawings, current: 'front' | 'back', c: ControlName): 'front' | 'back' {
+  const shows = (id: DeviceId) => DEVICE_LAYOUTS[id].controls.some((lc) => lc.control === c);
+  const other = current === 'front' ? 'back' : 'front';
+  return !shows(drawings[current]) && shows(drawings[other]) ? other : current;
 }
 
 /** Stick deflection / trigger pull that counts as "pressed" (highlight and press-to-select). */

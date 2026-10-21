@@ -10,8 +10,10 @@
 // - Sticks carry `data-stick="Left" | "Right"` on the same group as `LS` / `RS`; the cap
 //   is wrapped in `<g class="stick-cap">` so it can be moved to show live deflection.
 // - `<g class="body">` (outline and decorative details) has pointer-events="none".
-// - Back views (`…Back`: shoulder buttons and the back buttons the model really has) are
-//   drawn as seen through the device from the front, so the left shoulder is on the left.
+// - Each view shows the controls that show from its side: front views the bumpers but not
+//   the triggers behind them; back views (`…Back`) the triggers, the bumpers where they show
+//   from behind, and the back buttons the model really has. Back views are drawn as seen
+//   through the device from the front, so the left shoulder is on the left.
 
 /** A point in the drawing's viewBox coordinates. */
 export type Point = [x: number, y: number];

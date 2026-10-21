@@ -8,9 +8,7 @@ export const generic: DeviceLayout = {
   svg,
   viewBox: [0, 0, 1000, 700],
   controls: [
-    { control: 'LT', anchor: [307.8, 199.2], side: 'left', labelAt: [200, 156.6] },
     { control: 'LB', anchor: [256.2, 283.5], side: 'left', labelAt: [200, 204.2] },
-    { control: 'RT', anchor: [692.2, 199.2], side: 'right', labelAt: [800, 156.6] },
     { control: 'RB', anchor: [743.8, 283.5], side: 'right', labelAt: [800, 204.2] },
     { control: 'DpadUp', anchor: [335.8, 302.8], side: 'left', labelAt: [200, 296] },
     { control: 'DpadLeft', anchor: [311.3, 330], side: 'left', labelAt: [200, 328.3] },

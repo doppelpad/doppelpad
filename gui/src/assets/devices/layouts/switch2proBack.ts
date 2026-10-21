@@ -8,11 +8,11 @@ export const switch2proBack: DeviceLayout = {
   svg,
   viewBox: [0, 0, 1000, 700],
   controls: [
-    { control: 'LB', anchor: [341.9, 209.2], side: 'left', labelAt: [200, 198.8] },
-    { control: 'LT', anchor: [307.6, 276.9], side: 'left', labelAt: [200, 266.8] },
-    { control: 'RB', anchor: [658.1, 209.2], side: 'right', labelAt: [800, 198.8] },
-    { control: 'RT', anchor: [692.4, 276.9], side: 'right', labelAt: [800, 266.8] },
-    { control: 'PaddleUL', anchor: [326.3, 394], side: 'left', labelAt: [200, 394] },
-    { control: 'PaddleUR', anchor: [673.7, 394], side: 'right', labelAt: [800, 394] },
+    { control: 'LB', anchor: [313, 247.8], side: 'left', labelAt: [200, 198.8] },
+    { control: 'LT', anchor: [311, 279.4], side: 'left', labelAt: [200, 300.8] },
+    { control: 'PaddleUL', anchor: [321.2, 431.4], side: 'left', labelAt: [200, 430] },
+    { control: 'RB', anchor: [687, 247.8], side: 'right', labelAt: [800, 198.8] },
+    { control: 'RT', anchor: [689, 279.4], side: 'right', labelAt: [800, 300.8] },
+    { control: 'PaddleUR', anchor: [678.8, 431.4], side: 'right', labelAt: [800, 430] },
   ],
 };

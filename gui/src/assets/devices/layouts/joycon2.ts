@@ -8,9 +8,7 @@ export const joycon2: DeviceLayout = {
   svg,
   viewBox: [0, 0, 1000, 700],
   controls: [
-    { control: 'LT', anchor: [373.1, 174.2], side: 'left', labelAt: [200, 128.4] },
     { control: 'LB', anchor: [346.1, 251.8], side: 'left', labelAt: [200, 220.2] },
-    { control: 'RT', anchor: [626.9, 174.2], side: 'right', labelAt: [800, 128.4] },
     { control: 'RB', anchor: [653.9, 251.8], side: 'right', labelAt: [800, 220.2] },
     { control: 'LS', anchor: [381, 305.2], side: 'left', labelAt: [200, 305.2] },
     { control: 'DpadUp', anchor: [406.9, 375.8], side: 'left', labelAt: [200, 366.4] },

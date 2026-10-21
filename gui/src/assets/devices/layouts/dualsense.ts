@@ -8,10 +8,8 @@ export const dualsense: DeviceLayout = {
   svg,
   viewBox: [0, 0, 1000, 700],
   controls: [
-    { control: 'LT', anchor: [300.1, 186], side: 'left', labelAt: [200, 147.2] },
-    { control: 'LB', anchor: [254.4, 267.2], side: 'left', labelAt: [200, 193.4] },
-    { control: 'RT', anchor: [699.9, 186], side: 'right', labelAt: [800, 147.2] },
-    { control: 'RB', anchor: [745.6, 267.2], side: 'right', labelAt: [800, 193.4] },
+    { control: 'LB', anchor: [306.6, 241.3], side: 'left', labelAt: [200, 193.4] },
+    { control: 'RB', anchor: [693.4, 241.3], side: 'right', labelAt: [800, 193.4] },
     { control: 'DpadUp', anchor: [318.8, 297.4], side: 'left', labelAt: [200, 287.5] },
     { control: 'DpadLeft', anchor: [290.1, 328.7], side: 'left', labelAt: [200, 320.5] },
     { control: 'DpadDown', anchor: [335, 373.6], side: 'left', labelAt: [200, 353.5] },
