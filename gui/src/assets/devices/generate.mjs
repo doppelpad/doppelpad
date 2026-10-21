@@ -22,12 +22,15 @@ const VIEWBOX = [0, 0, 1000, 700];
 /** Largest label chip the layouts leave room for (viewBox units); see layouts/types.ts. */
 const CHIP = { w: 150, h: 28 };
 
-const PAD = ['A', 'B', 'X', 'Y', 'LB', 'RB', 'LT', 'RT', 'Back', 'Start', 'Guide', 'Misc', 'LS', 'RS'];
+// Front views show the bumpers but not the triggers behind them (the GameCube's big L / R
+// triggers excepted).
+const PAD = ['A', 'B', 'X', 'Y', 'LB', 'RB', 'Back', 'Start', 'Guide', 'Misc', 'LS', 'RS'];
 const DPAD = ['DpadUp', 'DpadDown', 'DpadLeft', 'DpadRight'];
 const SHOULDERS = ['LB', 'RB', 'LT', 'RT'];
 const PADDLES = ['PaddleUL', 'PaddleUR', 'PaddleLL', 'PaddleLR'];
-// Every drawing shows exactly the controls its device has. Back views show the shoulder
-// buttons and the back buttons; models without back buttons get the shoulders only.
+// Every drawing shows exactly the controls its device has, as far as they show from that
+// side. Back views show the triggers, the bumpers where they show from behind, and the
+// back buttons the model has.
 const EXPECTED = {
   dualsense: [...PAD, ...DPAD, 'Touchpad'],
   dualsenseEdge: [...PAD, ...DPAD, 'Touchpad', 'PaddleUL', 'PaddleUR'],
@@ -37,9 +40,9 @@ const EXPECTED = {
   switch2pro: [...PAD, ...DPAD, 'Misc2'],
   joycon: [...PAD, ...DPAD, ...PADDLES],
   joycon2: [...PAD, ...DPAD, 'Misc2', ...PADDLES],
-  gamecube: [...PAD.filter((c) => c !== 'Back'), ...DPAD, 'Misc2'],
-  dualsenseBack: SHOULDERS,
-  dualsenseEdgeBack: [...SHOULDERS, 'PaddleLL', 'PaddleLR'],
+  gamecube: [...PAD.filter((c) => c !== 'Back'), 'LT', 'RT', ...DPAD, 'Misc2'],
+  dualsenseBack: ['LT', 'RT'],
+  dualsenseEdgeBack: ['LT', 'RT', 'PaddleLL', 'PaddleLR'],
   xboxBack: SHOULDERS,
   xboxEliteBack: [...SHOULDERS, ...PADDLES],
   genericBack: [...SHOULDERS, ...PADDLES],
@@ -90,6 +93,49 @@ function bandTip(pts, hw, end) {
 /** Point on a band's edge beside centre point i (side +1 / -1 picks the edge). */
 const bandEdge = (pts, hw, i, side) => bandSides(pts, hw)[side > 0 ? 'a' : 'b'][i];
 
+/** Cubic Bézier segments [start, c1, c2, end] of the Catmull-Rom spline through the points. */
+function splineSegs(pts, closed = false) {
+  const n = pts.length;
+  const at = (i) => (closed ? pts[(i + n) % n] : pts[Math.max(0, Math.min(n - 1, i))]);
+  const segs = [];
+  for (let i = 0; i < (closed ? n : n - 1); i++) {
+    const [p0, p1, p2, p3] = [at(i - 1), at(i), at(i + 1), at(i + 2)];
+    const c1 = p1[2] ? p1 : [p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6];
+    const c2 = p2[2] ? p2 : [p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6];
+    segs.push([p1, c1, c2, p2]);
+  }
+  return segs;
+}
+const bezier = ([a, b, c, e], t) => {
+  const u = 1 - t;
+  return [0, 1].map((k) => u * u * u * a[k] + 3 * u * u * t * b[k] + 3 * u * t * t * c[k] + t * t * t * e[k]);
+};
+/** Points along Bézier segments, `per` per segment, the last end included. */
+const along = (segs, per) => [...segs.flatMap((sg) => Array.from({ length: per }, (_, i) => bezier(sg, i / per))), segs.at(-1)[3].slice(0, 2)];
+/** y of a half outline's top edge at x, as the drawn outline runs. */
+function topY(half, x) {
+  const pts = along(splineSegs(fromHalf(half), true), 40);
+  for (let i = 1; i < pts.length; i++) {
+    const [a, b] = [pts[i - 1], pts[i]];
+    if (a[0] >= x && b[0] <= x) return a[1] + ((b[1] - a[1]) * (x - a[0])) / (b[0] - a[0] || 1);
+  }
+  throw new Error(`no top edge at x = ${x}`);
+}
+/** Index of the point at x in a half outline (shoulder ends are given as outline points). */
+const pointAt = (half, x) => {
+  const i = half.findIndex((q) => q[0] === x);
+  if (i < 0) throw new Error(`no outline point at x = ${x}`);
+  return i;
+};
+/** Points pushed out from their centroid by mm (hit areas of plate-shaped controls). */
+function grow(pts, mm) {
+  const [cx, cy] = [0, 1].map((k) => pts.reduce((s, q) => s + q[k], 0) / pts.length);
+  return pts.map(([x, y, ...rest]) => {
+    const l = Math.hypot(x - cx, y - cy) || 1;
+    return [x + ((x - cx) / l) * mm, y + ((y - cy) / l) * mm, ...rest];
+  });
+}
+
 // ---------------------------------------------------------------- device builder
 
 class Device {
@@ -115,16 +161,11 @@ class Device {
 
   /** Catmull-Rom spline through the points; a truthy third value makes a corner. */
   spline(pts, closed = false) {
-    const n = pts.length;
-    const at = (i) => (closed ? pts[(i + n) % n] : pts[Math.max(0, Math.min(n - 1, i))]);
-    let d = `M${this.p(pts[0])}`;
-    for (let i = 0; i < (closed ? n : n - 1); i++) {
-      const [p0, p1, p2, p3] = [at(i - 1), at(i), at(i + 1), at(i + 2)];
-      const c1 = p1[2] ? p1 : [p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6];
-      const c2 = p2[2] ? p2 : [p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6];
-      d += `C${this.p(c1)} ${this.p(c2)} ${this.p(p2)}`;
-    }
-    return closed ? `${d}Z` : d;
+    return `M${this.p(pts[0])}${this.curve(splineSegs(pts, closed))}${closed ? 'Z' : ''}`;
+  }
+  /** Path data of Bézier segments from splineSegs, without the leading move. */
+  curve(segs) {
+    return segs.map(([, c1, c2, q]) => `C${this.p(c1)} ${this.p(c2)} ${this.p(q)}`).join('');
   }
   /** Polygon (or open polyline) whose corners are rounded by the third value. */
   poly(pts, closed = true) {
@@ -359,8 +400,8 @@ function crossDpad(d, c, hw, len, hitR, { arrows = false, recess = 0 } = {}) {
 }
 
 /**
- * Back view of the shoulders, seen through from the front: each bumper is a band on the
- * top edge (as in the front views), each trigger a rounded plate on the back below it.
+ * Simplified back view of the shoulders, seen through from the front: each bumper is a band
+ * on the top edge (as in the front view), each trigger a rounded plate on the back below it.
  * Shapes are given for the left side. Labels go to rows `bumperRow` and `triggerRow`.
  */
 function backShoulders(d, { bumper, bumperHw, trigger, bumperRow = -8, triggerRow = 12 }) {
@@ -391,17 +432,68 @@ function usbPort(d, y) {
   d.detail(d.poly([[-4.6, y - 1.2, 1.1], [4.6, y - 1.2, 1.1], [4.6, y + 1.2, 1.1], [-4.6, y + 1.2, 1.1]]));
 }
 
+/**
+ * A shoulder button that forms part of the silhouette, on both sides. Its top edge is the
+ * outline's own run from half-outline point i0 (inner end) to i1 (outer end), so both draw
+ * the same curve; `lower` is its lower edge from the outer end back to the inner end, for
+ * the left side. `parts(s)` adds markup inside the button; `lowerPad` (mm) widens the hit
+ * area below the button, where nothing sits close under it.
+ */
+function seatedShoulder(d, half, i0, i1, lower, [left, right], { parts = () => [], lowerPad = 0.7 } = {}) {
+  const pts = fromHalf(half);
+  const segs = splineSegs(pts, true);
+  const n = half.length;
+  const mirrorOf = (i) => 2 * n - 2 - i;
+  // hit area: the top edge raised and the lower edge lowered a little
+  const lowerL = [half[i1], ...lower, half[i0]];
+  const hitL = [...bandSides(along(segs.slice(i0, i1), 4), 1.4).a, ...bandSides(lowerL.map((q) => q.slice(0, 2)), lowerPad).a];
+  for (const s of [1, -1]) {
+    const [a, b] = s > 0 ? [i0, i1] : [mirrorOf(i1), mirrorOf(i0)];
+    const low = s > 0 ? lowerL : [pts[b], ...mirror(lower).reverse(), pts[a]];
+    const tail = d.spline(low.map(([x, y], k) => (k === 0 || k === low.length - 1 ? [x, y, 1] : [x, y]))).replace(/^M[^C]*/, '');
+    d.control(s > 0 ? left : right, d.hit(d.poly(flip(hitL, s))), [`M${d.p(pts[a])}${d.curve(segs.slice(a, b))}${tail}Z`, ...parts(s)]);
+  }
+}
+
+/** A plate-shaped control (trigger, back button): a closed spline given for the left side. */
+function plateControl(d, name, pts, s, pad = 1) {
+  const shape = flip(pts, s);
+  d.control(name, d.hit(d.spline(grow(shape, pad), true)), [d.spline(shape, true)]);
+}
+
 // ---------------------------------------------------------------- DualSense
 
-/** Left half of the DualSense outline; the Edge has the same shell. */
-const DS_HALF = [
+/** Left half of the DualSense shell; the Edge has the same shell. */
+const DS_SHELL = [
   [0, 0], [-16, 0.4], [-30, 1.6], [-42, 2.7], [-53, 3.8], [-62.2, 6], [-69.4, 12.4], [-73.9, 22.1], [-76.8, 33.8],
   [-78.5, 44], [-79.6, 56], [-80, 70], [-79.6, 84.5], [-78.3, 92.6], [-75.6, 98.6], [-71.6, 102], [-65.6, 104.2],
   [-58.8, 104.6], [-54.8, 101.4], [-53.2, 91.2], [-50.5, 80.5], [-47.8, 75.2], [-45, 71.2], [-41, 68.6], [-34.6, 67.2],
   [-24, 67.3], [-12, 67.8], [0, 68],
 ];
-const DS_L2 = [[-44, -11.4], [-52, -12], [-59.5, -10.8], [-65.5, -7.8]];
-const DS_L1 = [[-43, -2.8], [-52, -2.4], [-60.5, -0.6], [-67.6, 3], [-72.8, 8.6]];
+/** L1 seen from the front: a flat bar standing above the shell's corner, x = -39.5 … -60.9. */
+const DS_L1_TOP = [[-39.7, 0.2], [-40.9, -0.8], [-44, -1.3], [-48, -1.1], [-52, -0.3], [-56, 1.15], [-58, 2.1], [-59.8, 3.3], [-60.6, 4.5]];
+/** Front silhouette: the shell with L1 on top. */
+const DS_HALF = [
+  ...DS_SHELL.slice(0, 3),
+  [-39.5, topY(DS_SHELL, -39.5), 1],
+  ...DS_L1_TOP,
+  [-60.9, topY(DS_SHELL, -60.9), 1],
+  ...DS_SHELL.slice(5),
+];
+/** L1's lower edge is the shell edge under it, from the outer end inwards. */
+const DS_L1_LOWER = [-58, -55, -51, -47, -43].map((x) => [x, topY(DS_SHELL, x)]);
+
+/** Back silhouette, seen through from the front: L2 stands out above the shell. */
+const DS_BACK_HALF = [
+  [0, -0.2], [-14, -0.2], [-26, 0.3], [-33, 0.7], [-37.7, 1.9, 1], [-38.3, -1.2], [-39.8, -2.8], [-42, -3.3], [-46, -3.5],
+  [-50, -2.9], [-54, -1.8], [-57, -0.6], [-58.6, 0.7], [-59.2, 3], [-59.4, 4.6, 1], [-61.7, 5], [-63.3, 8], [-65.2, 12],
+  [-67.7, 18], [-70.7, 26], [-73.5, 35], [-76.3, 45], [-78.6, 55], [-79.8, 65], [-80, 75], [-79.3, 85], [-77.6, 89.4],
+  [-75.3, 91.4], [-72.6, 94.5], [-67.4, 98.7], [-62.5, 101.2], [-59.6, 102.3, 1], [-56.5, 98.7], [-53.8, 96],
+  [-52.2, 92], [-50.6, 88], [-49, 84], [-47.6, 80], [-46, 76], [-44.3, 72], [-42, 68], [-38.4, 64.3], [-34.3, 63.3],
+  [-24, 63.4], [0, 63.4],
+];
+/** L2 seen from behind, from its outer end back to the inner end (below the shell's edge). */
+const DS_L2_LOWER = [[-57.8, 7.4], [-55.5, 10], [-52.3, 11.7], [-47.6, 12.3], [-42.4, 11.7], [-39.5, 10], [-38.1, 7.1]];
 
 /** DualSense-style controller; `edge` adds the Fn buttons below the sticks. */
 function dualsense({ edge = false } = {}) {
@@ -426,10 +518,8 @@ function dualsense({ edge = false } = {}) {
     for (let i = 0; i < n; i++) d.detail(d.circle([(i - (n - 1) / 2) * 2.9, y], 0.45));
   }
 
-  for (const s of [1, -1]) {
-    d.control(s > 0 ? 'LT' : 'RT', d.hit(d.band(flip(DS_L2, s), 4.6)), [d.band(flip(DS_L2, s), 3.6)]);
-    d.control(s > 0 ? 'LB' : 'RB', d.hit(d.band(flip(DS_L1, s), 3.5)), [d.band(flip(DS_L1, s), 2.4)]);
-  }
+  // L2 / R2 hide behind L1 / R1; the back view has them.
+  seatedShoulder(d, DS_HALF, pointAt(DS_HALF, -39.5), pointAt(DS_HALF, -60.9), DS_L1_LOWER, ['LB', 'RB']);
   const touchpad = d.poly([[-31.2, 1.8, 1.2], [31.2, 1.8, 1.2], [26.6, 33.8, 6], [-26.6, 33.8, 6]]);
   d.control('Touchpad', d.hit(touchpad), [touchpad]);
   for (const s of [1, -1]) {
@@ -455,11 +545,7 @@ function dualsense({ edge = false } = {}) {
     }
   }
 
-  for (const s of [1, -1]) {
-    const side = s > 0 ? 'left' : 'right';
-    d.label(s > 0 ? 'LT' : 'RT', bandEdge(flip(DS_L2, s), 3.6, 2, s), side, -26);
-    d.label(s > 0 ? 'LB' : 'RB', bandTip(flip(DS_L1, s), 2.4, -1), side, -12);
-  }
+  for (const s of [1, -1]) d.label(s > 0 ? 'LB' : 'RB', [-58.6 * s, 2.5], s > 0 ? 'left' : 'right', -12);
   d.label('DpadUp', [-54.9, 19.5], 'left', 16.5);
   d.label('DpadLeft', [-63.6, 29], 'left', 26.5);
   d.label('DpadDown', [-50, 42.6], 'left', 36.5);
@@ -483,7 +569,10 @@ function dualsense({ edge = false } = {}) {
   return d;
 }
 
-/** DualSense back: L1/R1 on the edge, the L2/R2 plates, and the Edge's back buttons. */
+/**
+ * DualSense back: only L2 / R2 show (L1 / R1 hide behind them), plus the Edge's back
+ * buttons. The grips end in the dark front shell.
+ */
 function dualsenseBack({ edge = false } = {}) {
   const d = new Device(edge ? 'dualsenseEdgeBack' : 'dualsenseBack', {
     title: `DualSense${edge ? ' Edge' : ''}-style controller, back view seen through from the front (left shoulder on the left)`,
@@ -492,13 +581,14 @@ function dualsenseBack({ edge = false } = {}) {
     ox: 500,
     oy: 233,
   });
-  d.outline(fromHalf(DS_HALF));
-  usbPort(d, 3.4);
-  backShoulders(d, {
-    bumper: DS_L1,
-    bumperHw: 2.4,
-    trigger: [[-34, 4.6, 3], [-61, 7.8, 4], [-68, 22.5, 6.5], [-37, 19.5, 5]],
+  d.outline(fromHalf(DS_BACK_HALF));
+  for (const s of [1, -1]) d.detail(d.spline(flip([[-77.6, 89.4], [-73.6, 90.4], [-69.5, 90.4], [-65.3, 92.4], [-62.2, 95.6], [-60.4, 99.6], [-59.6, 102.3]], s)));
+  d.detail(d.circle([-10.7, 48.2], 0.6)); // reset hole
+  d.detail(d.capsule([-1, 54.2], [1, 54.2], 0.5));
+  seatedShoulder(d, DS_BACK_HALF, pointAt(DS_BACK_HALF, -37.7), pointAt(DS_BACK_HALF, -59.4), DS_L2_LOWER, ['LT', 'RT'], {
+    parts: (s) => [d.path(d.spline(flip([[-54.6, 3.6], [-47.6, 3.4], [-40.4, 3.1]], s)), 'stroke-width="1.75" opacity="0.6"')],
   });
+  for (const s of [1, -1]) d.label(s > 0 ? 'LT' : 'RT', [-56.4 * s, -1.6], s > 0 ? 'left' : 'right', -10);
   if (edge) {
     const lever = [[-51.5, 52], [-54.6, 61.5], [-56.8, 72]];
     for (const s of [1, -1]) {
@@ -517,7 +607,6 @@ const XBOX_HALF = [
   [-76.2, 49], [-75, 62], [-71.5, 76], [-66, 88], [-58.5, 98], [-49, 102.5], [-40, 101], [-33.5, 94], [-30, 84],
   [-26, 76], [-19, 71.5], [-9.5, 69.8], [0, 69.5],
 ];
-const XBOX_LT = [[-31, -12.6], [-43, -12.6], [-51.5, -10.6], [-55.5, -8.6]];
 const XBOX_LB = [[-19, -3], [-31, -3.4], [-41, -3.2], [-52.8, -0.6], [-62.2, 4.6], [-69.5, 12]];
 
 function xbox() {
@@ -531,10 +620,8 @@ function xbox() {
   d.outline(fromHalf(XBOX_HALF));
   d.detail(d.circle([-20, 51], 12.6)); // d-pad dish
 
-  for (const s of [1, -1]) {
-    d.control(s > 0 ? 'LT' : 'RT', d.hit(d.band(flip(XBOX_LT, s), 4.4)), [d.band(flip(XBOX_LT, s), 4)]);
-    d.control(s > 0 ? 'LB' : 'RB', d.hit(d.band(flip(XBOX_LB, s), 3.6)), [d.band(flip(XBOX_LB, s), 2.6)]);
-  }
+  // the triggers sit behind the bumpers; the back view has them
+  for (const s of [1, -1]) d.control(s > 0 ? 'LB' : 'RB', d.hit(d.band(flip(XBOX_LB, s), 3.6)), [d.band(flip(XBOX_LB, s), 2.6)]);
   d.control('Guide', d.hitCircle([0, 11.5], 7.8), [d.circle([0, 11.5], 6.6), d.circle([0, 11.5], 4.6, 'stroke-width="1.75" opacity="0.5"')]);
   d.control('Back', d.hitCircle([-12.5, 25], 4.8), [d.circle([-12.5, 25], 3.3)]);
   d.control('Start', d.hitCircle([12.5, 25], 4.8), [d.circle([12.5, 25], 3.3)]);
@@ -544,11 +631,7 @@ function xbox() {
   stick(d, 'LS', 'Left', [-40, 27], 13.5, 9.6);
   stick(d, 'RS', 'Right', [20, 51], 13.5, 9.6);
 
-  for (const s of [1, -1]) {
-    const side = s > 0 ? 'left' : 'right';
-    d.label(s > 0 ? 'LT' : 'RT', bandEdge(flip(XBOX_LT, s), 4, 2, s), side, -27);
-    d.label(s > 0 ? 'LB' : 'RB', bandTip(flip(XBOX_LB, s), 2.6, -1), side, -12);
-  }
+  for (const s of [1, -1]) d.label(s > 0 ? 'LB' : 'RB', bandTip(flip(XBOX_LB, s), 2.6, -1), s > 0 ? 'left' : 'right', -12);
   d.label('LS', [-53.5, 27], 'left', 27);
   d.label('DpadUp', [-24.1, 44], 'left', 44);
   d.label('DpadLeft', [-30.6, 51], 'left', 53.5);
@@ -621,12 +704,8 @@ function generic() {
   d.outline(fromHalf(GENERIC_HALF));
   d.detail(d.circle([-44, 25], 2.2)); // d-pad pivot dimple
 
-  const LT = [[-33, -11.5], [-45, -11.8], [-55.5, -9.8], [-61, -7.3]];
-  const LB = GENERIC_LB;
-  for (const s of [1, -1]) {
-    d.control(s > 0 ? 'LT' : 'RT', d.hit(d.band(flip(LT, s), 4.5)), [d.band(flip(LT, s), 3.8)]);
-    d.control(s > 0 ? 'LB' : 'RB', d.hit(d.band(flip(LB, s), 3.5)), [d.band(flip(LB, s), 2.5)]);
-  }
+  // the triggers sit behind the bumpers; the back view has them
+  for (const s of [1, -1]) d.control(s > 0 ? 'LB' : 'RB', d.hit(d.band(flip(GENERIC_LB, s), 3.5)), [d.band(flip(GENERIC_LB, s), 2.5)]);
   d.control('Guide', d.hitCircle([0, 10], 7.2), [d.circle([0, 10], 5.8)]);
   for (const s of [1, -1]) {
     const [a, b] = flip([[-14.6, 22.5], [-9.4, 22.5]], s);
@@ -638,11 +717,7 @@ function generic() {
   stick(d, 'LS', 'Left', [-21, 48], 12.5, 9);
   stick(d, 'RS', 'Right', [21, 48], 12.5, 9);
 
-  for (const s of [1, -1]) {
-    const side = s > 0 ? 'left' : 'right';
-    d.label(s > 0 ? 'LT' : 'RT', bandEdge(flip(LT, s), 3.8, 2, s), side, -26);
-    d.label(s > 0 ? 'LB' : 'RB', bandTip(flip(LB, s), 2.5, -1), side, -12);
-  }
+  for (const s of [1, -1]) d.label(s > 0 ? 'LB' : 'RB', bandTip(flip(GENERIC_LB, s), 2.5, -1), s > 0 ? 'left' : 'right', -12);
   d.label('DpadUp', [-48.3, 17], 'left', 15);
   d.label('DpadLeft', [-55.5, 25], 'left', 24.5);
   d.label('DpadDown', [-44, 36.5], 'left', 34);
@@ -711,25 +786,62 @@ function squareButton(d, name, c, half, glyph, hitHalf) {
 /** Regular octagon (stick gates). */
 const octagon = (c, r) => Array.from({ length: 8 }, (_, i) => onCircle(c, r, 22.5 + i * 45));
 
-// Switch Pro Controller: grips that flare outwards towards their rounded ends.
+// Switch Pro Controller: grips that flare outwards towards their rounded ends. From the
+// front, L / R wrap the top corners (x = -24.6 … -62); ZL / ZR hide behind them.
 const PRO1_HALF = [
-  [0, 0], [-14, 0.1], [-28, 0.6], [-42, 2], [-52, 4.6], [-58.6, 8.7], [-62.6, 14.2], [-65.7, 23.4], [-68, 35.5],
+  [0, 0], [-14, 0.1], [-24.6, 0.45, 1], [-26.5, -0.55], [-29, -1.45], [-32, -1.85], [-36, -1.6], [-40, -1], [-44, -0.3],
+  [-48, 0.9], [-52, 2.8], [-56, 5.7], [-58, 8.6], [-60, 11.2], [-62, 13.8], [-64, 17.6], [-65.7, 23.4], [-68, 35.5],
   [-70.6, 51], [-73.4, 66.7], [-75.4, 80], [-75.6, 89.5], [-73, 96.4], [-67.8, 101.7], [-62, 103.8], [-55.2, 101.8],
   [-49.2, 95.4], [-46.1, 86.4], [-43.1, 79.3], [-38.8, 74.1], [-33.5, 72.5], [-18, 72.4], [0, 72.4],
 ];
-/** Where the textured grip begins, on the front and the back alike. */
+/** Lower edge of L from the front, from its outer end inwards; the body's top face starts below. */
+const PRO1_L_LOWER = [[-60, 12.6], [-57.5, 10], [-55, 8.25], [-52.5, 6.9], [-50, 5.8], [-45, 4.2], [-40, 2.9], [-35, 2.25], [-30, 2], [-25.3, 1.65]];
+/** Where the textured grip begins, on the front. */
 const PRO1_GRIP_SEAM = [[-67.6, 32.6], [-59.7, 42.7], [-51.6, 55.8], [-44.4, 65.9], [-38.6, 73.4]];
-const PRO1_ZL = [[-30, -11.6], [-43, -12], [-54, -10.4], [-61, -7.2]];
-const PRO1_L = [[-24, -3.2], [-37, -3.4], [-48, -2.2], [-56, 0.8], [-61.5, 5.6]];
 
-// Switch 2 Pro Controller: rounder top corners, longer grips, a raised front panel.
-const PRO2_HALF = [
-  [0, 0], [-14, 0.2], [-30, 0.9], [-46.5, 2.8], [-55.9, 5.9], [-61.5, 12], [-64.4, 21.2], [-66.6, 29], [-68.8, 37.2],
-  [-71.6, 54.2], [-74.4, 70.8], [-75.5, 80], [-75.6, 87.5], [-73.8, 95.4], [-69.4, 102.2], [-61.2, 104.7], [-53.8, 102.2],
-  [-47.8, 95.4], [-44.1, 87.5], [-40.4, 79.2], [-37.5, 73.9], [-33.4, 72.8], [-18, 72.8], [0, 72.8],
+/** Back silhouette, seen through from the front: L / R on top, the ZL / ZR plates below them. */
+const PRO1_BACK_HALF = [
+  [0, 0.3], [-12, 0.35], [-23.2, 0.45, 1], [-25, 0.05], [-27, -0.4], [-29, -0.85], [-32, -0.95], [-36, -0.55], [-40, 0],
+  [-44, 0.8], [-48, 2.15], [-52, 4.3], [-56, 7.85], [-60, 11.6], [-62.4, 15], [-64.5, 20], [-66.3, 26], [-68.3, 35],
+  [-70.2, 45], [-71.9, 55], [-73.5, 65], [-74.7, 75], [-75.5, 85], [-75.3, 91], [-74.5, 95], [-72, 100], [-69, 102.9],
+  [-66, 104.4], [-62.5, 105.3], [-59, 105], [-56, 103.8], [-53, 101.2], [-51, 98.5], [-49.6, 96], [-47.8, 92], [-46, 88],
+  [-44.5, 84], [-43, 80], [-41.5, 76], [-39.8, 72], [-37.6, 68], [-35.5, 65.6], [-32.5, 64.6], [-24, 64.5], [0, 64.5],
 ];
-const PRO2_ZL = [[-29, -11.8], [-42, -12.2], [-53, -10.6], [-60, -7.4]];
-const PRO2_L = [[-23, -3.2], [-34, -3.4], [-46, -2.4], [-55.6, 0.8], [-62.6, 5.6]];
+const PRO1_BACK_L_LOWER = [[-59.6, 14.3], [-57.6, 11.6], [-55.3, 8.9], [-52.9, 7], [-49.7, 5.7], [-45.5, 5], [-40.2, 4.8], [-35.4, 4.8], [-31.2, 5.2], [-27.3, 5.7]];
+const PRO1_BACK_ZL = [
+  [-30.1, 7.8], [-34.4, 7.6], [-40.2, 7.8], [-45.5, 8.4], [-50.8, 9.1], [-55.5, 11.3], [-57.9, 13.9], [-57.1, 17.1], [-54.7, 19.2],
+  [-50.8, 20.3], [-45.5, 20.5], [-41.8, 19.9], [-38.6, 18.6], [-35.2, 18.4], [-32.8, 12.9],
+];
+/** Where the textured grip begins, on the back. */
+const PRO1_BACK_GRIP_SEAM = [[-67.2, 33.1], [-60.9, 35], [-52.2, 38.5], [-45.9, 42.2], [-41.6, 46.9], [-38.4, 52.5], [-36.6, 58.1], [-35.9, 64.8]];
+
+// Switch 2 Pro Controller: rounder top corners, longer grips, a raised front panel. Its
+// white L / R show on the top corners (x = -23.6 … -59.6).
+const PRO2_HALF = [
+  [0, 0], [-14, 0.2], [-23.6, 0.35, 1], [-26, -0.8], [-28.5, -1.7], [-31, -1.95], [-34, -1.75], [-38, -1.3], [-42, -0.7],
+  [-46, 0.3], [-50, 1.8], [-54, 4.3], [-56, 6], [-58, 8.6], [-59.6, 11.3], [-62, 14.6], [-64.4, 21.2], [-66.6, 29],
+  [-68.8, 37.2], [-71.6, 54.2], [-74.4, 70.8], [-75.5, 80], [-75.6, 87.5], [-73.8, 95.4], [-69.4, 102.2], [-61.2, 104.7],
+  [-53.8, 102.2], [-47.8, 95.4], [-44.1, 87.5], [-40.4, 79.2], [-37.5, 73.9], [-33.4, 72.8], [-18, 72.8], [0, 72.8],
+];
+const PRO2_L_LOWER = [[-58, 10.5], [-56, 9.3], [-54, 8.1], [-52, 7], [-50, 6.1], [-48, 5.3], [-46, 4.7], [-44, 4.2], [-42, 3.7], [-40, 3.4], [-36, 2.7], [-32, 2.3], [-28, 2], [-24.2, 1.8]];
+
+const PRO2_BACK_HALF = [
+  [0, 0.15], [-12, 0.15], [-21.8, 0.3, 1], [-24, -0.6], [-27, -1.5], [-30, -2], [-34, -1.5], [-38, -0.95], [-42, -0.4],
+  [-46, 0.7], [-50, 2.7], [-54, 5.45], [-57, 9.1], [-60, 12.45], [-61.9, 15], [-64.1, 20], [-65.5, 25], [-66.7, 30],
+  [-68.6, 40], [-70.6, 50], [-72, 60], [-73.6, 70], [-75, 80], [-75.6, 90], [-75.2, 97], [-74, 101], [-72, 104.4],
+  [-69, 107.7], [-66, 109.2], [-62.5, 110], [-59, 109.6], [-56.5, 108.4], [-54, 106.6], [-51, 102.4], [-48, 97.1],
+  [-45, 90.1], [-42.6, 84], [-40.9, 80], [-39.3, 76], [-36.8, 72], [-34.5, 70.3], [-31, 69.7], [0, 69.7],
+];
+const PRO2_BACK_L_LOWER = [[-58.9, 12.9], [-57.9, 11.8], [-55.7, 9.4], [-52.2, 7], [-47.8, 5.5], [-42.8, 4.8], [-37.7, 4.6], [-32.7, 4.3], [-28.9, 3.7], [-24.5, 2.6]];
+const PRO2_BACK_ZL = [
+  [-31.6, 5.6], [-29.9, 7.3], [-30.5, 10.8], [-32.1, 14.6], [-33.5, 17.2], [-36.5, 17.8], [-42.8, 17.9], [-49.1, 17.4],
+  [-54.8, 16], [-57.6, 14.3], [-57.4, 12.6], [-55.4, 10.4], [-52.1, 8.2], [-47.8, 6.8], [-42.8, 6], [-37, 5.8],
+];
+/** GL / GR on the grips' inner backs. */
+const PRO2_BACK_GL = [
+  [-45.5, 50.8], [-42.5, 51.9], [-39.1, 56.6], [-36.3, 65.2], [-37, 71.1], [-40.8, 73.6], [-44.3, 71.3], [-50, 65.2],
+  [-51.8, 60.4], [-50.3, 54.5], [-47.7, 51.4],
+];
 
 /** Switch Pro Controller (first generation): no C button, no back buttons. */
 function switchPro() {
@@ -743,11 +855,9 @@ function switchPro() {
   d.outline(fromHalf(PRO1_HALF));
   d.detail(d.circle([10.9, 29.8], 4.6)); // ring around Home
   for (const s of [1, -1]) d.detail(d.spline(flip(PRO1_GRIP_SEAM, s)));
+  d.detail(d.spline([[-25.3, 1.65], [0, 1.45], [25.3, 1.65]])); // the top face between L and R
 
-  for (const s of [1, -1]) {
-    d.control(s > 0 ? 'LT' : 'RT', d.hit(d.band(flip(PRO1_ZL, s), 4.6)), [d.band(flip(PRO1_ZL, s), 3.8)]);
-    d.control(s > 0 ? 'LB' : 'RB', d.hit(d.band(flip(PRO1_L, s), 3.5)), [d.band(flip(PRO1_L, s), 2.5)]);
-  }
+  seatedShoulder(d, PRO1_HALF, pointAt(PRO1_HALF, -24.6), pointAt(PRO1_HALF, -62), PRO1_L_LOWER, ['LB', 'RB']);
   roundButton(d, 'Back', [-18.9, 18.1], 3, 'minus', 4.4);
   roundButton(d, 'Start', [18.9, 18.1], 3, 'plus', 4.4);
   captureButton(d, [-10.9, 29.8], 2.9);
@@ -757,11 +867,7 @@ function switchPro() {
   stick(d, 'LS', 'Left', [-41.9, 29.7], 12.4, 8.8);
   stick(d, 'RS', 'Right', [20.4, 50.2], 12.4, 8.8);
 
-  for (const s of [1, -1]) {
-    const side = s > 0 ? 'left' : 'right';
-    d.label(s > 0 ? 'LT' : 'RT', bandEdge(flip(PRO1_ZL, s), 3.8, 2, s), side, -27);
-    d.label(s > 0 ? 'LB' : 'RB', bandTip(flip(PRO1_L, s), 2.5, -1), side, -12);
-  }
+  for (const s of [1, -1]) d.label(s > 0 ? 'LB' : 'RB', [-56.3 * s, 5.8], s > 0 ? 'left' : 'right', -12);
   d.label('LS', [-54.3, 29.7], 'left', 27);
   d.label('DpadUp', [-27.4, 44.5], 'left', 44.5);
   d.label('DpadLeft', [-34.9, 50.9], 'left', 54);
@@ -792,11 +898,9 @@ function switch2Pro() {
   // edge of the raised front panel
   const panel = [[-59.2, 11.4], [-61.4, 24], [-61.9, 36], [-60, 48.4], [-54.8, 58.8], [-46.5, 66], [-36.1, 68.7], [-18, 69.2], [0, 69.3]];
   d.detail(d.spline([...panel, ...mirror(panel.slice(0, -1)).reverse()]));
+  d.detail(d.spline([[-24.2, 1.8], [0, 1.5], [24.2, 1.8]])); // the top face between L and R
 
-  for (const s of [1, -1]) {
-    d.control(s > 0 ? 'LT' : 'RT', d.hit(d.band(flip(PRO2_ZL, s), 4.6)), [d.band(flip(PRO2_ZL, s), 3.8)]);
-    d.control(s > 0 ? 'LB' : 'RB', d.hit(d.band(flip(PRO2_L, s), 3.6)), [d.band(flip(PRO2_L, s), 2.6)]);
-  }
+  seatedShoulder(d, PRO2_HALF, pointAt(PRO2_HALF, -23.6), pointAt(PRO2_HALF, -59.6), PRO2_L_LOWER, ['LB', 'RB']);
   roundButton(d, 'Back', [-18.25, 17.6], 3.3, 'minus', 4.7);
   roundButton(d, 'Start', [18.25, 17.6], 3.3, 'plus', 4.7);
   captureButton(d, [-9.2, 29.5], 3.1);
@@ -807,11 +911,7 @@ function switch2Pro() {
   stick(d, 'LS', 'Left', [-41.1, 29.7], 12.7, 9.4);
   stick(d, 'RS', 'Right', [18.4, 51], 12.7, 9.4);
 
-  for (const s of [1, -1]) {
-    const side = s > 0 ? 'left' : 'right';
-    d.label(s > 0 ? 'LT' : 'RT', bandEdge(flip(PRO2_ZL, s), 3.8, 2, s), side, -27);
-    d.label(s > 0 ? 'LB' : 'RB', bandTip(flip(PRO2_L, s), 2.6, -1), side, -12);
-  }
+  for (const s of [1, -1]) d.label(s > 0 ? 'LB' : 'RB', [-55.4 * s, 5.3], s > 0 ? 'left' : 'right', -12);
   d.label('LS', [-53.8, 29.7], 'left', 27);
   d.label('DpadUp', [-26.4, 44.2], 'left', 44.2);
   d.label('DpadLeft', [-33.1, 51], 'left', 53.4);
@@ -839,23 +939,32 @@ function switchProBack({ gen2 = false } = {}) {
     ox: 500,
     oy: gen2 ? 226 : 228,
   });
-  d.outline(fromHalf(gen2 ? PRO2_HALF : PRO1_HALF));
-  usbPort(d, 3.4);
-  if (!gen2) for (const s of [1, -1]) d.detail(d.spline(flip(PRO1_GRIP_SEAM, s)));
-  backShoulders(d, {
-    bumper: gen2 ? PRO2_L : PRO1_L,
-    bumperHw: gen2 ? 2.6 : 2.5,
-    trigger: gen2
-      ? [[-23.5, 3.8, 3], [-53, 7.4, 4], [-59.5, 20, 6], [-26.5, 17.5, 5]]
-      : [[-24.5, 3.6, 3], [-52, 7, 4], [-59, 20, 6], [-27.5, 17.5, 5]],
-  });
+  const half = gen2 ? PRO2_BACK_HALF : PRO1_BACK_HALF;
+  d.outline(fromHalf(half));
   if (gen2) {
-    for (const s of [1, -1]) {
-      const name = s > 0 ? 'PaddleUL' : 'PaddleUR';
-      const [a, b] = flip([[-46.4, 43], [-49.6, 55]], s);
-      d.control(name, d.hit(d.capsule(a, b, 4.2)), [d.capsule(a, b, 2.9)]);
-      d.label(name, [-51.1 * s, 49.4], s > 0 ? 'left' : 'right', 49.4);
-    }
+    d.detail(d.capsule([-3.6, 4.5], [3.6, 4.5], 0.7)); // USB port
+    d.detail(d.circle([-11.2, 4.7], 1.4)); // pairing button
+    d.detail(d.circle([11.2, 4.5], 0.35));
+    for (const x of [-6.2, -2, 2.1, 6.1]) d.detail(d.capsule([x - 0.6, 1.4], [x + 0.6, 1.4], 0.25)); // player lights
+    d.detail(d.spline([[-33.4, 16.8], [0, 16.4], [33.4, 16.8]])); // lower edge of the light top
+  } else {
+    d.detail(d.capsule([-3.9, 4.35], [3.9, 4.35], 0.85)); // USB port
+    d.detail(d.circle([-10.1, 4.4], 1.1)); // pairing button
+    d.detail(d.circle([10, 4.3], 0.3));
+    d.detail(d.D('M', [-35, 20.2], 'L', [35, 20.2])); // lower edge of the dark top panel
+    for (const s of [1, -1]) d.detail(d.spline(flip(PRO1_BACK_GRIP_SEAM, s)));
+  }
+  // L / R from behind: a band along the top corner; ZL / ZR: a plate below it
+  const [i0, i1] = gen2 ? [pointAt(half, -21.8), pointAt(half, -60)] : [pointAt(half, -23.2), pointAt(half, -62.4)];
+  seatedShoulder(d, half, i0, i1, gen2 ? PRO2_BACK_L_LOWER : PRO1_BACK_L_LOWER, ['LB', 'RB'], { lowerPad: 0 });
+  for (const s of [1, -1]) plateControl(d, s > 0 ? 'LT' : 'RT', gen2 ? PRO2_BACK_ZL : PRO1_BACK_ZL, s, 0.4);
+  if (gen2) for (const s of [1, -1]) plateControl(d, s > 0 ? 'PaddleUL' : 'PaddleUR', PRO2_BACK_GL, s);
+
+  for (const s of [1, -1]) {
+    const side = s > 0 ? 'left' : 'right';
+    d.label(s > 0 ? 'LB' : 'RB', gen2 ? [-55 * s, 6.4] : [-55.8 * s, 7.5], side, -8);
+    d.label(s > 0 ? 'LT' : 'RT', gen2 ? [-55.6 * s, 15.7] : [-56.2 * s, 18.4], side, 22);
+    if (gen2) d.label(s > 0 ? 'PaddleUL' : 'PaddleUR', [-52.6 * s, 60.4], side, 60);
   }
   return d;
 }
@@ -865,7 +974,6 @@ const JOYCON_HALF = [
   [-6, 1, 1], [-22, 1], [-33, 4], [-39.5, 10.5], [-42.5, 22], [-43.2, 51], [-42.5, 80], [-39.5, 91.5], [-33, 98],
   [-22, 101], [-6, 101, 1],
 ];
-const JOYCON_ZL = [[-20, -9.5], [-28, -9.8], [-36, -7.6], [-42, -3.5]];
 const JOYCON_L = [[-16.5, -2.6], [-24, -2.6], [-33, -0.6], [-39.5, 4], [-44, 10.5]];
 
 /** SL / SR: slim buttons on a Joy-Con's rail. */
@@ -886,7 +994,7 @@ function joyCons({ gen2 = false } = {}) {
     d.outline(flip(JOYCON_HALF, s));
     d.detail(d.D('M', flip([[-8.6, 8]], s)[0], 'L', flip([[-8.6, 94]], s)[0])); // rail
     for (const y of [44, 49, 54, 59]) d.detail(d.circle([-10.2 * s, y], 0.5)); // player lights
-    d.control(s > 0 ? 'LT' : 'RT', d.hit(d.band(flip(JOYCON_ZL, s), 4)), [d.band(flip(JOYCON_ZL, s), 3.2)]);
+    // ZL / ZR sit behind L / R; the back view has them
     d.control(s > 0 ? 'LB' : 'RB', d.hit(d.band(flip(JOYCON_L, s), 3.2)), [d.band(flip(JOYCON_L, s), 2.2)]);
   }
 
@@ -917,11 +1025,7 @@ function joyCons({ gen2 = false } = {}) {
   railButton(d, 'PaddleUR', [7.6, 22], [7.6, 33]); // SR
   railButton(d, 'PaddleLR', [7.6, 69], [7.6, 80]); // SL
 
-  for (const s of [1, -1]) {
-    const side = s > 0 ? 'left' : 'right';
-    d.label(s > 0 ? 'LT' : 'RT', bandEdge(flip(JOYCON_ZL, s), 3.2, 2, s), side, -24);
-    d.label(s > 0 ? 'LB' : 'RB', bandTip(flip(JOYCON_L, s), 2.2, -1), side, 3);
-  }
+  for (const s of [1, -1]) d.label(s > 0 ? 'LB' : 'RB', bandTip(flip(JOYCON_L, s), 2.2, -1), s > 0 ? 'left' : 'right', 3);
   d.label('LS', [-35, 28], 'left', 28);
   d.label('DpadUp', onCircle([-24, 50], 3.6, 200), 'left', 46);
   d.label('DpadLeft', [-35.6, 58], 'left', 56);

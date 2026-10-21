@@ -8,9 +8,7 @@ export const xbox: DeviceLayout = {
   svg,
   viewBox: [0, 0, 1000, 700],
   controls: [
-    { control: 'LT', anchor: [320.8, 187], side: 'left', labelAt: [200, 144.2] },
     { control: 'LB', anchor: [257.5, 283.1], side: 'left', labelAt: [200, 195.2] },
-    { control: 'RT', anchor: [679.2, 187], side: 'right', labelAt: [800, 144.2] },
     { control: 'RB', anchor: [742.5, 283.1], side: 'right', labelAt: [800, 195.2] },
     { control: 'LS', anchor: [318.1, 327.8], side: 'left', labelAt: [200, 327.8] },
     { control: 'DpadUp', anchor: [418.1, 385.6], side: 'left', labelAt: [200, 385.6] },

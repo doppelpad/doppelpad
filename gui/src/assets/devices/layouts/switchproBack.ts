@@ -8,9 +8,9 @@ export const switchproBack: DeviceLayout = {
   svg,
   viewBox: [0, 0, 1000, 700],
   controls: [
-    { control: 'LB', anchor: [335, 212.2], side: 'left', labelAt: [200, 200.8] },
-    { control: 'LT', anchor: [309.9, 278.3], side: 'left', labelAt: [200, 268.8] },
-    { control: 'RB', anchor: [665, 212.2], side: 'right', labelAt: [800, 200.8] },
-    { control: 'RT', anchor: [690.1, 278.3], side: 'right', labelAt: [800, 268.8] },
+    { control: 'LB', anchor: [310.3, 253.5], side: 'left', labelAt: [200, 200.8] },
+    { control: 'LT', anchor: [308.9, 290.6], side: 'left', labelAt: [200, 302.8] },
+    { control: 'RB', anchor: [689.7, 253.5], side: 'right', labelAt: [800, 200.8] },
+    { control: 'RT', anchor: [691.1, 290.6], side: 'right', labelAt: [800, 302.8] },
   ],
 };

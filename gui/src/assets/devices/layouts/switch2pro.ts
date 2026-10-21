@@ -8,10 +8,8 @@ export const switch2pro: DeviceLayout = {
   svg,
   viewBox: [0, 0, 1000, 700],
   controls: [
-    { control: 'LT', anchor: [316.5, 177.5], side: 'left', labelAt: [200, 134.2] },
-    { control: 'LB', anchor: [279.9, 250], side: 'left', labelAt: [200, 185.2] },
-    { control: 'RT', anchor: [683.5, 177.5], side: 'right', labelAt: [800, 134.2] },
-    { control: 'RB', anchor: [720.1, 250], side: 'right', labelAt: [800, 185.2] },
+    { control: 'LB', anchor: [311.6, 244], side: 'left', labelAt: [200, 185.2] },
+    { control: 'RB', anchor: [688.4, 244], side: 'right', labelAt: [800, 185.2] },
     { control: 'LS', anchor: [317.1, 327], side: 'left', labelAt: [200, 317.8] },
     { control: 'DpadUp', anchor: [410.2, 376.3], side: 'left', labelAt: [200, 376.3] },
     { control: 'DpadLeft', anchor: [387.5, 399.4], side: 'left', labelAt: [200, 407.6] },

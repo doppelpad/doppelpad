@@ -2,7 +2,7 @@
 
 import { api, errorText } from '../api';
 import { setLanguage, t } from '../i18n/index.svelte';
-import { controlsFromPad } from '../model/devices';
+import { controlsFromPad, drawingsFor, sideShowing } from '../model/devices';
 import {
   activatorOf,
   comboKey,
@@ -179,6 +179,7 @@ class AppState {
     if (!this.settings.hook_buttons || !this.profile || !document.hasFocus()) return;
     if (this.view !== 'front' && this.view !== 'back') return;
     this.select(c);
+    this.view = sideShowing(drawingsFor(this.primary), this.view, c);
   }
 
   async setSettings(patch: Partial<GuiSettings>) {

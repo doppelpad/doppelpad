@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { PadFamily } from '../types';
-import { drawingsFor, hasMotion } from './devices';
+import { drawingsFor, hasMotion, sideShowing } from './devices';
 
 const dev = (family: PadFamily, vendor_id: number, product_id: number) => ({ family, vendor_id, product_id });
 
@@ -28,6 +28,28 @@ describe('drawings for a controller', () => {
 
   it('offers all four paddles when no controller is connected', () => {
     expect(drawingsFor(null)).toEqual({ front: 'xbox', back: 'xboxEliteBack' });
+  });
+});
+
+describe('the side that shows a control', () => {
+  const pro = drawingsFor(dev('switch_pro', 0x057e, 0x2009));
+  const dualSense = drawingsFor(dev('dual_sense', 0x054c, 0x0ce6));
+
+  it('turns to the back for triggers, which hide behind the bumpers', () => {
+    expect(sideShowing(pro, 'front', 'LT')).toBe('back');
+    expect(sideShowing(dualSense, 'front', 'RT')).toBe('back');
+  });
+
+  it('turns to the front for face buttons', () => {
+    expect(sideShowing(pro, 'back', 'A')).toBe('front');
+    // L1 hides behind L2 on the DualSense's back
+    expect(sideShowing(dualSense, 'back', 'LB')).toBe('front');
+  });
+
+  it('stays where the control shows, or where neither side draws it', () => {
+    expect(sideShowing(pro, 'back', 'LB')).toBe('back');
+    expect(sideShowing(pro, 'front', 'LB')).toBe('front');
+    expect(sideShowing(pro, 'front', 'LeftStickUp')).toBe('front');
   });
 });
 

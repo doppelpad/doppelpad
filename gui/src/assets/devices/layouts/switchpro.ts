@@ -8,10 +8,8 @@ export const switchpro: DeviceLayout = {
   svg,
   viewBox: [0, 0, 1000, 700],
   controls: [
-    { control: 'LT', anchor: [313.1, 180.2], side: 'left', labelAt: [200, 136.2] },
-    { control: 'LB', anchor: [284.5, 252.6], side: 'left', labelAt: [200, 187.2] },
-    { control: 'RT', anchor: [686.9, 180.2], side: 'right', labelAt: [800, 136.2] },
-    { control: 'RB', anchor: [715.5, 252.6], side: 'right', labelAt: [800, 187.2] },
+    { control: 'LB', anchor: [308.6, 247.7], side: 'left', labelAt: [200, 187.2] },
+    { control: 'RB', anchor: [691.4, 247.7], side: 'right', labelAt: [800, 187.2] },
     { control: 'LS', anchor: [315.4, 329], side: 'left', labelAt: [200, 319.8] },
     { control: 'DpadUp', anchor: [406.8, 379.3], side: 'left', labelAt: [200, 379.3] },
     { control: 'DpadLeft', anchor: [381.3, 401.1], side: 'left', labelAt: [200, 411.6] },

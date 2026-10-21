@@ -37,6 +37,25 @@
       g.querySelector('.stick-cap')?.setAttribute('transform', `translate(${(x * 14).toFixed(1)} ${(-y * 14).toFixed(1)})`);
     }
   });
+
+  // The front drawing hides the triggers behind the bumpers, so a bar above each bumper
+  // shows how far its trigger is pulled.
+  const BAR = { h: 12, gap: 14 };
+  type Bar = { name: 'LT' | 'RT'; axis: number; x: number; y: number; w: number; left: boolean };
+  let bars = $state<Bar[]>([]);
+  $effect(() => {
+    if (!drawing || !layout || layout.controls.some((lc) => lc.control === 'LT')) {
+      bars = [];
+      return;
+    }
+    bars = (['LB', 'RB'] as const).flatMap((bumper, i) => {
+      const g = drawing!.querySelector<SVGGElement>(`[data-control="${bumper}"]`);
+      if (!g) return [];
+      const b = g.getBBox();
+      return [{ name: i ? 'RT' : 'LT', axis: 4 + i, x: b.x, y: b.y - BAR.gap - BAR.h, w: b.width, left: !i }];
+    });
+  });
+  const pull = (axis: number) => Math.min(1, Math.max(0, content?.device.state.axes[axis] ?? 0));
 </script>
 
 {#if content && layout}
@@ -49,6 +68,20 @@
   >
     <div class="card" style="aspect-ratio: {vw} / {vh}">
       <div class="drawing" bind:this={drawing}>{@html layout.svg}</div>
+      {#if bars.length}
+        <svg class="triggers" viewBox={layout.viewBox.join(' ')} aria-hidden="true">
+          {#each bars as bar (bar.name)}
+            {@const w = bar.w * pull(bar.axis)}
+            <g class:pressed={pressed.has(bar.name)}>
+              <rect class="track" x={bar.x} y={bar.y} width={bar.w} height={BAR.h} rx={BAR.h / 2} />
+              {#if w > 0}
+                <!-- fills from the outer end inwards -->
+                <rect class="fill" x={bar.left ? bar.x : bar.x + bar.w - w} y={bar.y} width={w} height={BAR.h} rx={Math.min(BAR.h, w) / 2} />
+              {/if}
+            </g>
+          {/each}
+        </svg>
+      {/if}
     </div>
   </div>
 {/if}
@@ -69,6 +102,7 @@
     align-items: flex-end;
   }
   .card {
+    position: relative;
     max-width: 100%;
     max-height: 100%;
     width: 100%;
@@ -94,5 +128,25 @@
   }
   .drawing :global(.body) {
     color: var(--text-faint);
+  }
+  .triggers {
+    position: absolute;
+    inset: 12px;
+    width: calc(100% - 24px);
+    height: calc(100% - 24px);
+  }
+  .track {
+    fill: none;
+    stroke: var(--line-strong);
+    stroke-width: 3;
+  }
+  .fill {
+    fill: color-mix(in srgb, var(--accent) 55%, transparent);
+  }
+  .pressed .track {
+    stroke: var(--accent-hover);
+  }
+  .pressed .fill {
+    fill: var(--accent-hover);
   }
 </style>
