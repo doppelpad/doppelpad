@@ -24,6 +24,9 @@ pub const FOREGROUND_POLL_MS: u64 = 250;
 const DESKTOP_POLL_MS: u64 = 250;
 /// How often driver availability is re-probed.
 const DRIVER_POLL_MS: u64 = 5000;
+/// How long the editor's focus report is trusted by default although another program is in
+/// front (the foreground check lags behind a focus change).
+pub const GUI_FOCUS_GRACE_MS: u64 = 1000;
 
 #[derive(Clone, Debug)]
 pub struct ServiceOptions {
@@ -40,6 +43,8 @@ pub struct ServiceOptions {
     /// Override the persisted auto-switch setting.
     pub auto_switch: Option<bool>,
     pub foreground_poll_ms: u64,
+    /// How long the editor's focus report is trusted although another program is in front.
+    pub gui_focus_grace_ms: u64,
 }
 
 impl ServiceOptions {
@@ -52,6 +57,7 @@ impl ServiceOptions {
             initial_profile: None,
             auto_switch: None,
             foreground_poll_ms: FOREGROUND_POLL_MS,
+            gui_focus_grace_ms: GUI_FOCUS_GRACE_MS,
         }
     }
 }
@@ -203,11 +209,17 @@ pub struct Service {
     /// Why remapping is paused: the editor has focus, the desktop is locked or a secure
     /// desktop shows, the config's game is not in front.
     gui_suspended: bool,
+    /// When the editor last reported getting the focus.
+    gui_since: u64,
     locked: bool,
     focus_paused: bool,
     desktop_checked: Option<u64>,
     /// The application in front, as last asked.
     fg_now: Option<String>,
+    /// Its process id, where the platform can tell.
+    fg_pid: Option<u32>,
+    /// The editor reports focus while another program is in front (a missed focus change).
+    gui_stale: bool,
     /// When the gyro calibration was last saved.
     calibration_saved: Option<u64>,
 }
@@ -275,10 +287,13 @@ impl Service {
             http: None,
             http_error: None,
             gui_suspended: false,
+            gui_since: 0,
             locked: false,
             focus_paused: false,
             desktop_checked: None,
             fg_now: None,
+            fg_pid: None,
+            gui_stale: false,
             calibration_saved: None,
             opts,
         };
@@ -701,6 +716,9 @@ impl Service {
                 }
             }
             ServiceCmd::SetSuspended(on) => {
+                if on && !self.gui_suspended {
+                    self.gui_since = self.rt.now_ms();
+                }
                 self.gui_suspended = on;
                 self.apply_suspend();
                 ServiceReply::Ok(format!(
@@ -1052,6 +1070,7 @@ impl Service {
         self.watch_desktop(now);
         if self.poll_foreground(now) {
             self.watch_focus();
+            self.apply_suspend();
         }
         self.auto_switch_tick();
         if self
@@ -1092,7 +1111,9 @@ impl Service {
             return false;
         }
         self.last_fg_check = Some(now);
-        self.fg_now = self.rt.platform_mut().foreground.foreground_process();
+        let fg = &mut self.rt.platform_mut().foreground;
+        self.fg_now = fg.foreground_process();
+        self.fg_pid = fg.foreground_pid();
         true
     }
 
@@ -1151,9 +1172,45 @@ impl Service {
         }
     }
 
+    /// The editor's pause, which holds only while a window of this process is in front
+    /// (after a grace period for the foreground check to catch up): a focus change the
+    /// window missed must not leave the controller dead in the game.
+    fn editing(&mut self) -> bool {
+        let stale = self.gui_suspended
+            && self.rt.now_ms() >= self.gui_since + self.opts.gui_focus_grace_ms
+            && self.fg_pid.is_some_and(|pid| pid != std::process::id());
+        if stale != self.gui_stale {
+            self.gui_stale = stale;
+            if stale {
+                tracing::warn!(
+                    foreground = self.fg_now.as_deref().unwrap_or("?"),
+                    "the Doppelpad window still reports focus while another program is in front; not pausing"
+                );
+            }
+        }
+        self.gui_suspended && !stale
+    }
+
     fn apply_suspend(&mut self) {
-        self.rt
-            .set_suspended(self.gui_suspended || self.locked || self.focus_paused);
+        let reasons = [
+            (self.editing(), "editing"),
+            (self.locked, "desktop locked"),
+            (self.focus_paused, "game not in front"),
+        ];
+        let on = reasons.iter().any(|(r, _)| *r);
+        if on != self.rt.is_suspended() {
+            if on {
+                let why: Vec<&str> = reasons
+                    .iter()
+                    .filter(|(r, _)| *r)
+                    .map(|(_, w)| *w)
+                    .collect();
+                tracing::info!(reason = why.join(", "), "remapping paused");
+            } else {
+                tracing::info!("remapping resumed");
+            }
+        }
+        self.rt.set_suspended(on);
     }
 
     fn auto_switch_tick(&mut self) {
@@ -1619,6 +1676,54 @@ Host: 127.0.0.1:{}
             Some("A"),
             "profile stays loaded while paused"
         );
+        s.handle(ServiceCmd::SetSuspended(false));
+        assert!(!s.live().suspended);
+    }
+
+    /// Reports only which process is in front.
+    struct PidForeground(Arc<Mutex<Option<u32>>>);
+
+    impl ForegroundWatcher for PidForeground {
+        fn foreground_process(&mut self) -> Option<String> {
+            None
+        }
+        fn foreground_pid(&mut self) -> Option<u32> {
+            *self.0.lock().unwrap()
+        }
+    }
+
+    #[test]
+    fn editor_pause_holds_only_while_doppelpad_is_in_front() {
+        let dir = tempfile::tempdir().unwrap();
+        let pid = Arc::new(Mutex::new(Some(std::process::id())));
+        let mut platform = NullPlatform::platform();
+        platform.foreground = Box::new(PidForeground(pid.clone()));
+        let mut opts = ServiceOptions::new(dir.path().join("profiles"));
+        opts.foreground_poll_ms = 0;
+        let mut s = Service::new(Runtime::with_platform(platform), opts).unwrap();
+
+        s.handle(ServiceCmd::SetSuspended(true));
+        s.tick();
+        assert!(s.live().suspended, "the editor in front pauses");
+
+        *pid.lock().unwrap() = Some(std::process::id() + 1);
+        s.tick();
+        assert!(
+            s.live().suspended,
+            "trusted while the foreground check catches up"
+        );
+
+        s.opts.gui_focus_grace_ms = 0;
+        s.tick();
+        assert!(
+            !s.live().suspended,
+            "a missed focus change does not keep the pause"
+        );
+
+        *pid.lock().unwrap() = Some(std::process::id());
+        s.tick();
+        assert!(s.live().suspended, "back in the editor");
+
         s.handle(ServiceCmd::SetSuspended(false));
         assert!(!s.live().suspended);
     }

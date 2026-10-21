@@ -275,7 +275,10 @@ Remapping pauses while the Doppelpad window has keyboard focus. Mapped keys ther
 don't land in the editor, and pressing a button selects it instead of triggering its
 mapping. The remap button in the bottom bar then shows a pause sign, and its tooltip says
 *Paused while editing*. Switch to the game (or hide the window) and the active slot takes
-over again. *Settings → Keep remapping active while this window is focused* turns this off.
+over again. Doppelpad also checks which program is in front: if Windows misses telling the
+window that it lost the focus, remapping still resumes about a second after another
+program comes to the front. The log records every pause and resume with its reason.
+*Settings → Keep remapping active while this window is focused* turns this off.
 
 ## Several controllers
 

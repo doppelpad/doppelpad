@@ -372,6 +372,11 @@ pub trait DeviceHider: Send {
 /// Executable file name (e.g. `game.exe`) of the application that has focus.
 pub trait ForegroundWatcher: Send {
     fn foreground_process(&mut self) -> Option<String>;
+    /// Process id of the application that has focus (for a dialog, of the window that owns
+    /// it), where the platform can tell.
+    fn foreground_pid(&mut self) -> Option<u32> {
+        None
+    }
 }
 
 /// Ending the session or putting the computer to sleep.

@@ -641,8 +641,11 @@ pub fn settings_set(
     settings.save().map_err(err)?;
     let stay_live = settings.stay_live;
     *state.settings.lock().unwrap() = settings;
-    // The settings dialog is only reachable while the window has focus.
-    state.call(ServiceCmd::SetSuspended(!stay_live))?;
+    // "Keep remapping active" may have changed; the pause still needs the window in focus.
+    let focused = state
+        .main_focused
+        .load(std::sync::atomic::Ordering::Relaxed);
+    state.call(ServiceCmd::SetSuspended(focused && !stay_live))?;
     crate::tray::refresh(&app);
     Ok(())
 }
