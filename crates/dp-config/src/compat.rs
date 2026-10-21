@@ -2233,7 +2233,7 @@ mod tests {
         ))
         .unwrap();
         assert_eq!(p.kbm_source, KbmSource::Scripts);
-        let text = crate::to_toml(&p);
+        let text = crate::to_toml(&p).unwrap();
         assert!(text.contains(r#"kbm_source = "scripts""#), "{text}");
         let (p, d) = import(&doc(
             r#"{ "id": 1, "name": "keyboard" }, { "id": 2, "name": "sendInputMouse" }"#,
@@ -2243,7 +2243,7 @@ mod tests {
         assert!(d.iter().any(|x| x.to_string().contains("injected input")));
         let (p, _) = import(&doc(r#"{ "id": 1, "name": "keyboard" }"#)).unwrap();
         assert!(
-            !crate::to_toml(&p).contains("kbm_source"),
+            !crate::to_toml(&p).unwrap().contains("kbm_source"),
             "the default is not written"
         );
     }
@@ -2267,7 +2267,7 @@ mod tests {
         );
         assert!(!d.iter().any(|x| x.to_string().contains("break")));
         // The TOML form round-trips.
-        let text = crate::to_toml(&p);
+        let text = crate::to_toml(&p).unwrap();
         assert!(text.contains("break = true"), "{text}");
         assert_eq!(
             crate::parse_toml(&text).unwrap().mappings[0].actions,
@@ -2834,7 +2834,7 @@ mod tests {
         assert_eq!(p.virtual_devices.mouse.counts_per_turn, 14400.0);
         assert_eq!(p.virtual_devices.mouse.turn_ms, 150);
         assert!(diags.iter().any(|d| d.message.contains("flick threshold")));
-        let toml = crate::to_toml(&p);
+        let toml = crate::to_toml(&p).unwrap();
         assert_eq!(crate::parse_toml(&toml).unwrap(), p, "{toml}");
     }
 
@@ -2944,7 +2944,7 @@ mod tests {
                 }
             ]
         );
-        let toml = crate::to_toml(&p);
+        let toml = crate::to_toml(&p).unwrap();
         assert!(toml.contains("touch = \"swipe2_left\""), "{toml}");
         assert_eq!(crate::parse_toml(&toml).unwrap(), p);
     }

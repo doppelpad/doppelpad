@@ -254,7 +254,7 @@ fn print_diagnostics(diags: &dp_config::Diagnostics) {
 fn import(file: &Path, output: Option<&Path>) -> Result<()> {
     let (profile, diags) = dp_config::load(file)?;
     print_diagnostics(&diags);
-    let toml = dp_config::to_toml(&profile);
+    let toml = dp_config::to_toml(&profile)?;
     match output {
         Some(out) => {
             std::fs::write(out, toml).with_context(|| format!("writing {}", out.display()))?;

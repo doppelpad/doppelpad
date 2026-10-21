@@ -24,6 +24,8 @@ pub enum LibraryError {
     Io(PathBuf, #[source] std::io::Error),
     #[error("{0}: {1}")]
     Meta(PathBuf, #[source] toml::de::Error),
+    #[error("{0}: {1}")]
+    Serialize(PathBuf, #[source] toml::ser::Error),
     #[error(transparent)]
     Load(#[from] LoadError),
     #[error("{0}: {1}")]
@@ -322,15 +324,6 @@ pub fn duplicate_config(path: &Path) -> Result<PathBuf> {
 pub fn rename_config(path: &Path, name: &str) -> Result<()> {
     let (mut profile, _) = load(path)?;
     profile.name = name.to_owned();
-    if crate::Format::detect(path, &std::fs::read_to_string(path).map_err(io(path))?)
-        == crate::Format::Json
-    {
-        // Never rewrite an imported original; the caller should import it first.
-        return Err(LibraryError::Io(
-            path.to_path_buf(),
-            std::io::Error::other("JSON profiles are read-only; import them first"),
-        ));
-    }
     save_profile_atomic(path, &profile)
 }
 
@@ -350,23 +343,31 @@ fn write_atomic(path: &Path, text: &str) -> Result<()> {
 
 /// Save a profile as TOML: written to a temporary file and renamed over the target.
 /// A file that was not written by Doppelpad (e.g. hand-written with comments, which
-/// would be lost) is copied to `<file>.bak` once before its first overwrite.
+/// would be lost) is copied to `<file>.bak` once before its first overwrite. A JSON
+/// profile is never overwritten; import it first.
 pub fn save_profile_atomic(path: &Path, profile: &Profile) -> Result<()> {
-    if let Ok(existing) = std::fs::read_to_string(path)
-        && !existing.starts_with(OUR_HEADER)
-    {
-        let bak = path.with_extension(match path.extension().and_then(|e| e.to_str()) {
-            Some(e) => format!("{e}.bak"),
-            None => "bak".into(),
-        });
-        if !bak.exists() {
-            std::fs::copy(path, &bak).map_err(io(&bak))?;
+    let text = to_toml(profile).map_err(|e| LibraryError::Serialize(path.to_path_buf(), e))?;
+    if let Ok(existing) = std::fs::read_to_string(path) {
+        if crate::Format::detect(path, &existing) == crate::Format::Json {
+            return Err(LibraryError::Io(
+                path.to_path_buf(),
+                std::io::Error::other("JSON profiles are read-only; import them first"),
+            ));
+        }
+        if !existing.starts_with(OUR_HEADER) {
+            let bak = path.with_extension(match path.extension().and_then(|e| e.to_str()) {
+                Some(e) => format!("{e}.bak"),
+                None => "bak".into(),
+            });
+            if !bak.exists() {
+                std::fs::copy(path, &bak).map_err(io(&bak))?;
+            }
         }
     }
     if let Some(dir) = path.parent() {
         std::fs::create_dir_all(dir).map_err(io(dir))?;
     }
-    write_atomic(path, &to_toml(profile))
+    write_atomic(path, &text)
 }
 
 /// Import a JSON profile (schema 3.0) as a new TOML config in `game_dir`. The source
@@ -503,6 +504,24 @@ mod tests {
         let copy = duplicate_config(&path).unwrap();
         assert_ne!(copy, path);
         assert_eq!(load(&copy).unwrap().0.name, "Aggressive copy");
+    }
+
+    #[test]
+    fn imported_json_is_never_overwritten() {
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("original.json");
+        std::fs::write(&path, JSON).unwrap();
+        let (profile, _) = load(&path).unwrap();
+        let err = save_profile_atomic(&path, &profile).unwrap_err();
+        assert!(err.to_string().contains("read-only"), "{err}");
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), JSON);
+        assert!(rename_config(&path, "Other").is_err());
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), JSON);
+        assert_eq!(
+            std::fs::read_dir(root.path()).unwrap().count(),
+            1,
+            "no .bak or .tmp"
+        );
     }
 
     #[test]

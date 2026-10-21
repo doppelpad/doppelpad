@@ -122,7 +122,7 @@ fn profile_fixture_round_trips() {
     assert_eq!(normalize(back), normalize(original));
 
     // And the TOML the app saves reads back to the same profile.
-    let toml = dp_config::to_toml(&profile);
+    let toml = dp_config::to_toml(&profile).unwrap();
     assert_eq!(dp_config::parse_toml(&toml).unwrap(), profile);
 }
 
