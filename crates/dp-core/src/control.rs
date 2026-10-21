@@ -228,6 +228,14 @@ impl TouchRegion {
     }
 }
 
+/// The kind of device a [`Control`] comes from.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum InputDevice {
+    Pad,
+    Keyboard,
+    Mouse,
+}
+
 /// Anything that can trigger a mapping.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Control {
@@ -261,16 +269,36 @@ impl Control {
         matches!(self, Control::Wheel(_))
     }
 
-    /// True if the control comes from a gamepad (as opposed to keyboard/mouse).
+    /// The device the control comes from.
+    pub fn device(self) -> InputDevice {
+        match self {
+            Control::Key(_) => InputDevice::Keyboard,
+            Control::Mouse(_)
+            | Control::Wheel(_)
+            | Control::MouseMove(_)
+            | Control::MouseZone(..) => InputDevice::Mouse,
+            Control::Button(_)
+            | Control::StickDir(..)
+            | Control::StickZone(..)
+            | Control::TriggerPress(_)
+            | Control::TriggerZone(..)
+            | Control::TriggerFull(_)
+            | Control::Touch(_)
+            | Control::Gesture(_)
+            | Control::Trackpad(..)
+            | Control::Gyro(_)
+            | Control::GyroZone(..) => InputDevice::Pad,
+        }
+    }
+
+    /// True if the control comes from a gamepad.
     pub fn is_pad(self) -> bool {
-        !matches!(
-            self,
-            Control::Key(_)
-                | Control::Mouse(_)
-                | Control::Wheel(_)
-                | Control::MouseMove(_)
-                | Control::MouseZone(..)
-        )
+        self.device() == InputDevice::Pad
+    }
+
+    /// True if the control comes from the keyboard or the mouse.
+    pub fn is_kbm(self) -> bool {
+        !self.is_pad()
     }
 
     /// Every digital control derived from a stick: directions (with diagonals) and zones.

@@ -57,6 +57,11 @@ impl PadButton {
     pub const fn bit(self) -> u32 {
         1 << self as u8
     }
+
+    /// The bits of these buttons together.
+    pub fn mask(buttons: &[PadButton]) -> u32 {
+        buttons.iter().fold(0, |m, b| m | b.bit())
+    }
 }
 
 /// Analog axes. Sticks are in `[-1, 1]` with **up and right positive**;

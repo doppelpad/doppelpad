@@ -1287,9 +1287,8 @@ impl Service {
             profile_path: self.rt.profile_path().map(|p| p.display().to_string()),
             layer: self.rt.layer(),
             layer_name: self.rt.profile().and_then(|p| {
-                p.layers
-                    .iter()
-                    .find(|l| l.id == self.rt.layer() && !l.name.is_empty())
+                p.layer(self.rt.layer())
+                    .filter(|l| !l.name.is_empty())
                     .map(|l| l.name.clone())
             }),
             slots: self
@@ -1907,8 +1906,7 @@ Host: 127.0.0.1:{}
         assert_eq!(s.handle(ServiceCmd::GetHotkeys), ServiceReply::Hotkeys(hk));
 
         let hold = |s: &mut Service, buttons: &[PadButton]| {
-            world.lock().unwrap().pads[0].state.buttons =
-                buttons.iter().fold(0, |m, b| m | b.bit());
+            world.lock().unwrap().pads[0].state.buttons = PadButton::mask(buttons);
             s.tick();
             std::thread::sleep(std::time::Duration::from_millis(70));
             s.tick();

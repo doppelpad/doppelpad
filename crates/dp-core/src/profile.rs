@@ -5,7 +5,7 @@
 
 use serde::{Deserialize, Deserializer, Serialize};
 
-use crate::control::{Control, Dir, TouchGesture};
+use crate::control::{Control, Dir, InputDevice, TouchGesture};
 use crate::keys::{Key, MouseButton, WheelDir};
 use crate::pad::{PadButton, Stick, Trigger};
 
@@ -64,6 +64,13 @@ pub struct Profile {
     /// How the game's rumble reaches the controller (`[vibration]`).
     #[serde(skip_serializing_if = "is_default")]
     pub vibration: Vibration,
+}
+
+impl Profile {
+    /// The declared layer with this id.
+    pub fn layer(&self, id: u8) -> Option<&Layer> {
+        self.layers.iter().find(|l| l.id == id)
+    }
 }
 
 /// How the game's rumble reaches the controller. Rumble that mappings play is not changed.
@@ -192,6 +199,17 @@ pub enum RadialSelect {
     Mouse,
     /// Only the radial commands (next, previous, up, down, ...).
     Commands,
+}
+
+impl RadialSelect {
+    /// The stick that points, if a stick does.
+    pub fn stick(self) -> Option<Stick> {
+        match self {
+            RadialSelect::LeftStick => Some(Stick::Left),
+            RadialSelect::RightStick => Some(Stick::Right),
+            RadialSelect::Mouse | RadialSelect::Commands => None,
+        }
+    }
 }
 
 /// When the pointed sector runs.
@@ -1300,13 +1318,10 @@ pub enum Unlock {
 impl Unlock {
     /// True if `c` is a physical input this unlock gives back.
     pub fn covers(self, c: Control) -> bool {
-        match c {
-            Control::Key(_) => self != Unlock::Mouse,
-            Control::Mouse(_)
-            | Control::Wheel(_)
-            | Control::MouseMove(_)
-            | Control::MouseZone(..) => self != Unlock::Keyboard,
-            _ => false,
+        match c.device() {
+            InputDevice::Keyboard => self != Unlock::Mouse,
+            InputDevice::Mouse => self != Unlock::Keyboard,
+            InputDevice::Pad => false,
         }
     }
 }
@@ -1792,6 +1807,26 @@ pub enum AnalogSource {
     Touchpad,
 }
 
+impl From<Stick> for AnalogSource {
+    fn from(s: Stick) -> Self {
+        match s {
+            Stick::Left => AnalogSource::LeftStick,
+            Stick::Right => AnalogSource::RightStick,
+        }
+    }
+}
+
+impl AnalogSource {
+    /// The stick this source reads, if it is one.
+    pub fn stick(self) -> Option<Stick> {
+        match self {
+            AnalogSource::LeftStick => Some(Stick::Left),
+            AnalogSource::RightStick => Some(Stick::Right),
+            AnalogSource::Mouse | AnalogSource::Gyro | AnalogSource::Touchpad => None,
+        }
+    }
+}
+
 /// Continuous analog targets.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -1802,6 +1837,17 @@ pub enum AnalogTarget {
     /// Flick stick: turn to face where the stick points, then turn with it (horizontal
     /// mouse motion, see `[virtual.mouse]`).
     Flick,
+}
+
+impl AnalogTarget {
+    /// The virtual stick this target moves, if it is one.
+    pub fn stick(self) -> Option<Stick> {
+        match self {
+            AnalogTarget::LeftStick => Some(Stick::Left),
+            AnalogTarget::RightStick => Some(Stick::Right),
+            AnalogTarget::Mouse | AnalogTarget::Flick => None,
+        }
+    }
 }
 
 /// A continuous route from an analog source to an analog target.

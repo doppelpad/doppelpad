@@ -13,8 +13,8 @@ use std::path::{Path, PathBuf};
 pub use compat::ImportError;
 pub use diag::{Diagnostic, Diagnostics, Severity};
 use dp_core::profile::{
-    Action, AnalogSource, AnalogTarget, Command, JumpMode, Light, Mode, Profile, Sticks,
-    TriggerEffect, Triggers, VirtualSticks,
+    Action, AnalogTarget, Command, JumpMode, Light, Mode, Profile, Sticks, TriggerEffect, Triggers,
+    VirtualSticks,
 };
 pub use store::{load_toml_or_default, save_toml, write_atomic};
 
@@ -161,11 +161,7 @@ pub fn validate(p: &Profile) -> Diagnostics {
                     "postpone only matters with a jump delay; the actions start at once",
                 );
             }
-            if j.mode == JumpMode::Toggle
-                && p.layers
-                    .iter()
-                    .any(|l| l.id == j.layer && l.unlock.is_some())
-            {
+            if j.mode == JumpMode::Toggle && p.layer(j.layer).is_some_and(|l| l.unlock.is_some()) {
                 d.warn(
                     &path,
                     "unlock layers are meant to be held; toggled on, the keyboard/mouse stay unmuted until it is toggled off",
@@ -279,7 +275,7 @@ pub fn validate(p: &Profile) -> Diagnostics {
                 "snap must be in [0, 1); noise_filter and acceleration not negative",
             );
         }
-        let stick = matches!(r.source, AnalogSource::LeftStick | AnalogSource::RightStick);
+        let stick = r.source.stick().is_some();
         // Flick routes use the deadzone as their threshold and ignore outer.
         if stick && r.target != AnalogTarget::Flick && !(r.outer > r.deadzone && r.outer <= 1.0) {
             d.error(format!("analog[{i}].outer"), "must be in (deadzone, 1]");

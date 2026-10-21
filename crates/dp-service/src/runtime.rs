@@ -354,7 +354,7 @@ impl Echo {
 
 /// Whether a profile needs global keyboard/mouse capture.
 fn needs_capture(p: &Profile) -> bool {
-    let kbm = |c: &Control| !c.is_pad();
+    let kbm = |c: &Control| c.is_kbm();
     p.mappings.iter().any(|m| m.trigger.0.iter().any(kbm))
         || p.analog
             .iter()
@@ -400,9 +400,7 @@ fn profile_light(s: &Session, now: u64) -> Option<Rgb> {
     let p = s.engine.profile();
     let layer = s.engine.layer();
     let light = p
-        .layers
-        .iter()
-        .find(|l| l.id == layer)
+        .layer(layer)
         .and_then(|l| l.lightbar.as_ref())
         .or(p.lightbar.as_ref())?;
     let dark = Rgb { r: 0, g: 0, b: 0 };

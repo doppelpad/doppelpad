@@ -85,7 +85,7 @@ impl Hotkeys {
         out.push((HotkeyAction::MappingsOverlay, &self.mappings_overlay));
         out.into_iter()
             .filter(|(_, b)| !b.is_empty())
-            .map(|(a, b)| (a, b.iter().fold(0, |m, b| m | b.bit())))
+            .map(|(a, b)| (a, PadButton::mask(b)))
             .collect()
     }
 
@@ -176,7 +176,7 @@ mod tests {
     use PadButton::*;
 
     fn mask(b: &[PadButton]) -> u32 {
-        b.iter().fold(0, |m, b| m | b.bit())
+        PadButton::mask(b)
     }
 
     #[test]

@@ -560,7 +560,7 @@ pub(super) fn compile(p: &Profile) -> Compiled {
     let mappings_expanded = expand_jumps(&p.mappings);
     let mut layers = BTreeMap::new();
     for &lid in &layer_ids {
-        let decl = p.layers.iter().find(|l| l.id == lid);
+        let decl = p.layer(lid);
         let inherit = lid != 0 && decl.is_none_or(|l| l.inherit);
         // Unlock layers give the physical keyboard/mouse back: nothing of it is swallowed and
         // the base layer's keyboard/mouse mappings stay behind.
@@ -632,7 +632,7 @@ pub(super) fn compile(p: &Profile) -> Compiled {
                 table.plain.insert(c, mask);
                 table.mapped.insert(c);
                 let unmap = bids.iter().any(|&b| bindings[b].is_unmap);
-                if !c.is_pad() && !unlocked(c) && (unmap || p.output.mute_mapped_inputs) {
+                if c.is_kbm() && !unlocked(c) && (unmap || p.output.mute_mapped_inputs) {
                     table.muted.insert(c);
                 }
             } else {

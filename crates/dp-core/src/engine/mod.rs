@@ -39,8 +39,8 @@ use crate::event::KbmEvent;
 use crate::keys::{Key, MouseButton, WheelDir};
 use crate::pad::{Motion, PadButton, PadState, Rumble, Stick, Trigger};
 use crate::profile::{
-    Activator, AnalogSource, Command, GyroMode, Mode, Profile, RadialSelect, ShakeAxis, Sticks,
-    TriggerEffect, Triggers, VirtualPadType, VirtualStick, VirtualSticks,
+    Activator, AnalogSource, Command, GyroMode, Mode, Profile, ShakeAxis, Sticks, TriggerEffect,
+    Triggers, VirtualPadType, VirtualStick, VirtualSticks,
 };
 
 /// Button-driven mouse motion speeds up to at most this many times its speed.
@@ -1416,11 +1416,7 @@ impl Engine {
     /// The stick an open menu points with; it does not reach the game meanwhile.
     fn radial_stick(&self) -> Option<Stick> {
         let r = self.radial.as_ref().filter(|r| !r.closed)?;
-        match self.profile.radial_menus.get(r.root())?.select {
-            RadialSelect::LeftStick => Some(Stick::Left),
-            RadialSelect::RightStick => Some(Stick::Right),
-            _ => None,
-        }
+        self.profile.radial_menus.get(r.root())?.select.stick()
     }
 
     fn radial_command(&mut self, c: &Command, now: u64) {
@@ -1533,13 +1529,8 @@ impl Engine {
                 }
             }
             for s in Stick::ALL {
-                let src = if s == Stick::Left {
-                    AnalogSource::LeftStick
-                } else {
-                    AnalogSource::RightStick
-                };
                 if Control::of_stick(s).iter().any(hidden)
-                    || route_consumes(src)
+                    || route_consumes(AnalogSource::from(s))
                     || radial_stick == Some(s)
                 {
                     continue;
@@ -1675,11 +1666,7 @@ impl Engine {
         };
         for &i in &routes {
             let r = &self.c.routes[i];
-            let pointing = match radial_stick {
-                Some(Stick::Left) => r.source == AnalogSource::LeftStick,
-                Some(Stick::Right) => r.source == AnalogSource::RightStick,
-                None => false,
-            };
+            let pointing = radial_stick.is_some() && r.source.stick() == radial_stick;
             if pointing {
                 self.route_state[i] = RouteState::default();
                 continue;
