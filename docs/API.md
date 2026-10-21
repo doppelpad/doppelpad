@@ -17,8 +17,10 @@ Stream decks, macro pads and scripts can drive Doppelpad over HTTP. Turn it on i
 |---|---|
 | `GET /api/status` | `{"type":"status", "profile", "profile_path", "layer", "slots", "active_slot", "remap_on", "auto_switch", "foreground", "virtual_pad", "hidden_devices", "warnings"}` |
 | `GET /api/devices` | `{"type":"devices", "devices":[{"id", "name", "backend", "vendor_id", "product_id", "instance_paths"}]}` |
-| `GET /api/live` | Everything the app's window shows: devices with their state and battery, slots, layer, overlays, settings. Large; meant for tools that need it. |
+| `GET /api/live` | Everything the app's window shows: devices with their state and battery, slots, layer, overlays, settings. Large; meant for tools that need it. It is the app's own state, so its `active_slot` counts from 0. |
 | `GET /api/events` | A Server-Sent Events stream: an `event: live` with a short summary (`remap_on`, `suspended`, `active_slot`, `profile`, `layer`, `layer_name`, `devices` with `battery`, `warnings`) whenever it changes, and a comment line now and then. |
+
+Slots are numbered 1–4 in the status, the events and the commands.
 
 ## Commands
 
