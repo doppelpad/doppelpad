@@ -106,10 +106,8 @@ fn shape_vector((x, y): (f32, f32), deadzone: f32, outer: f32, curve: f32) -> (f
 }
 
 fn to_stick(r: &AnalogMapping, (x, y): (f32, f32)) -> RouteOutput {
-    let stick = match r.target {
-        AnalogTarget::LeftStick => Stick::Left,
-        AnalogTarget::RightStick => Stick::Right,
-        AnalogTarget::Mouse | AnalogTarget::Flick => return RouteOutput::None,
+    let Some(stick) = r.target.stick() else {
+        return RouteOutput::None;
     };
     let (mut x, mut y) = (x, y * r.vertical_ratio);
     let mag = (x * x + y * y).sqrt();
@@ -192,12 +190,7 @@ pub(super) fn run(r: &AnalogMapping, st: &mut RouteState, input: &RouteInput) ->
     let sy = if r.invert_y { -1.0 } else { 1.0 };
     match r.source {
         AnalogSource::LeftStick | AnalogSource::RightStick => {
-            let s = if r.source == AnalogSource::LeftStick {
-                Stick::Left
-            } else {
-                Stick::Right
-            };
-            let Some(raw) = stick_source(s, input) else {
+            let Some(raw) = r.source.stick().and_then(|s| stick_source(s, input)) else {
                 return RouteOutput::None;
             };
             match r.target {
