@@ -536,6 +536,7 @@ impl Service {
             }
             Request::Stop => {
                 self.rt.stop();
+                self.last_error = None;
                 self.oneoff = None;
                 self.auto_active = None;
                 self.state.remap_on = false;
@@ -2100,5 +2101,20 @@ Host: 127.0.0.1:{}
         s.handle_ipc(Request::Stop);
         assert_eq!(active_name(&s), None);
         assert!(!s.live().remap_on);
+    }
+
+    #[test]
+    fn stop_forgets_a_failed_apply() {
+        let dir = tempfile::tempdir().unwrap();
+        let (mut s, _) = service(dir.path(), None);
+        let missing = dir.path().join("missing.toml");
+        let r = s.handle_ipc(Request::Apply {
+            path: missing.display().to_string(),
+        });
+        assert!(matches!(r, Response::Error { .. }), "{r:?}");
+        let mentions = |s: &Service| s.status().warnings.iter().any(|w| w.contains("missing"));
+        assert!(mentions(&s), "the failure is reported");
+        s.handle_ipc(Request::Stop);
+        assert!(!mentions(&s), "and forgotten once stopped");
     }
 }

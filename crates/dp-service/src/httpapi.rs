@@ -466,7 +466,11 @@ mod tests {
             active_slot: 1,
             ..LiveState::default()
         };
-        assert_eq!(summary(&live)["active_slot"], 2, "slots are 1–4 on the wire");
+        assert_eq!(
+            summary(&live)["active_slot"],
+            2,
+            "slots are 1–4 on the wire"
+        );
     }
 
     #[test]
