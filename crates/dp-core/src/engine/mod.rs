@@ -26,15 +26,18 @@ pub use self::radial::RadialView;
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 
-use self::analog::{DIRECTION_SECTOR, directions, orient, sectors};
+use self::analog::{
+    DIRECTION_SECTOR, directions, ema_alpha, mix, orient, secs_since, sectors, take_toward_zero,
+    zone_at,
+};
 use self::compile::{
     AnalogOut, BindingId, Compiled, LayerTable, MaskId, Out, Policy, Step, StopRule, compile,
 };
-use self::gyro::{GyroAxes, GyroState, TILT_FULL_DEG};
+use self::gyro::{GyroAxes, GyroState};
 use self::recognizer::{RecEvent, Recognizer};
 use self::routes::{RouteInput, RouteOutput, RouteState};
 use self::touch::GestureTracker;
-use crate::control::{Control, Dir, Half, TouchGesture, TrackpadPart, Zone};
+use crate::control::{Control, Dir, Half, TouchGesture, TrackpadPart};
 use crate::event::KbmEvent;
 use crate::keys::{Key, MouseButton, WheelDir};
 use crate::pad::{Motion, PadButton, PadState, Rumble, Stick, Trigger};
@@ -45,6 +48,13 @@ use crate::profile::{
 
 /// Button-driven mouse motion speeds up to at most this many times its speed.
 const MOUSE_ACCEL_MAX: f32 = 20.0;
+/// Steps one activation may run in one advance before it counts as a runaway program (a
+/// loop without waits).
+const MAX_STEPS_PER_ADVANCE: u32 = 100_000;
+/// Commands one tick runs at most; more (commands that keep queueing commands) are dropped.
+const MAX_COMMANDS_PER_TICK: usize = 256;
+/// Time constant of the smoothed mouse speed that mouse-motion controls read, in seconds.
+const MOUSE_VELOCITY_TAU_S: f32 = 0.03;
 /// A shake flips direction this often.
 const SHAKE_FLIP_MS: u64 = 25;
 
@@ -241,7 +251,7 @@ fn step(act: &mut Activation, program: &[Step], outs: &mut Outputs, until: u64) 
     let mut guard = 0;
     while !act.finished && act.wait_until <= until {
         guard += 1;
-        if guard > 100_000 {
+        if guard > MAX_STEPS_PER_ADVANCE {
             act.finished = true; // runaway program (e.g. zero-length loop)
             break;
         }
@@ -715,12 +725,8 @@ impl Engine {
         }
 
         if dt > 0.0 {
-            let a = 1.0 - (-dt / 0.03).exp();
             let v = (self.mouse_counts.0 / dt, self.mouse_counts.1 / dt);
-            self.mouse_vel = (
-                self.mouse_vel.0 + (v.0 - self.mouse_vel.0) * a,
-                self.mouse_vel.1 + (v.1 - self.mouse_vel.1) * a,
-            );
+            self.mouse_vel = mix(self.mouse_vel, v, ema_alpha(dt, MOUSE_VELOCITY_TAU_S));
         }
         let (vx, vy) = self.mouse_vel;
         let [low, med, high] = self.profile.mouse.zones;
@@ -743,16 +749,7 @@ impl Engine {
         }
         // Zones by speed, in any direction and in each direction it moves.
         let speed = vx.hypot(vy);
-        let zone = if speed >= high {
-            Some(Zone::High)
-        } else if speed >= med {
-            Some(Zone::Med)
-        } else if speed >= low {
-            Some(Zone::Low)
-        } else {
-            None
-        };
-        if let Some(z) = zone {
+        if let Some(z) = zone_at(speed, [low, med, high]) {
             set.insert(Control::MouseZone(None, z));
             set.extend(dirs.iter().map(|d| Control::MouseZone(Some(*d), z)));
         }
@@ -1359,7 +1356,7 @@ impl Engine {
                 _ => {}
             }
             done.push(c);
-            if done.len() < 256 {
+            if done.len() < MAX_COMMANDS_PER_TICK {
                 queue.extend(std::mem::take(&mut self.outs.commands));
             }
         }
@@ -1581,7 +1578,7 @@ impl Engine {
                             absolute[s as usize][1] |= centre || y != 0.0;
                         }
                         let vs = self.virtual_stick(s);
-                        let held = now.saturating_sub(since) as f32 / 1000.0;
+                        let held = secs_since(now, since);
                         for (axis, v, m) in [(0, x, vs.multiplier_x), (1, y, vs.multiplier_y)] {
                             let reach = v.abs().min(vs.ramp(held, m));
                             let dir = usize::from(v < 0.0);
@@ -1599,7 +1596,7 @@ impl Engine {
                     }
                     AnalogOut::Clip(x1, y1, x2, y2) => out.mouse_clip = Some([x1, y1, x2, y2]),
                     AnalogOut::MouseAccel(x, y, accel) => {
-                        let held = now.saturating_sub(since) as f32 / 1000.0;
+                        let held = secs_since(now, since);
                         let k = (1.0 + accel * held).min(MOUSE_ACCEL_MAX);
                         mouse_v.0 += x * k;
                         mouse_v.1 += y * k;
@@ -1612,13 +1609,12 @@ impl Engine {
         let turn = &self.profile.virtual_devices.mouse;
         let secs = turn.turn_ms as f32 / 1000.0;
         for (total, left) in &mut self.outs.turns {
-            let step = if secs > 0.0 {
-                (total.abs() * dt / secs).min(left.abs())
+            let max_step = if secs > 0.0 {
+                total.abs() * dt / secs
             } else {
-                left.abs()
+                f32::INFINITY
             };
-            let step = step.copysign(*left);
-            *left -= step;
+            let step = take_toward_zero(left, max_step);
             out.mouse_move.0 += step * turn.counts_per_turn / 360.0;
         }
         self.outs.turns.retain(|(_, left)| left.abs() > 1e-4);
@@ -1659,10 +1655,8 @@ impl Engine {
                 .pad
                 .and_then(|p| p.motion)
                 .map(|m| gyro::route_rates(&self.profile.gyro, &m)),
-            tilt: (self.profile.gyro.mode == GyroMode::Tilt).then(|| {
-                let f = |v: f32| (v / TILT_FULL_DEG).clamp(-1.0, 1.0);
-                (f(self.gyro_axes.steer), f(self.gyro_axes.pitch))
-            }),
+            tilt: (self.profile.gyro.mode == GyroMode::Tilt)
+                .then(|| self.gyro_axes.tilt_deflection()),
         };
         for &i in &routes {
             let r = &self.c.routes[i];

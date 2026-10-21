@@ -10,6 +10,10 @@ pub(super) const DIRECTION_SECTOR: f32 = 0.414_213_57;
 /// control as deflected.
 const MIN_THRESHOLD: f32 = 1e-3;
 
+/// Smallest range a deadzone leaves to rescale: outer and full pull sit at least this far
+/// above it.
+pub(super) const MIN_SPAN: f32 = 0.01;
+
 /// The zone whose test passes highest: `passes[i]` says whether the value reaches
 /// the low (0), medium (1) and high (2) threshold.
 fn band(passes: [bool; 3]) -> Option<Zone> {
@@ -19,6 +23,49 @@ fn band(passes: [bool; 3]) -> Option<Zone> {
         [true, ..] => Some(Zone::Low),
         _ => None,
     }
+}
+
+/// The zone a value is in for low, medium and high thresholds, as they are (unlike
+/// [`trigger_zone`]). A value exactly on a threshold is in the higher zone.
+pub(super) fn zone_at(v: f32, t: [f32; 3]) -> Option<Zone> {
+    band(t.map(|t| v >= t))
+}
+
+/// `v` from `[from, to]` mapped to `[0, 1]`.
+pub(super) fn rescale(v: f32, from: f32, to: f32) -> f32 {
+    ((v - from) / (to - from)).clamp(0.0, 1.0)
+}
+
+/// An output above zero raised so that it starts at `anti` (anti-deadzone).
+pub(super) fn lift(v: f32, anti: f32) -> f32 {
+    if v > 0.0 && anti > 0.0 {
+        anti + (1.0 - anti) * v
+    } else {
+        v
+    }
+}
+
+/// Weight of the new value in an exponential moving average over `dt`, with time constant
+/// `tau` (in the same unit).
+pub(super) fn ema_alpha(dt: f32, tau: f32) -> f32 {
+    1.0 - (-dt / tau).exp()
+}
+
+/// `a` moved toward `b` by the fraction `alpha`.
+pub(super) fn mix(a: (f32, f32), b: (f32, f32), alpha: f32) -> (f32, f32) {
+    (a.0 + (b.0 - a.0) * alpha, a.1 + (b.1 - a.1) * alpha)
+}
+
+/// Up to `max_step` of what is `left` (towards zero, keeping its sign); returns the step taken.
+pub(super) fn take_toward_zero(left: &mut f32, max_step: f32) -> f32 {
+    let step = max_step.min(left.abs()).copysign(*left);
+    *left -= step;
+    step
+}
+
+/// Seconds from `since` to `now` (milliseconds), zero if `since` is later.
+pub(super) fn secs_since(now: u64, since: u64) -> f32 {
+    now.saturating_sub(since) as f32 / 1000.0
 }
 
 /// Zone of a trigger pull for its low, medium and high thresholds; `None` below the
@@ -78,20 +125,26 @@ pub fn apply_curve(points: &[[f32; 2]], t: f32) -> f32 {
 
 /// Shape an oriented stick vector for output: radial scaled deadzone, outer
 /// saturation, curve, anti-deadzone and sensitivity.
-pub fn shape_stick((x, y): (f32, f32), cfg: &StickConfig) -> (f32, f32) {
+pub fn shape_stick(v: (f32, f32), cfg: &StickConfig) -> (f32, f32) {
+    shape_radial(v, cfg.deadzone, cfg.outer, |t| {
+        (lift(apply_curve(&cfg.curve, t), cfg.anti_deadzone) * cfg.sensitivity).min(1.0)
+    })
+}
+
+/// A vector rescaled between a radial `deadzone` and the deflection that counts as full
+/// (`outer`), with `response` applied to its length; the direction stays.
+pub(super) fn shape_radial(
+    (x, y): (f32, f32),
+    deadzone: f32,
+    outer: f32,
+    response: impl FnOnce(f32) -> f32,
+) -> (f32, f32) {
     let mag = (x * x + y * y).sqrt();
-    if mag <= cfg.deadzone || mag == 0.0 {
+    if mag <= deadzone || mag == 0.0 {
         return (0.0, 0.0);
     }
-    let outer = cfg.outer.max(cfg.deadzone + 0.01);
-    let t = ((mag - cfg.deadzone) / (outer - cfg.deadzone)).clamp(0.0, 1.0);
-    let mut out = apply_curve(&cfg.curve, t);
-    if out > 0.0 && cfg.anti_deadzone > 0.0 {
-        out = cfg.anti_deadzone + (1.0 - cfg.anti_deadzone) * out;
-    }
-    out = (out * cfg.sensitivity).min(1.0);
-    let (ux, uy) = (x / mag, y / mag);
-    (ux * out, uy * out)
+    let out = response(rescale(mag, deadzone, outer.max(deadzone + MIN_SPAN)));
+    (x / mag * out, y / mag * out)
 }
 
 /// Which direction controls are active for a vector (indexed by [`Dir`]), or none while
@@ -134,8 +187,7 @@ pub fn shape_trigger(v: f32, cfg: &TriggerConfig) -> f32 {
     if v <= cfg.deadzone {
         return 0.0;
     }
-    let top = cfg.full_pull.max(cfg.deadzone + 0.01);
-    ((v - cfg.deadzone) / (top - cfg.deadzone)).clamp(0.0, 1.0)
+    rescale(v, cfg.deadzone, cfg.full_pull.max(cfg.deadzone + MIN_SPAN))
 }
 
 #[cfg(test)]

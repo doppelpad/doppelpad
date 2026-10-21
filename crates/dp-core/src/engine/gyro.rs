@@ -1,12 +1,13 @@
 //! Gyro controls: the motion sensors as directions and zones, either by rotation rate
 //! ("motion") or by tilt from a centre pose ("tilt"), and the turning that gyro routes read.
 
-use crate::control::{Control, GyroDir, Zone};
+use super::analog::zone_at;
+use crate::control::{Control, GyroDir};
 use crate::pad::Motion;
 use crate::profile::{GyroMode, GyroSettings, GyroSpace, SteeringAxis};
 
 /// How far a tilt reaches full stick deflection, in degrees.
-pub(super) const TILT_FULL_DEG: f32 = 45.0;
+const TILT_FULL_DEG: f32 = 45.0;
 /// Player-space yaw may exceed the measured yaw axis by this factor (GyroWiki's "relax").
 const PLAYER_RELAX: f32 = 1.41;
 
@@ -28,6 +29,15 @@ pub(super) struct GyroAxes {
     pub pitch: f32,
     pub steer: f32,
     pub lean: f32,
+}
+
+impl GyroAxes {
+    /// In tilt mode: steering and pitch as stick deflections in [-1, 1] (left and up
+    /// positive).
+    pub(super) fn tilt_deflection(self) -> (f32, f32) {
+        let f = |v: f32| (v / TILT_FULL_DEG).clamp(-1.0, 1.0);
+        (f(self.steer), f(self.pitch))
+    }
 }
 
 fn normalised(a: [f32; 3]) -> Option<[f32; 3]> {
@@ -119,18 +129,7 @@ pub(super) fn controls(cfg: &GyroSettings, a: GyroAxes, out: &mut impl Extend<Co
         GyroMode::Motion => cfg.motion_zones,
         GyroMode::Tilt => cfg.tilt_zones,
     };
-    let zone = |v: f32| {
-        let v = v.abs();
-        if v >= t[2] {
-            Some(Zone::High)
-        } else if v >= t[1] {
-            Some(Zone::Med)
-        } else if v >= t[0] {
-            Some(Zone::Low)
-        } else {
-            None
-        }
-    };
+    let zone = |v: f32| zone_at(v.abs(), t);
     let pairs = [
         (a.pitch, GyroDir::Up, GyroDir::Down),
         (a.steer, GyroDir::Left, GyroDir::Right),
@@ -152,6 +151,7 @@ pub(super) fn controls(cfg: &GyroSettings, a: GyroAxes, out: &mut impl Extend<Co
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::control::Zone;
 
     fn motion(gyro: [f32; 3], accel: [f32; 3]) -> Motion {
         Motion { gyro, accel }

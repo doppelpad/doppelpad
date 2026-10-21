@@ -18,6 +18,9 @@ const SWIPE_MS: u64 = 500;
 const ZOOM_RATIO: f32 = 1.2;
 /// How long a gesture control stays pressed.
 pub(super) const GESTURE_PRESS_MS: u64 = 50;
+/// How long a played tap and a played swipe or zoom take on the virtual touchpad by default.
+const TAP_OUTPUT_MS: u32 = 60;
+const GESTURE_OUTPUT_MS: u32 = 250;
 
 /// Regions for a finger at `(x, y)` (0–1, origin top left).
 pub(super) fn regions(
@@ -87,8 +90,8 @@ pub(super) fn output_ms(g: TouchGesture) -> u32 {
         | TouchGesture::TapLeft
         | TouchGesture::TapCenter
         | TouchGesture::TapRight
-        | TouchGesture::MultiTap => 60,
-        _ => 250,
+        | TouchGesture::MultiTap => TAP_OUTPUT_MS,
+        _ => GESTURE_OUTPUT_MS,
     }
 }
 

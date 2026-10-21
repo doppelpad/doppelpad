@@ -1,7 +1,7 @@
 //! Continuous analog routes: stick → mouse, mouse → stick, gyro → mouse/stick,
 //! touchpad → mouse/stick.
 
-use super::analog::{orient, shape_stick};
+use super::analog::{MIN_SPAN, ema_alpha, mix, orient, secs_since, shape_radial, take_toward_zero};
 use crate::pad::{PadState, Stick};
 use crate::profile::{
     AnalogMapping, AnalogSource, AnalogTarget, StickConfig, Sticks, VirtualMouse,
@@ -11,6 +11,12 @@ use crate::profile::{
 const ACCEL_FROM: f32 = 0.9;
 /// ... and makes the cursor at most this many times faster.
 const ACCEL_MAX: f32 = 4.0;
+/// A flick stick stays out until it falls below this part of its threshold.
+const FLICK_RELEASE_RATIO: f32 = 0.9;
+/// The touchpad's glide speed keeps this much of the last speed each tick and takes the
+/// rest from the newest motion.
+const TOUCH_VEL_KEEP: f32 = 0.7;
+const TOUCH_VEL_NEW: f32 = 0.3;
 
 /// Calibration constants: what `sensitivity = 1.0` means for each route.
 pub(super) mod scale {
@@ -81,11 +87,7 @@ fn smooth(st: &mut RouteState, v: (f32, f32), smoothing_ms: u32, dt: f32) -> (f3
         st.ema = v;
         return v;
     }
-    let a = 1.0 - (-dt * 1000.0 / smoothing_ms as f32).exp();
-    st.ema = (
-        st.ema.0 + (v.0 - st.ema.0) * a,
-        st.ema.1 + (v.1 - st.ema.1) * a,
-    );
+    st.ema = mix(st.ema, v, ema_alpha(dt * 1000.0, smoothing_ms as f32));
     st.ema
 }
 
@@ -96,7 +98,7 @@ fn shape_vector((x, y): (f32, f32), deadzone: f32, outer: f32, curve: f32) -> (f
     if mag <= deadzone || mag == 0.0 {
         return (0.0, 0.0);
     }
-    let t = ((mag - deadzone) / (outer - deadzone).max(0.01)).clamp(0.0, 1.0);
+    let t = ((mag - deadzone) / (outer - deadzone).max(MIN_SPAN)).clamp(0.0, 1.0);
     let t = if curve > 0.0 && curve != 1.0 {
         t.powf(curve)
     } else {
@@ -158,7 +160,7 @@ fn flick(
         } else {
             f32::INFINITY
         };
-    } else if st.flick_out && mag >= threshold * 0.9 {
+    } else if st.flick_out && mag >= threshold * FLICK_RELEASE_RATIO {
         let mut d = angle - st.flick_angle;
         if d > 180.0 {
             d -= 360.0;
@@ -176,11 +178,12 @@ fn flick(
         st.ema = (0.0, 0.0);
     }
     if st.flick_left != 0.0 {
-        let step = (st.flick_rate * input.dt).min(st.flick_left.abs());
-        let step = if input.dt > 0.0 { step } else { 0.0 };
-        let step = step.copysign(st.flick_left);
-        counts += step;
-        st.flick_left -= step;
+        let max_step = if input.dt > 0.0 {
+            st.flick_rate * input.dt
+        } else {
+            0.0
+        };
+        counts += take_toward_zero(&mut st.flick_left, max_step);
     }
     RouteOutput::Mouse(counts, 0.0)
 }
@@ -200,7 +203,7 @@ pub(super) fn run(r: &AnalogMapping, st: &mut RouteState, input: &RouteInput) ->
                     // Held at the edge, the speed grows (acceleration).
                     let boost = if r.acceleration > 0.0 && x.hypot(y) >= ACCEL_FROM {
                         let since = *st.accel_since.get_or_insert(input.now);
-                        let held = input.now.saturating_sub(since) as f32 / 1000.0;
+                        let held = secs_since(input.now, since);
                         (1.0 + r.acceleration * held).min(ACCEL_MAX)
                     } else {
                         st.accel_since = None;
@@ -217,12 +220,7 @@ pub(super) fn run(r: &AnalogMapping, st: &mut RouteState, input: &RouteInput) ->
                     RouteOutput::Mouse(v.0 * input.dt, v.1 * input.dt)
                 }
                 _ => {
-                    let cfg = StickConfig {
-                        deadzone: r.deadzone,
-                        outer: r.outer,
-                        ..Default::default()
-                    };
-                    let (x, y) = shape_stick(raw, &cfg);
+                    let (x, y) = shape_radial(raw, r.deadzone, r.outer, |t| t);
                     to_stick(r, (x * r.sensitivity * sx, y * r.sensitivity * sy))
                 }
             }
@@ -334,8 +332,8 @@ pub(super) fn run(r: &AnalogMapping, st: &mut RouteState, input: &RouteInput) ->
                             if input.dt > 0.0 {
                                 let v = (d.0 / input.dt, d.1 / input.dt);
                                 st.touch_vel = (
-                                    st.touch_vel.0 * 0.7 + v.0 * 0.3,
-                                    st.touch_vel.1 * 0.7 + v.1 * 0.3,
+                                    st.touch_vel.0 * TOUCH_VEL_KEEP + v.0 * TOUCH_VEL_NEW,
+                                    st.touch_vel.1 * TOUCH_VEL_KEEP + v.1 * TOUCH_VEL_NEW,
                                 );
                             }
                             RouteOutput::Mouse(d.0, d.1)
