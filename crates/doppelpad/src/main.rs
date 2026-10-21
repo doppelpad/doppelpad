@@ -9,8 +9,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result, bail};
-use clap::{Parser, Subcommand};
-use dp_config::Severity;
+use clap::{Parser, Subcommand, ValueEnum};
 use dp_core::control::pad_button_name;
 use dp_core::pad::{Axis, PadButton};
 use dp_ipc::{Request, Response};
@@ -58,16 +57,16 @@ enum Cmd {
     Apply {
         profile: PathBuf,
         /// Put it into this slot (1–4) and make the slot active, like the app's "Apply to slot".
-        #[arg(long, value_parser = clap::value_parser!(u8).range(1..=4))]
-        slot: Option<u8>,
+        #[arg(long, value_parser = parse_slot)]
+        slot: Option<usize>,
         /// With --slot: that controller's own slots (an id from `doppelpad devices`).
         #[arg(long, requires = "slot")]
         device: Option<String>,
     },
     /// Make a slot (1–4) active and turn remapping on.
     SelectSlot {
-        #[arg(value_parser = clap::value_parser!(u8).range(1..=4))]
-        slot: u8,
+        #[arg(value_parser = parse_slot)]
+        slot: usize,
         /// A controller's own slots (an id from `doppelpad devices`).
         #[arg(long)]
         device: Option<String>,
@@ -75,16 +74,14 @@ enum Cmd {
     /// Empty a slot (1–4), or all of them.
     ClearSlot {
         /// A slot number or `all`.
-        slot: String,
+        #[arg(value_parser = parse_slot_or_all)]
+        slot: SlotOrAll,
         /// A controller's own slots (an id from `doppelpad devices`).
         #[arg(long)]
         device: Option<String>,
     },
     /// Turn remapping on (the active slot) or off.
-    Remap {
-        #[arg(value_parser = ["on", "off"])]
-        state: String,
-    },
+    Remap { state: Switch },
     /// Ask the daemon to stop remapping.
     Stop,
     /// Show the daemon's state.
@@ -92,10 +89,7 @@ enum Cmd {
     /// List connected controllers (via the daemon if it runs, otherwise directly).
     Devices,
     /// Turn automatic profile switching on or off.
-    AutoSwitch {
-        #[arg(value_parser = ["on", "off"])]
-        state: String,
-    },
+    AutoSwitch { state: Switch },
     /// Stop the daemon.
     Shutdown,
     /// Convert a JSON profile (schema 3.0) into a Doppelpad TOML profile.
@@ -111,6 +105,42 @@ enum Cmd {
     Doctor,
     /// Show live controller input (useful to verify devices and button names).
     Monitor,
+}
+
+/// `on` or `off`.
+#[derive(Clone, Copy, ValueEnum)]
+enum Switch {
+    On,
+    Off,
+}
+
+impl From<Switch> for bool {
+    fn from(s: Switch) -> bool {
+        matches!(s, Switch::On)
+    }
+}
+
+/// A slot number, 1 to the number of slots.
+fn parse_slot(s: &str) -> Result<usize, String> {
+    s.parse()
+        .ok()
+        .filter(|n| (1..=dp_service::SLOTS).contains(n))
+        .ok_or_else(|| format!("{s} is not in 1..={}", dp_service::SLOTS))
+}
+
+#[derive(Clone, Copy)]
+enum SlotOrAll {
+    Slot(usize),
+    All,
+}
+
+fn parse_slot_or_all(s: &str) -> Result<SlotOrAll, String> {
+    if s == "all" {
+        return Ok(SlotOrAll::All);
+    }
+    parse_slot(s)
+        .map(SlotOrAll::Slot)
+        .map_err(|_| format!("`{s}` is not a slot (1–{} or `all`)", dp_service::SLOTS))
 }
 
 fn main() {
@@ -146,41 +176,26 @@ fn run(cli: Cli) -> Result<()> {
             device,
         } => {
             let path = profile_path(&profile)?;
-            let req = match slot {
-                Some(slot) => Request::ApplyToSlot {
-                    path,
-                    slot: slot as usize,
-                    device,
-                },
+            send(match slot {
+                Some(slot) => Request::ApplyToSlot { path, slot, device },
                 None => Request::Apply { path },
-            };
-            print_response(dp_ipc::call(&req)?)
+            })
         }
-        Cmd::SelectSlot { slot, device } => print_response(dp_ipc::call(&Request::SelectSlot {
-            slot: slot as usize,
+        Cmd::SelectSlot { slot, device } => send(Request::SelectSlot { slot, device }),
+        Cmd::ClearSlot { slot, device } => send(Request::ClearSlot {
+            slot: match slot {
+                SlotOrAll::Slot(n) => Some(n),
+                SlotOrAll::All => None,
+            },
             device,
-        })?),
-        Cmd::ClearSlot { slot, device } => {
-            let slot = match slot.as_str() {
-                "all" => None,
-                n => Some(
-                    n.parse::<usize>()
-                        .ok()
-                        .filter(|n| (1..=4).contains(n))
-                        .with_context(|| format!("`{n}` is not a slot (1–4 or `all`)"))?,
-                ),
-            };
-            print_response(dp_ipc::call(&Request::ClearSlot { slot, device })?)
-        }
-        Cmd::Remap { state } => {
-            print_response(dp_ipc::call(&Request::Remap { on: state == "on" })?)
-        }
-        Cmd::Stop => print_response(dp_ipc::call(&Request::Stop)?),
-        Cmd::Status => print_response(dp_ipc::call(&Request::Status)?),
-        Cmd::AutoSwitch { state } => print_response(dp_ipc::call(&Request::AutoSwitch {
-            enabled: state == "on",
-        })?),
-        Cmd::Shutdown => print_response(dp_ipc::call(&Request::Shutdown)?),
+        }),
+        Cmd::Remap { state } => send(Request::Remap { on: state.into() }),
+        Cmd::Stop => send(Request::Stop),
+        Cmd::Status => send(Request::Status),
+        Cmd::AutoSwitch { state } => send(Request::AutoSwitch {
+            enabled: state.into(),
+        }),
+        Cmd::Shutdown => send(Request::Shutdown),
         Cmd::Devices => match dp_ipc::call(&Request::Devices) {
             Ok(r) => print_response(r),
             // A running daemon holds the devices; only without one scan them here.
@@ -209,6 +224,11 @@ fn profile_path(profile: &Path) -> Result<String> {
         .with_context(context)?
         .display()
         .to_string())
+}
+
+/// Send a request to the daemon and print its answer.
+fn send(req: Request) -> Result<()> {
+    print_response(dp_ipc::call(&req)?)
 }
 
 fn print_response(r: Response) -> Result<()> {
@@ -297,7 +317,7 @@ fn check(path: &Path) -> Result<()> {
         p.analog.len(),
         p.output.virtual_pad
     );
-    if diags.iter().any(|d| d.severity == Severity::Error) {
+    if diags.has_errors() {
         bail!("profile has errors");
     }
     Ok(())
