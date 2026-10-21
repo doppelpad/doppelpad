@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { setLanguage } from '../i18n/index.svelte';
-import type { Profile } from '../types';
+import type { Profile, StickZones } from '../types';
 import { controlLabel, touchControls, withZone, zoneFamily, zoneParts } from './controls';
 import { nativeAction } from './profile';
 import {
@@ -117,6 +117,15 @@ describe('zone thresholds', () => {
     expect(storedZones(q, rt, 1)).toEqual({ low: 0.3 });
     expect(storedZones(q, rt, 2)).toEqual({ low: 0.1 });
     expect(withZones(q, rt, { low: 0.1 }, 1).layers).toEqual([{ id: 1, inherit: true }]);
+  });
+
+  it('are elliptic per layer', () => {
+    // The zone editor shows separate axes for a layer whose own zones are elliptic.
+    const ls = { kind: 'stick', side: 'left' } as const;
+    const p: Profile = { mappings: [], sticks: { left: { zones: { low: 0.2 } } }, layers: [{ id: 1 }] };
+    const q = withZones(p, ls, { low: [0.2, 0.4] }, 1);
+    expect(isElliptic(storedZones(q, ls, 1) as StickZones)).toBe(true);
+    expect(isElliptic(storedZones(q, ls, 0) as StickZones)).toBe(false);
   });
 
   it('report unusable thresholds', () => {
