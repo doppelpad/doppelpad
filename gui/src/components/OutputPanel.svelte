@@ -83,7 +83,7 @@
   }
 
   const out = $derived<Required<Output>>({
-    ...(app.catalog?.defaults.output ?? { virtual_pad: 'xbox360', hide_physical: false, passthrough: true, mute_mapped_inputs: false }),
+    ...(app.catalog?.defaults.output ?? { virtual_pad: 'xbox360', hide_physical: true, passthrough: true, mute_mapped_inputs: true }),
     ...(app.profile?.output ?? {}),
   } as Required<Output>);
 
