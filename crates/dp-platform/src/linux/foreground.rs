@@ -93,4 +93,9 @@ impl ForegroundWatcher for X11Foreground {
             }
         }
     }
+
+    /// Uses the connection `foreground_process` keeps up; `None` without one.
+    fn foreground_pid(&mut self) -> Option<u32> {
+        self.x11.as_ref()?.foreground_pid().ok().flatten()
+    }
 }
