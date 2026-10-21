@@ -183,12 +183,14 @@ fn run(cli: Cli) -> Result<()> {
         Cmd::Shutdown => print_response(dp_ipc::call(&Request::Shutdown)?),
         Cmd::Devices => match dp_ipc::call(&Request::Devices) {
             Ok(r) => print_response(r),
-            Err(_) => {
+            // A running daemon holds the devices; only without one scan them here.
+            Err(dp_ipc::IpcError::NotRunning(_)) => {
                 let rt = scan_devices();
                 print_response(Response::Devices {
                     devices: dp_service::ipc_devices(&rt),
                 })
             }
+            Err(e) => Err(e.into()),
         },
         Cmd::Import { file, output } => import(&file, output.as_deref()),
         Cmd::Check { profile } => check(&profile),
@@ -197,8 +199,6 @@ fn run(cli: Cli) -> Result<()> {
     }
 }
 
-fn print_response(r: Response) -> Result<()> {
-    match r {
 /// The absolute path of an existing profile, as the daemon stores it in a slot. Not
 /// `canonicalize`: on Windows that gives a verbatim `\\?\C:\...` path, which never equals
 /// the paths the GUI and the tray compare it with.
@@ -211,6 +211,8 @@ fn profile_path(profile: &Path) -> Result<String> {
         .to_string())
 }
 
+fn print_response(r: Response) -> Result<()> {
+    match r {
         Response::Ok { message } => println!("{message}"),
         Response::Error { message } => bail!("{message}"),
         Response::Status(s) => {
