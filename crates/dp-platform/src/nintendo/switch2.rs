@@ -852,4 +852,73 @@ mod tests {
         d.service(&mut io, Rumble::default()).unwrap();
         assert_eq!(io.writes().last().unwrap()[2], 2, "stop");
     }
+
+    #[test]
+    fn truncated_reports_do_not_panic() {
+        let mut r = report();
+        r[5..9].copy_from_slice(&[0xFF, 0xFF, 0xFF, 0x03]);
+        r[0x2B..0x2F].copy_from_slice(&1u32.to_le_bytes());
+        r[0x31..0x3F].fill(0x11);
+        let models = [
+            Switch2Model::Pro,
+            Switch2Model::GameCube,
+            Switch2Model::JoyConLeft,
+        ];
+        let now = Instant::now();
+        for model in models {
+            let s = parse_report(model, &mut Calibration::default(), Some(0.07), &r);
+            assert!(s.unwrap().motion.is_some(), "the whole report parses");
+            let mut d = Switch2Driver::new(model, Err(String::new()));
+            for n in 0..=r.len() {
+                for scale in [None, Some(0.07)] {
+                    parse_report(model, &mut Calibration::default(), scale, &r[..n]);
+                }
+                d.parse(&r[..n], now);
+            }
+        }
+    }
+
+    /// The player-light masks sent through the vendor interface.
+    fn lights(sent: &Mutex<Vec<Vec<u8>>>) -> Vec<u8> {
+        sent.lock()
+            .unwrap()
+            .iter()
+            .filter(|c| c[..4] == [0x09, 0x91, 0x00, 0x07])
+            .map(|c| c[8])
+            .collect()
+    }
+
+    #[test]
+    fn player_lights_follow_the_slot() {
+        let player2 = Leds {
+            player: Some(2),
+            mic: None,
+        };
+        let (bulk, sent) = fake_bulk(Vec::new());
+        let mut d = Switch2Driver::new(Switch2Model::Pro, Ok(Box::new(bulk)));
+        let mut io = ScriptIo::silent();
+        d.init(&mut io).unwrap();
+        d.set_leds(player2);
+        d.service(&mut io, Rumble::default()).unwrap();
+        d.service(&mut io, Rumble::default()).unwrap();
+        assert_eq!(
+            lights(&sent),
+            [0x01, 0x03],
+            "player 1 at the start, then 2 once"
+        );
+
+        // The interface was busy at the start: the lights wait for the hand-over.
+        let mut io = ScriptIo::silent();
+        io.push_input(20 * MS, report());
+        let (late, retry) = crate::padio::late_bulk();
+        let mut d = Switch2Driver::new(Switch2Model::Pro, Err("busy".into())).with_retry(late);
+        d.init(&mut io).unwrap();
+        d.set_leds(player2);
+        d.service(&mut io, Rumble::default()).unwrap();
+        let (bulk, sent) = fake_bulk(Vec::new());
+        retry.hand_over(Box::new(bulk));
+        d.service(&mut io, Rumble::default()).unwrap();
+        d.service(&mut io, Rumble::default()).unwrap();
+        assert_eq!(lights(&sent), [0x01, 0x03]);
+    }
 }

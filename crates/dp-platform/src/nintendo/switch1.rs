@@ -1365,4 +1365,132 @@ mod tests {
         assert_eq!(parse_battery(&report(0x20)).unwrap().level, 10); // critical
         assert_eq!(parse_battery(&[0x3F, 0, 0x80]), None);
     }
+
+    /// A full report with every part the parser reads in use: battery, buttons, sticks
+    /// and three IMU frames.
+    fn busy_full_report(id: u8) -> Vec<u8> {
+        let mut r = full_report();
+        r[0] = id;
+        r[2] = 0x8E;
+        r[3] = 0x08;
+        for f in 0..3 {
+            let at = 13 + f * 12;
+            r[at + 4..at + 6].copy_from_slice(&4096i16.to_le_bytes());
+        }
+        r
+    }
+
+    #[test]
+    fn truncated_reports_do_not_panic() {
+        let mut factory = Vec::new();
+        for v in [
+            0i16, 0, 0, 16384, 16384, 8192, 10, 20, 30, 13381, 13391, 13401,
+        ] {
+            factory.extend_from_slice(&v.to_le_bytes());
+        }
+        let mut user = [0u8; 20];
+        user[..2].copy_from_slice(&CAL_MAGIC);
+        let mut spi_reply = vec![0u8; 49];
+        spi_reply[0] = 0x21;
+        spi_reply[13] = 0x90;
+        spi_reply[14] = SUB_SPI_READ;
+        spi_reply[15..20].copy_from_slice(&spi_read_args(SPI_FACTORY_IMU, 24));
+        spi_reply[20..44].copy_from_slice(&factory);
+
+        let types = [
+            ControllerType::Pro,
+            ControllerType::JoyConRight,
+            ControllerType::Snes,
+        ];
+        let full = busy_full_report(0x30);
+        let s = parse_full(ControllerType::Pro, &mut Calibration::default(), &full);
+        assert!(s.unwrap().motion.is_some(), "the whole report parses");
+        let data = subcommand_reply(&spi_reply, SUB_SPI_READ).unwrap();
+        assert_eq!(spi_data(data, SPI_FACTORY_IMU, 24), Some(&factory[..]));
+
+        let mut d = Switch1Driver::new(link(true, 0x2009));
+        let now = Instant::now();
+        for r in [full, busy_full_report(0x31), spi_reply] {
+            for n in 0..=r.len() {
+                let r = &r[..n];
+                for ty in types {
+                    parse_full(ty, &mut Calibration::default(), r);
+                }
+                parse_battery(r);
+                d.parse(r, now);
+                if let Some(data) = subcommand_reply(r, SUB_SPI_READ) {
+                    for k in 0..=data.len() {
+                        spi_data(&data[..k], SPI_FACTORY_IMU, 24);
+                    }
+                }
+            }
+        }
+        for n in 0..=factory.len() {
+            ImuCal::from_spi(&factory[..n], None);
+            for m in 0..=user.len() {
+                ImuCal::from_spi(&factory[..n], Some(&user[..m]));
+            }
+        }
+    }
+
+    #[test]
+    fn lost_motion_is_switched_on_again() {
+        let (mut d, mut io) = ready_driver(true);
+        let imu_on = |io: &ScriptIo| {
+            io.writes()
+                .iter()
+                .filter(|w| w[0] == 0x01 && w[10] == SUB_IMU && w[11] == 0x01)
+                .count()
+        };
+        d.parse(&busy_full_report(0x30), io.now());
+        d.service(&mut io, Rumble::default()).unwrap();
+        assert_eq!(imu_on(&io), 0, "the IMU reports");
+
+        d.parse(&full_report(), io.now());
+        assert!(d.next_deadline().is_some_and(|t| t <= io.now()), "due now");
+        d.service(&mut io, Rumble::default()).unwrap();
+        assert_eq!(imu_on(&io), 1);
+        assert_eq!(d.next_deadline(), Some(io.now() + IMU_RETRY));
+
+        io.advance(IMU_RETRY - MS);
+        d.parse(&full_report(), io.now());
+        d.service(&mut io, Rumble::default()).unwrap();
+        assert_eq!(imu_on(&io), 1, "not again before the retry time");
+        io.advance(MS);
+        d.parse(&full_report(), io.now());
+        d.service(&mut io, Rumble::default()).unwrap();
+        assert_eq!(imu_on(&io), 2);
+
+        d.parse(&busy_full_report(0x30), io.now());
+        io.advance(IMU_RETRY);
+        d.service(&mut io, Rumble::default()).unwrap();
+        assert_eq!(imu_on(&io), 2, "motion is back");
+        assert_eq!(d.next_deadline(), None);
+    }
+
+    #[test]
+    fn player_lights_follow_the_slot() {
+        let (mut d, mut io) = ready_driver(true);
+        let lights = |io: &ScriptIo| -> Vec<u8> {
+            io.writes()
+                .iter()
+                .filter(|w| w[0] == 0x01 && w[10] == SUB_PLAYER_LEDS)
+                .map(|w| w[11])
+                .collect()
+        };
+        let player = |n| Leds {
+            player: Some(n),
+            mic: None,
+        };
+        d.set_leds(player(1));
+        d.service(&mut io, Rumble::default()).unwrap();
+        assert!(lights(&io).is_empty(), "init lit player 1 already");
+        d.set_leds(player(2));
+        d.service(&mut io, Rumble::default()).unwrap();
+        d.service(&mut io, Rumble::default()).unwrap();
+        assert_eq!(lights(&io), [0x03], "LEDs 1 and 2, sent once");
+        d.set_leds(player(0));
+        d.service(&mut io, Rumble::default()).unwrap();
+        assert_eq!(lights(&io), [0x03, 0x00]);
+    }
 }

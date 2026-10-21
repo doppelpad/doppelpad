@@ -192,6 +192,23 @@ mod tests {
     }
 
     #[test]
+    fn truncated_reports_do_not_panic() {
+        let pad = [0x14, 0xFF, 0x0F, 230, 25, 128, 128, 200, 200];
+        let r = report(&[(0, pad), (1, pad), (2, pad), (3, pad)]);
+        assert!(
+            Adapter::default()
+                .parse(&r)
+                .unwrap()
+                .iter()
+                .all(Option::is_some)
+        );
+        let mut a = Adapter::default();
+        for n in 0..=r.len() {
+            a.parse(&r[..n]);
+        }
+    }
+
+    #[test]
     fn wavebird_and_other_reports() {
         let mut a = Adapter::default();
         let ports = a

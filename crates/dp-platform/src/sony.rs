@@ -936,14 +936,16 @@ mod tests {
         assert_eq!(b.build(&s, 6000)[34], 1, "a new contact gets a new id");
     }
 
+    /// A calibration report as a real pad sends it over USB.
+    const DS4_CALIBRATION: [u8; 37] = [
+        0x02, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x87, 0x22, 0x7B, 0xDD, 0xB2, 0x22, 0x47, 0xDD,
+        0xBD, 0x22, 0x43, 0xDD, 0x1C, 0x02, 0x1C, 0x02, 0x7F, 0x1E, 0x2E, 0xDF, 0x60, 0x1F, 0x4C,
+        0xE0, 0x3A, 0x1D, 0xC6, 0xDE, 0x08, 0x00,
+    ];
+
     #[test]
     fn calibration_report_is_inverted() {
-        // A calibration report as a real pad sends it over USB.
-        let feature = [
-            0x02, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x87, 0x22, 0x7B, 0xDD, 0xB2, 0x22, 0x47,
-            0xDD, 0xBD, 0x22, 0x43, 0xDD, 0x1C, 0x02, 0x1C, 0x02, 0x7F, 0x1E, 0x2E, 0xDF, 0x60,
-            0x1F, 0x4C, 0xE0, 0x3A, 0x1D, 0xC6, 0xDE, 0x08, 0x00,
-        ];
+        let feature = DS4_CALIBRATION;
         let c = Ds4Calibration::from_usb_feature(&feature).unwrap();
         // Pitch: 8838 + 8838 counts span 1080 °/s, bias 1.
         assert!((c.gyro_scale[0] - 17676.0 / 1080.0).abs() < 1e-3);
@@ -1085,5 +1087,87 @@ mod tests {
         assert_eq!((b.level, b.charging), (25, true));
         // The reduced Bluetooth report has none.
         assert_eq!(parse_battery(SonyModel::DualSense, &[0x01; 10]), None);
+    }
+
+    /// A DualSense input report over USB (0x01) or Bluetooth (0x31) with sticks centred,
+    /// the hat released and both touch points lifted.
+    fn dualsense(id: u8) -> Vec<u8> {
+        let (mut r, c) = if id == 0x31 {
+            (vec![0u8; 78], 2)
+        } else {
+            (vec![0u8; 64], 1)
+        };
+        r[0] = id;
+        r[c..c + 4].copy_from_slice(&[0x80; 4]);
+        r[c + 7] = 0x08;
+        r[c + 32] = 0x80;
+        r[c + 36] = 0x80;
+        r
+    }
+
+    #[test]
+    fn dualsense_bluetooth() {
+        let mut r = dualsense(0x31);
+        r[2] = 0x00; // left stick fully left
+        r[7] = 0xFF; // R2
+        r[9] = 0x08 | 0x80; // hat released + triangle
+        r[10] = 0x01; // L1
+        r[11] = 0x01; // PS
+        r[34] = 0x07; // touch 0 active
+        r[54] = 0x23; // full, level 3
+        let s = parse_report(SonyModel::DualSense, &r).unwrap();
+        assert!(s.pressed(PadButton::Y) && s.pressed(PadButton::LB) && s.pressed(PadButton::Guide));
+        assert!(s.axis(Axis::LeftX) < -0.99);
+        assert_eq!(s.axis(Axis::RightTrigger), 1.0);
+        assert!(s.motion.is_some());
+        assert!(s.touch[0].is_some() && s.touch[1].is_none());
+        let b = parse_battery(SonyModel::DualSense, &r).unwrap();
+        assert_eq!((b.level, b.charging), (35, false));
+    }
+
+    #[test]
+    fn dualsense_edge_paddles() {
+        let mut r = dualsense(0x01);
+        r[10] = 0x10 | 0x80; // left Fn + right back paddle
+        let s = parse_report(SonyModel::DualSenseEdge, &r).unwrap();
+        assert!(s.pressed(PadButton::PaddleUL) && s.pressed(PadButton::PaddleLR));
+        assert!(!s.pressed(PadButton::PaddleUR) && !s.pressed(PadButton::PaddleLL));
+        r[10] = 0x20 | 0x40; // right Fn + left back paddle
+        let s = parse_report(SonyModel::DualSenseEdge, &r).unwrap();
+        assert!(s.pressed(PadButton::PaddleUR) && s.pressed(PadButton::PaddleLL));
+        let plain = parse_report(SonyModel::DualSense, &r).unwrap();
+        assert_eq!(plain.buttons, 0, "a plain DualSense has no paddles");
+    }
+
+    #[test]
+    fn truncated_reports_do_not_panic() {
+        let mut ds4_bt = vec![0u8; 78];
+        ds4_bt[0] = 0x11;
+        ds4_bt[3..66].copy_from_slice(&ds4_usb()[1..]);
+        let reports = [
+            ds4_usb(),
+            ds4_bt,
+            dualsense(0x01),
+            dualsense(0x31),
+            vec![0x01, 0x80, 0x80, 0x80, 0x80, 0x08, 0, 0, 0, 0],
+        ];
+        let models = [
+            SonyModel::DualShock4,
+            SonyModel::DualSense,
+            SonyModel::DualSenseEdge,
+        ];
+        for r in &reports {
+            for model in models {
+                for n in 0..=r.len() {
+                    parse_report(model, &r[..n]);
+                    parse_battery(model, &r[..n]);
+                }
+            }
+        }
+        let feature = DS4_CALIBRATION;
+        assert!(Ds4Calibration::from_usb_feature(&feature).is_some());
+        for n in 0..=feature.len() {
+            Ds4Calibration::from_usb_feature(&feature[..n]);
+        }
     }
 }

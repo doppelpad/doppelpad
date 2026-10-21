@@ -500,6 +500,33 @@ mod tests {
     }
 
     #[test]
+    fn truncated_reports_do_not_panic() {
+        let busy = |p: &mut [u8]| p[4..].fill(0xFF);
+        let reports = [
+            report(TYPE_STATE, busy),
+            report(TYPE_DECK_STATE, busy),
+            report(TYPE_LINK, |p| p[4] = LINK_CONNECTED),
+            report(TYPE_LINK, |p| p[4] = LINK_DISCONNECTED),
+            report(TYPE_BATTERY, busy),
+        ];
+        for model in [
+            SteamModel::Controller,
+            SteamModel::Receiver,
+            SteamModel::Deck,
+        ] {
+            let mut d = SteamDriver::new(model);
+            for r in &reports {
+                // With the report ID byte (Windows) and without it.
+                for r in [&r[..], &r[1..]] {
+                    for n in 0..=r.len() {
+                        d.parse(&r[..n], Instant::now());
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
     fn models() {
         assert_eq!(model_for(0x28DE, 0x1102), Some(SteamModel::Controller));
         assert_eq!(model_for(0x28DE, 0x1142), Some(SteamModel::Receiver));
