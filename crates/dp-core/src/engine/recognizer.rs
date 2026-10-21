@@ -248,23 +248,6 @@ impl Recognizer {
         // Release pulses must be delivered even if nothing else is pending.
         self.poll(t, cfg, out);
     }
-
-    /// Earliest future time at which `poll` would emit something (for idle sleeping).
-    pub fn next_deadline(&self, cfg: &RecConfig) -> Option<u64> {
-        let timer = match self.state {
-            State::P1 { t0 } if cfg.long => Some(t0 + cfg.t_long),
-            State::W1 { t_r1 } => Some(t_r1 + cfg.t_double + 1),
-            State::P2 { t_r1 } => Some(t_r1 + cfg.t_triple),
-            State::W2 { t_r1 } => Some(t_r1 + cfg.t_triple + 1),
-            _ => None,
-        };
-        let pulse = self.pending_ends.iter().map(|&(_, t)| t).min();
-        let start = self
-            .start_begin
-            .filter(|_| self.start_released)
-            .map(|b| b + START_MIN_MS);
-        [timer, pulse, start].into_iter().flatten().min()
-    }
 }
 
 #[cfg(test)]
@@ -482,14 +465,5 @@ mod tests {
             ),
             vec![]
         );
-    }
-
-    #[test]
-    fn deadlines_are_reported() {
-        let c = cfg(true, true, false, false);
-        let mut r = Recognizer::default();
-        let mut out = Vec::new();
-        r.press(100, &c, &mut out);
-        assert_eq!(r.next_deadline(&c), Some(400));
     }
 }

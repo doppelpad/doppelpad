@@ -138,7 +138,6 @@ pub struct Binding {
     pub has_pad_output: bool,
     /// No actions and no jump: the trigger is consumed ("unmapped"/muted).
     pub is_unmap: bool,
-    pub description: String,
 }
 
 impl Binding {
@@ -452,7 +451,6 @@ fn expand_jumps(mappings: &[Mapping]) -> Vec<(Mapping, JumpTarget)> {
         ret.long_press_ms = m.long_press_ms;
         ret.double_tap_ms = m.double_tap_ms;
         ret.triple_tap_ms = m.triple_tap_ms;
-        ret.description = format!("return to layer {}", m.layer);
         out.push((ret, Some((m.layer, None, false))));
     }
     out
@@ -539,7 +537,6 @@ fn make_binding(
         random_ms: m.random_ms.unwrap_or(0),
         has_pad_output: has_pad_output(&m.actions),
         is_unmap: m.actions.is_empty() && jump.is_none(),
-        description: m.description.clone(),
     }
 }
 
@@ -667,14 +664,6 @@ pub fn compile(p: &Profile) -> Compiled {
             }
         }
         layers.insert(lid, table);
-    }
-
-    for b in &bindings {
-        if let Some((target, ..)) = b.jump
-            && !layer_ids.contains(&target)
-        {
-            warnings.push(format!("jump to undefined layer {target}"));
-        }
     }
 
     // Radial sectors play like one-shot mappings that no input triggers; a menu pointed by

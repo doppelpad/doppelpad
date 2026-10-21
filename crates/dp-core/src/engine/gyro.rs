@@ -93,14 +93,6 @@ impl GyroState {
             }
         }
     }
-
-    /// Steering and pitch angles for stick routes in tilt mode, as deflections in [-1, 1]
-    /// (left and up positive).
-    pub fn tilt_deflection(&mut self, cfg: &GyroSettings, m: &Motion, dt: f32) -> (f32, f32) {
-        let a = self.axes(cfg, m, dt);
-        let f = |v: f32| (v / TILT_FULL_DEG).clamp(-1.0, 1.0);
-        (f(a.steer), f(a.pitch))
-    }
 }
 
 /// Yaw and pitch rates for gyro routes: the controller's own yaw, or in player space the
