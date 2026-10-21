@@ -13,8 +13,10 @@
   async function run(p: Promise<unknown>) {
     try {
       await p;
+      return true;
     } catch (e) {
       app.toast(errorText(e), 'error');
+      return false;
     }
   }
 
@@ -27,8 +29,7 @@
 
   async function copyToken() {
     if (!http) return;
-    await run(navigator.clipboard.writeText(http.settings.token));
-    app.toast(t('settings.http.copied'), 'ok');
+    if (await run(navigator.clipboard.writeText(http.settings.token))) app.toast(t('settings.http.copied'), 'ok');
   }
 </script>
 

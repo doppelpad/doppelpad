@@ -3,7 +3,7 @@
   // centre pose (tilt), which axis steers, whether the gyro starts on, how gyro routes read
   // turning, and where the zones start (for the whole config); and the gyro calibration of
   // the controller in use.
-  import { api } from '../../lib/api';
+  import { api, errorText } from '../../lib/api';
   import { t } from '../../lib/i18n/index.svelte';
   import { gyroConfig, setGyro } from '../../lib/model/analog';
   import { app } from '../../lib/state/app.svelte';
@@ -32,7 +32,7 @@
     try {
       await call();
     } catch (e) {
-      app.toast(String(e), 'error');
+      app.toast(errorText(e), 'error');
     }
   }
 
