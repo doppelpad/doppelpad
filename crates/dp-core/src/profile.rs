@@ -648,61 +648,64 @@ impl VirtualStick {
     }
 }
 
-/// A layer's own settings for one virtual stick; every field left out is the base layer's.
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-#[serde(default, deny_unknown_fields)]
-pub struct VirtualStickPatch {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub initial: Option<f32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub max: Option<f32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub speed: Option<f32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub acceleration: Option<f32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub multiplier_x: Option<f32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub multiplier_y: Option<f32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub curve: Option<Vec<[f32; 2]>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub jitter: Option<Jitter>,
+/// `target`'s value if it differs from `base`'s.
+fn changed<T: PartialEq + Clone>(base: &T, target: &T) -> Option<T> {
+    (base != target).then(|| target.clone())
 }
 
-impl VirtualStickPatch {
-    pub fn apply(&self, base: &VirtualStick) -> VirtualStick {
-        VirtualStick {
-            initial: self.initial.unwrap_or(base.initial),
-            max: self.max.unwrap_or(base.max),
-            speed: self.speed.unwrap_or(base.speed),
-            acceleration: self.acceleration.unwrap_or(base.acceleration),
-            multiplier_x: self.multiplier_x.unwrap_or(base.multiplier_x),
-            multiplier_y: self.multiplier_y.unwrap_or(base.multiplier_y),
-            curve: self.curve.clone().unwrap_or_else(|| base.curve.clone()),
-            jitter: self.jitter.clone().unwrap_or_else(|| base.jitter.clone()),
+/// Declares a layer's patch of a settings struct: each field optional, left out meaning the
+/// base layer's value, with `apply`, `is_empty` and `between`. The fields must be those of the
+/// base struct (the struct literal in `apply` fails to compile otherwise).
+macro_rules! layer_patch {
+    (
+        $(#[$meta:meta])*
+        pub struct $name:ident for $base:ident {
+            $( $field:ident: $ty:ty ),+ $(,)?
         }
-    }
+    ) => {
+        $(#[$meta])*
+        #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+        #[serde(default, deny_unknown_fields)]
+        pub struct $name {
+            $(
+                #[serde(skip_serializing_if = "Option::is_none")]
+                pub $field: Option<$ty>,
+            )+
+        }
 
-    pub fn is_empty(&self) -> bool {
-        *self == VirtualStickPatch::default()
-    }
+        impl $name {
+            /// The base settings with this patch's fields put over them.
+            pub fn apply(&self, base: &$base) -> $base {
+                $base {
+                    $( $field: self.$field.clone().unwrap_or_else(|| base.$field.clone()), )+
+                }
+            }
 
-    /// The patch that turns `base` into `target`.
-    pub fn between(base: &VirtualStick, target: &VirtualStick) -> VirtualStickPatch {
-        fn d<T: PartialEq + Clone>(b: &T, t: &T) -> Option<T> {
-            (b != t).then(|| t.clone())
+            pub fn is_empty(&self) -> bool {
+                *self == Self::default()
+            }
+
+            /// The patch that turns `base` into `target` (only the fields that differ).
+            pub fn between(base: &$base, target: &$base) -> Self {
+                $name {
+                    $( $field: changed(&base.$field, &target.$field), )+
+                }
+            }
         }
-        VirtualStickPatch {
-            initial: d(&base.initial, &target.initial),
-            max: d(&base.max, &target.max),
-            speed: d(&base.speed, &target.speed),
-            acceleration: d(&base.acceleration, &target.acceleration),
-            multiplier_x: d(&base.multiplier_x, &target.multiplier_x),
-            multiplier_y: d(&base.multiplier_y, &target.multiplier_y),
-            curve: d(&base.curve, &target.curve),
-            jitter: d(&base.jitter, &target.jitter),
-        }
+    };
+}
+
+layer_patch! {
+    /// A layer's own settings for one virtual stick; every field left out is the base layer's.
+    pub struct VirtualStickPatch for VirtualStick {
+        initial: f32,
+        max: f32,
+        speed: f32,
+        acceleration: f32,
+        multiplier_x: f32,
+        multiplier_y: f32,
+        curve: Vec<[f32; 2]>,
+        jitter: Jitter,
     }
 }
 
@@ -937,74 +940,20 @@ impl StickConfig {
     }
 }
 
-/// A layer's own settings for one stick; every field left out is the base layer's.
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-#[serde(default, deny_unknown_fields)]
-pub struct StickPatch {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub deadzone: Option<f32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub outer: Option<f32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub anti_deadzone: Option<f32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub sensitivity: Option<f32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub curve: Option<Vec<[f32; 2]>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub invert_x: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub invert_y: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub rotation: Option<f32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub zones: Option<StickZones>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub diagonals: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub direction_width: Option<f32>,
-}
-
-impl StickPatch {
-    /// The base settings with this patch's fields put over them.
-    pub fn apply(&self, base: &StickConfig) -> StickConfig {
-        StickConfig {
-            deadzone: self.deadzone.unwrap_or(base.deadzone),
-            outer: self.outer.unwrap_or(base.outer),
-            anti_deadzone: self.anti_deadzone.unwrap_or(base.anti_deadzone),
-            sensitivity: self.sensitivity.unwrap_or(base.sensitivity),
-            curve: self.curve.clone().unwrap_or_else(|| base.curve.clone()),
-            invert_x: self.invert_x.unwrap_or(base.invert_x),
-            invert_y: self.invert_y.unwrap_or(base.invert_y),
-            rotation: self.rotation.unwrap_or(base.rotation),
-            zones: self.zones.clone().unwrap_or_else(|| base.zones.clone()),
-            diagonals: self.diagonals.unwrap_or(base.diagonals),
-            direction_width: self.direction_width.unwrap_or(base.direction_width),
-        }
-    }
-
-    pub fn is_empty(&self) -> bool {
-        *self == StickPatch::default()
-    }
-
-    /// The patch that turns `base` into `target` (only the fields that differ).
-    pub fn between(base: &StickConfig, target: &StickConfig) -> StickPatch {
-        fn d<T: PartialEq + Clone>(b: &T, t: &T) -> Option<T> {
-            (b != t).then(|| t.clone())
-        }
-        StickPatch {
-            deadzone: d(&base.deadzone, &target.deadzone),
-            outer: d(&base.outer, &target.outer),
-            anti_deadzone: d(&base.anti_deadzone, &target.anti_deadzone),
-            sensitivity: d(&base.sensitivity, &target.sensitivity),
-            curve: d(&base.curve, &target.curve),
-            invert_x: d(&base.invert_x, &target.invert_x),
-            invert_y: d(&base.invert_y, &target.invert_y),
-            rotation: d(&base.rotation, &target.rotation),
-            zones: d(&base.zones, &target.zones),
-            diagonals: d(&base.diagonals, &target.diagonals),
-            direction_width: d(&base.direction_width, &target.direction_width),
-        }
+layer_patch! {
+    /// A layer's own settings for one stick; every field left out is the base layer's.
+    pub struct StickPatch for StickConfig {
+        deadzone: f32,
+        outer: f32,
+        anti_deadzone: f32,
+        sensitivity: f32,
+        curve: Vec<[f32; 2]>,
+        invert_x: bool,
+        invert_y: bool,
+        rotation: f32,
+        zones: StickZones,
+        diagonals: bool,
+        direction_width: f32,
     }
 }
 
@@ -1040,9 +989,10 @@ impl TriggerPatch {
     /// The patch that turns `base` into `target`.
     pub fn between(base: &TriggerConfig, target: &TriggerConfig) -> TriggerPatch {
         TriggerPatch {
-            deadzone: (base.deadzone != target.deadzone).then_some(target.deadzone),
-            zones: (base.zones != target.zones).then(|| target.zones.clone()),
-            full_pull: (base.full_pull != target.full_pull).then_some(target.full_pull),
+            deadzone: changed(&base.deadzone, &target.deadzone),
+            zones: changed(&base.zones, &target.zones),
+            full_pull: changed(&base.full_pull, &target.full_pull),
+            // An effect taken away is written as `off`, which applies over the base's.
             effect: (base.effect != target.effect)
                 .then(|| target.effect.unwrap_or(TriggerEffect::Off)),
         }
