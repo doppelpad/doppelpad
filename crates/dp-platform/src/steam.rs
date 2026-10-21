@@ -289,7 +289,7 @@ impl SteamDriver {
     }
 
     /// Stop the keyboard and mouse emulation (and turn the gyro on).
-    fn lizard_off(&mut self, io: &mut dyn ReportIo) -> io::Result<()> {
+    fn lizard_off(&self, io: &mut dyn ReportIo) -> io::Result<()> {
         Self::send(io, &command(CMD_CLEAR_MAPPINGS, &[]))?;
         let values: &[(u8, u16)] = match self.model {
             SteamModel::Deck => &[

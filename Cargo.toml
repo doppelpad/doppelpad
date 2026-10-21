@@ -43,6 +43,7 @@ undocumented_unsafe_blocks = "warn"
 cast_lossless = "warn"
 redundant_clone = "warn"
 unused_self = "warn"
+needless_pass_by_ref_mut = "warn"
 
 [profile.release]
 lto = "thin"
