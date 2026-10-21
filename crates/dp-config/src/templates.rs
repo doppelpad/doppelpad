@@ -56,7 +56,7 @@ mod tests {
         for t in Template::ALL {
             let p = profile(t, "Mine");
             assert_eq!(p.name, "Mine");
-            let text = crate::to_toml(&p);
+            let text = crate::to_toml(&p).unwrap();
             assert_eq!(crate::parse_toml(&text).unwrap(), p, "{t:?}");
         }
         assert!(!profile(Template::Desktop, "x").mappings.is_empty());

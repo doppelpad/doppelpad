@@ -65,9 +65,11 @@ pub fn parse_toml(src: &str) -> Result<Profile, toml::de::Error> {
 /// Serialize a profile as TOML. Arrays of values stay on one line (`trigger = ["LB", "RB"]`,
 /// `curve = [[0.3, 0.15], [0.7, 0.55]]`) like in hand-written profiles; the "pretty" style
 /// would put every element, even of a curve point, on a line of its own.
-pub fn to_toml(p: &Profile) -> String {
-    let body = toml::to_string(p).unwrap_or_else(|e| format!("# serialization failed: {e}\n"));
-    format!("# Doppelpad profile — https://github.com/doppelpad/doppelpad\n{body}")
+pub fn to_toml(p: &Profile) -> Result<String, toml::ser::Error> {
+    let body = toml::to_string(p)?;
+    Ok(format!(
+        "# Doppelpad profile — https://github.com/doppelpad/doppelpad\n{body}"
+    ))
 }
 
 /// Load a profile from disk, importing JSON profiles. The diagnostics include
@@ -680,7 +682,7 @@ mod tests {
     fn toml_roundtrip_through_to_toml() {
         let src = "name = \"x\"\n[[mappings]]\ntrigger = [\"LB\", \"RB\"]\nactions = [{ key = \"Escape\" }]\n";
         let p = parse_toml(src).unwrap();
-        let again = parse_toml(&to_toml(&p)).unwrap();
+        let again = parse_toml(&to_toml(&p).unwrap()).unwrap();
         assert_eq!(p, again);
     }
 
@@ -703,7 +705,7 @@ target = "right_stick"
 while_held = ["LT", "Mouse:Right"]
 "#;
         let p = parse_toml(src).unwrap();
-        let text = to_toml(&p);
+        let text = to_toml(&p).unwrap();
         for line in [
             r#"processes = ["a.exe", "b.exe"]"#,
             "curve = [[0.3, 0.15], [0.7, 0.55]]",
@@ -728,12 +730,12 @@ while_held = ["LT", "Mouse:Right"]
         assert_eq!(p.virtual_devices.keyboard.repeat, KeyRepeat::Fast);
         let p = parse_toml("[virtual.keyboard]\nrepeat = 40\n").unwrap();
         assert_eq!(p.virtual_devices.keyboard.repeat, KeyRepeat::Every(40));
-        assert!(to_toml(&p).contains("repeat = 40"));
-        assert_eq!(parse_toml(&to_toml(&p)).unwrap(), p);
+        assert!(to_toml(&p).unwrap().contains("repeat = 40"));
+        assert_eq!(parse_toml(&to_toml(&p).unwrap()).unwrap(), p);
         assert!(parse_toml("[virtual.keyboard]\nrepeat = 0\n").is_err());
         assert!(parse_toml("[virtual.keyboard]\nrepeat = \"turbo\"\n").is_err());
         assert!(
-            !to_toml(&Profile::default()).contains("virtual"),
+            !to_toml(&Profile::default()).unwrap().contains("virtual"),
             "native is the default"
         );
     }
@@ -765,10 +767,12 @@ while_held = ["LT", "Mouse:Right"]
         assert_eq!(p.layers[0].sticks.left.deadzone, Some(0.3));
         assert_eq!(p.layers[0].triggers.right.full_pull, Some(0.9));
         assert!(!validate(&p).has_errors());
-        let again = parse_toml(&to_toml(&p)).unwrap();
+        let again = parse_toml(&to_toml(&p).unwrap()).unwrap();
         assert_eq!(again.layers, p.layers);
         assert!(
-            !to_toml(&Profile::default()).contains("sticks.left"),
+            !to_toml(&Profile::default())
+                .unwrap()
+                .contains("sticks.left"),
             "no empty patches"
         );
 
@@ -788,7 +792,7 @@ while_held = ["LT", "Mouse:Right"]
         assert_eq!(p.virtual_devices.sticks.right.initial, 1.0, "default");
         assert_eq!(p.layers[0].virtual_devices.sticks.right.max, Some(0.5));
         assert!(!validate(&p).has_errors());
-        assert_eq!(parse_toml(&to_toml(&p)).unwrap(), p);
+        assert_eq!(parse_toml(&to_toml(&p).unwrap()).unwrap(), p);
 
         let bad = parse_toml("[[layers]]\nid = 1\ninherit = true\n\n[layers.virtual.sticks.left]\nmultiplier_x = 9.0\n").unwrap();
         let d = validate(&bad);
@@ -806,7 +810,7 @@ while_held = ["LT", "Mouse:Right"]
         assert_eq!(p.virtual_devices.motion.shake_g, 3.0);
         assert!(p.virtual_devices.sticks.right.jitter.enabled);
         assert!(!validate(&p).has_errors());
-        assert_eq!(parse_toml(&to_toml(&p)).unwrap(), p);
+        assert_eq!(parse_toml(&to_toml(&p).unwrap()).unwrap(), p);
         let bad = parse_toml("[virtual.sticks.left.jitter]\nmin = 0.2\nmax = 0.1\n").unwrap();
         assert!(validate(&bad).has_errors());
     }
@@ -816,7 +820,7 @@ while_held = ["LT", "Mouse:Right"]
         let text = "[virtual.mouse]\ncounts_per_turn = 12000.0\n\n[[analog]]\nsource = \"right_stick\"\ntarget = \"flick\"\ndeadzone = 0.6\n\n[[mappings]]\ntrigger = \"Y\"\nactions = [{ turn = 180.0 }]\n";
         let p = parse_toml(text).unwrap();
         assert!(validate(&p).iter().next().is_none(), "{:?}", validate(&p));
-        assert_eq!(parse_toml(&to_toml(&p)).unwrap(), p);
+        assert_eq!(parse_toml(&to_toml(&p).unwrap()).unwrap(), p);
         let gyro = parse_toml("[[analog]]\nsource = \"gyro\"\ntarget = \"flick\"\n").unwrap();
         assert!(validate(&gyro).iter().any(|d| d.path == "analog[0]"));
     }
@@ -826,7 +830,7 @@ while_held = ["LT", "Mouse:Right"]
         let text = "[gyro]\nmode = \"tilt\"\nsteering = \"yaw\"\ninitially_on = false\nspace = \"player\"\ntilt_zones = [5.0, 15.0, 30.0]\n\n[[mappings]]\ntrigger = \"GyroLeanLeftHigh\"\nactions = [{ command = \"reset_tilt\" }]\n";
         let p = parse_toml(text).unwrap();
         assert!(!validate(&p).has_errors());
-        assert_eq!(parse_toml(&to_toml(&p)).unwrap(), p);
+        assert_eq!(parse_toml(&to_toml(&p).unwrap()).unwrap(), p);
         let bad = parse_toml("[gyro]\nmotion_zones = [60.0, 50.0, 500.0]\n").unwrap();
         assert!(validate(&bad).iter().any(|d| d.path == "gyro.motion_zones"));
     }
@@ -836,7 +840,7 @@ while_held = ["LT", "Mouse:Right"]
         let text = "[touchpad]\nsplit = true\nzones = \"grid\"\nclick_required = true\n\n[[mappings]]\ntrigger = \"TrackpadRightDownLeft\"\nactions = [{ key = \"A\" }]\n\n[[mappings]]\ntrigger = \"TouchZoomIn\"\nactions = [{ key = \"B\" }]\n";
         let p = parse_toml(text).unwrap();
         assert!(!validate(&p).has_errors());
-        assert_eq!(parse_toml(&to_toml(&p)).unwrap(), p);
+        assert_eq!(parse_toml(&to_toml(&p).unwrap()).unwrap(), p);
         assert!(validate(&parse_toml("[touchpad]\ncentre = 1.5\n").unwrap()).has_errors());
     }
 

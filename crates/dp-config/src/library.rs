@@ -24,6 +24,8 @@ pub enum LibraryError {
     Io(PathBuf, #[source] std::io::Error),
     #[error("{0}: {1}")]
     Meta(PathBuf, #[source] toml::de::Error),
+    #[error("{0}: {1}")]
+    Serialize(PathBuf, #[source] toml::ser::Error),
     #[error(transparent)]
     Load(#[from] LoadError),
     #[error("{0}: {1}")]
@@ -352,6 +354,7 @@ fn write_atomic(path: &Path, text: &str) -> Result<()> {
 /// A file that was not written by Doppelpad (e.g. hand-written with comments, which
 /// would be lost) is copied to `<file>.bak` once before its first overwrite.
 pub fn save_profile_atomic(path: &Path, profile: &Profile) -> Result<()> {
+    let text = to_toml(profile).map_err(|e| LibraryError::Serialize(path.to_path_buf(), e))?;
     if let Ok(existing) = std::fs::read_to_string(path)
         && !existing.starts_with(OUR_HEADER)
     {
@@ -366,7 +369,7 @@ pub fn save_profile_atomic(path: &Path, profile: &Profile) -> Result<()> {
     if let Some(dir) = path.parent() {
         std::fs::create_dir_all(dir).map_err(io(dir))?;
     }
-    write_atomic(path, &to_toml(profile))
+    write_atomic(path, &text)
 }
 
 /// Import a JSON profile (schema 3.0) as a new TOML config in `game_dir`. The source
