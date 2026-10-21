@@ -346,7 +346,7 @@ impl Switch2Driver {
                 self.notice_cleared = true;
             }
             Err(e) => {
-                tracing::warn!("Switch 2 controller: cannot use its USB command interface: {e}")
+                tracing::warn!("Switch 2 controller: cannot use its USB command interface: {e}");
             }
         }
     }

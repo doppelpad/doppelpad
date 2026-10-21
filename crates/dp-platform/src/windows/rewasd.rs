@@ -272,7 +272,7 @@ fn stop_service(parent: HWND) -> Result<(), StopError> {
             }
         }
         Err(e) if e.raw_os_error() == Some(ERROR_ACCESS_DENIED as i32) => {
-            stop_service_elevated(parent)?
+            stop_service_elevated(parent)?;
         }
         Err(e) => return Err(failed(e)),
     }

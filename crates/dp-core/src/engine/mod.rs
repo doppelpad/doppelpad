@@ -316,7 +316,7 @@ fn step(act: &mut Activation, program: &[Step], outs: &mut Outputs, until: u64) 
                         high: *high,
                     },
                     t + u64::from(*ms),
-                ))
+                ));
             }
             Step::Command(c) => outs.commands.push(c.clone()),
             Step::Shake(axis) => {

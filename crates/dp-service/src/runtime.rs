@@ -1237,7 +1237,7 @@ impl Runtime {
             | Command::GyroOff
             | Command::ResetTilt
             | Command::SwitchGyroAxis => {
-                tracing::info!(command = ?c, "gyro switched")
+                tracing::info!(command = ?c, "gyro switched");
             }
             Command::Shutdown
             | Command::Restart
@@ -1293,7 +1293,7 @@ impl Runtime {
                 }
             }
             Command::Unsupported(name) => {
-                tracing::debug!(session = i, "ignoring unsupported command {name}")
+                tracing::debug!(session = i, "ignoring unsupported command {name}");
             }
         }
         true

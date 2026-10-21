@@ -44,6 +44,7 @@ cast_lossless = "warn"
 redundant_clone = "warn"
 unused_self = "warn"
 needless_pass_by_ref_mut = "warn"
+semicolon_if_nothing_returned = "warn"
 
 [profile.release]
 lto = "thin"
