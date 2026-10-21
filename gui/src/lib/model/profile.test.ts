@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { Mapping, Profile } from '../types';
+import { has } from '../i18n/index.svelte';
 import {
+  POWER_COMMANDS,
+  RADIAL_COMMANDS,
+  SIMPLE_COMMANDS,
   addLayer,
   clearLayer,
   comboKey,
@@ -217,5 +221,11 @@ describe('virtual devices', () => {
     expect(p.virtual).toEqual({ sticks });
     p = setVirtualDevice(p, 'sticks', undefined);
     expect('virtual' in p).toBe(false);
+  });
+});
+
+describe('commands', () => {
+  it('every command the picker lists has a label', () => {
+    for (const c of [...SIMPLE_COMMANDS, ...RADIAL_COMMANDS, ...POWER_COMMANDS]) expect(has(`picker.${c}`), c).toBe(true);
   });
 });

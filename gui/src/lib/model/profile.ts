@@ -365,6 +365,33 @@ const COMMAND_LABELS: Record<string, string> = {
 /** Commands that end the session or put the computer to sleep: the editor asks first. */
 export const POWER_COMMANDS = ['shutdown', 'restart', 'sleep', 'hibernate', 'log_off'] as const;
 
+/** Commands without arguments, in the order the action picker lists them. */
+export const SIMPLE_COMMANDS = [
+  'remap_off',
+  'toggle_gyro',
+  'gyro_on',
+  'gyro_off',
+  'reset_tilt',
+  'switch_gyro_axis',
+  'screenshot',
+  'close_window',
+  'pad_overlay',
+  'mappings_overlay',
+  'power_off',
+] as const;
+
+/** Commands that steer an open radial menu. */
+export const RADIAL_COMMANDS = [
+  'radial_next',
+  'radial_prev',
+  'radial_up',
+  'radial_down',
+  'radial_left',
+  'radial_right',
+  'radial_apply',
+  'radial_back',
+] as const;
+
 /** Short text for one action, e.g. "Space", "Mouse L", "Pad A", "L-stick ↑", "Pause 50 ms". */
 export function actionLabel(a: Action): string {
   if ('key' in a) return a.key + pressSuffix(a.action);
