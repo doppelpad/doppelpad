@@ -11,6 +11,7 @@
   import { app } from '../../lib/state/app.svelte';
   import RouteCard from '../analog/RouteCard.svelte';
   import PanelHeader from './PanelHeader.svelte';
+  import { groupItems } from './controlMenu';
   import Segmented from '../ui/Segmented.svelte';
   import { routeConfig } from '../../lib/model/routes';
 
@@ -51,7 +52,12 @@
 </script>
 
 <div class="panel">
-  <PanelHeader title={t(`analog.routes.sources.${SIDES[side].source}`)} layer={app.layer} onclose={() => app.select(null)} />
+  <PanelHeader
+    title={t(`analog.routes.sources.${SIDES[side].source}`)}
+    layer={app.layer}
+    menu={groupItems(side === 'left' ? 'LeftStick' : 'RightStick')}
+    onclose={() => app.select(null)}
+  />
 
   <div class="section-title">{t('binding.whole_stick')}</div>
   <Segmented

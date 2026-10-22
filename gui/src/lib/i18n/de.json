@@ -718,7 +718,10 @@
     "break": "Trenner",
     "break_hint": "der nächste Druck spielt den Teil danach",
     "segments": "{n} Teile: Jeder Druck spielt den nächsten, danach geht es von vorn los.",
-    "segments_no_repeat": " Wiederholen gilt für Teile nicht."
+    "segments_no_repeat": " Wiederholen gilt für Teile nicht.",
+    "copy_steps": "Schritte kopieren",
+    "paste_steps": "Schritte einfügen",
+    "steps_copied": "{n} Schritte kopiert"
   },
   "params": {
     "amount": "Stärke",
@@ -1381,5 +1384,30 @@
   "overlays": {
     "no_mappings": "Auf dieser Ebene ist nichts belegt.",
     "more": "… und {n} weitere"
+  },
+  "clipboard": {
+    "copy": "Kopieren",
+    "copy_named": "{name} kopieren",
+    "paste": "Einfügen",
+    "paste_from": "Einfügen ({name})",
+    "clear": "Leeren",
+    "clear_named": "{name} leeren",
+    "copy_group": "Alle Richtungen kopieren",
+    "paste_group": "Alle Richtungen einfügen",
+    "paste_group_from": "Alle Richtungen einfügen ({name})",
+    "clear_group": "Alle Richtungen leeren",
+    "copied": "Kopiert: {name}",
+    "pasted": "Eingefügt: {name}. Strg+Z macht es rückgängig.",
+    "pasted_dropped": "Eingefügt: {name}. {n} Belegungen oder Routen hatten dort keinen Platz und wurden weggelassen. Strg+Z macht es rückgängig.",
+    "groups": {
+      "LeftStick": "Linker Stick",
+      "RightStick": "Rechter Stick",
+      "Dpad": "Steuerkreuz",
+      "Touch": "Touchpad",
+      "TrackpadLeft": "Linkes Trackpad",
+      "TrackpadRight": "Rechtes Trackpad",
+      "Gyro": "Gyro",
+      "MouseMove": "Mausbewegung"
+    }
   }
 }

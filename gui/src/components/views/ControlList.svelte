@@ -83,6 +83,7 @@
         <ControlTile
           name={tl.label}
           summary={s}
+          control={c}
           selected={tl.members.includes(app.selectedKey)}
           pressed={tl.members.some((m) => app.pressed.has(m))}
           onclick={() => app.select(c)}

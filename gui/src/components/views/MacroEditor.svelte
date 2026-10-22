@@ -2,7 +2,22 @@
   // Edit one mapping as a macro: run mode, repeat settings and an ordered list of steps.
   // Steps can be picked or recorded from the keyboard or the controller (presses and
   // releases with the pauses between), and break steps cut the sequence into segments.
-  import { ArrowLeft, ArrowUp, ArrowDown, X, Circle, Square, Plus, Timer, Vibrate, Gamepad2, SeparatorHorizontal } from '@lucide/svelte';
+  import {
+    ArrowLeft,
+    ArrowUp,
+    ArrowDown,
+    X,
+    Circle,
+    Square,
+    Plus,
+    Timer,
+    Vibrate,
+    Gamepad2,
+    SeparatorHorizontal,
+    Copy,
+    ClipboardPaste,
+  } from '@lucide/svelte';
+  import { clone } from '../../lib/model/util';
   import { onDestroy, untrack } from 'svelte';
   import { t } from '../../lib/i18n/index.svelte';
   import { actionLabel, comboLabel } from '../../lib/model/labels';
@@ -42,6 +57,16 @@
 
   function setSteps(next: Action[]) {
     edit((x) => (x.actions = next));
+  }
+
+  function copySteps() {
+    app.copiedSteps = clone(steps);
+    app.toast(t('macro.steps_copied', { n: steps.length }), 'info');
+  }
+
+  /** The copied steps replace these (undoable). */
+  function pasteSteps() {
+    if (app.copiedSteps) setSteps(clone(app.copiedSteps));
   }
 
   function move(i: number, d: -1 | 1) {
@@ -303,6 +328,12 @@
         >
         <button class="btn" onclick={() => setSteps([...steps, { break: true }])} disabled={recording || padRecording}
           ><SeparatorHorizontal size={14} /> {t('macro.add_break')}</button
+        >
+        <button class="btn" onclick={copySteps} disabled={recording || padRecording || steps.length === 0}
+          ><Copy size={14} /> {t('macro.copy_steps')}</button
+        >
+        <button class="btn" onclick={pasteSteps} disabled={recording || padRecording || !app.copiedSteps}
+          ><ClipboardPaste size={14} /> {t('macro.paste_steps')}</button
         >
       </div>
       {#if recording}<p class="recording">{t('macro.recording')}</p>{/if}

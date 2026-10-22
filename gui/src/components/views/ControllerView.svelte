@@ -11,6 +11,7 @@
   import { app } from '../../lib/state/app.svelte';
   import type { ControlName } from '../../lib/types';
   import PartMenu, { type PartMenuAt } from './PartMenu.svelte';
+  import { controlMenu, groupItems, menuItems } from '../binding/controlMenu';
 
   let { device }: { device: DeviceId } = $props();
 
@@ -78,6 +79,23 @@
     menu = menu?.kind === 'gyro' ? null : { kind: 'gyro', x: vx + vw * 0.12, y: vy + vh * 0.06 };
   }
 
+  /** A right click on a part of the drawing opens that control's context menu. */
+  function onDrawingMenu(e: MouseEvent) {
+    const c = (e.target as Element).closest('[data-control]')?.getAttribute('data-control');
+    if (!c) return;
+    e.preventDefault();
+    menu = null;
+    app.openContextMenu(menuItems(c), { x: e.clientX, y: e.clientY }, null);
+  }
+
+  /** The gyro chip's context menu: copy, paste and clear of every gyro direction. */
+  function onGyroMenu(e: MouseEvent) {
+    e.preventDefault();
+    menu = null;
+    const keyboard = e.clientX === 0 && e.clientY === 0;
+    app.openContextMenu(groupItems('Gyro'), keyboard ? null : { x: e.clientX, y: e.clientY }, e.currentTarget as HTMLElement);
+  }
+
   function onDrawingClick(e: MouseEvent) {
     const g = (e.target as Element).closest('[data-control]');
     if (!g || !drawing) {
@@ -119,7 +137,7 @@
   <div class="device" style="aspect-ratio: {vw} / {vh}" bind:this={deviceEl}>
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div class="drawing" bind:this={drawing} onclick={onDrawingClick}>
+    <div class="drawing" bind:this={drawing} onclick={onDrawingClick} oncontextmenu={onDrawingMenu}>
       {@html layout.svg}
     </div>
 
@@ -139,6 +157,7 @@
         class:pressed={pressed.has(ch.lc.control)}
         style={chipStyle(ch.lc)}
         title={ch.summary ? `${ch.label}: ${ch.summary}` : ch.label}
+        use:controlMenu={ch.lc.control}
         onclick={(e) => {
           e.stopPropagation();
           const c = ch.lc.control;
@@ -161,6 +180,7 @@
         class:selected={gyroChip.selected || menu?.kind === 'gyro'}
         title={gyroChip.summary ? `${t('binding.gyro')}: ${gyroChip.summary}` : t('binding.gyro')}
         onclick={openGyroMenu}
+        oncontextmenu={onGyroMenu}
       >
         <Rotate3d size={13} />
         {#if gyroChip.summary}

@@ -17,6 +17,7 @@
 
 <script lang="ts">
   import type { Snippet } from 'svelte';
+  import MenuList from './MenuList.svelte';
 
   let {
     items,
@@ -36,8 +37,6 @@
 
   let open = $state(false);
   let up = $state(false);
-  /** One tickable item gives every item the tick column, so the labels line up. */
-  const ticks = $derived(items.some((i) => i.checked !== undefined));
   let root: HTMLElement;
   let popup: HTMLElement | undefined = $state();
 
@@ -69,31 +68,8 @@
     {@render trigger()}
   </button>
   {#if open}
-    <div class="popup" class:right={align === 'right'} class:up role="menu" bind:this={popup}>
-      {#each items as item, i (i)}
-        {#if item.separator}
-          <div class="sep"></div>
-        {:else}
-          <button
-            type="button"
-            role="menuitem"
-            class="item"
-            class:danger={item.danger}
-            disabled={item.disabled}
-            onclick={() => {
-              open = false;
-              item.onclick?.();
-            }}
-          >
-            {#if ticks}<span class="check">{item.checked ? '✓' : ''}</span>{/if}
-            {#if item.color}<span class="dot" style:background={item.color}></span>{/if}
-            {item.label}
-            {#if item.detail}
-              <span class="detail" class:warning={item.tone === 'warning'} class:danger={item.tone === 'danger'}>{item.detail}</span>
-            {/if}
-          </button>
-        {/if}
-      {/each}
+    <div class="popup" class:right={align === 'right'} class:up bind:this={popup}>
+      <MenuList {items} onpick={() => (open = false)} />
     </div>
   {/if}
 </div>
@@ -111,12 +87,6 @@
     position: absolute;
     top: calc(100% + 4px);
     left: 0;
-    min-width: 200px;
-    background: var(--bg-2);
-    border: 1px solid var(--line-strong);
-    border-radius: var(--radius-m);
-    box-shadow: var(--shadow);
-    padding: 4px;
     z-index: var(--z-menu);
   }
   .popup.right {
@@ -126,52 +96,5 @@
   .popup.up {
     top: auto;
     bottom: calc(100% + 4px);
-  }
-  .item {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    width: 100%;
-    text-align: left;
-    padding: 7px 10px;
-    border-radius: var(--radius-s);
-    white-space: nowrap;
-  }
-  .item:hover:not(:disabled) {
-    background: var(--bg-3);
-  }
-  .item:disabled {
-    opacity: 0.4;
-    cursor: default;
-  }
-  .item.danger {
-    color: var(--danger);
-  }
-  .check {
-    width: 14px;
-    color: var(--accent);
-  }
-  .detail {
-    margin-left: auto;
-    padding-left: 18px;
-    font-size: var(--fs-s);
-    color: var(--text-dim);
-  }
-  .detail.warning {
-    color: var(--warning);
-  }
-  .detail.danger {
-    color: var(--danger);
-  }
-  .dot {
-    flex: none;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-  }
-  .sep {
-    height: 1px;
-    background: var(--line);
-    margin: 4px 2px;
   }
 </style>

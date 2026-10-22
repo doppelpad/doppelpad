@@ -9,7 +9,9 @@
   // The popover that asks which part of a stick, the touchpad or the gyro to edit: directions
   // (diagonals when the stick has them), the click or centre, the zones, the whole stick, the
   // touchpad's halves and gestures, and links to their settings.
-  import { SlidersHorizontal } from '@lucide/svelte';
+  import { ClipboardPaste, Copy, Eraser, SlidersHorizontal } from '@lucide/svelte';
+  import type { GroupId } from '../../lib/model/clipboard';
+  import { groupItems } from '../binding/controlMenu';
   import { t } from '../../lib/i18n/index.svelte';
   import { SIDES, TOUCH_GESTURES, controlLabel } from '../../lib/model/controls';
   import { STICK_GROUPS, stickGroupOf } from '../../lib/model/stickgroups';
@@ -60,6 +62,8 @@
     ['DownRight', '↘'],
   ] as const;
   const CORNERS = new Set(['UpLeft', 'UpRight', 'DownLeft', 'DownRight']);
+  /** Icons of the copy, paste and clear buttons for all directions (in `groupItems` order). */
+  const CLIP_ICONS = [Copy, ClipboardPaste, Eraser];
   const HALVES = [
     { value: 'Left', key: 'half_left' },
     { value: 'Right', key: 'half_right' },
@@ -158,6 +162,24 @@
       {t('binding.gyro_settings')}
     </button>
   {/if}
+  <div class="sm-clip">
+    {#each groupItems(prefix as GroupId) as item, i (i)}
+      {@const Icon = CLIP_ICONS[i]}
+      <button
+        class="sm-btn"
+        class:danger={item.danger}
+        title={item.label}
+        aria-label={item.label}
+        disabled={item.disabled}
+        onclick={() => {
+          onclose();
+          item.onclick?.();
+        }}
+      >
+        <Icon size={13} />
+      </button>
+    {/each}
+  </div>
 </div>
 
 <style>
@@ -249,5 +271,30 @@
     padding: 3px 6px;
     font-size: 10.5px;
     white-space: nowrap;
+  }
+  .sm-clip {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 4px;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--line);
+  }
+  .sm-clip .sm-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 5px 0;
+    color: var(--text-dim);
+  }
+  .sm-clip .sm-btn.danger:hover:not(:disabled) {
+    border-color: var(--danger);
+    color: var(--danger);
+  }
+  .sm-clip .sm-btn:disabled {
+    opacity: 0.35;
+    cursor: default;
+    border-color: var(--line);
+    color: var(--text-dim);
   }
 </style>

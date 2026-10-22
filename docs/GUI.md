@@ -29,6 +29,28 @@ saving too (the config is then unsaved again); opening another config starts afr
 covers the config only: game settings, slots and the app's settings are not part of it. In a
 text field, Ctrl+Z undoes the typing in that field.
 
+## Copy and paste
+
+Right-click a control (on the drawing, in the list, on the keyboard and mouse views, or a
+shortcut) or press the menu key or Shift+F10 on it; the **…** menu in the binding panel's head
+has the same entries:
+
+- **Copy** takes everything the control does on the current layer, all activators with their
+  modes, timing, layer switches and notes (on a shift layer, what it inherits from *Main* if it
+  has nothing of its own).
+- **Paste** replaces what another control or shortcut does on the current layer with it.
+- **Clear** removes the control's mappings on the current layer; on a shift layer *Main*'s apply
+  again.
+- **Copy / Paste / Clear all directions** do the same for a whole group: a stick (with its
+  zones and the routes it is the source of), the D-pad, the touchpad or one trackpad, the gyro
+  or the mouse movement. Pasting moves each direction to the same direction of the target
+  (left stick ↑ → right stick ↑); what the target does not have, such as diagonals on the
+  D-pad, is left out, and the message says how much. The stick menu on the drawing has the
+  three as buttons at its bottom; right-click a stick or the gyro chip for them too.
+
+The copy stays while the app runs, so it can be pasted into another config. Pasting and clearing
+can be undone. The macro editor has **Copy steps** and **Paste steps** for whole sequences.
+
 ## Editing a control
 
 1. Pick the layer in the toolbar and click the control (or press it). A stick asks for its

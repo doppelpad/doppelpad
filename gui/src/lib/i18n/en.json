@@ -718,7 +718,10 @@
     "break": "Break",
     "break_hint": "the next press plays the part after this",
     "segments": "{n} parts: each press plays the next one, then it starts over.",
-    "segments_no_repeat": " Repeating is ignored for parts."
+    "segments_no_repeat": " Repeating is ignored for parts.",
+    "copy_steps": "Copy steps",
+    "paste_steps": "Paste steps",
+    "steps_copied": "{n} steps copied"
   },
   "params": {
     "amount": "Amount",
@@ -1381,5 +1384,30 @@
   "overlays": {
     "no_mappings": "Nothing is mapped on this layer.",
     "more": "… and {n} more"
+  },
+  "clipboard": {
+    "copy": "Copy",
+    "copy_named": "Copy {name}",
+    "paste": "Paste",
+    "paste_from": "Paste ({name})",
+    "clear": "Clear",
+    "clear_named": "Clear {name}",
+    "copy_group": "Copy all directions",
+    "paste_group": "Paste all directions",
+    "paste_group_from": "Paste all directions ({name})",
+    "clear_group": "Clear all directions",
+    "copied": "Copied: {name}",
+    "pasted": "Pasted: {name}. Ctrl+Z undoes it.",
+    "pasted_dropped": "Pasted: {name}. {n} mappings or routes had no place there and were left out. Ctrl+Z undoes it.",
+    "groups": {
+      "LeftStick": "Left stick",
+      "RightStick": "Right stick",
+      "Dpad": "D-pad",
+      "Touch": "Touchpad",
+      "TrackpadLeft": "Left trackpad",
+      "TrackpadRight": "Right trackpad",
+      "Gyro": "Gyro",
+      "MouseMove": "Mouse movement"
+    }
   }
 }
