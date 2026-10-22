@@ -4,6 +4,7 @@
 pub mod bundle;
 mod compat;
 mod diag;
+pub mod history;
 pub mod library;
 pub mod store;
 pub mod templates;
@@ -838,6 +839,13 @@ pub fn profiles_dir() -> PathBuf {
 /// rather than roaming: logs describe this machine.
 pub fn log_dir() -> PathBuf {
     user_dir("LOCALAPPDATA", "XDG_STATE_HOME", &[".local", "state"]).join("logs")
+}
+
+/// Per-user directory for earlier versions of configs: `%LOCALAPPDATA%\doppelpad\history`, or
+/// `$XDG_STATE_HOME/doppelpad/history`. Outside the profiles folder, so the library never lists
+/// them.
+pub fn history_dir() -> PathBuf {
+    user_dir("LOCALAPPDATA", "XDG_STATE_HOME", &[".local", "state"]).join("history")
 }
 
 /// Whether a file looks like a profile: `.toml`, or content starting with a JSON object.

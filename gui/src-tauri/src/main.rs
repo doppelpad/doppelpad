@@ -172,6 +172,7 @@ fn main() {
             commands::config_load,
             commands::config_save,
             commands::config_check,
+            commands::config_versions,
             commands::config_create,
             commands::config_duplicate,
             commands::config_delete,

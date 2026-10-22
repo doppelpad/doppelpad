@@ -28,6 +28,7 @@ const COMMANDS: &[&str] = &[
     "config_load",
     "config_save",
     "config_check",
+    "config_versions",
     "config_create",
     "config_duplicate",
     "config_delete",
