@@ -3,7 +3,7 @@
   // how fast it grows and where it stops, with a preview of the first two seconds, and the
   // output curve of the whole virtual stick, and an optional jitter on top.
   import { t } from '../../lib/i18n/index.svelte';
-  import { setVirtualStick, virtualRamp, virtualStickConfig, type CurvePoint, type Side } from '../../lib/model/analog';
+  import { jitterConfig, setVirtualStick, virtualRamp, virtualStickConfig, type CurvePoint, type Side } from '../../lib/model/analog';
   import { app } from '../../lib/state/app.svelte';
   import type { Jitter, VirtualStick } from '../../lib/types';
   import Segmented from '../ui/Segmented.svelte';
@@ -42,11 +42,11 @@
   }
 
   const PATTERNS = ['circle', 'square', 'cross'] as const;
-  const jit = $derived({ ...def?.jitter, ...cfg?.jitter } as Required<Jitter>);
-  const refJit = $derived({ ...def?.jitter, ...ref?.jitter } as Required<Jitter>);
+  const jit = $derived(def ? jitterConfig(cfg?.jitter, def.jitter) : null);
+  const refJit = $derived(def ? jitterConfig(ref?.jitter, def.jitter) : null);
 
   function setJitter(patch: Partial<Jitter>) {
-    set({ jitter: { ...jit, ...patch } });
+    if (jit) set({ jitter: { ...jit, ...patch } });
   }
 
   // Preview: deflection over the first two seconds of holding a button (horizontal axis).
@@ -102,9 +102,9 @@
           />
         {/each}
         <div class="jitter">
-          <Toggle checked={jit.enabled} {disabled} label={t('analog.virtual.jitter')} onchange={(v) => setJitter({ enabled: v })} />
+          <Toggle checked={!!jit?.enabled} {disabled} label={t('analog.virtual.jitter')} onchange={(v) => setJitter({ enabled: v })} />
           <p class="hint">{t('analog.virtual.jitter_hint')}</p>
-          {#if jit.enabled}
+          {#if jit?.enabled && refJit}
             <Segmented
               variant="chips"
               label={t('analog.virtual.jitter')}

@@ -1,7 +1,7 @@
 // Output settings the output panel edits from typed text: how turns become mouse counts, the
 // virtual controller's shake, and the speeds where the physical mouse's zones start.
 
-import type { Profile } from '../types';
+import type { Light, Output, Profile, Vibration } from '../types';
 import { setVirtualDevice } from './layers';
 import { setOrDrop, setRising } from './util';
 
@@ -42,4 +42,19 @@ export function withMouseZone(p: Profile, i: number, raw: string): Profile {
   if (!Number.isFinite(n) || n <= 0) return p;
   const zones = setRising(p.mouse?.zones ?? MOUSE_ZONE_DEFAULTS, i, n);
   return setOrDrop(p, 'mouse', zones.every((v, j) => v === MOUSE_ZONE_DEFAULTS[j]) ? undefined : { zones });
+}
+
+/** The virtual controller and input settings with the defaults filled in. */
+export function outputConfig(own: Output | undefined, def: Required<Output>): Required<Output> {
+  return { ...def, ...own };
+}
+
+/** A light bar with the defaults filled in. */
+export function lightConfig(own: Light | undefined, def: Required<Light>): Required<Light> {
+  return { ...def, ...own };
+}
+
+/** Rumble settings with the defaults filled in. */
+export function vibrationConfig(own: Vibration | undefined, def: Required<Vibration>): Required<Vibration> {
+  return { ...def, ...own };
 }

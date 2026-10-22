@@ -7,9 +7,10 @@
   import type { Vibration } from '../../lib/types';
   import Slider from '../ui/Slider.svelte';
   import Toggle from '../ui/Toggle.svelte';
+  import { vibrationConfig } from '../../lib/model/output';
 
   const def = $derived(app.catalog?.defaults.vibration ?? { left: 1, right: 1, swap: false, min_delay_ms: 20 });
-  const v = $derived({ ...def, ...app.profile?.vibration } as Required<Vibration>);
+  const v = $derived(vibrationConfig(app.profile?.vibration, def));
   const disabled = $derived(app.readOnly);
 
   function set(patch: Partial<Vibration>) {

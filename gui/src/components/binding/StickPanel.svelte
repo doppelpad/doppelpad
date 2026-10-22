@@ -15,10 +15,10 @@
   import { SIDES } from '../../lib/model/controls';
   import { stickAxes } from '../../lib/model/devices';
   import { app } from '../../lib/state/app.svelte';
-  import type { AnalogMapping } from '../../lib/types';
   import RouteCard from '../analog/RouteCard.svelte';
   import PanelHeader from './PanelHeader.svelte';
   import Segmented from '../ui/Segmented.svelte';
+  import { routeConfig } from '../../lib/model/routes';
 
   let { side }: { side: Side } = $props();
 
@@ -29,7 +29,7 @@
   /** Main's route from this stick, which a shift layer without its own keeps using. */
   const inherited = $derived(!!profile && app.layer !== 0 && index < 0 && stickRouteIndex(profile, 0, side) >= 0);
   const def = $derived(app.catalog?.defaults.analog);
-  const r = $derived(route && def ? ({ ...def, ...route } as Required<AnalogMapping>) : null);
+  const r = $derived(route && def ? routeConfig(route, def) : null);
   const preset = $derived(r ? mousePresetOf(r) : null);
   const PRESETS = Object.keys(MOUSE_PRESETS) as MousePreset[];
 

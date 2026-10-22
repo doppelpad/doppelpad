@@ -7,6 +7,7 @@
   import {
     ROUTE_SOURCES,
     removeRoute,
+    routeConfig,
     routeFields,
     routeTargets,
     sourceOf,
@@ -43,7 +44,7 @@
 
   const def = $derived(app.catalog?.defaults.analog);
   /** The route with the defaults filled in. */
-  const r = $derived<Required<AnalogMapping>>({ ...def, ...route } as Required<AnalogMapping>);
+  const r = $derived(def ? routeConfig(route, def) : null);
   const source = $derived<AnalogSource>(sourceOf(route));
   const target = $derived<AnalogTarget>(targetOf(route));
   const fields = $derived(routeFields(source, target));
@@ -71,7 +72,7 @@
   }
 
   function addHeld(c: ControlName) {
-    if (!r.while_held.includes(c)) set({ while_held: [...r.while_held, c] });
+    if (r && !r.while_held.includes(c)) set({ while_held: [...r.while_held, c] });
   }
 
   let capturing = $state(false);
@@ -114,132 +115,134 @@
 
 <svelte:window onkeydown={onKeydown} />
 
-<section class="route card">
-  <header>
-    {#if !fixedSource}
+{#if r}
+  <section class="route card">
+    <header>
+      {#if !fixedSource}
+        <label class="end">
+          <span>{t('analog.routes.from')}</span>
+          <select value={source} {disabled} onchange={(e) => set(sourcePatch(route, e.currentTarget.value as AnalogSource))}>
+            {#each ROUTE_SOURCES as s (s)}<option value={s}>{t(`analog.routes.sources.${s}`)}</option>{/each}
+          </select>
+        </label>
+        <ArrowRight size={16} />
+      {/if}
       <label class="end">
-        <span>{t('analog.routes.from')}</span>
-        <select value={source} {disabled} onchange={(e) => set(sourcePatch(route, e.currentTarget.value as AnalogSource))}>
-          {#each ROUTE_SOURCES as s (s)}<option value={s}>{t(`analog.routes.sources.${s}`)}</option>{/each}
+        <span>{t('analog.routes.to')}</span>
+        <select value={target} {disabled} onchange={(e) => set({ target: e.currentTarget.value as AnalogTarget })}>
+          {#each routeTargets(source) as tg (tg)}<option value={tg}>{t(`analog.routes.targets.${tg}`)}</option>{/each}
         </select>
       </label>
-      <ArrowRight size={16} />
-    {/if}
-    <label class="end">
-      <span>{t('analog.routes.to')}</span>
-      <select value={target} {disabled} onchange={(e) => set({ target: e.currentTarget.value as AnalogTarget })}>
-        {#each routeTargets(source) as tg (tg)}<option value={tg}>{t(`analog.routes.targets.${tg}`)}</option>{/each}
-      </select>
-    </label>
-    {#if !disabled}
-      <button class="icon-btn del danger" title={t('analog.routes.delete')} onclick={() => app.edit((p) => removeRoute(p, index))}>
-        <Trash2 size={15} />
-      </button>
-    {/if}
-  </header>
+      {#if !disabled}
+        <button class="icon-btn del danger" title={t('analog.routes.delete')} onclick={() => app.edit((p) => removeRoute(p, index))}>
+          <Trash2 size={15} />
+        </button>
+      {/if}
+    </header>
 
-  {#if flick}
-    <p class="flick-note">{t('analog.routes.flick_hint')}</p>
-  {/if}
-  {#if noGyro}
-    <div class="warn"><TriangleAlert size={14} /> {t('analog.routes.no_gyro')}</div>
-  {/if}
+    {#if flick}
+      <p class="flick-note">{t('analog.routes.flick_hint')}</p>
+    {/if}
+    {#if noGyro}
+      <div class="warn"><TriangleAlert size={14} /> {t('analog.routes.no_gyro')}</div>
+    {/if}
 
-  <div class="fields">
-    <Slider
-      label={t('analog.routes.sensitivity')}
-      value={r.sensitivity}
-      def={def?.sensitivity}
-      min={0.05}
-      max={10}
-      step={0.05}
-      unit="×"
-      hint={t(`analog.routes.scale.${scaleKey}`)}
-      {disabled}
-      onchange={(v) => set({ sensitivity: v })}
-    />
-    {#if !flick}
+    <div class="fields">
       <Slider
-        label={t('analog.routes.vertical_ratio')}
-        value={r.vertical_ratio}
-        def={def?.vertical_ratio}
-        min={0.1}
-        max={3}
+        label={t('analog.routes.sensitivity')}
+        value={r.sensitivity}
+        def={def?.sensitivity}
+        min={0.05}
+        max={10}
         step={0.05}
         unit="×"
-        hint={t('analog.routes.vertical_ratio_hint')}
+        hint={t(`analog.routes.scale.${scaleKey}`)}
         {disabled}
-        onchange={(v) => set({ vertical_ratio: v })}
+        onchange={(v) => set({ sensitivity: v })}
       />
-    {/if}
-    {#each sliders as f (f)}
-      {@const s = SLIDERS[f]}
-      <Slider
-        label={t(flick && f === 'deadzone' ? 'analog.routes.flick_threshold' : `analog.routes.${f}`)}
-        value={r[f]}
-        def={def?.[f]}
-        min={s.min}
-        max={s.max}
-        step={s.step}
-        scale={s.scale}
-        unit={sliderUnit(s)}
-        hint={flick && f === 'deadzone' ? t('analog.routes.flick_threshold_hint') : sliderHint('analog.routes', f, s)}
-        {disabled}
-        onchange={(v) => set({ [f]: v })}
-      />
-    {/each}
-  </div>
+      {#if !flick}
+        <Slider
+          label={t('analog.routes.vertical_ratio')}
+          value={r.vertical_ratio}
+          def={def?.vertical_ratio}
+          min={0.1}
+          max={3}
+          step={0.05}
+          unit="×"
+          hint={t('analog.routes.vertical_ratio_hint')}
+          {disabled}
+          onchange={(v) => set({ vertical_ratio: v })}
+        />
+      {/if}
+      {#each sliders as f (f)}
+        {@const s = SLIDERS[f]}
+        <Slider
+          label={t(flick && f === 'deadzone' ? 'analog.routes.flick_threshold' : `analog.routes.${f}`)}
+          value={r[f]}
+          def={def?.[f]}
+          min={s.min}
+          max={s.max}
+          step={s.step}
+          scale={s.scale}
+          unit={sliderUnit(s)}
+          hint={flick && f === 'deadzone' ? t('analog.routes.flick_threshold_hint') : sliderHint('analog.routes', f, s)}
+          {disabled}
+          onchange={(v) => set({ [f]: v })}
+        />
+      {/each}
+    </div>
 
-  <div class="toggles">
-    <Toggle checked={r.invert_x} {disabled} label={t('analog.routes.invert_x')} onchange={(v) => set({ invert_x: v })} />
-    {#if !flick}
-      <Toggle checked={r.invert_y} {disabled} label={t('analog.routes.invert_y')} onchange={(v) => set({ invert_y: v })} />
-    {/if}
-    {#if fields.includes('spring')}
-      <Toggle checked={r.spring} {disabled} label={t('analog.routes.spring')} onchange={(v) => set({ spring: v })} />
-    {/if}
-    {#if fields.includes('consume')}
-      <Toggle
-        checked={r.consume}
-        {disabled}
-        label={t(source === 'mouse' ? 'analog.routes.consume_mouse' : 'analog.routes.consume_stick')}
-        onchange={(v) => set({ consume: v })}
-      />
-    {/if}
-  </div>
+    <div class="toggles">
+      <Toggle checked={r.invert_x} {disabled} label={t('analog.routes.invert_x')} onchange={(v) => set({ invert_x: v })} />
+      {#if !flick}
+        <Toggle checked={r.invert_y} {disabled} label={t('analog.routes.invert_y')} onchange={(v) => set({ invert_y: v })} />
+      {/if}
+      {#if fields.includes('spring')}
+        <Toggle checked={r.spring} {disabled} label={t('analog.routes.spring')} onchange={(v) => set({ spring: v })} />
+      {/if}
+      {#if fields.includes('consume')}
+        <Toggle
+          checked={r.consume}
+          {disabled}
+          label={t(source === 'mouse' ? 'analog.routes.consume_mouse' : 'analog.routes.consume_stick')}
+          onchange={(v) => set({ consume: v })}
+        />
+      {/if}
+    </div>
 
-  <div class="held">
-    <span class="hl">{t('analog.routes.while_held')}</span>
-    {#each r.while_held as c (c)}
-      <Chip size="s" onremove={disabled ? undefined : () => set({ while_held: r.while_held.filter((x) => x !== c) })}>
-        {controlLabelMixed(c, app.family)}
-      </Chip>
-    {/each}
-    {#if r.while_held.length === 0}<span class="always">{t('analog.routes.always')}</span>{/if}
-    {#if capturing}
-      <span class="capturing">{t('analog.routes.pressing')}</span>
-      <button class="icon-btn" title={t('common.cancel')} onclick={stopCapture}><X size={14} /></button>
-    {:else if !disabled}
-      <label class="add">
-        <Plus size={13} />
-        <select value="" aria-label={t('analog.routes.add_control')} onchange={onAddHeld}>
-          <option value="" disabled>{t('analog.routes.add_control')}</option>
-          <option value="__press">{t('analog.routes.press_control')}</option>
-          <optgroup label={t('picker.gamepad')}>
-            {#each heldOptions.filter((c) => !r.while_held.includes(c)) as c (c)}
-              <option value={c}>{controlLabel(c, app.family)}</option>
-            {/each}
-          </optgroup>
-          <optgroup label={t('picker.mouse')}>
-            {#each mouseOptions.filter((c) => !r.while_held.includes(c)) as c (c)}
-              <option value={c}>{controlLabel(c, app.family)}</option>
-            {/each}
-          </optgroup>
-        </select>
-      </label>
-    {/if}
-  </div>
-</section>
+    <div class="held">
+      <span class="hl">{t('analog.routes.while_held')}</span>
+      {#each r.while_held as c (c)}
+        <Chip size="s" onremove={disabled ? undefined : () => set({ while_held: r.while_held.filter((x) => x !== c) })}>
+          {controlLabelMixed(c, app.family)}
+        </Chip>
+      {/each}
+      {#if r.while_held.length === 0}<span class="always">{t('analog.routes.always')}</span>{/if}
+      {#if capturing}
+        <span class="capturing">{t('analog.routes.pressing')}</span>
+        <button class="icon-btn" title={t('common.cancel')} onclick={stopCapture}><X size={14} /></button>
+      {:else if !disabled}
+        <label class="add">
+          <Plus size={13} />
+          <select value="" aria-label={t('analog.routes.add_control')} onchange={onAddHeld}>
+            <option value="" disabled>{t('analog.routes.add_control')}</option>
+            <option value="__press">{t('analog.routes.press_control')}</option>
+            <optgroup label={t('picker.gamepad')}>
+              {#each heldOptions.filter((c) => !r.while_held.includes(c)) as c (c)}
+                <option value={c}>{controlLabel(c, app.family)}</option>
+              {/each}
+            </optgroup>
+            <optgroup label={t('picker.mouse')}>
+              {#each mouseOptions.filter((c) => !r.while_held.includes(c)) as c (c)}
+                <option value={c}>{controlLabel(c, app.family)}</option>
+              {/each}
+            </optgroup>
+          </select>
+        </label>
+      {/if}
+    </div>
+  </section>
+{/if}
 
 <style>
   .route {

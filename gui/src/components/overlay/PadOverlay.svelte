@@ -1,24 +1,23 @@
 <script lang="ts">
   // The controller in use with its pressed inputs, sent by the app (pad_overlay.rs, see
   // lib/overlay.ts). It sits in the chosen corner of its window.
-  import { invoke } from '@tauri-apps/api/core';
+  import { api } from '../../lib/api';
   import { onMount } from 'svelte';
   import { DEVICE_LAYOUTS } from '../../assets/devices/layouts';
   import type { Side } from '../../lib/model/analog';
   import { SIDES, SIDE_NAMES } from '../../lib/model/controls';
   import { controlsFromPad, drawingsFor, moveStickCaps, triggerAxis } from '../../lib/model/devices';
   import { overlayContent } from '../../lib/overlay';
-  import type { Catalog, Corner, LiveDevice } from '../../lib/types';
+  import type { PadOverlayContent } from '../../lib/types';
   import CornerFrame from './CornerFrame.svelte';
 
-  type Content = { device: LiveDevice; opacity: number; corner: Corner };
-  let content = $state<Content | null>(null);
+  let content = $state<PadOverlayContent | null>(null);
   let buttons = $state<string[]>([]);
   let drawing: HTMLDivElement | undefined = $state();
 
   onMount(() => {
-    invoke<Catalog>('catalog').then((c) => (buttons = c.pad_buttons));
-    return overlayContent<Content>((c) => (content = c));
+    api.catalog().then((c) => (buttons = c.pad_buttons));
+    return overlayContent<PadOverlayContent>((c) => (content = c));
   });
 
   const layout = $derived(content ? DEVICE_LAYOUTS[drawingsFor(content.device).front] : null);
@@ -43,12 +42,13 @@
   type Bar = { name: 'LT' | 'RT'; side: Side; x: number; y: number; w: number; left: boolean };
   let bars = $state<Bar[]>([]);
   $effect(() => {
-    if (!drawing || !layout || layout.controls.some((lc) => lc.control === 'LT')) {
+    const d = drawing;
+    if (!d || !layout || layout.controls.some((lc) => lc.control === 'LT')) {
       bars = [];
       return;
     }
     bars = (['LB', 'RB'] as const).flatMap((bumper, i) => {
-      const g = drawing!.querySelector<SVGGElement>(`[data-control="${bumper}"]`);
+      const g = d.querySelector<SVGGElement>(`[data-control="${bumper}"]`);
       if (!g) return [];
       const b = g.getBBox();
       const side = SIDE_NAMES[i];
