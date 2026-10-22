@@ -1,6 +1,6 @@
 # Roadmap
 
-State of version 0.4.0. "⏳ hardware testing" marks features that are implemented and
+State of version 0.5.0. "⏳ hardware testing" marks features that are implemented and
 unit-tested but have not run against the real device yet.
 
 ## Features
