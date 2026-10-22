@@ -1,7 +1,8 @@
 ---
-// The landing page's hero: title, tagline and actions from the page's frontmatter above one
-// of the app's controller drawings, with an example config on its chips.
+// The landing page's hero: the wordmark as its title, tagline and actions from the page's
+// frontmatter above one of the app's controller drawings, with an example config on its chips.
 import { LinkButton } from '@astrojs/starlight/components';
+import wordmark from '../assets/wordmark.svg?raw';
 import { controlNames, type Lang } from '../lib/controls';
 import { withBase } from '../lib/url';
 import ControllerDrawing from './ControllerDrawing.svelte';
@@ -58,7 +59,16 @@ const EXAMPLE = {
 
 <div class="hero">
   <div class="copy">
-    <h1 id="_top" data-page-title set:html={title} />
+    {
+      landing ? (
+        <h1 id="_top" data-page-title class="wordmark">
+          <Fragment set:html={wordmark.replace('<svg', '<svg aria-hidden="true" focusable="false"')} />
+          <span class="sr-only" set:html={title} />
+        </h1>
+      ) : (
+        <h1 id="_top" data-page-title set:html={title} />
+      )
+    }
     {tagline && <p class="tagline" set:html={tagline} />}
     {
       actions.length > 0 && (
@@ -107,6 +117,16 @@ const EXAMPLE = {
     font-weight: 700;
     letter-spacing: -0.02em;
     color: var(--sl-color-white);
+  }
+  /* The wordmark is about as tall as the text it replaces, cap height to descender. */
+  h1.wordmark {
+    font-size: clamp(3rem, calc(1rem + 6vw), 5rem);
+    line-height: 1;
+  }
+  h1.wordmark :global(svg) {
+    display: block;
+    height: 0.9em;
+    width: auto;
   }
   .tagline {
     max-width: 44ch;
