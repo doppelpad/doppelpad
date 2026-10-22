@@ -2,7 +2,7 @@
   // The config's radial menus: the layer that opens each one, how it is pointed at and when
   // the pointed sector runs, and per sector its label, icon, colour, actions or sub-menu.
   import { open } from '@tauri-apps/plugin-dialog';
-  import { Plus, Trash2, X } from '@lucide/svelte';
+  import { Plus, Trash2 } from '@lucide/svelte';
   import { t } from '../../lib/i18n/index.svelte';
   import { layerIds } from '../../lib/model/profile';
   import { actionLabel } from '../../lib/model/labels';
@@ -24,6 +24,7 @@
   import { app } from '../../lib/state/app.svelte';
   import type { Action, RadialApply, RadialMenu, RadialSelect } from '../../lib/types';
   import ActionPicker from '../binding/ActionPicker.svelte';
+  import Chip from '../ui/Chip.svelte';
   import Slider from '../ui/Slider.svelte';
 
   const menus = $derived(app.profile?.radial_menus ?? []);
@@ -150,12 +151,12 @@
           {#if !s.submenu}
             <div class="acts">
               {#each s.actions ?? [] as a, ai (ai)}
-                <span class="chip">
+                <Chip
+                  size="s"
+                  onremove={disabled ? undefined : () => app.edit((p) => updateSector(p, i, k, { actions: (s.actions ?? []).filter((_, x) => x !== ai) }))}
+                >
                   {actionLabel(a)}
-                  {#if !disabled}
-                    <button class="chip-x" title={t('common.remove')} onclick={() => app.edit((p) => updateSector(p, i, k, { actions: (s.actions ?? []).filter((_, x) => x !== ai) }))}><X size={11} /></button>
-                  {/if}
-                </span>
+                </Chip>
               {/each}
               {#if !disabled}
                 <button class="add-act" onclick={() => (picking = picking === key ? null : key)}><Plus size={12} /> {t('radial.add_action')}</button>
@@ -274,28 +275,6 @@
     gap: 6px;
     flex-basis: 100%;
     padding-left: 22px;
-  }
-  .chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 2px 6px 2px 10px;
-    border-radius: var(--radius-pill);
-    background: var(--bg-3);
-    border: 1px solid var(--line-strong);
-    font-size: var(--fs-s);
-  }
-  .chip-x {
-    display: inline-grid;
-    place-items: center;
-    width: 16px;
-    height: 16px;
-    border-radius: 50%;
-    color: var(--text-dim);
-  }
-  .chip-x:hover {
-    background: var(--danger);
-    color: var(--on-danger);
   }
   .add-act {
     display: inline-flex;

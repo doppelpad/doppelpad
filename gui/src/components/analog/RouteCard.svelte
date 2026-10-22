@@ -19,6 +19,7 @@
   import { keyFromEvent } from '../../lib/model/keymap';
   import { app } from '../../lib/state/app.svelte';
   import type { AnalogMapping, AnalogSource, AnalogTarget, ControlName } from '../../lib/types';
+  import Chip from '../ui/Chip.svelte';
   import Slider from '../ui/Slider.svelte';
   import Toggle from '../ui/Toggle.svelte';
 
@@ -209,14 +210,9 @@
   <div class="held">
     <span class="hl">{t('analog.routes.while_held')}</span>
     {#each r.while_held as c (c)}
-      <span class="chip">
+      <Chip size="s" onremove={disabled ? undefined : () => set({ while_held: r.while_held.filter((x) => x !== c) })}>
         {controlLabelMixed(c, app.family)}
-        {#if !disabled}
-          <button class="chip-x" title={t('common.remove')} onclick={() => set({ while_held: r.while_held.filter((x) => x !== c) })}>
-            <X size={11} />
-          </button>
-        {/if}
-      </span>
+      </Chip>
     {/each}
     {#if r.while_held.length === 0}<span class="always">{t('analog.routes.always')}</span>{/if}
     {#if capturing}
@@ -310,29 +306,6 @@
   .hl {
     color: var(--text-dim);
     margin-right: 4px;
-  }
-  .chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 3px 6px 3px 10px;
-    border-radius: var(--radius-pill);
-    background: var(--bg-3);
-    border: 1px solid var(--line-strong);
-    font-weight: 500;
-    font-size: var(--fs-s);
-  }
-  .chip-x {
-    display: inline-grid;
-    place-items: center;
-    width: 16px;
-    height: 16px;
-    border-radius: 50%;
-    color: var(--text-dim);
-  }
-  .chip-x:hover {
-    background: var(--danger);
-    color: var(--on-danger);
   }
   .always,
   .capturing {
