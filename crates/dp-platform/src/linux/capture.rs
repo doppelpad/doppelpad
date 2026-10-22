@@ -13,8 +13,8 @@ use std::collections::{HashMap, HashSet};
 use std::io;
 use std::os::fd::AsRawFd;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
@@ -28,9 +28,9 @@ use super::dev::{
     check_uinput, event_nodes, is_own, own_phys, set_grab, uinput_name, wait_readable,
 };
 use super::kbmmap::Passthrough;
+use crate::scan::{RESCAN, Rescanner};
 use crate::{CaptureFilter, KbmCapture, KbmEvent, PlatformError, Result};
 
-const RESCAN: Duration = Duration::from_secs(2);
 const RETRY_FAILED: Duration = Duration::from_secs(30);
 /// How long to wait for keys held at capture start to be released before grabbing anyway.
 const RELEASE_WAIT: Duration = Duration::from_secs(5);
@@ -38,7 +38,7 @@ const PASSTHROUGH_SETTLE: Duration = Duration::from_millis(200);
 
 #[derive(Default)]
 pub struct GrabCapture {
-    running: Option<(Arc<AtomicBool>, JoinHandle<()>)>,
+    running: Option<Running>,
 }
 
 struct Captured {
@@ -46,11 +46,20 @@ struct Captured {
     thread: JoinHandle<()>,
 }
 
+type Devices = Arc<Mutex<HashMap<PathBuf, Captured>>>;
+
+/// A started capture: its stop flag, its device threads and the scanner adding to them.
+struct Running {
+    stop: Arc<AtomicBool>,
+    devices: Devices,
+    scanner: Rescanner,
+}
+
 struct Scanner {
     tx: Sender<KbmEvent>,
     filter: Arc<CaptureFilter>,
     stop: Arc<AtomicBool>,
-    devices: HashMap<PathBuf, Captured>,
+    devices: Devices,
     ignored: HashSet<PathBuf>,
     failed: HashMap<PathBuf, Instant>,
 }
@@ -121,13 +130,14 @@ impl Scanner {
     fn scan(&mut self) -> usize {
         let present = event_nodes();
         let now = Instant::now();
-        self.devices.retain(|_, c| c.alive.load(Ordering::Relaxed));
+        let mut devices = self.devices.lock().unwrap();
+        devices.retain(|_, c| c.alive.load(Ordering::Relaxed));
         self.ignored.retain(|p| present.contains(p));
         self.failed
             .retain(|p, t| present.contains(p) && now - *t < RETRY_FAILED);
         let mut denied = 0;
         for path in present {
-            if self.devices.contains_key(&path)
+            if devices.contains_key(&path)
                 || self.ignored.contains(&path)
                 || self.failed.contains_key(&path)
             {
@@ -158,27 +168,12 @@ impl Scanner {
                     alive2.store(false, Ordering::Relaxed);
                 }) {
                 Ok(thread) => {
-                    self.devices.insert(path, Captured { alive, thread });
+                    devices.insert(path, Captured { alive, thread });
                 }
                 Err(e) => tracing::warn!("cannot start capture thread: {e}"),
             }
         }
         denied
-    }
-
-    fn run(mut self) {
-        while !self.stop.load(Ordering::Relaxed) {
-            let until = Instant::now() + RESCAN;
-            while Instant::now() < until && !self.stop.load(Ordering::Relaxed) {
-                std::thread::sleep(Duration::from_millis(50));
-            }
-            if !self.stop.load(Ordering::Relaxed) {
-                self.scan();
-            }
-        }
-        for (_, c) in self.devices.drain() {
-            let _ = c.thread.join();
-        }
     }
 }
 
@@ -266,34 +261,41 @@ impl KbmCapture for GrabCapture {
         check_uinput()?;
         let (tx, rx) = crossbeam_channel::bounded(4096);
         let stop = Arc::new(AtomicBool::new(false));
-        let mut scanner = Scanner {
+        let devices = Devices::default();
+        let mut scan = Scanner {
             tx,
             filter,
             stop: stop.clone(),
-            devices: HashMap::new(),
+            devices: devices.clone(),
             ignored: HashSet::new(),
             failed: HashMap::new(),
         };
-        let denied = scanner.scan();
-        if scanner.devices.is_empty() && denied > 0 {
+        let denied = scan.scan();
+        if devices.lock().unwrap().is_empty() && denied > 0 {
             return Err(PlatformError::Other(
                 "no permission to read /dev/input/event*; add your user to the `input` group \
                  (see docs/LINUX.md)"
                     .into(),
             ));
         }
-        let thread = std::thread::Builder::new()
-            .name("dp-capture-scan".into())
-            .spawn(move || scanner.run())
-            .map_err(|e| PlatformError::Other(e.to_string()))?;
-        self.running = Some((stop, thread));
+        let scanner = Rescanner::spawn("dp-capture-scan", RESCAN, move |_| {
+            scan.scan();
+        });
+        self.running = Some(Running {
+            stop,
+            devices,
+            scanner,
+        });
         Ok(rx)
     }
 
     fn stop(&mut self) {
-        if let Some((stop, thread)) = self.running.take() {
-            stop.store(true, Ordering::Relaxed);
-            let _ = thread.join();
+        if let Some(mut r) = self.running.take() {
+            r.stop.store(true, Ordering::Relaxed);
+            r.scanner.stop();
+            for (_, c) in r.devices.lock().unwrap().drain() {
+                let _ = c.thread.join();
+            }
         }
     }
 }

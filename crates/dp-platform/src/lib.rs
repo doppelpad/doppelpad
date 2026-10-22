@@ -42,6 +42,8 @@ pub const VIGEM_RELEASES: &str = "https://github.com/nefarius/ViGEmBus/releases"
 /// Where the HidHide driver (hiding devices on Windows) is downloaded.
 pub const HIDHIDE_RELEASES: &str = "https://github.com/nefarius/HidHide/releases";
 pub(crate) mod report;
+#[cfg(any(windows, target_os = "linux", test))]
+pub(crate) mod scan;
 pub mod sony;
 pub mod steam;
 pub use null::NullPlatform;

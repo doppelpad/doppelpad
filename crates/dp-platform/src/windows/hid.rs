@@ -27,13 +27,13 @@ use crate::nintendo::switch1::{Link, Switch1Driver};
 use crate::nintendo::wired::WiredDriver;
 use crate::nintendo::{self, Model};
 use crate::padio::{InitError, PadDriver};
+use crate::scan::{Pass, RESCAN, Rescanner};
 use crate::sony::{self, SonyDriver, SonyModel};
 use crate::steam::{self, SteamDriver, SteamModel};
 use crate::{
     Battery, DeviceId, DeviceInfo, GamepadBackend, JoyConSide, Leds, PadSnapshot, TriggerEffects,
 };
 
-const RESCAN: Duration = Duration::from_secs(2);
 /// Interfaces that are not controllers we handle are not reopened for this long.
 const SKIP_FOREIGN: Duration = Duration::from_secs(30);
 /// A controller that did not start (e.g. an empty charging-grip slot) is retried after this.
@@ -218,16 +218,14 @@ pub struct HidBackend {
     devices: DeviceMap,
     problems: Problems,
     layouts: Layouts,
-    stop: Arc<AtomicBool>,
-    /// Wakes the scanner for an immediate scan that also retries skipped interfaces.
-    rescan: crossbeam_channel::Sender<()>,
+    /// Woken for an immediate scan that also retries skipped interfaces.
+    scanner: Rescanner,
 }
 
 struct Scanner {
     devices: DeviceMap,
     problems: Problems,
     layouts: Layouts,
-    stop: Arc<AtomicBool>,
     /// Paths not to reopen before the given time.
     skip: HashMap<String, Instant>,
 }
@@ -237,32 +235,18 @@ impl HidBackend {
         let devices: DeviceMap = Arc::default();
         let problems: Problems = Arc::default();
         let layouts: Layouts = Arc::default();
-        let stop = Arc::new(AtomicBool::new(false));
-        let (rescan, rescan_rx) = crossbeam_channel::bounded(1);
-        let mut scanner = Scanner {
+        let mut scan = Scanner {
             devices: devices.clone(),
             problems: problems.clone(),
             layouts: layouts.clone(),
-            stop: stop.clone(),
             skip: HashMap::new(),
         };
-        std::thread::Builder::new()
-            .name("dp-hid-scan".into())
-            .spawn(move || {
-                while !scanner.stop.load(Ordering::Relaxed) {
-                    scanner.scan();
-                    if rescan_rx.recv_timeout(RESCAN).is_ok() {
-                        scanner.skip.clear();
-                    }
-                }
-            })
-            .expect("spawn HID scanner");
+        let scanner = Rescanner::spawn("dp-hid-scan", RESCAN, move |pass| scan.scan(pass));
         HidBackend {
             devices,
             problems,
             layouts,
-            stop,
-            rescan,
+            scanner,
         }
     }
 }
@@ -289,7 +273,8 @@ impl HidBackend {
 
 impl Drop for HidBackend {
     fn drop(&mut self) {
-        self.stop.store(true, Ordering::Relaxed);
+        // No new device may come in once the list is drained.
+        self.scanner.stop();
         let devices: Vec<Device> = self
             .devices
             .lock()
@@ -310,7 +295,10 @@ impl Drop for HidBackend {
 }
 
 impl Scanner {
-    fn scan(&mut self) {
+    fn scan(&mut self, pass: &Pass) {
+        if pass.requested {
+            self.skip.clear();
+        }
         let now = Instant::now();
         self.skip.retain(|_, until| now < *until);
         let present = enumerate_interfaces(&GUID_DEVINTERFACE_HID);
@@ -344,7 +332,7 @@ impl Scanner {
         }
 
         for entry in present {
-            if self.stop.load(Ordering::Relaxed) {
+            if pass.stopping() {
                 return;
             }
             if self.skip.contains_key(&entry.path)
@@ -652,7 +640,7 @@ impl GamepadBackend for HidBackend {
     }
 
     fn rescan(&mut self) {
-        let _ = self.rescan.try_send(());
+        self.scanner.wake();
     }
 }
 

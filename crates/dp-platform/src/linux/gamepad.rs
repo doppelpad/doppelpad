@@ -31,12 +31,12 @@ use super::padmap::{
     AbsRange, MotionMapper, NINTENDO_VID, PadMapper, TouchMapper, family_for, joycon_side,
     stable_id,
 };
+use crate::scan::{Pass, RESCAN, Rescanner};
 use crate::{
     DeviceHider, DeviceId, DeviceInfo, GamepadBackend, PadFamily, PadSnapshot, PlatformError,
     Result,
 };
 
-const RESCAN: Duration = Duration::from_secs(2);
 const RETRY_FAILED: Duration = Duration::from_secs(30);
 const READ_TIMEOUT_MS: i32 = 250;
 
@@ -286,32 +286,22 @@ type SharedRef = Arc<Mutex<Shared>>;
 
 pub struct EvdevBackend {
     shared: SharedRef,
-    stop: Arc<AtomicBool>,
+    /// Woken for an immediate scan that also retries nodes that could not be opened.
+    scanner: Rescanner,
 }
 
 impl EvdevBackend {
     pub fn new() -> Self {
         let shared: SharedRef = Arc::default();
-        let stop = Arc::new(AtomicBool::new(false));
-        let mut scanner = Scanner {
+        let mut scan = Scanner {
             shared: shared.clone(),
             ignored: HashMap::new(),
             failed: HashMap::new(),
             warned_access: false,
             warned_switch2: false,
         };
-        let stop_flag = stop.clone();
-        std::thread::Builder::new()
-            .name("dp-evdev-scan".into())
-            .spawn(move || {
-                while !stop_flag.load(Ordering::Relaxed) {
-                    scanner.scan();
-                    std::thread::sleep(RESCAN);
-                }
-                scanner.shared.lock().unwrap().pads.clear();
-            })
-            .expect("spawn evdev scanner");
-        EvdevBackend { shared, stop }
+        let scanner = Rescanner::spawn("dp-evdev-scan", RESCAN, move |pass| scan.scan(pass));
+        EvdevBackend { shared, scanner }
     }
 
     /// The device hider working on this backend's open nodes.
@@ -324,7 +314,8 @@ impl EvdevBackend {
 
 impl Drop for EvdevBackend {
     fn drop(&mut self) {
-        self.stop.store(true, Ordering::Relaxed);
+        self.scanner.stop();
+        self.shared.lock().unwrap().pads.clear();
     }
 }
 
@@ -368,7 +359,10 @@ struct Scanner {
 }
 
 impl Scanner {
-    fn scan(&mut self) {
+    fn scan(&mut self, pass: &Pass) {
+        if pass.requested {
+            self.failed.clear();
+        }
         let present = event_nodes();
         let now = Instant::now();
         self.ignored.retain(|p, _| present.contains(p));
@@ -396,6 +390,9 @@ impl Scanner {
         let mut pads = Vec::new();
         let mut extras = Vec::new();
         for path in present {
+            if pass.stopping() {
+                return;
+            }
             if known.contains(&path)
                 || self.ignored.contains_key(&path)
                 || self.failed.contains_key(&path)
@@ -590,6 +587,10 @@ impl GamepadBackend for EvdevBackend {
         if let Err(e) = pad.set_rumble(rumble) {
             tracing::debug!(device = %id, "rumble failed: {e}");
         }
+    }
+
+    fn rescan(&mut self) {
+        self.scanner.wake();
     }
 }
 
