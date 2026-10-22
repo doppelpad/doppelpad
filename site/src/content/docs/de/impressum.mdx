@@ -1,0 +1,31 @@
+---
+title: Impressum
+description: Anbieterkennzeichnung der Doppelpad-Website.
+editUrl: false
+pagefind: false
+tableOfContents: false
+---
+
+import Operator from '../../../components/Operator.astro';
+
+<Operator lang="de" notice />
+
+## Angaben gemäß § 5 DDG
+
+<Operator lang="de" fields={['name', 'street', 'city', 'country']} />
+
+## Kontakt
+
+<Operator lang="de" fields={['email', 'phone']} labels={{ email: 'E-Mail:', phone: 'Telefon:' }} />
+
+## Verantwortlich für den Inhalt nach § 18 Abs. 2 MStV
+
+<Operator lang="de" fields={['name']} />
+Anschrift wie oben.
+
+## Über dieses Projekt
+
+Doppelpad ist ein privates, nicht kommerzielles Open-Source-Projekt. Der Quellcode und die
+Downloads liegen auf [GitHub](https://github.com/doppelpad/doppelpad). Doppelpad ist ein
+unabhängiges Projekt und mit keinem Hersteller von Controllern oder anderer Remapping-Software
+verbunden. Alle Marken gehören ihren jeweiligen Inhabern.

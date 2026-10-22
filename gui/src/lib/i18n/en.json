@@ -113,6 +113,8 @@
     "default_config_name": "Default",
     "import": "Import JSON profile…",
     "import_title": "Import a JSON profile",
+    "undo": "Undo",
+    "redo": "Redo",
     "save": "Save",
     "unsaved": "Unsaved changes",
     "discard_confirm": "Discard the unsaved changes?",

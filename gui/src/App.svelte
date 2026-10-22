@@ -4,6 +4,7 @@
   import { t } from './lib/i18n/index.svelte';
   import { drawingsFor } from './lib/model/devices';
   import { app } from './lib/state/app.svelte';
+  import { isTextEntry, menuOpen } from './lib/dom';
   import { win } from './lib/state/window.svelte';
   import ProfilePanel from './components/ProfilePanel.svelte';
   import Header from './components/Header.svelte';
@@ -23,6 +24,7 @@
   import SettingsDialog from './components/SettingsDialog.svelte';
   import PromptDialog from './components/ui/PromptDialog.svelte';
   import ConfirmDialog from './components/ui/ConfirmDialog.svelte';
+  import { modalOpen } from './components/ui/Dialog.svelte';
   import RewasdDialog from './components/RewasdDialog.svelte';
   import WelcomeWizard from './components/WelcomeWizard.svelte';
   import Toasts from './components/ui/Toasts.svelte';
@@ -40,9 +42,17 @@
   });
 
   function onKeydown(e: KeyboardEvent) {
-    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+    if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+    const key = e.key.toLowerCase();
+    if (key === 's') {
       e.preventDefault();
       if (app.dirty) app.save();
+    } else if (key === 'z' || key === 'y') {
+      // A text field keeps its own undo; a dialog or menu owns the keyboard.
+      if (isTextEntry(e.target) || modalOpen() || menuOpen()) return;
+      e.preventDefault();
+      if (key === 'y' || e.shiftKey) app.redo();
+      else app.undo();
     }
   }
 </script>

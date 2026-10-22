@@ -1,0 +1,140 @@
+---
+// The landing page's hero: title, tagline and actions from the page's frontmatter above one
+// of the app's controller drawings, with an example config on its chips.
+import { LinkButton } from '@astrojs/starlight/components';
+import { controlNames, type Lang } from '../lib/controls';
+import { withBase } from '../lib/url';
+import ControllerDrawing from './ControllerDrawing.svelte';
+
+const { entry, id, lang: routeLang } = Astro.locals.starlightRoute;
+const { title = entry.data.title, tagline, actions = [] } = entry.data.hero ?? {};
+const lang: Lang = routeLang === 'de' ? 'de' : 'en';
+// Starlight's 404 page has a hero too, without the drawing.
+const landing = id === '' || id === 'de';
+
+const EXAMPLE = {
+  en: {
+    label: 'DualSense drawing from the Doppelpad app, with an example config for a game played with keyboard and mouse',
+    caption: 'An example config, drawn as in the app: the controller sends keys and mouse input.',
+    chips: {
+      LB: 'Layer 2 (hold)',
+      RB: 'Turbo: mouse left',
+      DpadUp: '1',
+      DpadLeft: '2',
+      DpadRight: '3',
+      DpadDown: 'Map: M',
+      LS: 'WASD',
+      Y: 'Macro: reload',
+      B: 'Crouch: C',
+      A: 'Jump: Space',
+      X: 'Use: E',
+      RS: 'Mouse',
+      Back: 'Screenshot',
+      Start: 'Esc',
+    },
+  },
+  de: {
+    label: 'DualSense-Zeichnung aus der Doppelpad-App, mit einer Beispielkonfiguration für ein Spiel mit Tastatur und Maus',
+    caption: 'Eine Beispielkonfiguration, gezeichnet wie in der App: der Controller sendet Tasten und Mauseingaben.',
+    chips: {
+      LB: 'Ebene 2 (halten)',
+      RB: 'Turbo: Maus links',
+      DpadUp: '1',
+      DpadLeft: '2',
+      DpadRight: '3',
+      DpadDown: 'Karte: M',
+      LS: 'WASD',
+      Y: 'Makro: Nachladen',
+      B: 'Ducken: C',
+      A: 'Springen: Leertaste',
+      X: 'Benutzen: E',
+      RS: 'Maus',
+      Back: 'Bildschirmfoto',
+      Start: 'Esc',
+    },
+  },
+}[lang];
+---
+
+<div class="hero">
+  <div class="copy">
+    <h1 id="_top" data-page-title set:html={title} />
+    {tagline && <p class="tagline" set:html={tagline} />}
+    {
+      actions.length > 0 && (
+        <div class="actions">
+          {actions.map(({ attrs: { class: className, ...attrs } = {}, icon, link, text, variant }) => (
+            <LinkButton href={withBase(link)} {variant} icon={icon?.name} class:list={[className]} {...attrs}>
+              {text}
+              {icon?.html && <Fragment set:html={icon.html} />}
+            </LinkButton>
+          ))}
+        </div>
+      )
+    }
+  </div>
+  {
+    landing && (
+      <div class="art">
+        <ControllerDrawing
+          client:visible
+          device="dualsense"
+          names={controlNames(['dualsense'], 'playstation', lang)}
+          label={EXAMPLE.label} chips={EXAMPLE.chips} trim={[90, 100]} demo />
+        <p class="caption">{EXAMPLE.caption}</p>
+      </div>
+    )
+  }
+</div>
+
+<style>
+  .hero {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    padding-block: clamp(1.5rem, calc(0.5rem + 6vmin), 4rem) 1rem;
+  }
+  .copy {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    text-align: center;
+  }
+  h1 {
+    font-size: clamp(var(--sl-text-4xl), calc(0.25rem + 5vw), var(--sl-text-6xl));
+    line-height: var(--sl-line-height-headings);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--sl-color-white);
+  }
+  .tagline {
+    max-width: 44ch;
+    font-size: clamp(var(--sl-text-base), calc(0.0625rem + 2vw), var(--sl-text-xl));
+    color: var(--sl-color-gray-2);
+  }
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.75rem 1rem;
+    margin-top: 0.5rem;
+  }
+  .art {
+    width: min(100%, 60rem);
+    margin-inline: auto;
+    container-type: inline-size;
+  }
+  /* The drawing leaves out the chips at this width (ControllerDrawing.svelte). */
+  @container (max-width: 34rem) {
+    .caption {
+      display: none;
+    }
+  }
+  .caption {
+    margin-top: 0.25rem;
+    font-size: var(--sl-text-sm);
+    color: var(--sl-color-gray-3);
+    text-align: center;
+  }
+</style>
