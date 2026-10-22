@@ -185,3 +185,15 @@ export function controlLabelMixed(c: ControlName, family: PadFamily | null): str
 export function controlShort(c: ControlName, family: PadFamily | null): string {
   return controlLabel(c, family);
 }
+
+/** The analog settings page of a stick or trigger control, its zones included. */
+export function analogTabOf(c: ControlName): Side | 'triggers' | null {
+  for (const side of SIDE_NAMES) if (c === SIDES[side].click || c.startsWith(SIDES[side].stick)) return side;
+  if (/^(LT|RT)(Full|Low|Med|High)?$/.test(c)) return 'triggers';
+  return null;
+}
+
+/** The trigger (`LT`/`RT`) of a full-pull control (`LTFull`), else null. */
+export function fullPullBase(c: ControlName): string | null {
+  return /^(LT|RT)Full$/.exec(c)?.[1] ?? null;
+}

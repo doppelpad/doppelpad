@@ -5,19 +5,7 @@ import { setLanguage, t } from '../i18n/index.svelte';
 import type { Side } from '../model/analog';
 import { controlsFromPad, drawingsFor, sideShowing } from '../model/devices';
 import { setStickGroup, stickGroupConflicts, stickGroupOf, type StickGroup } from '../model/stickgroups';
-import {
-  activatorOf,
-  comboKey,
-  effectiveMappings,
-  findMapping,
-  modeOf,
-  newMapping,
-  removeMapping,
-  tidyMapping,
-  upsertMapping,
-  type LayerCopy,
-} from '../model/profile';
-import { clone } from '../model/util';
+import { comboKey, type LayerCopy, editMappingIn, mappingAt } from '../model/profile';
 import { layerLabel } from '../model/labels';
 import type {
   Activator,
@@ -345,7 +333,7 @@ class AppState {
 
   /** Change the draft profile; nothing happens without one or when it is read-only. */
   edit(change: (p: Profile) => Profile) {
-    if (this.profile) this.update(change(this.profile));
+    if (this.profile && !this.readOnly) this.profile = change(this.profile);
   }
 
   async save(): Promise<boolean> {
@@ -380,29 +368,12 @@ class AppState {
 
   /** This layer's mapping for a trigger + activator, else the one inherited from Main. */
   mappingAt(layer: number, combo: Combo, activator: Activator): { own?: Mapping; inherited?: Mapping } {
-    if (!this.profile) return {};
-    const own = findMapping(this.profile, layer, combo, activator);
-    if (own) return { own };
-    const eff = effectiveMappings(this.profile, layer, combo);
-    return { inherited: eff.inherited ? eff.mappings.find((m) => activatorOf(m) === activator) : undefined };
+    return this.profile ? mappingAt(this.profile, layer, combo, activator) : {};
   }
 
-  /**
-   * Change one mapping. Starts from this layer's mapping, else a copy of the inherited one,
-   * else a new mapping. An edit that leaves nothing behind removes the mapping, unless
-   * `keepEmpty` is set (an empty mapping blocks the control).
-   */
+  /** Change one mapping (see `editMappingIn`). */
   editMapping(layer: number, combo: Combo, activator: Activator, change: (m: Mapping) => void, keepEmpty = false) {
-    if (!this.profile || this.readOnly) return;
-    const { own, inherited } = this.mappingAt(layer, combo, activator);
-    const from = own ?? inherited;
-    const m: Mapping = from ? clone(from) : newMapping(layer, combo, activator);
-    change(m);
-    const tidy = tidyMapping({ ...m, layer, activator });
-    const empty = (tidy.actions ?? []).length === 0 && !tidy.jump && !tidy.description && modeOf(tidy) === 'hold';
-    this.update(
-      empty && !keepEmpty ? removeMapping(this.profile, layer, combo, activator) : upsertMapping(this.profile, tidy),
-    );
+    this.edit((p) => editMappingIn(p, layer, combo, activator, change, keepEmpty));
   }
 
   select(c: Combo | null) {
