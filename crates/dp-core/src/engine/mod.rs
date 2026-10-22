@@ -614,20 +614,21 @@ impl Engine {
     }
 
     /// Stick and trigger controls under the current layer's settings.
-    fn analog_controls(&self, pad: &PadState) -> HashSet<Control> {
-        let mut set = HashSet::new();
+    fn analog_controls(&self, pad: &PadState, out: &mut impl Extend<Control>) {
         for s in Stick::ALL {
             let cfg = self.sticks().get(s);
             let v = orient(pad.stick(s), cfg);
             let Some(zone) = stick_zone(v, cfg.zone_thresholds()) else {
                 continue;
             };
-            set.insert(Control::StickZone(s, None, zone));
+            out.extend([Control::StickZone(s, None, zone)]);
             let d = sectors(v, cfg.direction_ratio(), cfg.diagonals);
             for dir in Dir::ALL {
                 if d[dir as usize] {
-                    set.insert(Control::StickDir(s, dir));
-                    set.insert(Control::StickZone(s, Some(dir), zone));
+                    out.extend([
+                        Control::StickDir(s, dir),
+                        Control::StickZone(s, Some(dir), zone),
+                    ]);
                 }
             }
         }
@@ -635,25 +636,23 @@ impl Engine {
             let cfg = self.triggers().get(t);
             let v = pad.axis(t.axis());
             if let Some(zone) = trigger_zone(v, cfg.zone_thresholds()) {
-                set.insert(Control::TriggerPress(t));
-                set.insert(Control::TriggerZone(t, zone));
+                out.extend([Control::TriggerPress(t), Control::TriggerZone(t, zone)]);
             }
             if v >= cfg.full_pull {
-                set.insert(Control::TriggerFull(t));
+                out.extend([Control::TriggerFull(t)]);
             }
         }
-        set
     }
 
-    fn derive_controls(&mut self, now: u64, dt: f32) -> HashSet<Control> {
-        let mut set = HashSet::new();
+    /// This tick's controls, added to `set`.
+    fn derive_controls(&mut self, now: u64, dt: f32, set: &mut HashSet<Control>) {
         if let Some(pad) = &self.pad {
             for b in PadButton::ALL {
                 if pad.pressed(b) {
                     set.insert(Control::Button(b));
                 }
             }
-            set.extend(self.analog_controls(pad));
+            self.analog_controls(pad, set);
             let cfg = &self.profile.touchpad;
             let clicked = pad.pressed(PadButton::Touchpad);
             let regions_on = !cfg.click_required || clicked;
@@ -697,7 +696,7 @@ impl Engine {
             let axes = self.gyro.axes(&self.profile.gyro, &m, dt);
             self.gyro_axes = axes;
             if self.gyro_enabled {
-                gyro::controls(&self.profile.gyro, axes, &mut set);
+                gyro::controls(&self.profile.gyro, axes, set);
             }
         }
         set.extend(self.keys_down.iter().map(|k| Control::Key(*k)));
@@ -754,7 +753,6 @@ impl Engine {
             set.extend(dirs.iter().map(|d| Control::MouseZone(Some(*d), z)));
         }
         set.extend(dirs.into_iter().map(Control::MouseMove));
-        set
     }
 
     // ----- combos ------------------------------------------------------------------
@@ -1170,7 +1168,8 @@ impl Engine {
         // new layer does not report is released before anything is re-pressed (what it
         // newly reports is pressed on the next tick).
         if analog_differs && let Some(pad) = self.pad {
-            let now_on = self.analog_controls(&pad);
+            let mut now_on = HashSet::new();
+            self.analog_controls(&pad, &mut now_on);
             let mut off: Vec<Control> = self
                 .cur_controls
                 .iter()
@@ -1298,10 +1297,13 @@ impl Engine {
         self.mouse_counts = (0.0, 0.0);
         self.apply_kbm(input.kbm);
 
-        let controls = self.derive_controls(now, dt);
+        // The set of two ticks ago, refilled.
+        let mut controls = std::mem::take(&mut self.cur_controls);
+        controls.clear();
+        self.derive_controls(now, dt, &mut controls);
         if !self.started {
             // Inputs held when the profile is applied produce no press edges.
-            self.prev_controls = controls.clone();
+            self.prev_controls.clone_from(&controls);
             self.started = true;
         }
         self.cur_controls = controls;
@@ -1367,7 +1369,8 @@ impl Engine {
             .radial
             .as_ref()
             .and_then(|r| r.view(&self.profile.radial_menus, now));
-        self.prev_controls = self.cur_controls.clone();
+        // The older set is refilled on the next tick.
+        std::mem::swap(&mut self.prev_controls, &mut self.cur_controls);
         out
     }
 
@@ -1497,7 +1500,7 @@ impl Engine {
             .map(|(r, _)| r);
 
         let table = self.c.layer(self.layer);
-        let routes: Vec<usize> = table.routes.clone();
+        let routes = &table.routes;
         let radial_stick = self.radial_stick();
         let route_consumes = |src: AnalogSource| {
             routes
@@ -1510,23 +1513,23 @@ impl Engine {
         if self.profile.output.passthrough
             && let Some(phys) = &self.pad
         {
-            let hidden = |c: &Control| {
-                table.mapped.contains(c)
-                    || self.consumed.contains(c)
-                    || self.pending.iter().any(|(p, _)| p == c)
+            let hidden = |c: Control| {
+                table.mapped.contains(&c)
+                    || self.consumed.contains(&c)
+                    || self.pending.iter().any(|(p, _)| *p == c)
             };
             // A split pad's clicks come from the touchpad button.
             let click_used = Half::ALL
                 .iter()
-                .any(|h| hidden(&Control::Trackpad(*h, TrackpadPart::Click)));
+                .any(|h| hidden(Control::Trackpad(*h, TrackpadPart::Click)));
             for b in PadButton::ALL {
-                let used = hidden(&Control::Button(b)) || (b == PadButton::Touchpad && click_used);
+                let used = hidden(Control::Button(b)) || (b == PadButton::Touchpad && click_used);
                 if phys.pressed(b) && !used {
                     pad.set(b, true);
                 }
             }
             for s in Stick::ALL {
-                if Control::of_stick(s).iter().any(hidden)
+                if Control::of_stick(s).any(hidden)
                     || route_consumes(AnalogSource::from(s))
                     || radial_stick == Some(s)
                 {
@@ -1536,7 +1539,7 @@ impl Engine {
                 pad.set_stick(s, shape_stick(orient(phys.stick(s), cfg), cfg));
             }
             for t in Trigger::ALL {
-                if Control::of_trigger(t).iter().any(hidden) {
+                if Control::of_trigger(t).any(hidden) {
                     continue;
                 }
                 pad.set_axis(
@@ -1546,12 +1549,11 @@ impl Engine {
             }
             // A remapped touchpad or gyro no longer reaches the game, like a remapped stick.
             let touch_used =
-                Control::of_touchpad().iter().any(hidden) || route_consumes(AnalogSource::Touchpad);
+                Control::of_touchpad().any(hidden) || route_consumes(AnalogSource::Touchpad);
             if !touch_used {
                 pad.touch = phys.touch;
             }
-            let gyro_used =
-                Control::of_gyro().iter().any(hidden) || route_consumes(AnalogSource::Gyro);
+            let gyro_used = Control::of_gyro().any(hidden) || route_consumes(AnalogSource::Gyro);
             if !gyro_used {
                 pad.motion = phys.motion;
             }
@@ -1658,7 +1660,7 @@ impl Engine {
             tilt: (self.profile.gyro.mode == GyroMode::Tilt)
                 .then(|| self.gyro_axes.tilt_deflection()),
         };
-        for &i in &routes {
+        for &i in routes {
             let r = &self.c.routes[i];
             let pointing = radial_stick.is_some() && r.source.stick() == radial_stick;
             if pointing {

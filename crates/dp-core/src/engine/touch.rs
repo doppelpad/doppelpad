@@ -213,8 +213,9 @@ impl GestureTracker {
                 (None, None) => {}
             }
         }
-        let down: Vec<Finger> = self.fingers.iter().flatten().copied().collect();
-        if down.is_empty() {
+        let fingers = self.fingers;
+        let down = || fingers.iter().flatten();
+        let Some(first) = down().next() else {
             if let Some(t) = self.touch.take()
                 && !t.fired
                 && t.short
@@ -242,28 +243,31 @@ impl GestureTracker {
                 }
             }
             return out;
-        }
+        };
+        let count = down().count();
         let t = self.touch.get_or_insert(Touch {
             start_ms: now,
-            start: down[0].start,
+            start: first.start,
             fingers: 0,
             spread: None,
             fired: false,
             short: true,
         });
-        t.fingers = t.fingers.max(down.len());
-        t.short &= down.iter().all(|f| f.travel < TAP_TRAVEL);
-        if down.len() == 2 && t.spread.is_none() {
-            t.spread = Some(dist(down[0].pos, down[1].pos));
+        t.fingers = t.fingers.max(count);
+        t.short &= down().all(|f| f.travel < TAP_TRAVEL);
+        if let [Some(a), Some(b)] = fingers
+            && t.spread.is_none()
+        {
+            t.spread = Some(dist(a.pos, b.pos));
         }
         if t.fired {
             return out;
         }
         // Zoom: the two fingers spread or pinch.
-        if let (2, Some(s)) = (down.len(), t.spread)
+        if let ([Some(a), Some(b)], Some(s)) = (fingers, t.spread)
             && s > 0.01
         {
-            let ratio = dist(down[0].pos, down[1].pos) / s;
+            let ratio = dist(a.pos, b.pos) / s;
             if ratio >= ZOOM_RATIO || ratio <= 1.0 / ZOOM_RATIO {
                 let g = if ratio > 1.0 {
                     TouchGesture::ZoomIn
@@ -277,8 +281,8 @@ impl GestureTracker {
         }
         // Swipe: the fingers travel far enough soon enough (y grows downwards on the pad).
         if now.saturating_sub(t.start_ms) <= SWIPE_MS {
-            let n = down.len() as f32;
-            let (dx, dy) = down.iter().fold((0.0, 0.0), |(x, y), f| {
+            let n = count as f32;
+            let (dx, dy) = down().fold((0.0, 0.0), |(x, y), f| {
                 (x + (f.pos.0 - f.start.0) / n, y + (f.pos.1 - f.start.1) / n)
             });
             if dx.abs().max(dy.abs()) >= SWIPE_TRAVEL {
