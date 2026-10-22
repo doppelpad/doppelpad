@@ -36,7 +36,7 @@ use dp_core::repeat::KeyRepeater;
 use dp_platform::generic::GenericLayout;
 use dp_platform::groups::{Grouping, SeenDevice};
 use dp_platform::{
-    CaptureFilter, DeviceId, GamepadBackend, KbmEvent, Leds, PadSnapshot, Platform,
+    CaptureFilter, DeviceId, DriverReport, GamepadBackend, KbmEvent, Leds, PadSnapshot, Platform,
     VirtualIgnoreList, VirtualPadKind,
 };
 use serde::Serialize;
@@ -131,6 +131,16 @@ struct Overlays {
     mappings: bool,
 }
 
+impl Overlays {
+    fn toggle_pad(&mut self) {
+        self.pad = !self.pad;
+    }
+
+    fn toggle_mappings(&mut self) {
+        self.mappings = !self.mappings;
+    }
+}
+
 /// Sleep and idle power-off.
 struct PowerState {
     /// Keep the computer awake while a mapping plays output, and whether it is held awake.
@@ -212,16 +222,34 @@ impl Runtime {
         }
         self.suspended = on;
         if on {
-            let now = self.now_ms();
-            for s in &mut self.sessions {
-                let out = s.engine.release_all();
-                s.emit(&mut self.platform, &out, now);
+            self.release_all(true);
+        }
+        self.sync_filter_enabled();
+    }
+
+    /// Let go of every session's output; `quiet` also stops their feedback.
+    fn release_all(&mut self, quiet: bool) {
+        let now = self.now_ms();
+        for s in &mut self.sessions {
+            let out = s.engine.release_all();
+            s.emit(&mut self.platform, &out, now);
+            if quiet {
                 s.quiet(&mut self.pads);
             }
-            self.kbm.filter.set_enabled(false);
-        } else {
-            self.kbm.filter.set_enabled(!self.sessions.is_empty());
         }
+    }
+
+    /// Stop every profile and ask the service to turn remapping off.
+    fn remap_off(&mut self) {
+        self.stop();
+        self.remap_off_requested = true;
+    }
+
+    /// The capture filter swallows input only while a profile runs and nothing pauses it.
+    fn sync_filter_enabled(&self) {
+        self.kbm
+            .filter
+            .set_enabled(!self.sessions.is_empty() && !self.suspended);
     }
 
     pub(crate) fn is_suspended(&self) -> bool {
@@ -349,6 +377,11 @@ impl Runtime {
         &self.snapshots
     }
 
+    /// The platform's driver probe (it can run on another thread).
+    pub(crate) fn driver_probe(&self) -> fn() -> DriverReport {
+        self.platform.probe_drivers
+    }
+
     pub(crate) fn platform_mut(&mut self) -> &mut Platform {
         &mut self.platform
     }
@@ -430,10 +463,13 @@ impl Runtime {
 
     /// Deactivate every profile and restore everything.
     pub fn stop(&mut self) {
-        let owners: Vec<Option<DeviceId>> = self.sessions.iter().map(|s| s.owner.clone()).collect();
-        for o in owners {
-            self.stop_session(o.as_ref());
+        if self.sessions.is_empty() {
+            return;
         }
+        while !self.sessions.is_empty() {
+            self.end_session(0);
+        }
+        self.sessions_changed();
     }
 
     /// Deactivate the default session's profile.
@@ -450,14 +486,19 @@ impl Runtime {
         let Some(i) = self.sessions.iter().position(|s| s.owner.as_ref() == owner) else {
             return;
         };
+        self.end_session(i);
+        self.sessions_changed();
+    }
+
+    /// Release session `i`'s output, stop its feedback and drop it (unplugging its virtual
+    /// pad); the caller brings the rest in line.
+    fn end_session(&mut self, i: usize) {
         let mut s = self.sessions.remove(i);
         let out = s.engine.release_all();
         let now = self.now_ms();
         s.emit(&mut self.platform, &out, now);
         s.quiet(&mut self.pads);
         tracing::info!(profile = %s.engine.profile().name, device = ?s.owner, "profile stopped");
-        drop(s); // unplugs the virtual pad
-        self.sessions_changed();
     }
 
     /// Bring capture, the ignore list, the capture filter and hiding in line with the sessions.
@@ -486,26 +527,21 @@ impl Runtime {
             self.kbm.rx = None;
         }
         self.update_filter();
-        self.kbm
-            .filter
-            .set_enabled(!self.sessions.is_empty() && !self.suspended);
+        self.sync_filter_enabled();
         self.bind_sessions();
         self.sync_hiding();
     }
 
-    /// The session that gets keyboard and mouse input: the default one, else the first.
-    fn kbm_session(&self) -> Option<usize> {
-        (!self.sessions.is_empty()).then_some(0)
-    }
-
+    /// What the capture filter swallows: the mutes of the session that gets keyboard and
+    /// mouse input (the first: the default one, else a controller's own).
     fn update_filter(&self) {
         self.kbm.filter.clear();
         self.kbm.filter.set_source(KbmSource::All);
-        let Some(i) = self.kbm_session() else { return };
-        self.kbm
-            .filter
-            .set_source(self.sessions[i].engine.profile().kbm_source);
-        let m = self.sessions[i].engine.mutes();
+        let Some(s) = self.sessions.first() else {
+            return;
+        };
+        self.kbm.filter.set_source(s.engine.profile().kbm_source);
+        let m = s.engine.mutes();
         for k in m.keys {
             self.kbm.filter.set_key(k, true);
         }
@@ -556,19 +592,17 @@ impl Runtime {
                     }
                 }
                 HotkeyAction::EmergencyStop => {
-                    self.stop();
-                    self.remap_off_requested = true;
+                    self.remap_off();
                     return;
                 }
-                HotkeyAction::PadOverlay => self.overlays.pad = !self.overlays.pad,
-                HotkeyAction::MappingsOverlay => self.overlays.mappings = !self.overlays.mappings,
+                HotkeyAction::PadOverlay => self.overlays.toggle_pad(),
+                HotkeyAction::MappingsOverlay => self.overlays.toggle_mappings(),
                 other => self.hotkeys.actions.push((id, other)),
             }
         }
         if self.suspended {
             return;
         }
-        let kbm_session = self.kbm_session();
         let mut commands = Vec::new();
         for i in 0..self.sessions.len() {
             let s = &mut self.sessions[i];
@@ -576,11 +610,7 @@ impl Runtime {
                 let i = self.snapshots.iter().position(|p| &p.info.id == id)?;
                 Some(self.pad_buf[i])
             });
-            let kbm: &[KbmEvent] = if Some(i) == kbm_session {
-                &self.kbm.buf
-            } else {
-                &[]
-            };
+            let kbm: &[KbmEvent] = if i == 0 { &self.kbm.buf } else { &[] };
             let out = s.engine.tick(Input {
                 now_ms: now,
                 pad: pad.as_ref(),
@@ -593,7 +623,7 @@ impl Runtime {
             {
                 echo.record(pad.as_ref(), &out, now);
             }
-            if out.layer_changed && Some(i) == kbm_session {
+            if out.layer_changed && i == 0 {
                 self.update_filter();
             }
             commands.extend(out.commands.into_iter().map(|c| (i, c)));

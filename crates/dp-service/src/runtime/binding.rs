@@ -121,7 +121,8 @@ impl Runtime {
         self.snapshots.clear();
         self.pads.poll(&mut self.snapshots);
         for s in &mut self.snapshots {
-            self.calibration.apply(&s.info.id.0, &mut s.state, now);
+            self.calibration
+                .apply(s.info.id.as_str(), &mut s.state, now);
         }
         let devices_changed = !self
             .snapshots

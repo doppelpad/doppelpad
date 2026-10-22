@@ -23,7 +23,7 @@ impl std::fmt::Display for DriverState {
     }
 }
 
-impl DriverState {
+impl From<dp_platform::Result<()>> for DriverState {
     fn from(r: dp_platform::Result<()>) -> Self {
         match r {
             Ok(()) => DriverState {
@@ -46,14 +46,6 @@ pub struct DriverStatus {
 }
 
 impl Runtime {
-    /// Check which optional drivers are usable (this probes the drivers; not for every tick).
-    pub(crate) fn drivers(&self) -> DriverStatus {
-        DriverStatus {
-            virtual_pads: DriverState::from(self.platform.virtual_pads.available()),
-            device_hiding: DriverState::from(self.platform.hider.available()),
-        }
-    }
-
     /// Controllers the backends found but cannot use, explained for the user.
     pub fn device_problems(&self) -> Vec<String> {
         self.pads.problems()

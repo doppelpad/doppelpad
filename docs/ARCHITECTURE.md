@@ -108,6 +108,8 @@ Threads on every OS:
   `dp-ipc-call` thread (named pipes have no timeouts on Windows).
 - **dp-http** and one **dp-http-conn** per connection: the HTTP API, when it is on.
 - **dp-dsu:** the DSU (cemuhook) motion server, when it is on.
+- **dp-drivers:** probes the drivers (ViGEmBus and HidHide, or uinput) every 5 s, so the
+  runtime loop never waits on them.
 
 On Windows:
 

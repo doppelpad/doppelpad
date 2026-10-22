@@ -9,7 +9,7 @@ use dp_platform::groups::DeviceGroup;
 
 use super::{
     GYRO_CALIBRATION_MS, Service, ServiceCmd, ServiceReply, TEST_TURN_DELAY_MS, TEST_TURN_MS,
-    group_problem, ipc_devices, layout_problem, load, on_off, unsaved_note,
+    ipc_devices, load, on_off, unsaved_note,
 };
 use crate::dsu::DsuSettings;
 use crate::httpapi::HttpSettings;
@@ -127,7 +127,8 @@ impl Service {
             ServiceCmd::SetRemap(on) => self.set_remap(on),
             ServiceCmd::SetSuspended(on) => self.set_suspended(on),
             ServiceCmd::SetPreferredDevice(id) => {
-                self.rt.set_preferred_device(id.map(dp_platform::DeviceId));
+                self.rt
+                    .set_preferred_device(id.map(dp_platform::DeviceId::from));
                 ServiceReply::Ok("device preference set".into())
             }
             ServiceCmd::SetAutoSwitch(on) => {
@@ -146,7 +147,7 @@ impl Service {
             ServiceCmd::PowerOff(id) => self.power_off(id),
             ServiceCmd::SetLights { player, mic } => self.set_lights(player, mic),
             ServiceCmd::RefreshDrivers => {
-                self.check_drivers(self.rt.now_ms());
+                self.check_drivers();
                 ServiceReply::Ok("drivers checked".into())
             }
             ServiceCmd::RescanDevices => {
@@ -225,7 +226,8 @@ impl Service {
             own.slots[slot] = Some(path.clone());
             own.active = slot;
             // Re-apply even if the same file is active: it may have been edited.
-            self.rt.stop_device(&dp_platform::DeviceId(device.clone()));
+            self.rt
+                .stop_device(&dp_platform::DeviceId::from(device.clone()));
             return self.device_reply(&device, format!("applied to slot {}", slot + 1));
         }
         self.clear_overrides();
@@ -322,7 +324,7 @@ impl Service {
         if blocked {
             self.state.blocked.push(id);
         }
-        self.apply_device_policy();
+        self.apply_policy();
         self.save_state();
         ServiceReply::Ok(
             if blocked {
@@ -335,11 +337,11 @@ impl Service {
     }
 
     fn set_groups(&mut self, groups: Vec<DeviceGroup>) -> ServiceReply {
-        match group_problem(&groups) {
+        match DeviceGroup::problems(&groups) {
             Some(e) => ServiceReply::Err(e),
             None => {
                 self.state.groups = groups;
-                self.apply_device_policy();
+                self.apply_policy();
                 self.save_state();
                 ServiceReply::Ok("device groups set".into())
             }
@@ -348,7 +350,7 @@ impl Service {
 
     fn set_power_off_after(&mut self, minutes: u32) -> ServiceReply {
         self.state.power_off_after_min = minutes;
-        self.apply_device_policy();
+        self.apply_power_off();
         self.save_state();
         ServiceReply::Ok(match minutes {
             0 => "controllers stay on".into(),
@@ -357,12 +359,12 @@ impl Service {
     }
 
     fn set_layout(&mut self, layout: GenericLayout) -> ServiceReply {
-        match layout_problem(&layout) {
+        match layout.problem() {
             Some(e) => ServiceReply::Err(e),
             None => {
                 self.state.layouts.retain(|l| l.device != layout.device);
                 self.state.layouts.push(layout);
-                self.apply_device_policy();
+                self.apply_layouts();
                 self.save_state();
                 ServiceReply::Ok("layout saved".into())
             }
@@ -409,14 +411,14 @@ impl Service {
 
     fn forget_layout(&mut self, device: String) -> ServiceReply {
         self.state.layouts.retain(|l| l.device != device);
-        self.apply_device_policy();
+        self.apply_layouts();
         self.save_state();
         ServiceReply::Ok("layout removed".into())
     }
 
     /// Turn a wireless controller off now.
     fn power_off(&mut self, id: String) -> ServiceReply {
-        if self.rt.power_off(&dp_platform::DeviceId(id)) {
+        if self.rt.power_off(&dp_platform::DeviceId::from(id)) {
             ServiceReply::Ok("controller turned off".into())
         } else {
             ServiceReply::Err(
@@ -454,7 +456,7 @@ impl Service {
         for (id, action) in self.rt.take_hotkey_actions() {
             match action {
                 HotkeyAction::Slot(n) => {
-                    let device = self.has_own_slots(Some(&id.0));
+                    let device = self.has_own_slots(Some(id.as_str()));
                     let slots = &self.slot_set(device.as_deref()).slots;
                     if slots.get(n as usize).is_none_or(Option::is_none) {
                         tracing::info!("slot {} is empty", n + 1);

@@ -60,18 +60,6 @@ impl TestService {
         Service::new(Runtime::with_platform(self.platform), self.opts).unwrap()
     }
 }
-#[test]
-fn device_groups_need_names_and_distinct_members() {
-    let g = |name: &str, members: &[&str]| DeviceGroup {
-        name: name.into(),
-        members: members.iter().map(|m| m.to_string()).collect(),
-    };
-    assert_eq!(group_problem(&[g("Pair", &["a", "b"])]), None);
-    assert!(group_problem(&[g("", &["a", "b"])]).is_some());
-    assert!(group_problem(&[g("Solo", &["a"])]).is_some());
-    assert!(group_problem(&[g("P", &["a", "b"]), g("Q", &["b", "c"])]).is_some());
-}
-
 struct FakeForeground(Arc<Mutex<Option<String>>>);
 
 impl ForegroundWatcher for FakeForeground {
@@ -787,30 +775,6 @@ fn stop_forgets_a_failed_apply() {
 }
 
 #[test]
-fn layouts_need_a_model_and_a_mapping() {
-    let mut l = GenericLayout {
-        device: "pad".into(),
-        ..Default::default()
-    };
-    assert!(
-        layout_problem(&l)
-            .unwrap()
-            .contains("not a controller model")
-    );
-    l.device = "0079:0006".into();
-    assert_eq!(
-        layout_problem(&l).as_deref(),
-        Some("the layout maps nothing")
-    );
-    l.sticks.push(dp_platform::generic::StickBind {
-        axis: dp_core::pad::Axis::LeftX,
-        from: 0,
-        invert: false,
-    });
-    assert_eq!(layout_problem(&l), None);
-}
-
-#[test]
 fn keep_offline_pads_holds_a_controllers_session() {
     let dir = tempfile::tempdir().unwrap();
     let a = write_profile(dir.path(), "a.toml", "A", &[]);
@@ -845,4 +809,26 @@ fn keep_offline_pads_holds_a_controllers_session() {
     world.lock().unwrap().pads.clear();
     s.tick();
     assert!(owned(&s), "kept while it is away");
+}
+
+#[test]
+fn unrelated_settings_keep_the_idle_time() {
+    let dir = tempfile::tempdir().unwrap();
+    let (t, world) = TestService::fake(dir.path(), &[("p1", PadFamily::DualSense)]);
+    let mut s = t.build();
+    s.handle(ServiceCmd::SetPowerOffAfter(1));
+    s.tick();
+    s.rt.advance_ms(40_000);
+    s.tick();
+    s.handle(ServiceCmd::SetBlocked {
+        id: "another".into(),
+        blocked: true,
+    });
+    s.rt.advance_ms(25_000);
+    s.tick();
+    assert_eq!(
+        world.lock().unwrap().powered_off.len(),
+        1,
+        "the idle minute counts on through the change"
+    );
 }

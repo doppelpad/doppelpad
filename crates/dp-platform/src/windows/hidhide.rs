@@ -406,10 +406,38 @@ impl HidHide {
     }
 }
 
+/// Whether the HidHide driver answers.
+pub(super) fn available() -> Result<()> {
+    let h = open()?;
+    get_active(&h).map(drop)
+}
+
+/// Connected devices HidHide hides from Doppelpad, as user-facing explanations.
+pub(super) fn problems() -> Vec<String> {
+    let ids = match hidden_from_us() {
+        Ok(ids) => ids,
+        // Without a reachable driver nothing is hidden; `available` says why.
+        Err(e) => {
+            tracing::debug!("cannot check HidHide for hidden controllers: {e}");
+            return Vec::new();
+        }
+    };
+    let mut out: Vec<String> = ids
+        .iter()
+        .map(|id| {
+            let name = devnode::present_devnode(id).and_then(devnode::product_name);
+            hidden_warning(name.as_deref().unwrap_or(id))
+        })
+        .collect();
+    // One pad is often listed twice (its USB and HID nodes).
+    out.sort();
+    out.dedup();
+    out
+}
+
 impl DeviceHider for HidHide {
     fn available(&self) -> Result<()> {
-        let h = open()?;
-        get_active(&h).map(drop)
+        available()
     }
 
     /// XInput cannot tell which device a pad is, so hiding one hides every physical XUSB
@@ -479,25 +507,7 @@ impl DeviceHider for HidHide {
     }
 
     fn problems(&self) -> Vec<String> {
-        let ids = match hidden_from_us() {
-            Ok(ids) => ids,
-            // Without a reachable driver nothing is hidden; `available` says why.
-            Err(e) => {
-                tracing::debug!("cannot check HidHide for hidden controllers: {e}");
-                return Vec::new();
-            }
-        };
-        let mut out: Vec<String> = ids
-            .iter()
-            .map(|id| {
-                let name = devnode::present_devnode(id).and_then(devnode::product_name);
-                hidden_warning(name.as_deref().unwrap_or(id))
-            })
-            .collect();
-        // One pad is often listed twice (its USB and HID nodes).
-        out.sort();
-        out.dedup();
-        out
+        problems()
     }
 }
 

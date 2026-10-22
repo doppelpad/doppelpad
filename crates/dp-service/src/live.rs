@@ -16,6 +16,7 @@ use crate::dsu::DsuSettings;
 use crate::httpapi::HttpSettings;
 use crate::runtime::{DriverStatus, SessionInfo};
 use crate::slots::{PlayerLights, RuntimeOptions};
+use crate::sync::lock_ignore_poison;
 
 /// How often the live snapshot is refreshed, and how often its fastest readers look.
 pub const LIVE_INTERVAL: Duration = Duration::from_millis(16);
@@ -28,7 +29,7 @@ pub struct SharedLive(Arc<Mutex<(u64, Arc<LiveState>)>>);
 impl SharedLive {
     /// Store `state` if it is the first or differs from the current snapshot.
     pub(crate) fn publish(&self, state: LiveState) {
-        let mut current = self.0.lock().unwrap();
+        let mut current = lock_ignore_poison(&self.0);
         if current.0 == 0 || *current.1 != state {
             current.0 += 1;
             current.1 = Arc::new(state);
@@ -37,13 +38,13 @@ impl SharedLive {
 
     /// The current snapshot.
     pub fn get(&self) -> Arc<LiveState> {
-        self.0.lock().unwrap().1.clone()
+        lock_ignore_poison(&self.0).1.clone()
     }
 
     /// The snapshot and its generation, if it changed since generation `seen` (0: never
     /// seen).
     pub fn since(&self, seen: u64) -> Option<(u64, Arc<LiveState>)> {
-        let current = self.0.lock().unwrap();
+        let current = lock_ignore_poison(&self.0);
         (current.0 != seen).then(|| (current.0, current.1.clone()))
     }
 }

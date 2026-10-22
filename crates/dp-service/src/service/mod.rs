@@ -19,8 +19,7 @@ use anyhow::Result;
 use dp_core::profile::Profile;
 use dp_ipc::Device;
 use dp_platform::Leds;
-use dp_platform::generic::GenericLayout;
-use dp_platform::groups::{DeviceGroup, DevicePolicy};
+use dp_platform::groups::DevicePolicy;
 
 use crate::dsu::DsuServer;
 use crate::httpapi::HttpApi;
@@ -29,13 +28,17 @@ use crate::net::Listener;
 use crate::runtime::{DriverStatus, Runtime};
 use crate::slots::{PlayerLights, SlotSet, SlotState};
 use crate::timing::Every;
+use crossbeam_channel::Receiver;
+use dp_platform::DriverReport;
+use dp_platform::scan::Rescanner;
+use std::time::Duration;
 
 /// How often the foreground application is checked by default.
 const FOREGROUND_POLL_MS: u64 = 250;
 /// How often to check whether the user's desktop takes input.
 const DESKTOP_POLL_MS: u64 = 250;
 /// How often driver availability is re-probed.
-const DRIVER_POLL_MS: u64 = 5000;
+const DRIVER_POLL: Duration = Duration::from_secs(5);
 /// How long the editor's focus report is trusted by default although another program is in
 /// front (the foreground check lags behind a focus change).
 const GUI_FOCUS_GRACE_MS: u64 = 1000;
@@ -126,12 +129,31 @@ struct Foreground {
     switched_for: Option<String>,
 }
 
-/// Driver availability, probed now and then.
+/// Driver availability, probed on the `dp-drivers` thread every `DRIVER_POLL`.
 struct DriverWatch {
     status: DriverStatus,
-    poll: Every,
-    /// [`Runtime::hiding_problems`], refreshed with the driver status.
+    /// Connected devices the hiding driver keeps from Doppelpad.
     hiding_problems: Vec<String>,
+    /// A report has arrived.
+    known: bool,
+    reports: Receiver<DriverReport>,
+    _probe: Rescanner,
+}
+
+impl DriverWatch {
+    fn start(probe: fn() -> DriverReport) -> DriverWatch {
+        let (tx, reports) = crossbeam_channel::bounded(1);
+        let probe = Rescanner::spawn("dp-drivers", DRIVER_POLL, move |_| {
+            let _ = tx.try_send(probe());
+        });
+        DriverWatch {
+            status: DriverStatus::default(),
+            hiding_problems: Vec::new(),
+            known: false,
+            reports,
+            _probe: probe,
+        }
+    }
 }
 
 /// What went wrong, for replies and warnings.
@@ -215,6 +237,7 @@ impl Service {
         if let Some(path) = &opts.calibration_path {
             *rt.calibration_mut() = crate::calibration::Calibrator::load(path);
         }
+        let probe = rt.driver_probe();
         let mut svc = Service {
             rt,
             library: Default::default(),
@@ -227,11 +250,7 @@ impl Service {
                 pid: None,
                 switched_for: None,
             },
-            drivers: DriverWatch {
-                status: DriverStatus::default(),
-                poll: Every::new(DRIVER_POLL_MS),
-                hiding_problems: Vec::new(),
-            },
+            drivers: DriverWatch::start(probe),
             errors: Errors::default(),
             connected: Vec::new(),
             dsu: Listener::default(),
@@ -248,7 +267,9 @@ impl Service {
             calibration_save: Every::new(CALIBRATION_SAVE_MS),
             opts,
         };
-        svc.apply_device_policy();
+        svc.apply_policy();
+        svc.apply_layouts();
+        svc.apply_power_off();
         svc.apply_dsu();
         svc.apply_http();
         svc.rt.set_prevent_sleep(svc.state.runtime.prevent_sleep);
@@ -268,7 +289,7 @@ impl Service {
             .rt
             .devices()
             .iter()
-            .map(|s| s.info.id.0.clone())
+            .map(|s| s.info.id.to_string())
             .collect();
         // With the option on, a disconnected controller keeps its session (and so its
         // virtual controller, idle) until it is back.
@@ -293,12 +314,13 @@ impl Service {
             if let Some(owner) = s.owner
                 && !wanted.iter().any(|(id, _)| *id == owner)
             {
-                self.rt.stop_device(&dp_platform::DeviceId(owner.clone()));
+                self.rt
+                    .stop_device(&dp_platform::DeviceId::from(owner.clone()));
                 self.errors.devices.remove(&owner);
             }
         }
         for (id, path) in wanted {
-            let device = dp_platform::DeviceId(id.clone());
+            let device = dp_platform::DeviceId::from(id.clone());
             if self.rt.device_profile_path(&device) == Some(&path) {
                 continue;
             }
@@ -453,12 +475,21 @@ impl Service {
         }
     }
 
-    fn apply_device_policy(&mut self) {
+    /// Blocked devices and device groups.
+    fn apply_policy(&mut self) {
         self.rt.set_device_policy(DevicePolicy {
             blocked: self.state.blocked.clone(),
             groups: self.state.groups.clone(),
         });
+    }
+
+    /// How generic pads' inputs map to pad controls.
+    fn apply_layouts(&mut self) {
         self.rt.set_layouts(self.state.layouts.clone());
+    }
+
+    /// Turning idle controllers off (setting it starts their idle time anew).
+    fn apply_power_off(&mut self) {
         let minutes = self.state.power_off_after_min;
         self.rt.set_power_off_after(
             (minutes > 0).then(|| std::time::Duration::from_secs(u64::from(minutes) * 60)),
@@ -469,7 +500,12 @@ impl Service {
     fn show_lights(&mut self) {
         let state = &self.state;
         self.rt.set_indicators(|id| {
-            let slot = state.devices.get(&id.0).unwrap_or(&state.shared).active as u8 + 1;
+            let slot = state
+                .devices
+                .get(id.as_str())
+                .unwrap_or(&state.shared)
+                .active as u8
+                + 1;
             Leds {
                 player: match state.player_lights {
                     PlayerLights::Always => Some(slot),
@@ -501,7 +537,7 @@ impl Service {
                 .devices()
                 .iter()
                 .zip(&self.connected)
-                .any(|(s, id)| s.info.id.0 != *id)
+                .any(|(s, id)| s.info.id.as_str() != id)
         {
             self.sync_devices();
         }
@@ -512,21 +548,30 @@ impl Service {
             self.apply_suspend();
         }
         self.auto_switch_tick();
-        if self.drivers.poll.elapsed(now) {
-            self.check_drivers(now);
+        if let Ok(report) = self.drivers.reports.try_recv() {
+            self.take_driver_report(report);
         }
     }
 
-    fn check_drivers(&mut self, now: u64) {
-        let drivers = self.rt.drivers();
-        if !self.drivers.poll.ever() || drivers != self.drivers.status {
+    /// Probe the drivers now, on this thread (an explicit refresh).
+    fn check_drivers(&mut self) {
+        let report = (self.rt.driver_probe())();
+        self.take_driver_report(report);
+    }
+
+    fn take_driver_report(&mut self, report: DriverReport) {
+        let drivers = DriverStatus {
+            virtual_pads: report.virtual_pads.into(),
+            device_hiding: report.device_hiding.into(),
+        };
+        if !self.drivers.known || drivers != self.drivers.status {
             tracing::info!(
                 "drivers: virtual pads {}, device hiding {}",
                 drivers.virtual_pads,
                 drivers.device_hiding
             );
         }
-        let problems = self.rt.hiding_problems();
+        let problems = report.hiding_problems;
         for p in problems
             .iter()
             .filter(|p| !self.drivers.hiding_problems.contains(p))
@@ -535,7 +580,7 @@ impl Service {
         }
         self.drivers.status = drivers;
         self.drivers.hiding_problems = problems;
-        self.drivers.poll.done(now);
+        self.drivers.known = true;
     }
 
     /// Release everything and unhide devices.
@@ -547,49 +592,4 @@ impl Service {
 /// A reply to a change that took effect but could not be saved.
 fn unsaved_note(reply: &str, error: &str) -> String {
     format!("{reply}; {error}, so the change is lost when Doppelpad restarts")
-}
-
-/// Why a generic pad layout cannot be stored, if it cannot.
-fn layout_problem(l: &GenericLayout) -> Option<String> {
-    let hex4 = |s: &str| s.len() == 4 && s.chars().all(|c| c.is_ascii_hexdigit());
-    let key_ok = l
-        .device
-        .split_once(':')
-        .is_some_and(|(v, p)| hex4(v) && hex4(p));
-    if !key_ok {
-        return Some(format!(
-            "`{}` is not a controller model (vvvv:pppp)",
-            l.device
-        ));
-    }
-    if l.buttons.is_empty() && l.triggers.is_empty() && l.sticks.is_empty() {
-        return Some("the layout maps nothing".into());
-    }
-    None
-}
-
-/// What is wrong with a set of device groups, if anything.
-fn group_problem(groups: &[DeviceGroup]) -> Option<String> {
-    for (i, g) in groups.iter().enumerate() {
-        if g.name.trim().is_empty() {
-            return Some("a device group needs a name".into());
-        }
-        if groups[..i].iter().any(|o| o.name == g.name) {
-            return Some(format!("there are two device groups named {}", g.name));
-        }
-        if g.members.len() < 2 {
-            return Some(format!(
-                "device group {} needs at least two controllers",
-                g.name
-            ));
-        }
-        if let Some(m) = g
-            .members
-            .iter()
-            .find(|m| groups[..i].iter().any(|o| o.members.contains(m)))
-        {
-            return Some(format!("{m} is in two device groups"));
-        }
-    }
-    None
 }

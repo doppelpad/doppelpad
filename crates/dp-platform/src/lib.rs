@@ -44,8 +44,7 @@ pub const HIDHIDE_RELEASES: &str = "https://github.com/nefarius/HidHide/releases
 #[cfg(any(windows, target_os = "linux", test))]
 pub(crate) mod remainder;
 pub(crate) mod report;
-#[cfg(any(windows, target_os = "linux", test))]
-pub(crate) mod scan;
+pub mod scan;
 pub mod sony;
 pub mod steam;
 pub mod timer;
@@ -81,6 +80,18 @@ impl PlatformError {
 /// Stable identifier of a physical device, unique while it is connected.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct DeviceId(pub String);
+
+impl DeviceId {
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl From<String> for DeviceId {
+    fn from(id: String) -> DeviceId {
+        DeviceId(id)
+    }
+}
 
 impl std::fmt::Display for DeviceId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -469,7 +480,21 @@ pub trait SystemControl: Send {
 }
 
 /// All backends for the current OS.
+/// What a driver probe found (see [`Platform::probe_drivers`]).
+#[derive(Debug)]
+pub struct DriverReport {
+    /// Whether virtual controllers can be created.
+    pub virtual_pads: Result<()>,
+    /// Whether devices can be hidden.
+    pub device_hiding: Result<()>,
+    /// Connected devices the hiding driver keeps from Doppelpad, explained for the user.
+    pub hiding_problems: Vec<String>,
+}
+
 pub struct Platform {
+    /// Check the drivers the backends need. It keeps no state, so it can run on a thread of
+    /// its own while the backends serve the engine loop.
+    pub probe_drivers: fn() -> DriverReport,
     pub gamepads: Vec<Box<dyn GamepadBackend>>,
     pub virtual_pads: Box<dyn VirtualPadFactory>,
     pub kbm_out: Box<dyn KbmOutput>,

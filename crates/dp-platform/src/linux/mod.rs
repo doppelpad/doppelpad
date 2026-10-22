@@ -52,6 +52,11 @@ pub fn platform() -> crate::Platform {
     let gamepads = gamepad::EvdevBackend::new();
     let hider = gamepads.hider();
     crate::Platform {
+        probe_drivers: || crate::DriverReport {
+            virtual_pads: dev::check_uinput(),
+            device_hiding: Ok(()),
+            hiding_problems: Vec::new(),
+        },
         gamepads: vec![Box::new(crate::joycon::JoyConCombiner::new(gamepads))],
         virtual_pads: Box::new(uinput::UinputFactory::default()),
         kbm_out: Box::new(uinput::UinputKbm::new()),

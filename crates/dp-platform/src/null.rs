@@ -13,6 +13,11 @@ pub struct NullPlatform;
 impl NullPlatform {
     pub fn platform() -> Platform {
         Platform {
+            probe_drivers: || DriverReport {
+                virtual_pads: Err(PlatformError::Unsupported("virtual gamepads")),
+                device_hiding: Err(PlatformError::Unsupported("device hiding")),
+                hiding_problems: Vec::new(),
+            },
             gamepads: Vec::new(),
             virtual_pads: Box::new(NullPlatform),
             kbm_out: Box::new(NullPlatform),

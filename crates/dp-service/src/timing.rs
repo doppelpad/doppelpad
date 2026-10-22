@@ -63,11 +63,6 @@ impl Every {
     pub(crate) fn done(&mut self, now: u64) {
         self.last = Some(now);
     }
-
-    /// Whether it was ever done.
-    pub(crate) fn ever(&self) -> bool {
-        self.last.is_some()
-    }
 }
 
 #[cfg(test)]
@@ -77,9 +72,9 @@ mod tests {
     #[test]
     fn every_throttles() {
         let mut e = Every::new(100);
-        assert!(!e.ever() && e.elapsed(5));
+        assert!(e.elapsed(5));
         assert!(e.due(5), "the first time is always due");
-        assert!(!e.due(104) && e.ever());
+        assert!(!e.due(104));
         assert!(e.due(105));
         e.done(300);
         assert!(!e.elapsed(399) && e.elapsed(400));

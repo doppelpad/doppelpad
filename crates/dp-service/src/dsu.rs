@@ -3,7 +3,7 @@
 
 use std::collections::HashMap;
 use std::io;
-use std::net::{SocketAddr, UdpSocket};
+use std::net::{Ipv4Addr, SocketAddr, UdpSocket};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -13,6 +13,7 @@ use dp_platform::{Battery, PadSnapshot};
 use serde::{Deserialize, Serialize};
 
 use crate::net::{Worker, bind_ip};
+use crate::sync::lock_ignore_poison;
 
 const DSU_SLOTS: usize = 4;
 const VERSION: u16 = 1001;
@@ -286,7 +287,7 @@ struct Frame {
 }
 
 pub struct DsuServer {
-    _worker: Worker,
+    worker: Worker,
     frame: Arc<Mutex<Frame>>,
     clients: Arc<AtomicUsize>,
     pub addr: SocketAddr,
@@ -307,7 +308,7 @@ impl DsuServer {
         let worker = Worker::spawn("dp-dsu", move |stop| serve(socket, &f, &c, &stop))?;
         tracing::info!(%addr, "DSU motion server listening");
         Ok(DsuServer {
-            _worker: worker,
+            worker,
             frame,
             clients,
             addr,
@@ -328,17 +329,22 @@ impl DsuServer {
         for slot in self.slots.iter_mut() {
             if slot
                 .as_ref()
-                .is_some_and(|id| !pads.iter().any(|p| &p.info.id.0 == id))
+                .is_some_and(|id| !pads.iter().any(|p| p.info.id.as_str() == id))
             {
                 *slot = None;
             }
         }
         for p in pads {
-            if self.slots.iter().flatten().any(|id| *id == p.info.id.0) {
+            if self
+                .slots
+                .iter()
+                .flatten()
+                .any(|id| *id == p.info.id.as_str())
+            {
                 continue;
             }
             if let Some(free) = self.slots.iter_mut().find(|s| s.is_none()) {
-                *free = Some(p.info.id.0.clone());
+                *free = Some(p.info.id.to_string());
             }
         }
         let now_us = self.epoch.elapsed().as_micros() as u64;
@@ -346,7 +352,7 @@ impl DsuServer {
         for (i, slot) in self.slots.iter().enumerate() {
             let Some(p) = slot
                 .as_ref()
-                .and_then(|id| pads.iter().find(|p| &p.info.id.0 == id))
+                .and_then(|id| pads.iter().find(|p| p.info.id.as_str() == id))
             else {
                 self.last[i] = None;
                 continue;
@@ -364,7 +370,7 @@ impl DsuServer {
                 }
             }
             let pad = SlotPad {
-                mac: mac_of(&p.info.id.0),
+                mac: mac_of(p.info.id.as_str()),
                 state: p.state,
                 battery: p.battery,
                 has_motion: p.info.has_motion,
@@ -375,10 +381,21 @@ impl DsuServer {
             self.last[i] = Some(pad);
             pads_out[i] = Some(pad);
         }
-        let mut f = self.frame.lock().unwrap();
+        let mut f = lock_ignore_poison(&self.frame);
         if f.pads != pads_out {
             f.pads = pads_out;
             f.seq += 1;
+        }
+    }
+}
+
+impl Drop for DsuServer {
+    /// Stop the thread and wake it, as it may be waiting for a request; dropping the worker
+    /// then waits for it.
+    fn drop(&mut self) {
+        self.worker.request_stop();
+        if let Ok(s) = UdpSocket::bind((Ipv4Addr::LOCALHOST, 0)) {
+            let _ = s.send_to(&[], (Ipv4Addr::LOCALHOST, self.addr.port()));
         }
     }
 }
@@ -398,10 +415,17 @@ fn serve(socket: UdpSocket, frame: &Mutex<Frame>, count: &AtomicUsize, stop: &At
     let mut buf = [0u8; 1024];
     let mut sent_seq = 0;
     let mut sent_at = Instant::now();
+    let mut sleeping = false;
     while !stop.load(Ordering::Relaxed) {
+        // Without subscribers there is nothing to send: wait for the next request (or the
+        // wake-up when the server stops) instead of polling.
+        if clients.is_empty() != sleeping {
+            sleeping = clients.is_empty();
+            let _ = socket.set_read_timeout((!sleeping).then_some(SEND_EVERY));
+        }
         if let Ok((n, from)) = socket.recv_from(&mut buf) {
             let now = Instant::now();
-            let pads = frame.lock().unwrap().pads;
+            let pads = lock_ignore_poison(frame).pads;
             match parse_request(&buf[..n]) {
                 Some(Request::Version) => {
                     let _ = socket.send_to(
@@ -447,7 +471,7 @@ fn serve(socket: UdpSocket, frame: &Mutex<Frame>, count: &AtomicUsize, stop: &At
         clients.retain(|_, c| c.alive(now));
         count.store(clients.len(), Ordering::Relaxed);
         let (pads, seq) = {
-            let f = frame.lock().unwrap();
+            let f = lock_ignore_poison(frame);
             (f.pads, f.seq)
         };
         if seq == sent_seq {
@@ -479,8 +503,6 @@ fn rand_id() -> u32 {
 
 #[cfg(test)]
 mod tests {
-    use std::net::Ipv4Addr;
-
     use dp_core::pad::{Motion, TouchPoint};
     use dp_platform::PadFamily;
 
