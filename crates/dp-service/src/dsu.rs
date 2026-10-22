@@ -3,15 +3,16 @@
 
 use std::collections::HashMap;
 use std::io;
-use std::net::{Ipv4Addr, SocketAddr, UdpSocket};
+use std::net::{SocketAddr, UdpSocket};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
-use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
 use dp_core::pad::{Axis, PadButton, PadState};
 use dp_platform::{Battery, PadSnapshot};
 use serde::{Deserialize, Serialize};
+
+use crate::net::{Worker, bind_ip};
 
 const DSU_SLOTS: usize = 4;
 const VERSION: u16 = 1001;
@@ -22,6 +23,10 @@ const MSG_DATA: u32 = 0x10_0002;
 const SUBSCRIPTION: Duration = Duration::from_secs(5);
 /// Data goes out at most this often (the DualShock 4's own rate).
 const SEND_EVERY: Duration = Duration::from_millis(4);
+/// The port the DSU protocol uses by default (cemuhook's).
+pub const DEFAULT_PORT: u16 = 26760;
+/// A trigger pulled this far also counts as pressed.
+const DIGITAL_TRIGGER: f32 = 0.5;
 /// DualShock 4 touchpad size, which clients assume.
 const TOUCH_W: f32 = 1919.0;
 const TOUCH_H: f32 = 941.0;
@@ -40,7 +45,7 @@ impl Default for DsuSettings {
         DsuSettings {
             enabled: false,
             lan: false,
-            port: 26760,
+            port: DEFAULT_PORT,
         }
     }
 }
@@ -159,8 +164,8 @@ fn data_payload(slot: u8, pad: &SlotPad, packet_no: u32) -> [u8; 80] {
         (0x10, s.pressed(X)),
         (0x08, s.pressed(RB)),
         (0x04, s.pressed(LB)),
-        (0x02, rt > 0.5),
-        (0x01, lt > 0.5),
+        (0x02, rt > DIGITAL_TRIGGER),
+        (0x01, lt > DIGITAL_TRIGGER),
     ]);
     out[18] = u8::from(s.pressed(Guide));
     out[19] = u8::from(s.pressed(Touchpad));
@@ -281,10 +286,9 @@ struct Frame {
 }
 
 pub struct DsuServer {
+    _worker: Worker,
     frame: Arc<Mutex<Frame>>,
     clients: Arc<AtomicUsize>,
-    stop: Arc<AtomicBool>,
-    thread: Option<JoinHandle<()>>,
     pub addr: SocketAddr,
     /// Which controller sits in which slot.
     slots: [Option<String>; DSU_SLOTS],
@@ -294,27 +298,18 @@ pub struct DsuServer {
 
 impl DsuServer {
     pub fn start(settings: DsuSettings) -> io::Result<DsuServer> {
-        let ip = if settings.lan {
-            Ipv4Addr::UNSPECIFIED
-        } else {
-            Ipv4Addr::LOCALHOST
-        };
-        let socket = UdpSocket::bind((ip, settings.port))?;
+        let socket = UdpSocket::bind((bind_ip(settings.lan), settings.port))?;
         socket.set_read_timeout(Some(SEND_EVERY))?;
         let addr = socket.local_addr()?;
         let frame: Arc<Mutex<Frame>> = Arc::default();
         let clients = Arc::new(AtomicUsize::new(0));
-        let stop = Arc::new(AtomicBool::new(false));
-        let (f, c, s) = (frame.clone(), clients.clone(), stop.clone());
-        let thread = std::thread::Builder::new()
-            .name("dp-dsu".into())
-            .spawn(move || serve(socket, &f, &c, &s))?;
+        let (f, c) = (frame.clone(), clients.clone());
+        let worker = Worker::spawn("dp-dsu", move |stop| serve(socket, &f, &c, &stop))?;
         tracing::info!(%addr, "DSU motion server listening");
         Ok(DsuServer {
+            _worker: worker,
             frame,
             clients,
-            stop,
-            thread: Some(thread),
             addr,
             slots: Default::default(),
             epoch: Instant::now(),
@@ -384,15 +379,6 @@ impl DsuServer {
         if f.pads != pads_out {
             f.pads = pads_out;
             f.seq += 1;
-        }
-    }
-}
-
-impl Drop for DsuServer {
-    fn drop(&mut self) {
-        self.stop.store(true, Ordering::Relaxed);
-        if let Some(t) = self.thread.take() {
-            let _ = t.join();
         }
     }
 }
@@ -493,6 +479,8 @@ fn rand_id() -> u32 {
 
 #[cfg(test)]
 mod tests {
+    use std::net::Ipv4Addr;
+
     use dp_core::pad::{Motion, TouchPoint};
 
     use super::*;

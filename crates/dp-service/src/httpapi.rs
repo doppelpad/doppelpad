@@ -8,10 +8,9 @@
 use std::collections::hash_map::RandomState;
 use std::hash::{BuildHasher, Hasher};
 use std::io::{self, BufRead, BufReader, Read, Write};
-use std::net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream};
+use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::thread::JoinHandle;
 use std::time::Duration;
 
 use crossbeam_channel::{Receiver, Sender, bounded};
@@ -20,6 +19,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::client::round_trip;
 use crate::live::LiveState;
+use crate::net::{Worker, bind_ip};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
@@ -65,11 +65,17 @@ pub enum Job {
 }
 
 pub struct HttpApi {
+    /// Stops first, before the job queue goes away.
+    _worker: Worker,
     pub addr: SocketAddr,
     jobs: Receiver<Job>,
-    stop: Arc<AtomicBool>,
-    thread: Option<JoinHandle<()>>,
 }
+
+/// The port the HTTP API listens on unless the settings say otherwise.
+pub const DEFAULT_PORT: u16 = 26761;
+/// How often the listener looks for a new connection, and how long it waits after an error.
+const ACCEPT_POLL: Duration = Duration::from_millis(50);
+const ACCEPT_RETRY: Duration = Duration::from_millis(200);
 
 const MAX_HEAD: usize = 16 << 10;
 const MAX_BODY: usize = 64 << 10;
@@ -81,46 +87,29 @@ const HEARTBEAT_EVERY: u32 = 75;
 
 impl HttpApi {
     pub fn start(settings: &HttpSettings) -> io::Result<HttpApi> {
-        let ip = if settings.lan {
-            Ipv4Addr::UNSPECIFIED
-        } else {
-            Ipv4Addr::LOCALHOST
-        };
-        let listener = TcpListener::bind((ip, settings.port))?;
+        let listener = TcpListener::bind((bind_ip(settings.lan), settings.port))?;
         listener.set_nonblocking(true)?;
         let addr = listener.local_addr()?;
         let (tx, jobs) = bounded::<Job>(64);
-        let stop = Arc::new(AtomicBool::new(false));
         let access = Access {
             lan: settings.lan,
             token: settings.token.clone(),
             port: addr.port(),
         };
-        let s = stop.clone();
-        let thread = std::thread::Builder::new()
-            .name("dp-http".into())
-            .spawn(move || accept_loop(listener, access, tx, s))?;
+        let worker = Worker::spawn("dp-http", move |stop| {
+            accept_loop(listener, access, tx, stop);
+        })?;
         tracing::info!(%addr, "local HTTP API listening");
         Ok(HttpApi {
+            _worker: worker,
             addr,
             jobs,
-            stop,
-            thread: Some(thread),
         })
     }
 
     /// Requests waiting for the service.
     pub fn jobs(&self) -> &Receiver<Job> {
         &self.jobs
-    }
-}
-
-impl Drop for HttpApi {
-    fn drop(&mut self) {
-        self.stop.store(true, Ordering::Relaxed);
-        if let Some(t) = self.thread.take() {
-            let _ = t.join();
-        }
     }
 }
 
@@ -147,12 +136,10 @@ fn accept_loop(listener: TcpListener, access: Access, tx: Sender<Job>, stop: Arc
                     tracing::warn!("cannot serve an HTTP request: {e}");
                 }
             }
-            Err(e) if e.kind() == io::ErrorKind::WouldBlock => {
-                std::thread::sleep(Duration::from_millis(50));
-            }
+            Err(e) if e.kind() == io::ErrorKind::WouldBlock => std::thread::sleep(ACCEPT_POLL),
             Err(e) => {
                 tracing::warn!("HTTP API: {e}");
-                std::thread::sleep(Duration::from_millis(200));
+                std::thread::sleep(ACCEPT_RETRY);
             }
         }
     }
@@ -413,7 +400,7 @@ mod tests {
         Access {
             lan,
             token: "secret".into(),
-            port: 26761,
+            port: DEFAULT_PORT,
         }
     }
 

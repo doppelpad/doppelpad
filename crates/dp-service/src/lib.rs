@@ -10,12 +10,15 @@ pub mod host;
 pub mod hotkeys;
 pub mod httpapi;
 pub mod live;
+mod net;
 pub mod runtime;
 pub mod service;
 pub mod slots;
+mod timing;
 
 pub use host::{HostOptions, ServiceHandle, spawn, spawn_with};
 pub use live::{LiveDevice, LiveDeviceSlots, LiveRadial, LiveState};
 pub use runtime::{DriverState, DriverStatus, Runtime, SessionInfo, TimerResolution};
-pub use service::{ServiceCmd, ServiceOptions, ServiceReply, ipc_devices};
+pub use service::{ServiceCmd, ServiceOptions, ServiceReply, ipc_devices, on_off};
 pub use slots::{DeviceSlots, PlayerLights, SLOTS, SlotState};
+pub use timing::TICK;
