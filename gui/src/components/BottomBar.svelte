@@ -38,8 +38,6 @@
       {#if paused}<Pause size={15} />{:else}<Power size={15} />{/if}
     </button>
 
-    <DevicePicker />
-
     <button
       class="power nav"
       class:on={app.settings.pad_navigation}
@@ -50,6 +48,8 @@
     >
       <GamepadDirectional size={15} />
     </button>
+
+    <DevicePicker />
 
     {#if live && !live.drivers.virtual_pads.available}
       <span class="warn" title={live.drivers.virtual_pads.error ?? ''}>
@@ -105,9 +105,6 @@
     border-color: var(--accent);
     color: var(--accent);
     background: var(--accent-soft);
-  }
-  .power.nav {
-    margin: 0 0 0 4px;
   }
   .power.on:hover {
     background: color-mix(in srgb, var(--accent) 24%, transparent);
