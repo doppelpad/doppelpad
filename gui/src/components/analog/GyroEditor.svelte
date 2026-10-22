@@ -55,7 +55,7 @@
     <Toggle checked={cfg.initially_on} {disabled} label={t('analog.gyro.initially_on')} onchange={(v) => set({ initially_on: v })} />
     <p class="hint">{t('analog.gyro.initially_on_hint')}</p>
 
-    <div class="sub">{t('analog.gyro.zones')}</div>
+    <div class="section-title">{t('analog.gyro.zones')}</div>
     <p class="hint">{t(tilt ? 'analog.gyro.zones_hint_tilt' : 'analog.gyro.zones_hint_motion')}</p>
     {#each LEVELS as level, i (level)}
       <Slider
@@ -72,7 +72,7 @@
     {/each}
 
     {#if dev && cal}
-      <div class="sub">{t('analog.gyro.calibration')}</div>
+      <div class="section-title">{t('analog.gyro.calibration')}</div>
       <p class="hint">{t('analog.gyro.calibration_hint', { name: dev.name })}</p>
       <div class="cal">
         <button class="btn" disabled={cal.measuring !== null} onclick={() => app.attempt(api.gyroCalibrate(dev.id))}>
@@ -125,7 +125,7 @@
   }
   .seg button {
     padding: 5px 12px;
-    font-size: 12px;
+    font-size: var(--fs-s);
     color: var(--text-dim);
   }
   .seg button + button {
@@ -138,12 +138,12 @@
   .hint {
     margin: -4px 0 4px;
     color: var(--text-dim);
-    font-size: 12px;
+    font-size: var(--fs-s);
   }
   .warn {
     margin: 0;
     color: var(--warning);
-    font-size: 12px;
+    font-size: var(--fs-s);
   }
   .cal {
     display: flex;
@@ -153,15 +153,10 @@
   }
   .bias {
     color: var(--text-dim);
-    font-size: 12px;
+    font-size: var(--fs-s);
     font-variant-numeric: tabular-nums;
   }
-  .sub {
+  .section-title {
     margin-top: 8px;
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--text-dim);
   }
 </style>

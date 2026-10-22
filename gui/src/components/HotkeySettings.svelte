@@ -84,7 +84,7 @@
 </script>
 
 <div class="section">
-  <div class="section-head"><span>{t('hotkeys.title')}</span></div>
+  <div class="section-title"><span>{t('hotkeys.title')}</span></div>
   <p class="hint">{t('hotkeys.hint')}</p>
   {#if hotkeys}
     <label class="row">
@@ -140,17 +140,10 @@
     flex-direction: column;
     gap: 8px;
   }
-  .section-head {
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--text-dim);
-  }
   .hint {
     margin: 0;
     color: var(--text-dim);
-    font-size: 12px;
+    font-size: var(--fs-s);
   }
   .row {
     display: flex;

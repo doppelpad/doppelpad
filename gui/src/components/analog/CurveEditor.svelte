@@ -268,10 +268,10 @@
   }
   .chip {
     padding: 4px 10px;
-    border-radius: 99px;
+    border-radius: var(--radius-pill);
     border: 1px solid var(--line);
     background: var(--bg-2);
-    font-size: 12px;
+    font-size: var(--fs-s);
     color: var(--text-dim);
   }
   .chip:hover:not(:disabled):not(.custom) {

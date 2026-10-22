@@ -162,10 +162,10 @@
   }
   .ctl {
     padding: 5px 10px;
-    border-radius: 99px;
+    border-radius: var(--radius-pill);
     border: 1px solid var(--line);
     background: var(--bg-2);
-    font-size: 12px;
+    font-size: var(--fs-s);
   }
   .ctl.on {
     border-color: var(--accent);
@@ -225,7 +225,7 @@
     background: var(--bg-3);
     border: 1px solid var(--line-strong);
     font-weight: 600;
-    font-size: 12px;
+    font-size: var(--fs-s);
   }
   .plus {
     color: var(--text-faint);

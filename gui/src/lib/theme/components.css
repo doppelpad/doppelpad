@@ -1,0 +1,70 @@
+/* Shared component classes: buttons, icon buttons, captions, cards and error text. */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: var(--radius-s);
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  transition: background 0.12s, border-color 0.12s;
+}
+.btn:hover {
+  background: var(--bg-3);
+  border-color: var(--line-strong);
+}
+.btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+}
+.btn.primary:hover {
+  background: var(--accent-hover);
+}
+.btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-s);
+  color: var(--text-dim);
+}
+.icon-btn:hover {
+  background: var(--bg-3);
+  color: var(--text);
+}
+.icon-btn.active {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+.icon-btn.danger:hover {
+  color: var(--danger);
+}
+
+/* The small uppercase caption above a group of settings. */
+.section-title {
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+/* A framed group of settings. */
+.card {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-m);
+  background: var(--bg-1);
+}
+
+.error-text {
+  margin: 0;
+  color: var(--danger);
+  font-size: var(--fs-s);
+}

@@ -203,15 +203,10 @@
   }
   .section-title {
     margin-top: 6px;
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--text-dim);
   }
   .hint {
     margin: 0;
-    font-size: 12px;
+    font-size: var(--fs-s);
     color: var(--text-faint);
   }
   .bar-row {
@@ -221,14 +216,14 @@
   }
   .axis {
     width: 72px;
-    font-size: 11px;
+    font-size: var(--fs-xs);
     color: var(--text-dim);
   }
   .bar {
     position: relative;
     flex: 1;
     height: 14px;
-    border-radius: 99px;
+    border-radius: var(--radius-pill);
     background: var(--bg-0);
     border: 1px solid var(--line);
     overflow: hidden;
@@ -263,7 +258,7 @@
     border-radius: 2px;
   }
   .now {
-    font-size: 12px;
+    font-size: var(--fs-s);
     color: var(--text-dim);
   }
   .grid {
@@ -277,12 +272,12 @@
     grid-template-columns: auto auto auto;
   }
   .col {
-    font-size: 11px;
+    font-size: var(--fs-xs);
     color: var(--text-dim);
   }
   .lvl {
     color: var(--text-dim);
-    font-size: 12px;
+    font-size: var(--fs-s);
     min-width: 64px;
   }
   .lvl.on {
@@ -294,7 +289,7 @@
     align-items: center;
     gap: 4px;
     color: var(--text-dim);
-    font-size: 12px;
+    font-size: var(--fs-s);
   }
   .pct input {
     width: 64px;
@@ -304,12 +299,12 @@
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    font-size: 12px;
+    font-size: var(--fs-s);
     color: var(--text-dim);
   }
   .problem {
     margin: 0;
-    font-size: 12px;
+    font-size: var(--fs-s);
     color: var(--warning);
   }
 </style>

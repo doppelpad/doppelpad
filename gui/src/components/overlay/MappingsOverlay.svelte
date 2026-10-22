@@ -82,7 +82,7 @@
     overflow: hidden;
     padding: 12px 14px;
     border-radius: var(--radius-l);
-    background: rgba(15, 17, 21, 0.9);
+    background: color-mix(in srgb, var(--bg-0) 90%, transparent);
     border: 1px solid var(--line-strong);
   }
   .head {
@@ -97,7 +97,7 @@
   }
   .layer {
     color: var(--accent);
-    font-size: 12px;
+    font-size: var(--fs-s);
     font-weight: 600;
   }
   .cols {
@@ -112,7 +112,7 @@
   }
   td {
     padding: 2px 6px 2px 0;
-    font-size: 12px;
+    font-size: var(--fs-s);
     line-height: 18px;
     white-space: nowrap;
     overflow: hidden;
@@ -130,6 +130,6 @@
   .more {
     margin: 4px 0 0;
     color: var(--text-dim);
-    font-size: 12px;
+    font-size: var(--fs-s);
   }
 </style>

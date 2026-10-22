@@ -34,7 +34,7 @@
 </script>
 
 <div class="section">
-  <div class="section-head"><span>{t('devices.settings.title')}</span></div>
+  <div class="section-title"><span>{t('devices.settings.title')}</span></div>
   <p class="hint">{t('devices.settings.hint')}</p>
   {#each [...seen, ...[...blocked].filter((id) => !seen.some((d) => d.id === id)).map((id) => ({ id, name: id }))] as d (d.id)}
     <label class="dev">
@@ -92,17 +92,10 @@
     flex-direction: column;
     gap: 8px;
   }
-  .section-head {
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--text-dim);
-  }
   .hint {
     margin: 0;
     color: var(--text-dim);
-    font-size: 12px;
+    font-size: var(--fs-s);
   }
   .dev,
   .pick {
@@ -112,7 +105,7 @@
   }
   .tag {
     color: var(--warning);
-    font-size: 11px;
+    font-size: var(--fs-xs);
   }
   .sub {
     margin-top: 4px;
@@ -131,7 +124,7 @@
     flex: 1;
     min-width: 0;
     color: var(--text-dim);
-    font-size: 12px;
+    font-size: var(--fs-s);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;

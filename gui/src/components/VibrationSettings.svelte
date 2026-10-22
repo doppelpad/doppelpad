@@ -19,7 +19,7 @@
   }
 </script>
 
-<div class="label">{t('vibration.title')}</div>
+<div class="section-title">{t('vibration.title')}</div>
 <p class="hint">{t('vibration.hint')}</p>
 <div class="fields">
   <Slider label={t('vibration.left')} value={v.left} def={def.left} min={0} max={1} step={0.05} scale={100} unit="%" {disabled} onchange={(x) => set({ left: x })} />
@@ -40,18 +40,13 @@
 <Toggle checked={v.swap} {disabled} label={t('vibration.swap')} onchange={(x) => set({ swap: x })} />
 
 <style>
-  .label {
+  .section-title {
     margin-top: 10px;
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--text-dim);
   }
   .hint {
     margin: 0;
     color: var(--text-dim);
-    font-size: 12px;
+    font-size: var(--fs-s);
   }
   .fields {
     display: grid;

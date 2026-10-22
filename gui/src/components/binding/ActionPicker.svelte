@@ -267,7 +267,7 @@
   }
   .capture {
     white-space: nowrap;
-    font-size: 12px;
+    font-size: var(--fs-s);
   }
   .capture.on {
     border-color: var(--accent);
@@ -305,7 +305,7 @@
     border-radius: var(--radius-s);
     background: var(--bg-2);
     border: 1px solid var(--line);
-    font-size: 12px;
+    font-size: var(--fs-s);
   }
   .chip:hover {
     border-color: var(--accent);

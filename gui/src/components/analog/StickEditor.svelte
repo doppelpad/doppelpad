@@ -148,7 +148,7 @@
     <div class="previews">
       <StickRing {cfg} {raw} {zones} />
       <p class="live-hint">{raw ? t('analog.live_hint') : t('analog.no_controller')}</p>
-      <div class="sub">{t('analog.stick.curve')}</div>
+      <div class="section-title">{t('analog.stick.curve')}</div>
       <CurveEditor {cfg} {live} {disabled} onchange={(curve: CurvePoint[]) => set({ curve })} />
     </div>
   </div>
@@ -158,7 +158,7 @@
   .hint {
     margin: -4px 0 0;
     color: var(--text-dim);
-    font-size: 12px;
+    font-size: var(--fs-s);
   }
   .stick {
     display: grid;
@@ -194,12 +194,5 @@
     text-align: center;
     color: var(--text-faint);
     font-size: 11.5px;
-  }
-  .sub {
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--text-dim);
   }
 </style>

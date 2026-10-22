@@ -22,7 +22,7 @@
 
 {#if dsu}
   <div class="section">
-    <div class="section-head"><span>{t('settings.dsu.title')}</span></div>
+    <div class="section-title"><span>{t('settings.dsu.title')}</span></div>
     <p class="hint">{t('settings.dsu.hint')}</p>
     <Toggle checked={dsu.settings.enabled} label={t('settings.dsu.enabled')} onchange={(v) => set({ enabled: v })} />
     <label class="row">
@@ -31,7 +31,7 @@
     </label>
     <Toggle checked={dsu.settings.lan} label={t('settings.dsu.lan')} onchange={(v) => set({ lan: v })} />
     {#if dsu.error}
-      <p class="error">{dsu.error}</p>
+      <p class="error-text">{dsu.error}</p>
     {:else if dsu.address}
       <p class="hint">{t('settings.dsu.status', { address: dsu.address, n: dsu.clients })}</p>
     {/if}
@@ -46,22 +46,10 @@
     flex-direction: column;
     gap: 8px;
   }
-  .section-head {
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--text-dim);
-  }
   .hint {
     margin: 0;
     color: var(--text-dim);
-    font-size: 12px;
-  }
-  .error {
-    margin: 0;
-    color: var(--danger);
-    font-size: 12px;
+    font-size: var(--fs-s);
   }
   .row {
     display: flex;

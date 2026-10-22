@@ -132,7 +132,7 @@
     <HotkeySettings />
 
     <div class="section">
-      <div class="section-head">
+      <div class="section-title">
         <span>{t('settings.osd.title')}</span>
         <button class="btn" disabled={!osd.enabled} onclick={() => app.attempt(api.osdTest())}>{t('settings.osd.test')}</button>
       </div>
@@ -179,7 +179,7 @@
     </div>
 
     <div class="section">
-      <div class="section-head"><span>{t('welcome.settings_title')}</span></div>
+      <div class="section-title"><span>{t('welcome.settings_title')}</span></div>
       <button class="btn" onclick={showWelcome}>{t('welcome.again')}</button>
     </div>
 
@@ -194,7 +194,7 @@
     {#if app.live}
       {@const live = app.live}
       <div class="section">
-        <div class="section-head"><span>{t('settings.lights.title')}</span></div>
+        <div class="section-title"><span>{t('settings.lights.title')}</span></div>
         <label class="row">
           <span>{t('settings.lights.player')}</span>
           <select value={live.player_lights} onchange={(e) => setLights(e.currentTarget.value as PlayerLights, live.mic_led)}>
@@ -206,7 +206,7 @@
     {/if}
 
     <div class="section">
-      <div class="section-head"><span>{t('settings.overlays.title')}</span></div>
+      <div class="section-title"><span>{t('settings.overlays.title')}</span></div>
       <p class="hint">{t('settings.overlays.hint')}</p>
       <div class="sub">{t('settings.overlays.pad')}</div>
       <label class="row">
@@ -244,7 +244,7 @@
     </div>
 
     <div class="section">
-      <div class="section-head">
+      <div class="section-title">
         <span>{t('settings.drivers')}</span>
         <button class="icon-btn" title={t('settings.recheck')} onclick={refresh}><RefreshCw size={15} /></button>
       </div>
@@ -258,7 +258,7 @@
     </div>
 
     <div class="section">
-      <div class="section-head"><span>{t('settings.profiles_dir')}</span></div>
+      <div class="section-title"><span>{t('settings.profiles_dir')}</span></div>
       <div class="dir">
         <code>{profilesDir}</code>
         <button class="icon-btn" title={t('common.reveal')} onclick={() => profilesDir && app.attempt(api.reveal(profilesDir))}>
@@ -268,7 +268,7 @@
     </div>
 
     <div class="section">
-      <div class="section-head"><span>{t('settings.log_file')}</span></div>
+      <div class="section-title"><span>{t('settings.log_file')}</span></div>
       <div class="dir">
         <code>{logFile}</code>
         <button class="icon-btn" title={t('settings.open_log_folder')} onclick={() => logFile && app.attempt(api.reveal(logFile))}>
@@ -283,10 +283,10 @@
   .backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(5, 7, 10, 0.6);
+    background: var(--backdrop);
     display: grid;
     place-items: center;
-    z-index: 100;
+    z-index: var(--z-dialog);
   }
   .dialog {
     width: 520px;
@@ -327,7 +327,7 @@
   .hint {
     margin: 0;
     color: var(--text-dim);
-    font-size: 12px;
+    font-size: var(--fs-s);
   }
   .events {
     display: flex;
@@ -354,15 +354,10 @@
     flex-direction: column;
     gap: 8px;
   }
-  .section-head {
+  .section-title {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--text-dim);
   }
   .driver {
     display: flex;
@@ -379,7 +374,7 @@
   .state {
     margin-left: auto;
     color: var(--warning);
-    font-size: 12px;
+    font-size: var(--fs-s);
   }
   .dir {
     display: flex;
@@ -389,7 +384,7 @@
   code {
     flex: 1;
     font-family: var(--mono);
-    font-size: 12px;
+    font-size: var(--fs-s);
     color: var(--text-dim);
     background: var(--bg-2);
     border-radius: var(--radius-s);

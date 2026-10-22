@@ -51,7 +51,7 @@
     align-items: center;
     /* Stay usable above dialog backdrops. */
     position: relative;
-    z-index: 110;
+    z-index: var(--z-caption);
   }
 
   /* Windows 11 caption buttons: full-height, 46 px wide, Segoe glyphs, red close. */

@@ -6,6 +6,9 @@ import type { Profile, RadialMenu, RadialSector } from '../types';
 import { layerIds } from './profile';
 import { dropUndefined, nonEmpty, setOrDrop } from './util';
 
+/** A sector's colour until one is picked: the accent, as hex for colour pickers. */
+export const DEFAULT_SECTOR_COLOR = '#14b8a6';
+
 /** Outer radius of a menu at scale 1, in logical pixels; the hole is a third of it. */
 export const RING = 200;
 

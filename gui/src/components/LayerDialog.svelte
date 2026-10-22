@@ -72,7 +72,7 @@
 
     {#if inheritance.inherit}
       <div class="section">
-        <div class="section-head">{t('layers.inherited_list')}</div>
+        <div class="section-title">{t('layers.inherited_list')}</div>
         {#if triggers.length === 0}
           <p class="hint">{t('layers.inherit_none')}</p>
         {:else}
@@ -100,10 +100,10 @@
   .backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(5, 7, 10, 0.6);
+    background: var(--backdrop);
     display: grid;
     place-items: center;
-    z-index: 100;
+    z-index: var(--z-dialog);
   }
   .dialog {
     width: 460px;
@@ -142,7 +142,7 @@
   .hint {
     margin: 0;
     color: var(--text-dim);
-    font-size: 12px;
+    font-size: var(--fs-s);
   }
   .section {
     border-top: 1px solid var(--line);
@@ -151,13 +151,6 @@
     flex-direction: column;
     gap: 8px;
     min-height: 0;
-  }
-  .section-head {
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--text-dim);
   }
   .list {
     display: flex;

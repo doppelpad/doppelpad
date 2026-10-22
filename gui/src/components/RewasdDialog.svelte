@@ -72,10 +72,10 @@
   .backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(5, 7, 10, 0.6);
+    background: var(--backdrop);
     display: grid;
     place-items: center;
-    z-index: 100;
+    z-index: var(--z-dialog);
   }
   .dialog {
     width: 480px;
@@ -124,11 +124,11 @@
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    font-size: 11px;
+    font-size: var(--fs-xs);
     color: var(--text-faint);
   }
   .hint {
-    font-size: 12px;
+    font-size: var(--fs-s);
     color: var(--text-faint);
   }
   .foot {

@@ -7,6 +7,7 @@
   import { layerIds } from '../../lib/model/profile';
   import { actionLabel } from '../../lib/model/labels';
   import {
+    DEFAULT_SECTOR_COLOR,
     MAX_SECTORS,
     RING,
     addMenu,
@@ -55,12 +56,12 @@
   }
 </script>
 
-<div class="label">{t('radial.title')}</div>
+<div class="section-title">{t('radial.title')}</div>
 <p class="hint">{t('radial.hint')}</p>
 
 {#each menus as m, i (i)}
   {@const n = m.sectors.length}
-  <section class="menu">
+  <section class="menu card">
     <header>
       <svg class="preview" viewBox="-104 -104 208 208" aria-hidden="true">
         {#each m.sectors as s, k (k)}
@@ -72,7 +73,7 @@
       <span class="num">{i + 1}</span>
       <input class="name" value={m.name ?? ''} placeholder={t('radial.name')} {disabled} onchange={(e) => setMenu(i, { name: e.currentTarget.value.trim() || undefined })} />
       {#if !disabled}
-        <button class="icon-btn del" title={t('radial.remove')} onclick={() => app.edit((p) => removeMenu(p, i))}><Trash2 size={15} /></button>
+        <button class="icon-btn del danger" title={t('radial.remove')} onclick={() => app.edit((p) => removeMenu(p, i))}><Trash2 size={15} /></button>
       {/if}
     </header>
 
@@ -128,7 +129,7 @@
             {#each ICONS as name (name)}<option value={name}>{name}</option>{/each}
             <option value="__file">{t('radial.pick_image')}</option>
           </select>
-          <input type="color" value={s.color || '#14b8a6'} {disabled} onchange={(e) => app.edit((p) => updateSector(p, i, k, { color: e.currentTarget.value }))} />
+          <input type="color" value={s.color || DEFAULT_SECTOR_COLOR} {disabled} onchange={(e) => app.edit((p) => updateSector(p, i, k, { color: e.currentTarget.value }))} />
           <select
             value={s.submenu ?? 0}
             {disabled}
@@ -178,32 +179,24 @@
 {/if}
 
 <style>
-  .label {
+  .section-title {
     margin-top: 10px;
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--text-dim);
   }
   .hint {
     margin: 0;
     color: var(--text-dim);
-    font-size: 12px;
+    font-size: var(--fs-s);
   }
   .warn {
     margin: 0;
     color: var(--warning);
-    font-size: 12px;
+    font-size: var(--fs-s);
   }
   .menu {
     display: flex;
     flex-direction: column;
     gap: 12px;
     padding: 12px 16px 16px;
-    border: 1px solid var(--line);
-    border-radius: var(--radius-m);
-    background: var(--bg-1);
   }
   header {
     display: flex;
@@ -232,9 +225,6 @@
   .del {
     margin-left: auto;
   }
-  .del:hover {
-    color: var(--danger);
-  }
   .row {
     display: flex;
     flex-wrap: wrap;
@@ -244,7 +234,7 @@
     display: flex;
     flex-direction: column;
     gap: 3px;
-    font-size: 11px;
+    font-size: var(--fs-xs);
     color: var(--text-faint);
   }
   .fields {
@@ -276,10 +266,6 @@
   }
   .sector input[type='color'] {
     width: 30px;
-    height: 24px;
-    padding: 0;
-    border: 1px solid var(--line-strong);
-    background: none;
   }
   .acts {
     display: flex;
@@ -294,10 +280,10 @@
     align-items: center;
     gap: 4px;
     padding: 2px 6px 2px 10px;
-    border-radius: 99px;
+    border-radius: var(--radius-pill);
     background: var(--bg-3);
     border: 1px solid var(--line-strong);
-    font-size: 12px;
+    font-size: var(--fs-s);
   }
   .chip-x {
     display: inline-grid;
@@ -309,14 +295,14 @@
   }
   .chip-x:hover {
     background: var(--danger);
-    color: white;
+    color: var(--on-danger);
   }
   .add-act {
     display: inline-flex;
     align-items: center;
     gap: 3px;
     color: var(--accent);
-    font-size: 12px;
+    font-size: var(--fs-s);
   }
   .picker {
     flex-basis: 100%;

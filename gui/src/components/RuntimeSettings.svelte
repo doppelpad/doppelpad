@@ -17,7 +17,7 @@
 
 {#if options}
   <div class="section">
-    <div class="section-head"><span>{t('settings.runtime.title')}</span></div>
+    <div class="section-title"><span>{t('settings.runtime.title')}</span></div>
     <Toggle checked={app.live?.auto_switch ?? true} label={t('settings.runtime.auto_switch')} onchange={setAutoSwitch} />
     <p class="hint">{t('settings.runtime.auto_switch_hint')}</p>
     <Toggle checked={options.prevent_sleep} label={t('settings.runtime.prevent_sleep')} onchange={(v) => set({ prevent_sleep: v })} />
@@ -36,16 +36,9 @@
     flex-direction: column;
     gap: 8px;
   }
-  .section-head {
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--text-dim);
-  }
   .hint {
     margin: 0;
     color: var(--text-dim);
-    font-size: 12px;
+    font-size: var(--fs-s);
   }
 </style>

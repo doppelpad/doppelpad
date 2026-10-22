@@ -39,7 +39,7 @@
         {@const active = k === pointed}
         <path
           d={sectorPath(k, n, inner, outer)}
-          fill={active ? tone : 'rgba(22, 26, 33, 0.9)'}
+          fill={active ? tone : 'color-mix(in srgb, var(--bg-1) 90%, transparent)'}
           fill-opacity={active ? 0.85 : 1}
           stroke={active ? tone : 'var(--line-strong)'}
           stroke-width="2"
@@ -48,14 +48,14 @@
           {#if image}
             <image href={image} x={-18} y={-26} width="36" height="36" />
           {:else if Icon}
-            <g transform="translate(-14, -22)" color={active ? '#0f1115' : tone}><Icon size={28} /></g>
+            <g transform="translate(-14, -22)" color={active ? 'var(--bg-0)' : tone}><Icon size={28} /></g>
           {/if}
           {#if s.label}
             <text y={image || Icon ? 24 : 5} text-anchor="middle" class="label">{s.label}{s.submenu ? " ›" : ""}</text>
           {/if}
         </g>
       {/each}
-      <circle r={inner - 6} fill="rgba(15, 17, 21, 0.92)" stroke="var(--line-strong)" stroke-width="2" />
+      <circle r={inner - 6} fill="color-mix(in srgb, var(--bg-0) 92%, transparent)" stroke="var(--line-strong)" stroke-width="2" />
       <text y="-4" text-anchor="middle" class="centre-label">{pointedLabel}</text>
       {#if menu.name}<text y="18" text-anchor="middle" class="menu-name">{menu.name}</text>{/if}
     </svg>
@@ -75,7 +75,7 @@
     font-weight: 600;
   }
   .active .label {
-    fill: #0f1115;
+    fill: var(--bg-0);
   }
   .centre-label {
     fill: var(--text);
@@ -84,6 +84,6 @@
   }
   .menu-name {
     fill: var(--text-dim);
-    font-size: 12px;
+    font-size: var(--fs-s);
   }
 </style>

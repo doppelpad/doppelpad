@@ -157,19 +157,14 @@
   }
   .layer {
     align-self: flex-start;
-    font-size: 11px;
+    font-size: var(--fs-xs);
     padding: 1px 8px;
-    border-radius: 99px;
+    border-radius: var(--radius-pill);
     border: 1px solid var(--c);
     color: var(--c);
   }
   .section-title {
     margin-top: 4px;
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--text-dim);
   }
   .tabs {
     display: grid;
@@ -181,7 +176,7 @@
   }
   .tabs button {
     padding: 6px 4px;
-    font-size: 12px;
+    font-size: var(--fs-s);
     color: var(--text-dim);
   }
   .tabs button + button {
@@ -198,7 +193,7 @@
   .muted {
     margin: 0;
     color: var(--text-dim);
-    font-size: 12px;
+    font-size: var(--fs-s);
   }
   .graph {
     margin: 0;
@@ -223,7 +218,7 @@
     position: absolute;
     top: 4px;
     left: 6px;
-    font-size: 11px;
+    font-size: var(--fs-xs);
     color: var(--text-faint);
     pointer-events: none;
   }
@@ -253,12 +248,12 @@
   figcaption {
     display: flex;
     justify-content: space-between;
-    font-size: 11px;
+    font-size: var(--fs-xs);
     color: var(--text-faint);
   }
   .clear {
     align-self: flex-start;
-    font-size: 12px;
+    font-size: var(--fs-s);
     color: var(--text-dim);
   }
   .clear:hover {

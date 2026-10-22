@@ -79,7 +79,7 @@
     align-items: center;
     gap: 6px;
     padding: 6px 12px;
-    font-size: 12px;
+    font-size: var(--fs-s);
     color: var(--text-dim);
   }
   .tabs button + button {
@@ -96,7 +96,7 @@
   .count {
     min-width: 16px;
     padding: 0 5px;
-    border-radius: 99px;
+    border-radius: var(--radius-pill);
     background: var(--bg-3);
     color: var(--text-dim);
     font-size: 10.5px;

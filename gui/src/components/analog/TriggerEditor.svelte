@@ -124,9 +124,6 @@
     flex-direction: column;
     gap: 14px;
     padding: 14px 16px 16px;
-    border: 1px solid var(--line);
-    border-radius: var(--radius-m);
-    background: var(--bg-1);
   }
   h3 {
     margin: 0;
@@ -198,7 +195,7 @@
   .state {
     font-size: 11.5px;
     padding: 2px 8px;
-    border-radius: 99px;
+    border-radius: var(--radius-pill);
     border: 1px solid var(--line);
     color: var(--text-faint);
   }

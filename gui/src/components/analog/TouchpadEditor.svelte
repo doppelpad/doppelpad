@@ -84,7 +84,7 @@
   }
   .seg button {
     padding: 5px 12px;
-    font-size: 12px;
+    font-size: var(--fs-s);
     color: var(--text-dim);
   }
   .seg button + button {
@@ -97,6 +97,6 @@
   .hint {
     margin: -4px 0 4px;
     color: var(--text-dim);
-    font-size: 12px;
+    font-size: var(--fs-s);
   }
 </style>

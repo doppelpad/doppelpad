@@ -161,7 +161,7 @@
     padding-left: 84px;
   }
   .title {
-    font-size: 11px;
+    font-size: var(--fs-xs);
     font-weight: 600;
     letter-spacing: 0.08em;
     text-transform: uppercase;
@@ -191,7 +191,7 @@
   }
   .game.selected {
     background: var(--accent-soft);
-    border-color: rgba(20, 184, 166, 0.35);
+    border-color: color-mix(in srgb, var(--accent) 35%, transparent);
   }
   .game-main {
     flex: 1;
@@ -223,7 +223,7 @@
     text-overflow: ellipsis;
   }
   .sub {
-    font-size: 11px;
+    font-size: var(--fs-xs);
     color: var(--text-faint);
     display: inline-flex;
     align-items: center;
@@ -246,7 +246,7 @@
   }
   .section {
     margin: 14px 8px 6px;
-    font-size: 11px;
+    font-size: var(--fs-xs);
     color: var(--text-faint);
     text-transform: uppercase;
     letter-spacing: 0.06em;

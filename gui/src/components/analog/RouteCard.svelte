@@ -112,7 +112,7 @@
 
 <svelte:window onkeydown={onKeydown} />
 
-<section class="route">
+<section class="route card">
   <header>
     {#if !fixedSource}
       <label class="end">
@@ -130,7 +130,7 @@
       </select>
     </label>
     {#if !disabled}
-      <button class="icon-btn del" title={t('analog.routes.delete')} onclick={() => app.edit((p) => removeRoute(p, index))}>
+      <button class="icon-btn del danger" title={t('analog.routes.delete')} onclick={() => app.edit((p) => removeRoute(p, index))}>
         <Trash2 size={15} />
       </button>
     {/if}
@@ -250,9 +250,6 @@
     flex-direction: column;
     gap: 14px;
     padding: 12px 16px 16px;
-    border: 1px solid var(--line);
-    border-radius: var(--radius-m);
-    background: var(--bg-1);
   }
   header {
     display: flex;
@@ -271,7 +268,7 @@
     min-width: 0;
   }
   .end span {
-    font-size: 11px;
+    font-size: var(--fs-xs);
     color: var(--text-faint);
   }
   .end select {
@@ -280,20 +277,17 @@
   .del {
     margin-left: auto;
   }
-  .del:hover {
-    color: var(--danger);
-  }
   .flick-note {
     margin: 0;
     color: var(--text-dim);
-    font-size: 12px;
+    font-size: var(--fs-s);
   }
   .warn {
     display: flex;
     align-items: center;
     gap: 6px;
     color: var(--warning);
-    font-size: 12px;
+    font-size: var(--fs-s);
   }
   .fields {
     display: grid;
@@ -322,11 +316,11 @@
     align-items: center;
     gap: 4px;
     padding: 3px 6px 3px 10px;
-    border-radius: 99px;
+    border-radius: var(--radius-pill);
     background: var(--bg-3);
     border: 1px solid var(--line-strong);
     font-weight: 500;
-    font-size: 12px;
+    font-size: var(--fs-s);
   }
   .chip-x {
     display: inline-grid;
@@ -338,12 +332,12 @@
   }
   .chip-x:hover {
     background: var(--danger);
-    color: white;
+    color: var(--on-danger);
   }
   .always,
   .capturing {
     color: var(--text-faint);
-    font-size: 12px;
+    font-size: var(--fs-s);
   }
   .capturing {
     color: var(--accent);
@@ -354,7 +348,7 @@
     gap: 2px;
     color: var(--accent);
     border: 1px dashed var(--accent);
-    border-radius: 99px;
+    border-radius: var(--radius-pill);
     padding: 0 4px 0 8px;
   }
   .add select {
@@ -362,7 +356,7 @@
     border: none;
     color: var(--accent);
     padding: 3px 2px;
-    font-size: 12px;
+    font-size: var(--fs-s);
     cursor: pointer;
   }
   .add select option,

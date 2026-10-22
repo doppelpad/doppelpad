@@ -117,9 +117,9 @@
     border-radius: var(--radius-m);
   }
   .tag {
-    font-size: 11px;
+    font-size: var(--fs-xs);
     padding: 1px 8px;
-    border-radius: 99px;
+    border-radius: var(--radius-pill);
     border: 1px solid var(--layer-0);
     color: var(--layer-0);
   }
@@ -128,7 +128,7 @@
   }
   .when {
     color: var(--text-dim);
-    font-size: 12px;
+    font-size: var(--fs-s);
   }
   .inh .btn {
     margin-left: auto;

@@ -45,18 +45,18 @@
   }
 </script>
 
-<div class="label">{t('crosshairs.title')}</div>
+<div class="section-title">{t('crosshairs.title')}</div>
 <p class="hint">{t('crosshairs.hint')}</p>
 
 {#each crosshairs as c, i (i)}
   {@const f = full(c)}
-  <section class="xh">
+  <section class="xh card">
     <header>
       <span class="preview"><CrosshairShape crosshair={f} px={56} /></span>
       <span class="num">{i + 1}</span>
       <input class="name" value={c.name ?? ''} placeholder={t('crosshairs.name')} {disabled} onchange={(e) => set(i, { name: e.currentTarget.value.trim() || undefined })} />
       {#if !disabled}
-        <button class="icon-btn del" title={t('crosshairs.remove')} onclick={() => app.edit((p) => removeCrosshair(p, i))}>
+        <button class="icon-btn del danger" title={t('crosshairs.remove')} onclick={() => app.edit((p) => removeCrosshair(p, i))}>
           <Trash2 size={15} />
         </button>
       {/if}
@@ -132,27 +132,19 @@
 {/if}
 
 <style>
-  .label {
+  .section-title {
     margin-top: 10px;
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--text-dim);
   }
   .hint {
     margin: 0;
     color: var(--text-dim);
-    font-size: 12px;
+    font-size: var(--fs-s);
   }
   .xh {
     display: flex;
     flex-direction: column;
     gap: 12px;
     padding: 12px 16px 16px;
-    border: 1px solid var(--line);
-    border-radius: var(--radius-m);
-    background: var(--bg-1);
   }
   header {
     display: flex;
@@ -165,7 +157,7 @@
     width: 64px;
     height: 64px;
     border-radius: var(--radius-s);
-    background: repeating-conic-gradient(#3a4250 0% 25%, #262c37 0% 50%) 50% / 16px 16px;
+    background: repeating-conic-gradient(var(--line-strong) 0% 25%, var(--bg-3) 0% 50%) 50% / 16px 16px;
     flex: none;
   }
   .num {
@@ -178,9 +170,6 @@
   }
   .del {
     margin-left: auto;
-  }
-  .del:hover {
-    color: var(--danger);
   }
   .shapes {
     display: flex;
@@ -211,14 +200,10 @@
     align-items: center;
     gap: 6px;
     color: var(--text-dim);
-    font-size: 12px;
+    font-size: var(--fs-s);
   }
   .color input[type='color'] {
     width: 34px;
-    height: 24px;
-    padding: 0;
-    border: 1px solid var(--line-strong);
-    background: none;
   }
   .color input[type='number'] {
     width: 64px;

@@ -107,7 +107,7 @@
     width: 100%;
     padding: 12px;
     border-radius: var(--radius-l);
-    background: rgba(15, 17, 21, 0.82);
+    background: color-mix(in srgb, var(--bg-0) 82%, transparent);
     border: 1px solid var(--line-strong);
   }
   .drawing,

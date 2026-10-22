@@ -557,9 +557,9 @@
   }
   .layer {
     align-self: flex-start;
-    font-size: 11px;
+    font-size: var(--fs-xs);
     padding: 1px 8px;
-    border-radius: 99px;
+    border-radius: var(--radius-pill);
     border: 1px solid var(--c);
     color: var(--c);
   }
@@ -603,7 +603,7 @@
   .zones button {
     position: relative;
     padding: 6px 4px 8px;
-    font-size: 12px;
+    font-size: var(--fs-s);
     color: var(--text-dim);
   }
   .zones button + button {
@@ -670,7 +670,7 @@
   }
   .act-desc {
     color: var(--text-dim);
-    font-size: 12px;
+    font-size: var(--fs-s);
   }
   .act-desc strong {
     color: var(--text);
@@ -680,7 +680,7 @@
     display: flex;
     gap: 6px;
     align-items: center;
-    font-size: 12px;
+    font-size: var(--fs-s);
     color: var(--layer-2);
     background: color-mix(in srgb, var(--layer-2) 10%, transparent);
     border-radius: var(--radius-s);
@@ -688,11 +688,6 @@
   }
   .section-title {
     margin-top: 6px;
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--text-dim);
   }
   .chips {
     display: flex;
@@ -704,7 +699,7 @@
     align-items: center;
     gap: 4px;
     padding: 5px 8px 5px 10px;
-    border-radius: 99px;
+    border-radius: var(--radius-pill);
     background: var(--bg-3);
     border: 1px solid var(--line-strong);
     font-weight: 500;
@@ -734,7 +729,7 @@
   }
   .chip-x:hover {
     background: var(--danger);
-    color: white;
+    color: var(--on-danger);
   }
   .chip.add {
     background: none;
@@ -774,7 +769,7 @@
     align-items: center;
     gap: 6px;
     color: var(--text-dim);
-    font-size: 12px;
+    font-size: var(--fs-s);
     margin-left: auto;
   }
   .inline input:not([type='checkbox']) {
@@ -789,9 +784,9 @@
     color: var(--accent);
   }
   .tag {
-    font-size: 11px;
+    font-size: var(--fs-xs);
     background: var(--accent-soft);
-    border-radius: 99px;
+    border-radius: var(--radius-pill);
     padding: 0 6px;
   }
   .jump {
@@ -811,7 +806,7 @@
   }
   .segmented button {
     padding: 6px 4px;
-    font-size: 12px;
+    font-size: var(--fs-s);
     color: var(--text-dim);
   }
   .segmented button + button {
@@ -831,7 +826,7 @@
     gap: 4px;
     color: var(--text-dim);
     align-self: flex-start;
-    font-size: 12px;
+    font-size: var(--fs-s);
   }
   .disclosure :global(.rot) {
     transform: rotate(90deg);

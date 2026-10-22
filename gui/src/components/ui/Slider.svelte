@@ -130,7 +130,7 @@
   .unit {
     min-width: 14px;
     color: var(--text-faint);
-    font-size: 12px;
+    font-size: var(--fs-s);
   }
   /* Drawn here instead of natively: a thin track, teal up to the value, and a teal knob. */
   input[type='range'] {

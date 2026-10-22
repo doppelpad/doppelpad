@@ -16,7 +16,7 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
-    z-index: 90;
+    z-index: var(--z-toast);
     pointer-events: none;
   }
   .toast {

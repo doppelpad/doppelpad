@@ -73,7 +73,7 @@
 <div class="output">
   <h2>{t('views.output')}</h2>
 
-  <div class="label">{t('output.virtual_pad')}</div>
+  <div class="section-title">{t('output.virtual_pad')}</div>
   <div class="cards">
     {#each PADS as p (p.id)}
       <button
@@ -174,7 +174,7 @@
   </label>
   <p class="hint">{t(`output.repeat_hint.${typeof repeat === 'number' ? 'custom' : repeat}`)}</p>
 
-  <div class="label timing-label">{t('output.mouse')}</div>
+  <div class="section-title timing-label">{t('output.mouse')}</div>
   <p class="hint">{t('output.mouse_hint')}</p>
   <div class="timing">
     <label class="field">
@@ -206,7 +206,7 @@
     {/each}
   </div>
 
-  <div class="label timing-label">{t('output.turns')}</div>
+  <div class="section-title timing-label">{t('output.turns')}</div>
   <p class="hint">{t('output.turns_hint')}</p>
   <div class="timing">
     <label class="field">
@@ -239,7 +239,7 @@
     <span class="hint">{t('output.test_turn_hint')}</span>
   </div>
 
-  <div class="label timing-label">{t('output.shake')}</div>
+  <div class="section-title timing-label">{t('output.shake')}</div>
   <p class="hint">{t('output.shake_hint')}</p>
   <div class="timing">
     <label class="field">
@@ -270,7 +270,7 @@
     </label>
   </div>
 
-  <div class="label timing-label">{t('output.timing')}</div>
+  <div class="section-title timing-label">{t('output.timing')}</div>
   <p class="hint">{t('output.timing_hint')}</p>
   <div class="timing">
     {#each TIMING as f (f)}
@@ -310,13 +310,6 @@
     font-size: 18px;
     font-weight: 600;
   }
-  .label {
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--text-dim);
-  }
   .cards {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
@@ -328,9 +321,6 @@
     align-items: center;
     gap: 10px;
     padding: 18px 10px;
-    border-radius: var(--radius-m);
-    border: 1px solid var(--line);
-    background: var(--bg-1);
     color: var(--text-dim);
     text-align: center;
   }
@@ -351,8 +341,8 @@
     align-items: center;
     gap: 8px;
     color: var(--warning);
-    background: rgba(245, 158, 11, 0.08);
-    border: 1px solid rgba(245, 158, 11, 0.3);
+    background: color-mix(in srgb, var(--warning) 8%, transparent);
+    border: 1px solid color-mix(in srgb, var(--warning) 30%, transparent);
     border-radius: var(--radius-s);
     padding: 8px 10px;
   }
@@ -372,7 +362,7 @@
   .hint {
     margin: -6px 0 0;
     color: var(--text-dim);
-    font-size: 12px;
+    font-size: var(--fs-s);
   }
   .test-turn {
     display: flex;
