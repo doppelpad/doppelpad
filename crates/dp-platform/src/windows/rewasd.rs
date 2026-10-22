@@ -27,9 +27,8 @@ use windows_sys::Win32::System::Services::{
     SERVICE_STATUS, SERVICE_STATUS_PROCESS, SERVICE_STOP, SERVICE_STOPPED,
 };
 use windows_sys::Win32::System::Threading::{
-    GetCurrentProcessId, GetExitCodeProcess, OpenProcess, PROCESS_NAME_WIN32,
-    PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_SYNCHRONIZE, PROCESS_TERMINATE,
-    QueryFullProcessImageNameW, TerminateProcess, WaitForSingleObject,
+    GetCurrentProcessId, GetExitCodeProcess, OpenProcess, PROCESS_SYNCHRONIZE, PROCESS_TERMINATE,
+    TerminateProcess, WaitForSingleObject,
 };
 use windows_sys::Win32::UI::Shell::{
     SEE_MASK_NOASYNC, SEE_MASK_NOCLOSEPROCESS, SHELLEXECUTEINFOW, ShellExecuteExW,
@@ -39,7 +38,7 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
 };
 use windows_sys::core::BOOL;
 
-use super::{OwnedHandle, process, wide};
+use super::{OwnedHandle, from_wide_ptr, process, wide};
 
 const SERVICE: &str = "jlserv";
 /// How long the service gets to stop.
@@ -183,25 +182,10 @@ fn config(svc: &ScHandle) -> io::Result<(String, String)> {
     // SAFETY: filled in above; its strings point into `buf`, which outlives this block.
     unsafe {
         let cfg = &*buf.as_ptr().cast::<QUERY_SERVICE_CONFIGW>();
-        Ok((pwstr(cfg.lpBinaryPathName), pwstr(cfg.lpDisplayName)))
-    }
-}
-
-/// Read a NUL-terminated UTF-16 string (null reads as empty).
-///
-/// # Safety
-/// `p` is null or points to a NUL-terminated string.
-unsafe fn pwstr(p: *const u16) -> String {
-    if p.is_null() {
-        return String::new();
-    }
-    let mut len = 0;
-    // SAFETY: the caller guarantees a terminating NUL.
-    unsafe {
-        while *p.add(len) != 0 {
-            len += 1;
-        }
-        String::from_utf16_lossy(std::slice::from_raw_parts(p, len))
+        Ok((
+            from_wide_ptr(cfg.lpBinaryPathName),
+            from_wide_ptr(cfg.lpDisplayName),
+        ))
     }
 }
 
@@ -234,25 +218,10 @@ fn processes_in(dir: &Path, skip: u32) -> Vec<Process> {
             pid != 0
                 && pid != skip
                 && pid != own
-                && image_path(pid).is_some_and(|p| in_dir(&p, &dir))
+                && process::image_path(pid).is_some_and(|p| in_dir(&p, &dir))
         })
         .map(|(pid, name)| Process { pid, name })
         .collect()
-}
-
-fn image_path(pid: u32) -> Option<String> {
-    // SAFETY: plain query; the handle is owned and closed on return.
-    let process = OwnedHandle(unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid) });
-    if !process.valid() {
-        return None;
-    }
-    let mut buf = [0u16; 1024];
-    let mut len = buf.len() as u32;
-    // SAFETY: valid handle; `len` is the buffer size in characters.
-    let ok = unsafe {
-        QueryFullProcessImageNameW(process.0, PROCESS_NAME_WIN32, buf.as_mut_ptr(), &mut len)
-    };
-    (ok != 0).then(|| String::from_utf16_lossy(&buf[..len as usize]))
 }
 
 /// Stop the service directly when Doppelpad may, else through an elevated `sc.exe`;
@@ -332,12 +301,12 @@ fn stop_service_elevated(parent: HWND) -> Result<(), StopError> {
     if info.hProcess.is_null() {
         return Ok(()); // the caller still waits for the service to stop
     }
-    let process = OwnedHandle(info.hProcess);
+    let process = OwnedHandle::new(info.hProcess);
     let mut code = 0u32;
     // SAFETY: valid process handle and out-pointer.
     unsafe {
-        WaitForSingleObject(process.0, SERVICE_TIMEOUT.as_millis() as u32);
-        GetExitCodeProcess(process.0, &mut code);
+        WaitForSingleObject(process.raw(), SERVICE_TIMEOUT.as_millis() as u32);
+        GetExitCodeProcess(process.raw(), &mut code);
     }
     match code {
         0 => Ok(()),
@@ -356,13 +325,14 @@ fn close_processes(processes: &[Process]) -> Vec<String> {
     let mut open = Vec::new();
     for p in processes {
         // SAFETY: plain call; the handle is owned and closed on drop.
-        let h =
-            OwnedHandle(unsafe { OpenProcess(PROCESS_TERMINATE | PROCESS_SYNCHRONIZE, 0, p.pid) });
-        if h.valid() {
-            open.push((p, h));
-        } else {
-            tracing::warn!(name = %p.name, "cannot close reWASD program: {}", io::Error::last_os_error());
-            failed.push(p.name.clone());
+        match OwnedHandle::from_null_ret(unsafe {
+            OpenProcess(PROCESS_TERMINATE | PROCESS_SYNCHRONIZE, 0, p.pid)
+        }) {
+            Ok(h) => open.push((p, h)),
+            Err(e) => {
+                tracing::warn!(name = %p.name, "cannot close reWASD program: {e}");
+                failed.push(p.name.clone());
+            }
         }
     }
     if open.is_empty() {
@@ -375,13 +345,14 @@ fn close_processes(processes: &[Process]) -> Vec<String> {
     for (p, h) in &open {
         let left = deadline.saturating_duration_since(Instant::now());
         // SAFETY: valid process handles.
-        let exited = unsafe { WaitForSingleObject(h.0, left.as_millis() as u32) } == WAIT_OBJECT_0;
+        let exited =
+            unsafe { WaitForSingleObject(h.raw(), left.as_millis() as u32) } == WAIT_OBJECT_0;
         if exited {
             continue;
         }
         // SAFETY: as above.
-        let killed = unsafe { TerminateProcess(h.0, 1) } != 0
-            && unsafe { WaitForSingleObject(h.0, 2000) } == WAIT_OBJECT_0;
+        let killed = unsafe { TerminateProcess(h.raw(), 1) } != 0
+            && unsafe { WaitForSingleObject(h.raw(), 2000) } == WAIT_OBJECT_0;
         if !killed {
             tracing::warn!(name = %p.name, "cannot terminate reWASD program");
             failed.push(p.name.clone());

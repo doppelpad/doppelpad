@@ -6,6 +6,7 @@ use std::time::{Duration, Instant};
 use dp_core::pad::{
     Axis, PadButton, PadState, Rumble, axis_from_i16, unit_from_u8, unit_to_u16_trunc,
 };
+use windows_sys::Win32::Foundation::ERROR_SUCCESS;
 use windows_sys::Win32::System::LibraryLoader::{GetProcAddress, LoadLibraryW};
 
 use super::wide;
@@ -50,7 +51,6 @@ type SetStateFn = unsafe extern "system" fn(u32, *mut XInputVibration) -> u32;
 type GetBatteryFn = unsafe extern "system" fn(u32, u8, *mut XInputBatteryInformation) -> u32;
 type PowerOffFn = unsafe extern "system" fn(u32) -> u32;
 
-const ERROR_SUCCESS: u32 = 0;
 const SLOTS: u32 = 4;
 const RESCAN: Duration = Duration::from_secs(1);
 /// Battery levels change slowly; asking costs a call per slot.

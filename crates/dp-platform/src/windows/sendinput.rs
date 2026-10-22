@@ -3,8 +3,6 @@
 //! Keys are sent as scan codes (what DirectInput/raw-input games read), not virtual keys.
 //! Every injected event is tagged with [`INJECTED_TAG`] so our own capture hooks skip it.
 
-use std::mem::size_of;
-
 use dp_core::keys::{Key, MouseButton, WheelDir};
 use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
     INPUT, INPUT_0, INPUT_KEYBOARD, INPUT_MOUSE, KEYBDINPUT, KEYEVENTF_EXTENDEDKEY,
@@ -16,14 +14,13 @@ use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
 
 use windows_sys::Win32::Foundation::RECT;
 use windows_sys::Win32::UI::WindowsAndMessaging::{
-    ClipCursor, GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN,
+    ClipCursor, GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN, WHEEL_DELTA,
 };
 
 use crate::KbmOutput;
 
 /// Marker in `dwExtraInfo` identifying events injected by Doppelpad ("DPAD").
 pub const INJECTED_TAG: usize = 0x4450_4144;
-const WHEEL_DELTA: f32 = 120.0;
 
 #[derive(Default)]
 pub struct SendInputOutput {
@@ -161,7 +158,7 @@ impl KbmOutput for SendInputOutput {
 
     fn wheel(&mut self, dir: WheelDir, detents: f32) {
         let rem = &mut self.wheel_rem[dir as usize];
-        *rem += detents * WHEEL_DELTA;
+        *rem += detents * WHEEL_DELTA as f32;
         let amount = rem.trunc();
         if amount == 0.0 {
             return;

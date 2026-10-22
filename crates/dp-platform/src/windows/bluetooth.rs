@@ -7,8 +7,10 @@ use std::ptr::null_mut;
 use windows_sys::Win32::Devices::Bluetooth::{
     BLUETOOTH_FIND_RADIO_PARAMS, BluetoothFindFirstRadio, BluetoothFindRadioClose,
 };
-use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
+use windows_sys::Win32::Foundation::HANDLE;
 use windows_sys::Win32::System::IO::DeviceIoControl;
+
+use super::OwnedHandle;
 
 /// `CTL_CODE(FILE_DEVICE_BLUETOOTH, 0x03, METHOD_BUFFERED, FILE_ANY_ACCESS)`.
 const IOCTL_BTH_DISCONNECT_DEVICE: u32 = 0x0041_000C;
@@ -25,28 +27,32 @@ pub fn disconnect(address: u64) -> io::Result<()> {
         dwSize: size_of::<BLUETOOTH_FIND_RADIO_PARAMS>() as u32,
     };
     let mut radio: HANDLE = null_mut();
-    // SAFETY: valid parameter block and out-pointer; the handles are closed below.
-    unsafe {
-        let find = BluetoothFindFirstRadio(&params, &mut radio);
-        if find.is_null() {
-            return Err(io::Error::last_os_error());
-        }
-        let addr = address;
-        let mut returned = 0u32;
-        let ok = DeviceIoControl(
-            radio,
+    // SAFETY: valid parameter block and out-pointer.
+    let find = unsafe { BluetoothFindFirstRadio(&params, &mut radio) };
+    if find.is_null() {
+        return Err(io::Error::last_os_error());
+    }
+    let radio = OwnedHandle::new(radio);
+    // SAFETY: the search handle is not used again.
+    unsafe { BluetoothFindRadioClose(find) };
+    let mut returned = 0u32;
+    // SAFETY: valid radio handle, input buffer and out-pointer.
+    let ok = unsafe {
+        DeviceIoControl(
+            radio.raw(),
             IOCTL_BTH_DISCONNECT_DEVICE,
-            (&addr as *const u64).cast(),
+            (&raw const address).cast(),
             size_of::<u64>() as u32,
             null_mut(),
             0,
             &mut returned,
             null_mut(),
-        );
-        let err = io::Error::last_os_error();
-        CloseHandle(radio);
-        BluetoothFindRadioClose(find);
-        if ok == 0 { Err(err) } else { Ok(()) }
+        )
+    };
+    if ok == 0 {
+        Err(io::Error::last_os_error())
+    } else {
+        Ok(())
     }
 }
 

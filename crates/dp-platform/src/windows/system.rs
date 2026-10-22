@@ -56,7 +56,7 @@ fn enable_shutdown_privilege() -> Result<()> {
         {
             return Err(PlatformError::last_os("OpenProcessToken"));
         }
-        let token = OwnedHandle(token);
+        let token = OwnedHandle::new(token);
         let mut luid = LUID::default();
         if LookupPrivilegeValueW(null(), SE_SHUTDOWN_NAME, &mut luid) == 0 {
             return Err(PlatformError::last_os("LookupPrivilegeValueW"));
@@ -68,7 +68,7 @@ fn enable_shutdown_privilege() -> Result<()> {
                 Attributes: SE_PRIVILEGE_ENABLED,
             }],
         };
-        if AdjustTokenPrivileges(token.0, 0, &tp, 0, null_mut(), null_mut()) == 0 {
+        if AdjustTokenPrivileges(token.raw(), 0, &tp, 0, null_mut(), null_mut()) == 0 {
             return Err(PlatformError::last_os("AdjustTokenPrivileges"));
         }
     }
@@ -86,8 +86,7 @@ fn screenshot_dir() -> Result<PathBuf> {
                 "cannot find the Pictures folder".into(),
             ));
         }
-        let len = (0..).take_while(|&i| *p.add(i) != 0).count();
-        let s = String::from_utf16_lossy(std::slice::from_raw_parts(p, len));
+        let s = super::from_wide_ptr(p);
         CoTaskMemFree(p.cast());
         s
     };
@@ -133,7 +132,7 @@ fn capture(path: &std::path::Path) -> Result<()> {
             MonitorFromWindow(fg, MONITOR_DEFAULTTOPRIMARY)
         };
         let mut info = MONITORINFO {
-            cbSize: std::mem::size_of::<MONITORINFO>() as u32,
+            cbSize: size_of::<MONITORINFO>() as u32,
             rcMonitor: RECT::default(),
             rcWork: RECT::default(),
             dwFlags: 0,
@@ -218,8 +217,7 @@ impl SystemControl for WinSystem {
             if ok == 0 {
                 return true;
             }
-            let end = name.iter().position(|&c| c == 0).unwrap_or(name.len());
-            String::from_utf16_lossy(&name[..end]).eq_ignore_ascii_case("Default")
+            super::from_wide(&name).eq_ignore_ascii_case("Default")
         }
     }
 

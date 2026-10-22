@@ -14,8 +14,10 @@ use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
 use dp_core::pad::{PadState, Rgb, Rumble};
-use windows_sys::Win32::Devices::HumanInterfaceDevice::HidD_GetHidGuid;
-use windows_sys::core::GUID;
+use windows_sys::Win32::Devices::HumanInterfaceDevice::{
+    GUID_DEVINTERFACE_HID, HID_USAGE_GENERIC_GAMEPAD, HID_USAGE_GENERIC_JOYSTICK,
+    HID_USAGE_PAGE_GENERIC, HID_USAGE_PAGE_VENDOR_DEFINED_BEGIN,
+};
 
 use super::devnode::{InterfaceEntry, enumerate_interfaces, is_vigem_device};
 use super::hidio::{HidIo, Wait, Waker};
@@ -51,19 +53,22 @@ enum DriverKind {
 fn driver_kind(vid: u16, pid: u16, usage_page: u16, usage: u16) -> Option<DriverKind> {
     // Valve pads: the vendor collection; the others are their keyboard and mouse.
     if let Some(m) = steam::model_for(vid, pid) {
-        return (usage_page >= 0xFF00).then_some(DriverKind::Steam(m));
+        return (usage_page >= HID_USAGE_PAGE_VENDOR_DEFINED_BEGIN).then_some(DriverKind::Steam(m));
     }
-    if usage_page != 0x01 {
+    if usage_page != HID_USAGE_PAGE_GENERIC {
         return None;
     }
     if let Some(m) = sony::model_for(vid, pid) {
-        return (usage == 0x05).then_some(DriverKind::Sony(m));
+        return (usage == HID_USAGE_GENERIC_GAMEPAD).then_some(DriverKind::Sony(m));
     }
     // The GameCube adapter has a backend of its own.
     if crate::nintendo::gcadapter::is_adapter(vid, pid) {
         return None;
     }
-    let pad = matches!(usage, 0x04 | 0x05);
+    let pad = matches!(
+        usage,
+        HID_USAGE_GENERIC_JOYSTICK | HID_USAGE_GENERIC_GAMEPAD
+    );
     // Nintendo pads are game pads over Bluetooth; wired ones may report a joystick.
     if let Some(m) = nintendo::model_for(vid, pid) {
         return pad.then_some(DriverKind::Nintendo(m));
@@ -81,12 +86,12 @@ impl ReportDecoder for NoDecoder {
     }
 }
 
+/// The Bluetooth HID service class, which Bluetooth HID devices carry in their paths.
+const BT_HID_SERVICE: &str = "00001124-0000-1000-8000-00805f9b34fb";
+
 fn is_bluetooth(entry: &InterfaceEntry) -> bool {
     entry.instance_id.to_ascii_uppercase().contains("BTH")
-        || entry
-            .path
-            .to_ascii_lowercase()
-            .contains("00001124-0000-1000-8000-00805f9b34fb")
+        || entry.path.to_ascii_lowercase().contains(BT_HID_SERVICE)
 }
 
 /// Charging-grip slot of a HID interface: interface 1 holds the left Joy-Con.
@@ -304,13 +309,9 @@ impl Drop for HidBackend {
 
 impl Scanner {
     fn scan(&mut self) {
-        // SAFETY: GUID is plain data, for which all zeroes is a valid value.
-        let mut guid: GUID = unsafe { std::mem::zeroed() };
-        // SAFETY: valid out-pointer.
-        unsafe { HidD_GetHidGuid(&mut guid) };
         let now = Instant::now();
         self.skip.retain(|_, until| now < *until);
-        let present = enumerate_interfaces(&guid);
+        let present = enumerate_interfaces(&GUID_DEVINTERFACE_HID);
         let is_present = |path: &str| present.iter().any(|e| e.path == path);
 
         {

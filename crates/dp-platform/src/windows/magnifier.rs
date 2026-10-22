@@ -15,13 +15,11 @@ use windows_sys::Win32::UI::Magnification::{
 };
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, HWND_TOPMOST, LWA_ALPHA, MSG,
-    PM_REMOVE, PeekMessageW, RegisterClassW, SW_HIDE, SW_SHOWNOACTIVATE, SWP_NOACTIVATE,
-    SetLayeredWindowAttributes, SetWindowPos, ShowWindow, TranslateMessage, WNDCLASSW, WS_CHILD,
+    PM_REMOVE, PeekMessageW, SW_HIDE, SW_SHOWNOACTIVATE, SWP_NOACTIVATE,
+    SetLayeredWindowAttributes, SetWindowPos, ShowWindow, TranslateMessage, WS_CHILD,
     WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_EX_TRANSPARENT, WS_POPUP,
     WS_VISIBLE,
 };
-
-use super::wide;
 
 /// How often the picture is refreshed while the magnifier shows.
 const FRAME: Duration = Duration::from_millis(16);
@@ -90,12 +88,7 @@ fn run(rx: Receiver<Msg>) {
             return;
         }
         let hinst = GetModuleHandleW(null());
-        let class = wide("doppelpad-magnifier");
-        let mut wc: WNDCLASSW = std::mem::zeroed();
-        wc.lpfnWndProc = Some(DefWindowProcW);
-        wc.hInstance = hinst;
-        wc.lpszClassName = class.as_ptr();
-        RegisterClassW(&wc);
+        let class = super::register_class("doppelpad-magnifier", DefWindowProcW);
         let host = CreateWindowExW(
             WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE,
             class.as_ptr(),

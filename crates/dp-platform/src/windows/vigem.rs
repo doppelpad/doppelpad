@@ -204,8 +204,9 @@ struct Ds4Notification {
     blue: u8,
 }
 
-fn size_of<T>() -> u32 {
-    std::mem::size_of::<T>() as u32
+/// `size_of::<T>()` as the `u32` the driver structs carry.
+fn size_u32<T>() -> u32 {
+    size_of::<T>() as u32
 }
 
 /// Run one buffered request on the overlapped bus handle and wait for it. `out` says
@@ -217,12 +218,12 @@ fn bus_request<T>(
     req: &mut T,
     out: bool,
 ) -> std::result::Result<(), u32> {
-    let len = size_of::<T>();
+    let len = size_u32::<T>();
     let ptr: *mut c_void = (req as *mut T).cast();
     // SAFETY: `req` lives until the request finished (we wait for it); the event is ours.
     unsafe {
         let mut ov: OVERLAPPED = std::mem::zeroed();
-        ov.hEvent = event.0;
+        ov.hEvent = event.raw();
         let started = DeviceIoControl(
             bus,
             code,
@@ -249,12 +250,8 @@ fn bus_request<T>(
 
 fn new_event() -> Result<OwnedHandle> {
     // SAFETY: plain unnamed auto-reset event.
-    let h = OwnedHandle(unsafe { CreateEventW(null(), 0, 0, null()) });
-    if h.valid() {
-        Ok(h)
-    } else {
-        Err(PlatformError::last_os("CreateEventW"))
-    }
+    OwnedHandle::from_null_ret(unsafe { CreateEventW(null(), 0, 0, null()) })
+        .map_err(|_| PlatformError::last_os("CreateEventW"))
 }
 
 /// What the game last sent to the virtual DualShock 4.
@@ -284,7 +281,7 @@ impl Ds4Pad {
         let mut last_err = 0;
         for candidate in 1..=MAX_SERIAL {
             let mut req = PluginTarget {
-                size: size_of::<PluginTarget>(),
+                size: size_u32::<PluginTarget>(),
                 serial: candidate,
                 target_type: TARGET_TYPE_DUALSHOCK4,
                 vendor: SONY_VID,
@@ -304,7 +301,7 @@ impl Ds4Pad {
             )));
         }
         let mut wait = SerialRequest {
-            size: size_of::<SerialRequest>(),
+            size: size_u32::<SerialRequest>(),
             serial,
         };
         // Buses before 1.17 do not know this request; the pad works without it.
@@ -344,7 +341,7 @@ impl Ds4Pad {
                 let handle = thread_bus.as_raw_handle() as HANDLE;
                 while !stop.load(Ordering::Relaxed) {
                     let mut n = Ds4Notification {
-                        size: size_of::<Ds4Notification>(),
+                        size: size_u32::<Ds4Notification>(),
                         serial,
                         small_motor: 0,
                         large_motor: 0,
@@ -386,7 +383,7 @@ impl VirtualPad for Ds4Pad {
     fn update(&mut self, state: &PadState) -> Result<()> {
         let elapsed = self.created.elapsed().as_micros() as u64;
         let mut req = Ds4SubmitReportEx {
-            size: size_of::<Ds4SubmitReportEx>(),
+            size: size_u32::<Ds4SubmitReportEx>(),
             serial: self.serial,
             report: self.builder.build(state, elapsed),
         };
@@ -409,7 +406,7 @@ impl Drop for Ds4Pad {
     fn drop(&mut self) {
         self.stop.store(true, Ordering::Relaxed);
         let mut req = SerialRequest {
-            size: size_of::<SerialRequest>(),
+            size: size_u32::<SerialRequest>(),
             serial: self.serial,
         };
         let bus = self.client.as_raw_handle() as HANDLE;
@@ -429,9 +426,9 @@ mod tests {
 
     #[test]
     fn request_layouts_match_the_bus() {
-        assert_eq!(size_of::<PluginTarget>(), 16);
-        assert_eq!(size_of::<SerialRequest>(), 8);
-        assert_eq!(size_of::<Ds4SubmitReportEx>(), 71);
+        assert_eq!(size_u32::<PluginTarget>(), 16);
+        assert_eq!(size_u32::<SerialRequest>(), 8);
+        assert_eq!(size_u32::<Ds4SubmitReportEx>(), 71);
         assert_eq!(size_of::<Ds4Notification>(), 16);
     }
 

@@ -1,20 +1,22 @@
 //! Decoding a generic gamepad's input reports with the Windows HID parser (`HidP_*`).
 
 use windows_sys::Win32::Devices::HumanInterfaceDevice::{
-    HIDP_BUTTON_CAPS, HIDP_CAPS, HIDP_STATUS_SUCCESS, HIDP_VALUE_CAPS, HidD_FreePreparsedData,
-    HidD_GetPreparsedData, HidP_GetButtonCaps, HidP_GetCaps, HidP_GetUsageValue, HidP_GetUsages,
-    HidP_GetValueCaps, HidP_Input, PHIDP_PREPARSED_DATA,
+    HID_USAGE_GENERIC_HATSWITCH, HID_USAGE_GENERIC_WHEEL, HID_USAGE_GENERIC_X,
+    HID_USAGE_PAGE_BUTTON, HID_USAGE_PAGE_GENERIC, HID_USAGE_PAGE_SIMULATION, HIDP_BUTTON_CAPS,
+    HIDP_CAPS, HIDP_STATUS_SUCCESS, HIDP_VALUE_CAPS, HidD_FreePreparsedData, HidD_GetPreparsedData,
+    HidP_GetButtonCaps, HidP_GetCaps, HidP_GetUsageValue, HidP_GetUsages, HidP_GetValueCaps,
+    HidP_Input, PHIDP_PREPARSED_DATA,
 };
 use windows_sys::Win32::Foundation::HANDLE;
 
 use crate::generic::{RawInput, ReportDecoder};
 
-const PAGE_DESKTOP: u16 = 0x01;
-const PAGE_SIMULATION: u16 = 0x02;
-const PAGE_BUTTON: u16 = 0x09;
+const PAGE_DESKTOP: u16 = HID_USAGE_PAGE_GENERIC;
+const PAGE_SIMULATION: u16 = HID_USAGE_PAGE_SIMULATION;
+const PAGE_BUTTON: u16 = HID_USAGE_PAGE_BUTTON;
 /// X, Y, Z, Rx, Ry, Rz, slider, dial, wheel.
-const DESKTOP_AXES: std::ops::RangeInclusive<u16> = 0x30..=0x38;
-const HAT_SWITCH: u16 = 0x39;
+const DESKTOP_AXES: std::ops::RangeInclusive<u16> = HID_USAGE_GENERIC_X..=HID_USAGE_GENERIC_WHEEL;
+const HAT_SWITCH: u16 = HID_USAGE_GENERIC_HATSWITCH;
 /// More buttons than any pad has: the rest are ignored.
 const MAX_BUTTONS: usize = 32;
 
