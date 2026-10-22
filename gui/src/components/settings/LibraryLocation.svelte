@@ -52,6 +52,9 @@
   }
 </script>
 
+{#if place?.portable}
+  <p class="hint portable">{t('settings.library.portable', { dir: place.portable })}</p>
+{/if}
 <SettingsSection title={t('settings.profiles_dir')} hint={t('settings.library.hint')}>
   <PathRow path={place?.dir ?? ''} revealLabel={t('common.reveal')} />
   <div class="buttons">

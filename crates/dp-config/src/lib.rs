@@ -11,6 +11,7 @@ pub mod store;
 pub mod templates;
 
 use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 
 pub use compat::ImportError;
 pub use diag::{Diagnostic, Diagnostics, Severity};
@@ -810,9 +811,40 @@ pub const HOTKEYS_FILE: &str = "hotkeys.toml";
 /// The gyro calibration of each controller, in [`config_dir`].
 pub const CALIBRATION_FILE: &str = "calibration.toml";
 
-/// Per-user configuration directory (`%APPDATA%\doppelpad` or `~/.config/doppelpad`).
+/// Per-user configuration directory (`%APPDATA%\doppelpad` or `~/.config/doppelpad`), or the
+/// portable folder (see [`portable_dir`]).
 pub fn config_dir() -> PathBuf {
-    user_dir("APPDATA", "XDG_CONFIG_HOME", &[".config"])
+    dir_in(portable_dir(), false)
+}
+
+/// The file next to the executable that keeps everything beside it: portable mode.
+pub const PORTABLE_MARKER: &str = "portable";
+
+/// In portable mode (a [`PORTABLE_MARKER`] file next to the running executable), the folder
+/// that holds the settings, configs, logs and history: `data` beside the executable. Decided
+/// once per run.
+pub fn portable_dir() -> Option<&'static Path> {
+    static DIR: OnceLock<Option<PathBuf>> = OnceLock::new();
+    DIR.get_or_init(|| portable_data_dir(std::env::current_exe().ok()?.parent()?))
+        .as_deref()
+}
+
+/// `data` in `exe_dir` when `exe_dir` holds the portable marker.
+fn portable_data_dir(exe_dir: &Path) -> Option<PathBuf> {
+    exe_dir
+        .join(PORTABLE_MARKER)
+        .is_file()
+        .then(|| exe_dir.join("data"))
+}
+
+/// Where files live: in portable mode all in the portable folder, else settings roam
+/// (`%APPDATA%`) and `local` state stays on this machine (`%LOCALAPPDATA%`).
+fn dir_in(portable: Option<&Path>, local: bool) -> PathBuf {
+    match portable {
+        Some(p) => p.to_path_buf(),
+        None if local => user_dir("LOCALAPPDATA", "XDG_STATE_HOME", &[".local", "state"]),
+        None => user_dir("APPDATA", "XDG_CONFIG_HOME", &[".config"]),
+    }
 }
 
 /// `doppelpad` in the folder the Windows variable `win_var` names, else the XDG variable
@@ -843,16 +875,17 @@ pub fn default_profiles_dir() -> PathBuf {
 
 /// Per-user directory for log files: `%LOCALAPPDATA%\doppelpad\logs`, or
 /// `$XDG_STATE_HOME/doppelpad/logs` (default `~/.local/state/doppelpad/logs`). Local
-/// rather than roaming: logs describe this machine.
+/// rather than roaming: logs describe this machine. `logs` in the portable folder in portable
+/// mode.
 pub fn log_dir() -> PathBuf {
-    user_dir("LOCALAPPDATA", "XDG_STATE_HOME", &[".local", "state"]).join("logs")
+    dir_in(portable_dir(), true).join("logs")
 }
 
 /// Per-user directory for earlier versions of configs: `%LOCALAPPDATA%\doppelpad\history`, or
 /// `$XDG_STATE_HOME/doppelpad/history`. Outside the profiles folder, so the library never lists
-/// them.
+/// them. `history` in the portable folder in portable mode.
 pub fn history_dir() -> PathBuf {
-    user_dir("LOCALAPPDATA", "XDG_STATE_HOME", &[".local", "state"]).join("history")
+    dir_in(portable_dir(), true).join("history")
 }
 
 /// Whether a file looks like a profile: `.toml`, or content starting with a JSON object.
@@ -873,6 +906,26 @@ pub(crate) fn is_profile_file(path: &Path) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn portable_mode_keeps_everything_beside_the_executable() {
+        let exe_dir = tempfile::tempdir().unwrap();
+        assert_eq!(portable_data_dir(exe_dir.path()), None, "no marker");
+        std::fs::create_dir(exe_dir.path().join("data")).unwrap();
+        assert_eq!(
+            portable_data_dir(exe_dir.path()),
+            None,
+            "a data folder alone"
+        );
+        std::fs::write(exe_dir.path().join(PORTABLE_MARKER), "").unwrap();
+        let data = portable_data_dir(exe_dir.path()).unwrap();
+        assert_eq!(data, exe_dir.path().join("data"));
+        assert_eq!(dir_in(Some(&data), false), data);
+        assert_eq!(dir_in(Some(&data), true), data);
+        assert!(dir_in(None, false).ends_with("doppelpad"));
+        assert!(dir_in(None, true).ends_with("doppelpad"));
+        assert_eq!(portable_dir(), None, "the test runner has no marker");
+    }
 
     #[test]
     fn toml_roundtrip_through_to_toml() {

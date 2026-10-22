@@ -1156,7 +1156,8 @@
       "foreign": "{dir} holds other files. Choose an empty folder or one with Doppelpad games and configs.",
       "moved": "Games and configs moved to {dir}.",
       "used": "Using the games and configs in {dir}.",
-      "left_behind": "Moved, but {n} old files could not be removed from {dir}. Their copies are safe."
+      "left_behind": "Moved, but {n} old files could not be removed from {dir}. Their copies are safe.",
+      "portable": "Portable mode: settings, configs, logs and history are kept in {dir}, beside the app."
     },
     "tray_per_controller": "One more tray icon for each connected controller, in its own colour"
   },

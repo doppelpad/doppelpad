@@ -1156,7 +1156,8 @@
       "foreign": "In {dir} liegen andere Dateien. Wähle einen leeren Ordner oder einen mit Doppelpad-Spielen und -Configs.",
       "moved": "Spiele und Configs liegen jetzt in {dir}.",
       "used": "Die Spiele und Configs aus {dir} werden verwendet.",
-      "left_behind": "Verschoben, aber {n} alte Dateien ließen sich nicht aus {dir} entfernen. Ihre Kopien sind sicher."
+      "left_behind": "Verschoben, aber {n} alte Dateien ließen sich nicht aus {dir} entfernen. Ihre Kopien sind sicher.",
+      "portable": "Portabler Modus: Einstellungen, Configs, Logs und Verlauf liegen in {dir}, neben der App."
     },
     "tray_per_controller": "Ein weiteres Tray-Symbol für jeden verbundenen Controller, in eigener Farbe"
   },
