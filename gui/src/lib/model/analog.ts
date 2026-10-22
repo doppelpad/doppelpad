@@ -1,7 +1,7 @@
 // Pure helpers for the analog settings: stick and trigger shaping (per config, and the
-// fields a layer changes) and analog routes (per layer). The shaping functions mirror
-// dp-core's engine/analog.rs and the route rules engine/routes.rs and engine/compile.rs,
-// so the editors show what the engine does.
+// fields a layer changes), the gyro, the touchpad and virtual sticks. The shaping functions
+// mirror dp-core's engine/analog.rs, so the editors show what the engine does; the routes
+// are in routes.ts.
 
 import type {
   GyroSettings,

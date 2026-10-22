@@ -30,6 +30,7 @@ import type {
   TriggerConfig,
 } from '../types';
 import { applyCurve, shapeStick, shapeTrigger } from './analog';
+import { SETTINGS_PLACEHOLDER } from '../state/settings';
 import { controlLabel } from './controls';
 import contract from './fixtures/contract.json';
 import controls from './fixtures/controls.json';
@@ -202,6 +203,10 @@ const sorted = (o: object) => Object.keys(o).sort();
 describe('the types match what Rust sends', () => {
   it.each(cases)('%s', (_, keys, json) => {
     expect(sorted(json)).toEqual(sorted(keys));
+  });
+
+  it("the window's settings placeholder is Rust's default, the welcome guide aside", () => {
+    expect({ ...SETTINGS_PLACEHOLDER, welcome_done: false }).toEqual(contract.gui_settings);
   });
 
   it('the crosshair and the radial menu arrive', () => {
