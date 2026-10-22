@@ -10,7 +10,7 @@
 
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::{Context, Result};
@@ -29,8 +29,8 @@ use dp_core::repeat::KeyRepeater;
 use dp_platform::generic::GenericLayout;
 use dp_platform::groups::{DevicePolicy, Grouping, SeenDevice};
 use dp_platform::{
-    CaptureFilter, DeviceId, KbmEvent, Leds, PadSnapshot, Platform, PowerAction, TriggerEffects,
-    VirtualIgnoreList, VirtualPad, VirtualPadKind,
+    CaptureFilter, DeviceId, GamepadBackend, KbmEvent, Leds, PadSnapshot, Platform, PowerAction,
+    TriggerEffects, VirtualIgnoreList, VirtualPad, VirtualPadKind,
 };
 use serde::Serialize;
 
@@ -186,7 +186,10 @@ impl Session {
 
 /// Everything needed to run profiles against the real devices.
 pub struct Runtime {
+    /// The platform's backends, its gamepad backends moved into `pads`.
     platform: Platform,
+    /// Every gamepad backend, with the block list and the device groups applied.
+    pads: Grouping,
     /// The default session (if any) comes first.
     sessions: Vec<Session>,
     filter: Arc<CaptureFilter>,
@@ -225,10 +228,6 @@ pub struct Runtime {
     /// Keep the computer awake while a mapping plays output, and whether it is held awake.
     prevent_sleep: bool,
     awake: bool,
-    /// Blocked devices and device groups, applied by the wrapper around the backends.
-    policy: Arc<Mutex<DevicePolicy>>,
-    /// Every device the backends report, before blocking and grouping.
-    seen: Arc<Mutex<Vec<SeenDevice>>>,
     /// Turn wireless controllers off after this long without input.
     power_off_after: Option<u64>,
     idle: HashMap<DeviceId, Idle>,
@@ -426,7 +425,7 @@ fn rumble_gap_ms(vibration: &Vibration) -> u64 {
 
 /// Rumble for the session's controller: mapping rumble overrides what the game asks the
 /// virtual pad for. Also sets the light bar: the profile's, else the colour the game set.
-fn feedback(s: &mut Session, platform: &mut Platform, mapping_rumble: Option<Rumble>, now: u64) {
+fn feedback(s: &mut Session, pads: &mut Grouping, mapping_rumble: Option<Rumble>, now: u64) {
     if let Some(r) = s.vpad.as_mut().and_then(|v| v.take_rumble()) {
         s.game_rumble = r;
     }
@@ -441,9 +440,7 @@ fn feedback(s: &mut Session, platform: &mut Platform, mapping_rumble: Option<Rum
         sent.as_ref().is_some_and(|(d, r)| d == id && *r == rumble)
     };
     if !sent(&s.sent_rumble) && s.rumble_gap.due(now) {
-        for b in &mut platform.gamepads {
-            b.set_rumble(id, rumble);
-        }
+        pads.set_rumble(id, rumble);
         s.sent_rumble = Some((id.clone(), rumble));
     }
     // A trigger whose effect ends is turned off rather than left playing.
@@ -459,9 +456,7 @@ fn feedback(s: &mut Session, platform: &mut Platform, mapping_rumble: Option<Rum
         .as_ref()
         .is_some_and(|(d, t)| d == id && *t == effects)
     {
-        for b in &mut platform.gamepads {
-            b.set_trigger_effects(id, effects);
-        }
+        pads.set_trigger_effects(id, effects);
         s.sent_triggers = Some((id.clone(), effects));
     }
     let light = profile_light(s, now).or(s.game_lightbar);
@@ -474,36 +469,26 @@ fn feedback(s: &mut Session, platform: &mut Platform, mapping_rumble: Option<Rum
     if let Some((old, Some(_))) = &s.sent_lightbar
         && old != id
     {
-        for b in &mut platform.gamepads {
-            b.set_lightbar(old, None);
-        }
+        pads.set_lightbar(old, None);
     }
-    for b in &mut platform.gamepads {
-        b.set_lightbar(id, light);
-    }
+    pads.set_lightbar(id, light);
     s.sent_lightbar = Some((id.clone(), light));
 }
 
 /// Stop a session's feedback on its controller.
-fn quiet(s: &mut Session, platform: &mut Platform) {
+fn quiet(s: &mut Session, pads: &mut Grouping) {
     if let Some((id, r)) = s.sent_rumble.take()
         && r != Rumble::default()
     {
-        for b in &mut platform.gamepads {
-            b.set_rumble(&id, Rumble::default());
-        }
+        pads.set_rumble(&id, Rumble::default());
     }
     if let Some((id, Some(_))) = s.sent_lightbar.take() {
-        for b in &mut platform.gamepads {
-            b.set_lightbar(&id, None);
-        }
+        pads.set_lightbar(&id, None);
     }
     if let Some((id, t)) = s.sent_triggers.take()
         && t.iter().any(Option::is_some)
     {
-        for b in &mut platform.gamepads {
-            b.set_trigger_effects(&id, [Some(TriggerEffect::Off); 2]);
-        }
+        pads.set_trigger_effects(&id, [Some(TriggerEffect::Off); 2]);
     }
 }
 
@@ -521,14 +506,10 @@ impl Runtime {
 
     /// Runtime on explicit backends (tests use `NullPlatform::platform()`).
     pub(crate) fn with_platform(mut platform: Platform) -> Self {
-        let policy = Arc::new(Mutex::new(DevicePolicy::default()));
-        let seen = Arc::new(Mutex::new(Vec::new()));
-        let inner = std::mem::take(&mut platform.gamepads);
-        platform.gamepads = vec![Box::new(Grouping::new(inner, policy.clone(), seen.clone()))];
+        let pads = Grouping::new(std::mem::take(&mut platform.gamepads));
         Runtime {
             platform,
-            policy,
-            seen,
+            pads,
             sessions: Vec::new(),
             filter: CaptureFilter::new(),
             kbm_rx: None,
@@ -579,7 +560,7 @@ impl Runtime {
             for s in &mut self.sessions {
                 let out = s.engine.release_all();
                 emit(s, &mut self.platform, &out, now);
-                quiet(s, &mut self.platform);
+                quiet(s, &mut self.pads);
             }
             self.filter.set_enabled(false);
         } else {
@@ -668,8 +649,8 @@ impl Runtime {
     }
 
     /// Ignore the blocked devices and play each group as one controller.
-    pub(crate) fn set_device_policy(&self, policy: DevicePolicy) {
-        *self.policy.lock().unwrap() = policy;
+    pub(crate) fn set_device_policy(&mut self, policy: DevicePolicy) {
+        self.pads.set_policy(policy);
     }
 
     /// Turn wireless controllers off after `after` without input; `None` never does.
@@ -681,10 +662,7 @@ impl Runtime {
 
     /// Turn a wireless controller off now; `false` if none of the backends can.
     pub(crate) fn power_off(&mut self, id: &DeviceId) -> bool {
-        let mut done = false;
-        for b in &mut self.platform.gamepads {
-            done |= b.power_off(id);
-        }
+        let done = self.pads.power_off(id);
         if done {
             tracing::info!(device = %id, "controller turned off");
         } else {
@@ -741,15 +719,12 @@ impl Runtime {
 
     /// How generic pads' inputs map to pad controls, by model.
     pub(crate) fn set_layouts(&mut self, layouts: Vec<GenericLayout>) {
-        let layouts = Arc::new(layouts);
-        for b in &mut self.platform.gamepads {
-            b.set_layouts(layouts.clone());
-        }
+        self.pads.set_layouts(Arc::new(layouts));
     }
 
     /// Every device the backends report, blocked and grouped ones included.
     pub(crate) fn seen_devices(&self) -> Vec<SeenDevice> {
-        self.seen.lock().unwrap().clone()
+        self.pads.seen().to_vec()
     }
 
     /// Show `leds(controller)` on every connected controller, sending only changes.
@@ -764,9 +739,7 @@ impl Runtime {
                     self.sent_leds.insert(id.clone(), want);
                 }
             }
-            for b in &mut self.platform.gamepads {
-                b.set_leds(id, want);
-            }
+            self.pads.set_leds(id, want);
         }
     }
 
@@ -796,18 +769,12 @@ impl Runtime {
 
     /// Controllers the backends found but cannot use, explained for the user.
     pub fn device_problems(&self) -> Vec<String> {
-        self.platform
-            .gamepads
-            .iter()
-            .flat_map(|b| b.problems())
-            .collect()
+        self.pads.problems()
     }
 
     /// Look for controllers now and retry the ones that could not be opened.
     pub(crate) fn rescan_devices(&mut self) {
-        for b in &mut self.platform.gamepads {
-            b.rescan();
-        }
+        self.pads.rescan();
     }
 
     /// Connected controllers the hiding driver hides from Doppelpad itself, explained for
@@ -936,7 +903,7 @@ impl Runtime {
         let out = s.engine.release_all();
         let now = self.now_ms();
         emit(&mut s, &mut self.platform, &out, now);
-        quiet(&mut s, &mut self.platform);
+        quiet(&mut s, &mut self.pads);
         tracing::info!(profile = %s.engine.profile().name, device = ?s.owner, "profile stopped");
         drop(s); // unplugs the virtual pad
         self.sessions_changed();
@@ -951,9 +918,7 @@ impl Runtime {
                 .filter_map(|s| s.vpad.as_ref()?.xinput_slot())
                 .collect(),
         };
-        for b in &mut self.platform.gamepads {
-            b.ignore_virtual(&ignore);
-        }
+        self.pads.ignore_virtual(&ignore);
         let capture = self.sessions.iter().any(|s| s.needs_capture);
         if capture && self.kbm_rx.is_none() {
             match self.platform.kbm_capture.start(self.filter.clone()) {
@@ -1099,9 +1064,7 @@ impl Runtime {
 
     fn poll_devices(&mut self, now: u64) {
         self.snapshots.clear();
-        for b in &mut self.platform.gamepads {
-            b.poll(&mut self.snapshots);
-        }
+        self.pads.poll(&mut self.snapshots);
         for s in &mut self.snapshots {
             self.calibration.apply(&s.info.id.0, &mut s.state, now);
         }
@@ -1227,7 +1190,7 @@ impl Runtime {
                 kbm,
             });
             emit(s, &mut self.platform, &out, now);
-            feedback(s, &mut self.platform, out.rumble, now);
+            feedback(s, &mut self.pads, out.rumble, now);
             if s.owner.is_none()
                 && let Some(echo) = &mut self.echo
             {
