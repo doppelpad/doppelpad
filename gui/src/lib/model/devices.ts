@@ -42,9 +42,7 @@ export function drawingsFor(dev: Pick<LiveDevice, 'family' | 'vendor_id' | 'prod
     case 'dual_shock4':
       return { front: 'dualsense', back: 'dualsenseBack' };
     case 'switch_pro':
-      return is(NINTENDO, [SWITCH2_PRO])
-        ? { front: 'switch2pro', back: 'switch2proBack' }
-        : { front: 'switchpro', back: 'switchproBack' };
+      return is(NINTENDO, [SWITCH2_PRO]) ? { front: 'switch2pro', back: 'switch2proBack' } : { front: 'switchpro', back: 'switchproBack' };
     case 'joy_con':
       return { front: is(NINTENDO, JOYCON2) ? 'joycon2' : 'joycon', back: 'joyconBack' };
     case 'game_cube':

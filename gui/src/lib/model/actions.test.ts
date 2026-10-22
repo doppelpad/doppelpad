@@ -29,8 +29,6 @@ describe('controller recorder', () => {
       { pad: 'A', action: 'up' },
       { stick: 'left', x: 0, y: 1, action: 'down' },
     ]);
-    expect(recordedSteps(none, new Set(['LT']), 8, 0), 'short gaps are dropped').toEqual([
-      { trigger: 'left', action: 'down' },
-    ]);
+    expect(recordedSteps(none, new Set(['LT']), 8, 0), 'short gaps are dropped').toEqual([{ trigger: 'left', action: 'down' }]);
   });
 });

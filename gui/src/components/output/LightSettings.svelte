@@ -17,9 +17,7 @@
   const layers = $derived(app.profile ? layerIds(app.profile).filter((l) => l !== 0) : []);
 
   let layer = $state(0);
-  const own = $derived<Light | undefined>(
-    layer === 0 ? app.profile?.lightbar : app.profile?.layers?.find((l) => l.id === layer)?.lightbar,
-  );
+  const own = $derived<Light | undefined>(layer === 0 ? app.profile?.lightbar : app.profile?.layers?.find((l) => l.id === layer)?.lightbar);
   const light = $derived(def ? lightConfig(own, def) : null);
 
   function set(patch: Partial<Light> | undefined) {
@@ -70,7 +68,11 @@
           </span>
         {/each}
         {#if !disabled && light.colors.length < 10}
-          <button class="icon-btn" title={t('light.add_color')} onclick={() => set({ colors: [...light.colors, light.colors.at(-1) ?? '#ffffff'] })}><Plus size={14} /></button>
+          <button
+            class="icon-btn"
+            title={t('light.add_color')}
+            onclick={() => set({ colors: [...light.colors, light.colors.at(-1) ?? '#ffffff'] })}><Plus size={14} /></button
+          >
         {/if}
       </div>
       {#if light.colors.length > 1}

@@ -42,7 +42,7 @@ function partOf(l: Layer | undefined, kind: AnalogKind): Group | undefined {
 /** The layer with a new group for `kind`; empty groups are dropped. */
 function withPart(l: Layer, kind: AnalogKind, group: Group): Layer {
   const part = nonEmpty(group);
-  if (kind !== 'virtual_sticks') return setOrDrop(l, kind, part as Sticks & Triggers | undefined);
+  if (kind !== 'virtual_sticks') return setOrDrop(l, kind, part as (Sticks & Triggers) | undefined);
   return setOrDrop(l, 'virtual', nonEmpty(setOrDrop({ ...l.virtual }, 'sticks', part as VirtualSticks | undefined)));
 }
 
@@ -89,14 +89,7 @@ function setPair<T extends object>(
  * value (`main`) is dropped, so the layer follows Main for it again. Declares the layer if
  * needed.
  */
-export function setLayerPart(
-  p: Profile,
-  layer: number,
-  kind: AnalogKind,
-  side: Side,
-  patch: object,
-  main: object,
-): Profile {
+export function setLayerPart(p: Profile, layer: number, kind: AnalogKind, side: Side, patch: object, main: object): Profile {
   return patchLayer(p, layer, (l) => {
     const group: Group = { ...partOf(l, kind) };
     const own: Record<string, unknown> = { ...(group[side] ?? {}) };
@@ -121,13 +114,7 @@ export function setStick(p: Profile, side: Side, patch: Partial<StickConfig>, de
 }
 
 /** Change a trigger's settings on Main, or only on `layer`. */
-export function setTrigger(
-  p: Profile,
-  side: Side,
-  patch: Partial<TriggerConfig>,
-  def: TriggerFull,
-  layer = 0,
-): Profile {
+export function setTrigger(p: Profile, side: Side, patch: Partial<TriggerConfig>, def: TriggerFull, layer = 0): Profile {
   if (layer !== 0) return setLayerPart(p, layer, 'triggers', side, patch, triggerConfig(p, side, def));
   return setOrDrop(p, 'triggers', setPair(p.triggers, side, patch, def));
 }
@@ -138,23 +125,12 @@ export function jitterConfig(own: Jitter | undefined, def: Required<Jitter>): Re
   return { ...def, ...own };
 }
 
-export function virtualStickConfig(
-  p: Profile,
-  side: Side,
-  def: Required<VirtualStick>,
-  layer = 0,
-): Required<VirtualStick> {
+export function virtualStickConfig(p: Profile, side: Side, def: Required<VirtualStick>, layer = 0): Required<VirtualStick> {
   return { ...def, ...p.virtual?.sticks?.[side], ...declared(p, layer)?.virtual?.sticks?.[side] };
 }
 
 /** Change how mappings push a virtual stick, on Main or only on `layer`. */
-export function setVirtualStick(
-  p: Profile,
-  side: Side,
-  patch: Partial<VirtualStick>,
-  def: Required<VirtualStick>,
-  layer = 0,
-): Profile {
+export function setVirtualStick(p: Profile, side: Side, patch: Partial<VirtualStick>, def: Required<VirtualStick>, layer = 0): Profile {
   if (layer !== 0) return setLayerPart(p, layer, 'virtual_sticks', side, patch, virtualStickConfig(p, side, def));
   return setVirtualDevice(p, 'sticks', setPair(p.virtual?.sticks, side, patch, def));
 }
@@ -265,9 +241,28 @@ export const MAX_CURVE_POINTS = 8;
 
 export const CURVE_PRESETS: { id: string; points: CurvePoint[] }[] = [
   { id: 'linear', points: [] },
-  { id: 'precise', points: [[0.3, 0.15], [0.7, 0.55]] },
-  { id: 'very_precise', points: [[0.25, 0.06], [0.5, 0.25], [0.75, 0.56]] },
-  { id: 'fast', points: [[0.3, 0.45], [0.7, 0.85]] },
+  {
+    id: 'precise',
+    points: [
+      [0.3, 0.15],
+      [0.7, 0.55],
+    ],
+  },
+  {
+    id: 'very_precise',
+    points: [
+      [0.25, 0.06],
+      [0.5, 0.25],
+      [0.75, 0.56],
+    ],
+  },
+  {
+    id: 'fast',
+    points: [
+      [0.3, 0.45],
+      [0.7, 0.85],
+    ],
+  },
 ];
 
 /** The preset these points are, if any. */

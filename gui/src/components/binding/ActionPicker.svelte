@@ -34,7 +34,22 @@
   /** Turn actions offered: a quarter left or right, or around. */
   const TURNS = [-90, 90, 180];
   /** Gestures a touch action can play on the virtual touchpad. */
-  const TOUCH_OUTPUTS: TouchOutput[] = ['swipe_up', 'swipe_down', 'swipe_left', 'swipe_right', 'swipe2_up', 'swipe2_down', 'swipe2_left', 'swipe2_right', 'zoom_in', 'zoom_out', 'tap', 'tap_left', 'tap_right', 'multi_tap'];
+  const TOUCH_OUTPUTS: TouchOutput[] = [
+    'swipe_up',
+    'swipe_down',
+    'swipe_left',
+    'swipe_right',
+    'swipe2_up',
+    'swipe2_down',
+    'swipe2_left',
+    'swipe2_right',
+    'zoom_in',
+    'zoom_out',
+    'tap',
+    'tap_left',
+    'tap_right',
+    'multi_tap',
+  ];
   const PAD_BUTTONS = $derived((app.catalog?.pad_buttons ?? []) as PadButtonName[]);
 
   function stickAction(stick: StickName, d: Dir): Action {
@@ -139,7 +154,9 @@
       <div class="group">{t('picker.turn')}</div>
       <div class="grid">
         {#each TURNS as deg (deg)}
-          <button class="chip" title={t('picker.turn_hint')} onclick={() => onpick({ turn: deg })}>{t(`picker.turn_${deg < 0 ? 'left' : deg === 180 ? 'around' : 'right'}`)}</button>
+          <button class="chip" title={t('picker.turn_hint')} onclick={() => onpick({ turn: deg })}
+            >{t(`picker.turn_${deg < 0 ? 'left' : deg === 180 ? 'around' : 'right'}`)}</button
+          >
         {/each}
       </div>
     </div>
@@ -156,7 +173,8 @@
         <div class="grid">
           {#each DIRS as d (d)}
             <button class="chip" onclick={() => onpick(stickAction(s, d))}>
-              {t(`controls.${SIDES[s].stick}`)} {t(`dirs.${d}`)}
+              {t(`controls.${SIDES[s].stick}`)}
+              {t(`dirs.${d}`)}
             </button>
           {/each}
         </div>

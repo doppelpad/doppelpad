@@ -64,9 +64,7 @@ export const isBlocked = (m: Mapping | undefined) => !!m && (m.actions ?? []).le
 
 /** The mapping for exactly this layer, trigger and activator (no inheritance). */
 export function findMapping(p: Profile, layer: number, combo: Combo, activator: Activator): Mapping | undefined {
-  return p.mappings.find(
-    (m) => layerOf(m) === layer && activatorOf(m) === activator && sameCombo(m.trigger, combo),
-  );
+  return p.mappings.find((m) => layerOf(m) === layer && activatorOf(m) === activator && sameCombo(m.trigger, combo));
 }
 
 /** All mappings of this trigger defined directly on `layer`. */
@@ -154,9 +152,7 @@ export function upsertMapping(p: Profile, m: Mapping): Profile {
 export function removeMapping(p: Profile, layer: number, combo: Combo, activator: Activator): Profile {
   return {
     ...p,
-    mappings: p.mappings.filter(
-      (m) => !(layerOf(m) === layer && activatorOf(m) === activator && sameCombo(m.trigger, combo)),
-    ),
+    mappings: p.mappings.filter((m) => !(layerOf(m) === layer && activatorOf(m) === activator && sameCombo(m.trigger, combo))),
   };
 }
 
@@ -306,9 +302,7 @@ export function removeLayer(p: Profile, id: number): Profile {
     {
       ...p,
       layers: (p.layers ?? []).filter((l) => l.id !== id),
-      mappings: p.mappings
-        .filter((m) => layerOf(m) !== id)
-        .map((m) => (m.jump?.layer === id ? tidyMapping({ ...m, jump: undefined }) : m)),
+      mappings: p.mappings.filter((m) => layerOf(m) !== id).map((m) => (m.jump?.layer === id ? tidyMapping({ ...m, jump: undefined }) : m)),
     },
     id,
     [],

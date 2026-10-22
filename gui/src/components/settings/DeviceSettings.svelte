@@ -69,7 +69,9 @@
           {d.name}
         </label>
       {/each}
-      <button class="btn" disabled={!name.trim() || picked.length < 2} onclick={create}><Plus size={14} /> {t('devices.settings.make_group')}</button>
+      <button class="btn" disabled={!name.trim() || picked.length < 2} onclick={create}
+        ><Plus size={14} /> {t('devices.settings.make_group')}</button
+      >
     </div>
   {:else if groups.length === 0}
     <p class="hint">{t('devices.settings.group_hint')}</p>

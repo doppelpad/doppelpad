@@ -45,7 +45,8 @@
     {/each}
     {#if !readOnly}
       <button class="add" class:on={picking} onclick={() => (picking = !picking)}>
-        <Plus size={13} /> {t('binding.add_action')}
+        <Plus size={13} />
+        {t('binding.add_action')}
       </button>
     {/if}
   </div>

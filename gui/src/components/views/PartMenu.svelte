@@ -42,7 +42,9 @@
   } = $props();
 
   const split = $derived(!!app.profile?.touchpad?.split);
-  const prefix = $derived(menu.kind === 'stick' ? SIDES[menu.side].stick : menu.kind === 'touch' ? (split ? `Trackpad${half}` : 'Touch') : 'Gyro');
+  const prefix = $derived(
+    menu.kind === 'stick' ? SIDES[menu.side].stick : menu.kind === 'touch' ? (split ? `Trackpad${half}` : 'Touch') : 'Gyro',
+  );
   const diagonals = $derived(menu.kind === 'touch' || (menu.kind === 'stick' && !!app.profile?.sticks?.[menu.side]?.diagonals));
 
   /** The direction grid, row by row; the middle is the stick's click or the touchpad's centre. */

@@ -12,9 +12,10 @@ export const STEPS: Step[] = [
   ...(['A', 'B', 'X', 'Y', 'LB', 'RB'] as const).map((button): Step => ({ kind: 'button', button })),
   { kind: 'trigger', trigger: 'left' },
   { kind: 'trigger', trigger: 'right' },
-  ...(['Back', 'Start', 'LS', 'RS', 'Guide', 'DpadUp', 'DpadDown', 'DpadLeft', 'DpadRight'] as const).map(
-    (button): Step => ({ kind: 'button', button }),
-  ),
+  ...(['Back', 'Start', 'LS', 'RS', 'Guide', 'DpadUp', 'DpadDown', 'DpadLeft', 'DpadRight'] as const).map((button): Step => ({
+    kind: 'button',
+    button,
+  })),
   ...(['LeftX', 'LeftY', 'RightX', 'RightY'] as const).map((axis): Step => ({ kind: 'stick', axis })),
 ];
 

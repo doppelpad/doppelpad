@@ -28,17 +28,7 @@ import {
   virtualRamp,
   virtualStickConfig,
 } from './analog';
-import {
-  addRoute,
-  layerRoutes,
-  newRoute,
-  overrideRoute,
-  removeRoute,
-  routeFields,
-  routeTargets,
-  sourcePatch,
-  updateRoute,
-} from './routes';
+import { addRoute, layerRoutes, newRoute, overrideRoute, removeRoute, routeFields, routeTargets, sourcePatch, updateRoute } from './routes';
 import { setStickLevel, setTriggerLevel } from './zones';
 const close = (a: number, b: number) => expect(Math.abs(a - b)).toBeLessThan(1e-6);
 
@@ -46,7 +36,10 @@ describe('stick and trigger settings', () => {
   it('fill in the defaults', () => {
     expect(stickConfig(empty(), 'left', def.stick)).toEqual(def.stick);
     const shooter = examples['shooter-advanced'] as unknown as Profile;
-    expect(stickConfig(shooter, 'right', def.stick).curve).toEqual([[0.3, 0.15], [0.7, 0.55]]);
+    expect(stickConfig(shooter, 'right', def.stick).curve).toEqual([
+      [0.3, 0.15],
+      [0.7, 0.55],
+    ]);
     expect(triggerConfig(shooter, 'right', def.trigger).zones.low).toBe(0.1);
   });
 
@@ -58,7 +51,19 @@ describe('stick and trigger settings', () => {
     left = setStickLevel(left, 'high', 'both', 0.75, zd);
     p = setStick(p, 'left', { invert_y: true, rotation: 45, zones: left, diagonals: true, direction_width: 20 }, def.stick);
     const right = setStickLevel(def.stick.zones, 'low', 'both', 0.25, zd);
-    p = setStick(p, 'right', { deadzone: 0.06, curve: [[0.3, 0.15], [0.7, 0.55]], zones: right }, def.stick);
+    p = setStick(
+      p,
+      'right',
+      {
+        deadzone: 0.06,
+        curve: [
+          [0.3, 0.15],
+          [0.7, 0.55],
+        ],
+        zones: right,
+      },
+      def.stick,
+    );
     p = setTrigger(p, 'left', { deadzone: 0.05, full_pull: 0.9, zones: setTriggerLevel(def.trigger.zones, 'low', 0.0625) }, def.trigger);
     const rt = setTriggerLevel(setTriggerLevel(def.trigger.zones, 'low', 0.125), 'med', 0.5);
     p = setTrigger(p, 'right', { full_pull: 0.875, zones: rt }, def.trigger);
@@ -130,7 +135,6 @@ describe('stick and trigger settings', () => {
     p = setTrigger(empty(), 'left', { full_pull: 0.5 }, def.trigger);
     expect('triggers' in setTrigger(p, 'left', { full_pull: def.trigger.full_pull }, def.trigger)).toBe(false);
   });
-
 });
 
 describe('shaping mirrors the engine', () => {
@@ -171,11 +175,20 @@ describe('curve editing', () => {
   it('keeps points sorted and inside their neighbours', () => {
     let pts = addCurvePoint([], [0.7, 0.55]);
     pts = addCurvePoint(pts, [0.3, 0.15]);
-    expect(pts).toEqual([[0.3, 0.15], [0.7, 0.55]]);
+    expect(pts).toEqual([
+      [0.3, 0.15],
+      [0.7, 0.55],
+    ]);
     expect(curvePreset(pts)).toBe('precise');
-    expect(moveCurvePoint(pts, 0, [0.9, 1.4])).toEqual([[0.69, 1], [0.7, 0.55]]);
+    expect(moveCurvePoint(pts, 0, [0.9, 1.4])).toEqual([
+      [0.69, 1],
+      [0.7, 0.55],
+    ]);
     expect(removeCurvePoint(pts, 0)).toEqual([[0.7, 0.55]]);
-    expect(addCurvePoint(pts, [0.3, 0.5])).toEqual([[0.3, 0.5], [0.7, 0.55]]);
+    expect(addCurvePoint(pts, [0.3, 0.5])).toEqual([
+      [0.3, 0.5],
+      [0.7, 0.55],
+    ]);
   });
 
   it('maps points to the response graph and back', () => {
@@ -222,7 +235,11 @@ describe('analog routes', () => {
   it('inherit Main routes for sources a layer does not route', () => {
     const p = fixture as unknown as Profile;
     expect(layerRoutes(p, 0).map((r) => r.index)).toEqual([0, 3]);
-    expect(layerRoutes(p, 1).map((r) => [r.index, r.inherited])).toEqual([[1, false], [0, true], [3, true]]);
+    expect(layerRoutes(p, 1).map((r) => [r.index, r.inherited])).toEqual([
+      [1, false],
+      [0, true],
+      [3, true],
+    ]);
     // Layer 2 does not inherit.
     expect(layerRoutes(p, 2).map((r) => r.index)).toEqual([2]);
     const over = overrideRoute(p, 0, 1);

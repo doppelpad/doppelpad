@@ -86,9 +86,7 @@ class AppState {
 
   dirty = $derived(this.profile !== null && JSON.stringify(this.profile) !== this.savedJson);
   game = $derived<Game | null>(this.library.games.find((g) => g.dir === this.gameDir) ?? null);
-  primary = $derived<LiveDevice | null>(
-    this.live?.devices.find((d) => d.id === this.live?.primary) ?? this.live?.devices[0] ?? null,
-  );
+  primary = $derived<LiveDevice | null>(this.live?.devices.find((d) => d.id === this.live?.primary) ?? this.live?.devices[0] ?? null);
   family = $derived<PadFamily | null>(this.primary?.family ?? null);
   /** The slot set the bottom bar shows and "Apply to slot" fills: a controller's own or the shared one. */
   slotSet = $derived.by(() => {
@@ -125,8 +123,7 @@ class AppState {
       // Open the game of the config that is currently applied (when the first live state is
       // already here), else the first game.
       const applied = this.live?.profile_path;
-      const game =
-        this.library.games.find((g) => g.configs.some((c) => c.path === applied)) ?? this.library.games[0];
+      const game = this.library.games.find((g) => g.configs.some((c) => c.path === applied)) ?? this.library.games[0];
       if (game) this.selectGame(game.dir);
     } catch (e) {
       this.toast(errorText(e), 'error');

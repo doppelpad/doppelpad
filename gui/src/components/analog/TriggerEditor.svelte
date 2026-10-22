@@ -13,7 +13,6 @@
   import AnalogLayerNote from './AnalogLayerNote.svelte';
   import TriggerEffectEditor from './TriggerEffectEditor.svelte';
 
-
   const def = $derived(app.catalog?.defaults.trigger);
   const zoneDefaults = $derived(zoneDefaultsOf(app.catalog?.defaults));
   const disabled = $derived(app.readOnly);
@@ -102,12 +101,7 @@
           {disabled}
           onchange={(v) => set(side, { full_pull: v })}
         />
-        <TriggerEffectEditor
-          effect={cfg.effect}
-          onlayer={app.layer !== 0}
-          {disabled}
-          onchange={(e) => set(side, { effect: e })}
-        />
+        <TriggerEffectEditor effect={cfg.effect} onlayer={app.layer !== 0} {disabled} onchange={(e) => set(side, { effect: e })} />
       </section>
     {/each}
   </div>

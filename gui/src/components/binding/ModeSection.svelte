@@ -10,12 +10,7 @@
   import { configTiming, ms, type EditMapping } from './edit';
   import MsInput from './MsInput.svelte';
 
-  let {
-    mapping,
-    combo,
-    readOnly,
-    edit,
-  }: { mapping: Mapping | undefined; combo: Combo; readOnly: boolean; edit: EditMapping } = $props();
+  let { mapping, combo, readOnly, edit }: { mapping: Mapping | undefined; combo: Combo; readOnly: boolean; edit: EditMapping } = $props();
 
   const mode = $derived<Mode>(mapping ? modeOf(mapping) : 'hold');
   const blocked = $derived(isBlocked(mapping));
@@ -69,12 +64,7 @@
       </label>
       <label class="inline" title={t('binding.random_hint')}>
         {t('binding.random')}
-        <MsInput
-          value={mapping?.random_ms}
-          placeholder="0"
-          max={10000}
-          onchange={(v) => edit((m) => (m.random_ms = ms(v) || undefined))}
-        />
+        <MsInput value={mapping?.random_ms} placeholder="0" max={10000} onchange={(v) => edit((m) => (m.random_ms = ms(v) || undefined))} />
       </label>
     {/if}
   </div>

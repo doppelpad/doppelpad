@@ -246,8 +246,14 @@ describe('shaping matches the engine', () => {
     for (const c of shaping.stick) {
       const cfg = { ...def.stick, ...(c.config as StickConfig) };
       const t = stickThresholds(cfg.zones, zd);
-      expect(t.x.every((v, i) => near(v, c.thresholds.x[i])), 'x thresholds').toBe(true);
-      expect(t.y.every((v, i) => near(v, c.thresholds.y[i])), 'y thresholds').toBe(true);
+      expect(
+        t.x.every((v, i) => near(v, c.thresholds.x[i])),
+        'x thresholds',
+      ).toBe(true);
+      expect(
+        t.y.every((v, i) => near(v, c.thresholds.y[i])),
+        'y thresholds',
+      ).toBe(true);
       c.in.forEach(([x, y], i) => {
         const [ox, oy] = shapeStick([x, y], cfg);
         expect(near(ox, c.out[i][0]) && near(oy, c.out[i][1]), `${x}, ${y}`).toBe(true);
@@ -260,7 +266,10 @@ describe('shaping matches the engine', () => {
     for (const c of shaping.trigger) {
       const cfg = { ...def.trigger, ...(c.config as TriggerConfig) };
       const t = triggerThresholds(cfg.zones, cfg.full_pull, zd);
-      expect(t.every((v, i) => near(v, c.thresholds[i])), 'thresholds').toBe(true);
+      expect(
+        t.every((v, i) => near(v, c.thresholds[i])),
+        'thresholds',
+      ).toBe(true);
       c.in.forEach((v, i) => {
         expect(near(shapeTrigger(v, cfg), c.out[i]), `${v}`).toBe(true);
         expect(triggerZoneAt(v, t), `${v}`).toBe(c.zones[i]);

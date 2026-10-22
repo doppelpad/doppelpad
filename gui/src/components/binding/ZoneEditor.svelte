@@ -92,9 +92,7 @@
 
   function set(level: Level, axis: 'both' | 0 | 1, raw: string) {
     const v = parsePercent(raw) ?? undefined;
-    const zones = isStick
-      ? setStickLevel(stickZones, level, axis, v, defaults)
-      : setTriggerLevel(trigger?.zones, level, v);
+    const zones = isStick ? setStickLevel(stickZones, level, axis, v, defaults) : setTriggerLevel(trigger?.zones, level, v);
     app.edit((p) => withZones(p, source, zones, app.layer));
   }
 
@@ -180,12 +178,7 @@
 
   {#if isStick}
     <label class="check">
-      <input
-        type="checkbox"
-        checked={separate}
-        disabled={app.readOnly}
-        onchange={(e) => setSeparate(e.currentTarget.checked)}
-      />
+      <input type="checkbox" checked={separate} disabled={app.readOnly} onchange={(e) => setSeparate(e.currentTarget.checked)} />
       {t('zones.separate_axes')}
     </label>
   {/if}

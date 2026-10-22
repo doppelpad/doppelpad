@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import type { Profile } from '../types';
-import { MAX_SECTORS, addMenu, addSector, firstFreeLayer, removeMenu, removeSector, sectorCentre, sectorPath, updateSector } from './radial';
+import {
+  MAX_SECTORS,
+  addMenu,
+  addSector,
+  firstFreeLayer,
+  removeMenu,
+  removeSector,
+  sectorCentre,
+  sectorPath,
+  updateSector,
+} from './radial';
 
 describe('radial menus', () => {
   it('puts sector 0 at the top and goes clockwise', () => {

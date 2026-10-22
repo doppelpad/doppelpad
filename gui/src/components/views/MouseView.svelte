@@ -14,10 +14,7 @@
     {
       id: 'mouse_move',
       // Mapping a diagonal makes mouse motion tell eight directions apart.
-      controls: [
-        ...DIRS8.map((d) => `MouseMove:${d}`),
-        ...['Low', 'Med', 'High'].map((z) => `MouseMove:${z}`),
-      ],
+      controls: [...DIRS8.map((d) => `MouseMove:${d}`), ...['Low', 'Med', 'High'].map((z) => `MouseMove:${z}`)],
     },
   ];
 

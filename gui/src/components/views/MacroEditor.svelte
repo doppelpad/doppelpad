@@ -18,9 +18,7 @@
   import Segmented from '../ui/Segmented.svelte';
 
   const target = $derived(app.macroTarget);
-  const at = $derived<{ own?: Mapping; inherited?: Mapping }>(
-    target ? app.mappingAt(target.layer, target.trigger, target.activator) : {},
-  );
+  const at = $derived<{ own?: Mapping; inherited?: Mapping }>(target ? app.mappingAt(target.layer, target.trigger, target.activator) : {});
   const m = $derived<Mapping | undefined>(at.own ?? at.inherited);
   const steps = $derived<Action[]>(m?.actions ?? []);
   const mode = $derived<Mode>(m ? modeOf(m) : 'hold');
@@ -72,9 +70,7 @@
   const num = (v: string) => parseNonNegInt(v) ?? undefined;
 
   /** Rough run time: explicit pauses plus the delay the engine inserts between steps. */
-  const total = $derived(
-    steps.reduce((sum, s) => sum + ('pause' in s ? s.pause : 'rumble' in s ? 0 : keyDelay), 0),
-  );
+  const total = $derived(steps.reduce((sum, s) => sum + ('pause' in s ? s.pause : 'rumble' in s ? 0 : keyDelay), 0));
 
   // ----- recording -------------------------------------------------------------------------
 
@@ -172,24 +168,55 @@
       {#if mode === 'repeat'}
         <label>
           {t('macro.times')}
-          <input type="number" min="1" value={m?.repeat ?? 1} disabled={app.readOnly} onchange={(e) => edit((x) => (x.repeat = num(e.currentTarget.value)))} />
+          <input
+            type="number"
+            min="1"
+            value={m?.repeat ?? 1}
+            disabled={app.readOnly}
+            onchange={(e) => edit((x) => (x.repeat = num(e.currentTarget.value)))}
+          />
         </label>
       {/if}
       {#if mode === 'repeat' || mode === 'while_held'}
         <label>
           {t('macro.pause_between')}
-          <input type="number" min="0" step="10" value={m?.repeat_pause_ms ?? ''} placeholder="0" disabled={app.readOnly} onchange={(e) => edit((x) => (x.repeat_pause_ms = num(e.currentTarget.value)))} />
+          <input
+            type="number"
+            min="0"
+            step="10"
+            value={m?.repeat_pause_ms ?? ''}
+            placeholder="0"
+            disabled={app.readOnly}
+            onchange={(e) => edit((x) => (x.repeat_pause_ms = num(e.currentTarget.value)))}
+          />
           {t('common.ms')}
         </label>
         <label title={t('binding.random_hint')}>
           {t('binding.random')}
-          <input type="number" min="0" max="10000" step="10" value={m?.random_ms ?? ''} placeholder="0" disabled={app.readOnly} onchange={(e) => edit((x) => (x.random_ms = num(e.currentTarget.value) || undefined))} />
+          <input
+            type="number"
+            min="0"
+            max="10000"
+            step="10"
+            value={m?.random_ms ?? ''}
+            placeholder="0"
+            disabled={app.readOnly}
+            onchange={(e) => edit((x) => (x.random_ms = num(e.currentTarget.value) || undefined))}
+          />
           {t('common.ms')}
         </label>
       {/if}
       <label>
         {t('macro.key_delay')}
-        <input type="number" min="0" step="5" value={m?.key_delay_ms ?? ''} placeholder={String(timing.key_delay_ms ?? '')} disabled={app.readOnly} onchange={(e) => edit((x) => (x.key_delay_ms = num(e.currentTarget.value)))} />
+        <input
+          type="number"
+          min="0"
+          step="5"
+          value={m?.key_delay_ms ?? ''}
+          placeholder={String(timing.key_delay_ms ?? '')}
+          disabled={app.readOnly}
+          onchange={(e) => edit((x) => (x.key_delay_ms = num(e.currentTarget.value)))}
+        />
         {t('common.ms')}
       </label>
       <span class="total">{t('macro.total', { ms: total })}</span>
@@ -204,7 +231,15 @@
           <span class="idx">{i + 1}</span>
           {#if 'pause' in s}
             <Timer size={14} />
-            <input class="pause-in" type="number" min="0" step="10" value={s.pause} disabled={app.readOnly} onchange={(e) => setPause(i, e.currentTarget.value)} />
+            <input
+              class="pause-in"
+              type="number"
+              min="0"
+              step="10"
+              value={s.pause}
+              disabled={app.readOnly}
+              onchange={(e) => setPause(i, e.currentTarget.value)}
+            />
             <span class="dim">{t('common.ms')}</span>
           {:else if 'break' in s}
             <SeparatorHorizontal size={14} />
@@ -228,9 +263,15 @@
           {/if}
           {#if !app.readOnly}
             <span class="tools">
-              <button class="icon-btn" title={t('macro.move_up')} disabled={i === 0} onclick={() => move(i, -1)}><ArrowUp size={14} /></button>
-              <button class="icon-btn" title={t('macro.move_down')} disabled={i === steps.length - 1} onclick={() => move(i, 1)}><ArrowDown size={14} /></button>
-              <button class="icon-btn" title={t('common.remove')} onclick={() => setSteps(steps.filter((_, j) => j !== i))}><X size={14} /></button>
+              <button class="icon-btn" title={t('macro.move_up')} disabled={i === 0} onclick={() => move(i, -1)}
+                ><ArrowUp size={14} /></button
+              >
+              <button class="icon-btn" title={t('macro.move_down')} disabled={i === steps.length - 1} onclick={() => move(i, 1)}
+                ><ArrowDown size={14} /></button
+              >
+              <button class="icon-btn" title={t('common.remove')} onclick={() => setSteps(steps.filter((_, j) => j !== i))}
+                ><X size={14} /></button
+              >
             </span>
           {/if}
         </div>
@@ -245,10 +286,18 @@
         <button class="btn rec" class:on={padRecording} onclick={togglePadRecording} disabled={recording || !app.primary}>
           {#if padRecording}<Square size={13} /> {t('macro.stop')}{:else}<Gamepad2 size={13} /> {t('macro.record_pad')}{/if}
         </button>
-        <button class="btn" onclick={() => (picking = !picking)} disabled={recording || padRecording}><Plus size={14} /> {t('binding.add_action')}</button>
-        <button class="btn" onclick={() => setSteps([...steps, { pause: 100 }])} disabled={recording || padRecording}><Timer size={14} /> {t('macro.add_pause')}</button>
-        <button class="btn" onclick={() => setSteps([...steps, { rumble: 200 }])} disabled={recording || padRecording}><Vibrate size={14} /> {t('macro.add_rumble')}</button>
-        <button class="btn" onclick={() => setSteps([...steps, { break: true }])} disabled={recording || padRecording}><SeparatorHorizontal size={14} /> {t('macro.add_break')}</button>
+        <button class="btn" onclick={() => (picking = !picking)} disabled={recording || padRecording}
+          ><Plus size={14} /> {t('binding.add_action')}</button
+        >
+        <button class="btn" onclick={() => setSteps([...steps, { pause: 100 }])} disabled={recording || padRecording}
+          ><Timer size={14} /> {t('macro.add_pause')}</button
+        >
+        <button class="btn" onclick={() => setSteps([...steps, { rumble: 200 }])} disabled={recording || padRecording}
+          ><Vibrate size={14} /> {t('macro.add_rumble')}</button
+        >
+        <button class="btn" onclick={() => setSteps([...steps, { break: true }])} disabled={recording || padRecording}
+          ><SeparatorHorizontal size={14} /> {t('macro.add_break')}</button
+        >
       </div>
       {#if recording}<p class="hint">{t('macro.recording')}</p>{/if}
       {#if padRecording}<p class="hint">{t('macro.recording_pad')}</p>{/if}

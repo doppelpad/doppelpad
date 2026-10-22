@@ -25,7 +25,6 @@
   /** `device`: the drawing this list stands in for; it lists the buttons that drawing has. */
   let { back = false, device }: { back?: boolean; device: DeviceId } = $props();
 
-
   const groups = $derived.by(() => {
     const buttons = (app.catalog?.pad_buttons ?? []) as string[];
     const drawn = new Set(DEVICE_LAYOUTS[device].controls.map((c) => c.control));

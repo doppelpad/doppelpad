@@ -44,7 +44,6 @@
       if (app.dirty) app.save();
     }
   }
-
 </script>
 
 <svelte:window onkeydown={onKeydown} />

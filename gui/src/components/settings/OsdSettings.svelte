@@ -54,9 +54,36 @@
       </select>
     </SettingRow>
     <CornerSelect value={osd.corner} onchange={(corner) => set({ corner })} />
-    <Slider label={t('settings.osd.scale')} value={osd.scale} def={100} min={50} max={200} step={10} unit="%" onchange={(v) => set({ scale: v })} />
-    <Slider label={t('settings.osd.opacity')} value={osd.opacity} def={80} min={20} max={100} step={5} unit="%" onchange={(v) => set({ opacity: v })} />
-    <Slider label={t('settings.osd.seconds')} value={osd.seconds} def={5} min={1} max={30} step={1} unit="s" onchange={(v) => set({ seconds: v })} />
+    <Slider
+      label={t('settings.osd.scale')}
+      value={osd.scale}
+      def={100}
+      min={50}
+      max={200}
+      step={10}
+      unit="%"
+      onchange={(v) => set({ scale: v })}
+    />
+    <Slider
+      label={t('settings.osd.opacity')}
+      value={osd.opacity}
+      def={80}
+      min={20}
+      max={100}
+      step={5}
+      unit="%"
+      onchange={(v) => set({ opacity: v })}
+    />
+    <Slider
+      label={t('settings.osd.seconds')}
+      value={osd.seconds}
+      def={5}
+      min={1}
+      max={30}
+      step={1}
+      unit="s"
+      onchange={(v) => set({ seconds: v })}
+    />
   {/if}
 </SettingsSection>
 

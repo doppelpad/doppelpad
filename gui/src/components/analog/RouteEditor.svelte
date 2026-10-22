@@ -3,15 +3,7 @@
   import { Plus } from '@lucide/svelte';
   import { t } from '../../lib/i18n/index.svelte';
   import { controlLabel, controlLabelMixed } from '../../lib/model/controls';
-  import {
-    ROUTE_PRESETS,
-    addRoute,
-    layerRoutes,
-    newRoute,
-    overrideRoute,
-    sourceOf,
-    targetOf,
-  } from '../../lib/model/routes';
+  import { ROUTE_PRESETS, addRoute, layerRoutes, newRoute, overrideRoute, sourceOf, targetOf } from '../../lib/model/routes';
   import { app } from '../../lib/state/app.svelte';
   import type { AnalogMapping } from '../../lib/types';
   import Menu from '../ui/Menu.svelte';
@@ -62,7 +54,9 @@
           <span class="tag">{t('analog.routes.inherited')}</span>
           <span class="name">{routeName(ref.route)}</span>
           {#if ref.route.while_held?.length}
-            <span class="when">{t('analog.routes.while_held')}: {ref.route.while_held.map((c) => controlLabelMixed(c, app.family)).join(' + ')}</span>
+            <span class="when"
+              >{t('analog.routes.while_held')}: {ref.route.while_held.map((c) => controlLabelMixed(c, app.family)).join(' + ')}</span
+            >
           {/if}
           {#if !app.readOnly}
             <button class="btn" onclick={() => app.edit((p) => overrideRoute(p, ref.index, app.layer))}>

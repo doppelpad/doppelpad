@@ -71,7 +71,14 @@
               <rect class="track" x={bar.x} y={bar.y} width={bar.w} height={BAR.h} rx={BAR.h / 2} />
               {#if w > 0}
                 <!-- fills from the outer end inwards -->
-                <rect class="fill" x={bar.left ? bar.x : bar.x + bar.w - w} y={bar.y} width={w} height={BAR.h} rx={Math.min(BAR.h, w) / 2} />
+                <rect
+                  class="fill"
+                  x={bar.left ? bar.x : bar.x + bar.w - w}
+                  y={bar.y}
+                  width={w}
+                  height={BAR.h}
+                  rx={Math.min(BAR.h, w) / 2}
+                />
               {/if}
             </g>
           {/each}

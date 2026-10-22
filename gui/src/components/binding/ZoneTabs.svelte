@@ -26,17 +26,15 @@
     return used;
   });
   const usedFull = $derived(
-    !!app.profile && !!zone && zone.source.kind === 'trigger' &&
+    !!app.profile &&
+      !!zone &&
+      zone.source.kind === 'trigger' &&
       effectiveMappings(app.profile, app.layer, `${zone.base}Full`).mappings.length > 0,
   );
   /** The tabs: the whole range (not for "any direction"), the zones and a trigger's full pull. */
   const zoneOptions = $derived.by((): SegmentedOption<ZoneName | null | 'full'>[] => {
     if (!zone) return [];
-    const zones = [
-      ...(isAnyDirection(zone.base) ? [] : [null]),
-      ...ZONES,
-      ...(zone.source.kind === 'trigger' ? (['full'] as const) : []),
-    ];
+    const zones = [...(isAnyDirection(zone.base) ? [] : [null]), ...ZONES, ...(zone.source.kind === 'trigger' ? (['full'] as const) : [])];
     return zones.map((z) => {
       const key = z === null ? 'whole' : z.toLowerCase();
       return { value: z, label: t(`zones.${key}`), title: t(`zones.desc.${key}`), marked: z === 'full' ? usedFull : usedZones.has(z) };

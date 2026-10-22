@@ -33,7 +33,7 @@
     const h = menuEl.offsetHeight;
     const d = deviceEl.getBoundingClientRect();
     const s = stageEl.getBoundingClientRect();
-    const y = d.top + (((menu.y - vy) / vh) * d.height);
+    const y = d.top + ((menu.y - vy) / vh) * d.height;
     menuUp = y + 12 + h > s.bottom && y - 12 - h >= s.top;
   });
   const chipView = $derived<ChipView>({
@@ -125,11 +125,7 @@
 
     <svg class="leaders" viewBox="{vx} {vy} {vw} {vh}" aria-hidden="true">
       {#each chips as ch (ch.lc.control)}
-        <polyline
-          points={leader(ch.lc)}
-          class:mapped={ch.mapped}
-          class:selected={ch.selected}
-        />
+        <polyline points={leader(ch.lc)} class:mapped={ch.mapped} class:selected={ch.selected} />
         <circle cx={ch.lc.anchor[0]} cy={ch.lc.anchor[1]} r="3" class:mapped={ch.mapped} class:selected={ch.selected} />
       {/each}
     </svg>

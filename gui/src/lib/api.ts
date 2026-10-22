@@ -53,13 +53,11 @@ export const api = {
   configCreate: (gameDir: string, name: string) => invoke<string>('config_create', { gameDir, name }),
   configDuplicate: (path: string) => invoke<string>('config_duplicate', { path }),
   configDelete: (path: string) => invoke<void>('config_delete', { path }),
-  configImport: (gameDir: string, source: string) =>
-    invoke<Imported>('config_import', { gameDir, source }),
+  configImport: (gameDir: string, source: string) => invoke<Imported>('config_import', { gameDir, source }),
   reveal: (path: string) => invoke<void>('reveal', { path }),
 
   /** `device`: that controller's own slots instead of the shared ones. */
-  applyToSlot: (slot: number, path: string, device: string | null = null) =>
-    invoke<void>('apply_to_slot', { slot, path, device }),
+  applyToSlot: (slot: number, path: string, device: string | null = null) => invoke<void>('apply_to_slot', { slot, path, device }),
   selectSlot: (slot: number, device: string | null = null) => invoke<void>('select_slot', { slot, device }),
   clearSlot: (slot: number, device: string | null = null) => invoke<void>('clear_slot', { slot, device }),
   /** Give a controller slots of its own, or let it use the shared ones again. */

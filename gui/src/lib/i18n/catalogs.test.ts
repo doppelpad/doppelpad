@@ -12,7 +12,14 @@ function placeholders(o: Tree): Map<string, string> {
   const out = new Map<string, string>();
   const walk = (n: Tree, p: string) => {
     for (const [k, v] of Object.entries(n)) {
-      if (typeof v === 'string') out.set(p + k, [...v.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort().join(','));
+      if (typeof v === 'string')
+        out.set(
+          p + k,
+          [...v.matchAll(/\{(\w+)\}/g)]
+            .map((m) => m[1])
+            .sort()
+            .join(','),
+        );
       else walk(v, `${p}${k}.`);
     }
   };

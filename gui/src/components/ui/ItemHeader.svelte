@@ -29,7 +29,14 @@
 <header>
   {@render preview()}
   <span class="num">{index + 1}</span>
-  <input class="name" value={name ?? ''} {placeholder} aria-label={placeholder} {disabled} onchange={(e) => onrename(e.currentTarget.value.trim() || undefined)} />
+  <input
+    class="name"
+    value={name ?? ''}
+    {placeholder}
+    aria-label={placeholder}
+    {disabled}
+    onchange={(e) => onrename(e.currentTarget.value.trim() || undefined)}
+  />
   {#if !disabled}
     <button class="icon-btn danger del" title={removeLabel} onclick={onremove}><Trash2 size={15} /></button>
   {/if}

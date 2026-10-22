@@ -58,13 +58,7 @@
   const noGyro = $derived(source === 'gyro' && !!app.primary && !app.primary.state.motion);
 
   /** Controls offered for "only while held": controller buttons, triggers, mouse buttons. */
-  const heldOptions = $derived([
-    ...((app.catalog?.pad_buttons ?? []) as string[]),
-    'LT',
-    'RT',
-    'LTFull',
-    'RTFull',
-  ]);
+  const heldOptions = $derived([...((app.catalog?.pad_buttons ?? []) as string[]), 'LT', 'RT', 'LTFull', 'RTFull']);
   const mouseOptions = $derived((app.catalog?.mouse_buttons ?? []).map((b) => `Mouse:${b}`));
 
   function set(patch: Partial<AnalogMapping>) {

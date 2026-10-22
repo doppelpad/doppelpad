@@ -81,9 +81,7 @@
       <p class="hint">{t('analog.gyro.calibration_hint', { name: dev.name })}</p>
       <div class="cal">
         <button class="btn" disabled={cal.measuring !== null} onclick={() => app.attempt(api.gyroCalibrate(dev.id))}>
-          {cal.measuring !== null
-            ? t('analog.gyro.measuring', { pct: Math.round(cal.measuring * 100) })
-            : t('analog.gyro.calibrate')}
+          {cal.measuring !== null ? t('analog.gyro.measuring', { pct: Math.round(cal.measuring * 100) }) : t('analog.gyro.calibrate')}
         </button>
         <button class="btn" disabled={cal.measuring !== null} onclick={() => app.attempt(api.gyroReset(dev.id))}>
           {t('analog.gyro.calibration_reset')}
@@ -95,11 +93,7 @@
       {:else if cal.last_manual}
         <p class="hint">{t('analog.gyro.calibration_done')}</p>
       {/if}
-      <Toggle
-        checked={cal.auto}
-        label={t('analog.gyro.auto_calibration')}
-        onchange={(v) => app.attempt(api.gyroAuto(dev.id, v))}
-      />
+      <Toggle checked={cal.auto} label={t('analog.gyro.auto_calibration')} onchange={(v) => app.attempt(api.gyroAuto(dev.id, v))} />
       <p class="hint">{t('analog.gyro.auto_calibration_hint')}</p>
     {/if}
   </div>

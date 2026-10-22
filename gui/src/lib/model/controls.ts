@@ -28,12 +28,32 @@ export const TOUCH_REGIONS = ['Up', 'Down', 'Left', 'Right', 'Center'] as const;
 export const GYRO_DIRS = [...CARDINALS, 'LeanLeft', 'LeanRight'] as const;
 
 /** Touchpad gestures; the controls are `TouchTap` … `TouchZoomOut`. */
-export const TOUCH_GESTURES = ['Tap', 'TapLeft', 'TapCenter', 'TapRight', 'MultiTap', 'ZoomIn', 'ZoomOut', 'SwipeUp', 'SwipeDown', 'SwipeLeft', 'SwipeRight', 'Swipe2Up', 'Swipe2Down', 'Swipe2Left', 'Swipe2Right'] as const;
+export const TOUCH_GESTURES = [
+  'Tap',
+  'TapLeft',
+  'TapCenter',
+  'TapRight',
+  'MultiTap',
+  'ZoomIn',
+  'ZoomOut',
+  'SwipeUp',
+  'SwipeDown',
+  'SwipeLeft',
+  'SwipeRight',
+  'Swipe2Up',
+  'Swipe2Down',
+  'Swipe2Left',
+  'Swipe2Right',
+] as const;
 
 /** Touchpad controls: regions (of each half on a split pad), then gestures. */
 export const touchControls = (split = false): ControlName[] => [
   ...(split
-    ? (['Left', 'Right'] as const).flatMap((h) => [...[...TOUCH_REGIONS, ...DIAGONALS].map((r) => `Trackpad${h}${r}`), `Trackpad${h}Tap`, `Trackpad${h}Click`])
+    ? (['Left', 'Right'] as const).flatMap((h) => [
+        ...[...TOUCH_REGIONS, ...DIAGONALS].map((r) => `Trackpad${h}${r}`),
+        `Trackpad${h}Tap`,
+        `Trackpad${h}Click`,
+      ])
     : [...TOUCH_REGIONS, ...DIAGONALS].map((r) => `Touch${r}`)),
   ...TOUCH_GESTURES.map((g) => `Touch${g}`),
 ];

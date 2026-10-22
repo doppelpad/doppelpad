@@ -36,7 +36,6 @@
 </script>
 
 <Dialog title={t('layers.settings_title', { layer: app.layerLabel(layer) })} {onclose}>
-
   <SettingRow label={t('layers.name_prompt')}>
     <input value={app.layerLabel(layer)} disabled={app.readOnly} onchange={(e) => rename(e.currentTarget.value)} />
   </SettingRow>
@@ -75,8 +74,7 @@
                 type="checkbox"
                 checked={inherited(c)}
                 disabled={app.readOnly}
-                onchange={(e) =>
-                  app.edit((p) => setTriggerInherited(p, layer, c, e.currentTarget.checked))}
+                onchange={(e) => app.edit((p) => setTriggerInherited(p, layer, c, e.currentTarget.checked))}
               />
               <span>{label(c)}</span>
             </label>

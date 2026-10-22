@@ -94,7 +94,9 @@
           {picking.length ? t('shortcuts.selected', { list: label(picking) }) : ''}
         </span>
         <button class="btn" onclick={stop}><X size={14} /> {t('common.cancel')}</button>
-        <button class="btn primary" disabled={picking.length < 2} onclick={confirmShortcut}><Check size={14} /> {t('shortcuts.confirm')}</button>
+        <button class="btn primary" disabled={picking.length < 2} onclick={confirmShortcut}
+          ><Check size={14} /> {t('shortcuts.confirm')}</button
+        >
       </div>
     </div>
   {/if}

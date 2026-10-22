@@ -93,7 +93,6 @@
 </script>
 
 <Dialog title={t('identify.title', { name: device?.name ?? deviceId })} {onclose}>
-
   {#if !device || !raw}
     <p class="hint">{t('identify.gone')}</p>
   {:else if phase === 'intro'}

@@ -37,7 +37,9 @@
         <span>{t('settings.http.token')}</span>
         <code>{http.settings.token}</code>
         <button class="icon-btn" title={t('settings.http.copy')} onclick={copyToken}><Copy size={14} /></button>
-        <button class="icon-btn" title={t('settings.http.new_token')} onclick={() => app.attempt(api.newHttpToken())}><RefreshCw size={14} /></button>
+        <button class="icon-btn" title={t('settings.http.new_token')} onclick={() => app.attempt(api.newHttpToken())}
+          ><RefreshCw size={14} /></button
+        >
       </div>
     {/if}
     {#if http.error}

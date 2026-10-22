@@ -31,7 +31,9 @@ describe('labels', () => {
 
   it('names configs by game, else by their own name or file', () => {
     const lib = {
-      games: [{ dir: 'C:/p/Halo', meta: { name: 'Halo', processes: [] }, configs: [{ path: 'C:/p/Halo/a.toml', name: 'Aim', error: null }] }],
+      games: [
+        { dir: 'C:/p/Halo', meta: { name: 'Halo', processes: [] }, configs: [{ path: 'C:/p/Halo/a.toml', name: 'Aim', error: null }] },
+      ],
       unsorted: [{ path: 'C:/p/loose.toml', name: 'Loose', error: null }],
       errors: [],
     };
