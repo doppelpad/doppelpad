@@ -84,6 +84,7 @@ fn main() {
             app.manage(AppState {
                 live: handle.live_shared(),
                 service: handle,
+                disk: Mutex::default(),
                 settings: Mutex::new(GuiSettings::load()),
                 profiles_dir,
                 notices: Mutex::new(notices),

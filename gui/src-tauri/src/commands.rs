@@ -1,5 +1,7 @@
 //! Commands the web frontend invokes. The fallible ones return `Result<_, String>`, so
-//! errors arrive in JavaScript as readable messages.
+//! errors arrive in JavaScript as readable messages. Plain commands run on the main thread,
+//! which also runs the windows and the tray; the ones that touch the disk or wait for the
+//! service are `async` and run on Tauri's async runtime instead.
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -53,6 +55,9 @@ pub enum Driver {
 
 pub struct AppState {
     pub service: ServiceHandle,
+    /// Held while a command changes the library, so changes run one at a time (commands
+    /// that touch the disk run on the async runtime, side by side).
+    pub disk: Mutex<()>,
     /// The service's live snapshot, for the threads that watch it.
     pub live: SharedLive,
     pub settings: Mutex<GuiSettings>,
@@ -103,10 +108,13 @@ fn library_changed(app: &AppHandle) {
     crate::tray::refresh(app);
 }
 
-/// The outcome of a change to the games and configs on disk; when it worked, the service
-/// and the tray are told.
-fn library_change<T, E: std::fmt::Display>(app: &AppHandle, result: Result<T, E>) -> CmdResult<T> {
-    let out = result.map_err(err)?;
+/// Change the games and configs on disk; when it worked, the service and the tray are told.
+fn library_change<T>(app: &AppHandle, change: impl FnOnce() -> CmdResult<T>) -> CmdResult<T> {
+    let out = {
+        let state = app.state::<AppState>();
+        let _disk = state.disk.lock().unwrap();
+        change()?
+    };
     library_changed(app);
     Ok(out)
 }
@@ -173,28 +181,30 @@ pub fn catalog() -> Catalog {
 
 // ----- library -----------------------------------------------------------------------
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn library_scan(state: State<AppState>) -> Library {
     library::scan(&state.profiles_dir)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn game_create(app: AppHandle, state: State<AppState>, name: String) -> CmdResult<Game> {
-    library_change(&app, library::create_game(&state.profiles_dir, &name))
+    library_change(&app, || {
+        library::create_game(&state.profiles_dir, &name).map_err(err)
+    })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn game_update(app: AppHandle, dir: PathBuf, meta: GameMeta) -> CmdResult<()> {
-    library_change(&app, library::update_game_meta(&dir, &meta))
+    library_change(&app, || library::update_game_meta(&dir, &meta).map_err(err))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn game_delete(app: AppHandle, dir: PathBuf) -> CmdResult<()> {
-    library_change(&app, library::delete_game(&dir))
+    library_change(&app, || library::delete_game(&dir).map_err(err))
 }
 
 /// A new game whose first config (`config`) starts from a template.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn game_create_template(
     app: AppHandle,
     state: State<AppState>,
@@ -203,14 +213,13 @@ pub fn game_create_template(
     template: Template,
 ) -> CmdResult<Game> {
     let profile = templates::profile(template, &config);
-    library_change(
-        &app,
-        library::create_game_with(&state.profiles_dir, &name, &profile),
-    )
+    library_change(&app, || {
+        library::create_game_with(&state.profiles_dir, &name, &profile).map_err(err)
+    })
 }
 
 /// A new config in a game, starting from a template.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn config_from_template(
     app: AppHandle,
     game_dir: PathBuf,
@@ -218,7 +227,9 @@ pub fn config_from_template(
     template: Template,
 ) -> CmdResult<PathBuf> {
     let profile = templates::profile(template, &name);
-    library_change(&app, library::create_config_with(&game_dir, &profile))
+    library_change(&app, || {
+        library::create_config_with(&game_dir, &profile).map_err(err)
+    })
 }
 
 /// Open the download page of a driver Doppelpad uses.
@@ -236,34 +247,37 @@ pub fn open_driver_page(driver: Driver) -> CmdResult<()> {
 }
 
 /// Write a game and its configs as one bundle file.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn game_export(dir: PathBuf, out: PathBuf) -> CmdResult<()> {
     bundle::export_game(&dir, &out).map_err(err)
 }
 
 /// Unpack a game bundle into a new game folder.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn game_import(app: AppHandle, state: State<AppState>, file: PathBuf) -> CmdResult<Game> {
-    library_change(&app, bundle::import_game(&state.profiles_dir, &file))
+    library_change(&app, || {
+        bundle::import_game(&state.profiles_dir, &file).map_err(err)
+    })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn preset_list(state: State<AppState>) -> Vec<PresetEntry> {
     bundle::list_presets(&state.profiles_dir)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn preset_save(state: State<AppState>, preset: LayerPreset) -> CmdResult<PathBuf> {
+    let _disk = state.disk.lock().unwrap();
     bundle::save_preset(&state.profiles_dir, &preset).map_err(err)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn preset_load(path: PathBuf) -> CmdResult<LayerPreset> {
     bundle::load_preset(&path).map_err(err)
 }
 
 /// Save a bindings sheet (an HTML page the editor made).
-#[tauri::command]
+#[tauri::command(async)]
 pub fn sheet_save(path: PathBuf, html: String) -> CmdResult<()> {
     let html_file = path
         .extension()
@@ -282,7 +296,7 @@ pub struct LoadedConfig {
     read_only: bool,
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn config_load(path: PathBuf) -> CmdResult<LoadedConfig> {
     let (profile, diags, format) = dp_config::load_with_format(&path).map_err(err)?;
     Ok(LoadedConfig {
@@ -293,29 +307,33 @@ pub fn config_load(path: PathBuf) -> CmdResult<LoadedConfig> {
 }
 
 /// Validate and save; returns the validation diagnostics (errors block saving).
-#[tauri::command]
+#[tauri::command(async)]
 pub fn config_save(app: AppHandle, path: PathBuf, profile: Profile) -> CmdResult<Vec<Diagnostic>> {
     let diags = dp_config::validate(&profile);
     if diags.has_errors() {
         return Ok(diags.0);
     }
-    library_change(&app, library::save_profile_atomic(&path, &profile))?;
+    library_change(&app, || {
+        library::save_profile_atomic(&path, &profile).map_err(err)
+    })?;
     Ok(diags.0)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn config_create(app: AppHandle, game_dir: PathBuf, name: String) -> CmdResult<PathBuf> {
-    library_change(&app, library::create_config(&game_dir, &name))
+    library_change(&app, || {
+        library::create_config(&game_dir, &name).map_err(err)
+    })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn config_duplicate(app: AppHandle, path: PathBuf) -> CmdResult<PathBuf> {
-    library_change(&app, library::duplicate_config(&path))
+    library_change(&app, || library::duplicate_config(&path).map_err(err))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn config_delete(app: AppHandle, path: PathBuf) -> CmdResult<()> {
-    library_change(&app, library::delete_config(&path))
+    library_change(&app, || library::delete_config(&path).map_err(err))
 }
 
 #[derive(Serialize)]
@@ -324,9 +342,11 @@ pub struct Imported {
     diagnostics: Vec<Diagnostic>,
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn config_import(app: AppHandle, game_dir: PathBuf, source: PathBuf) -> CmdResult<Imported> {
-    let (path, diags) = library_change(&app, library::import_into(&game_dir, &source))?;
+    let (path, diags) = library_change(&app, || {
+        library::import_into(&game_dir, &source).map_err(err)
+    })?;
     Ok(Imported {
         path,
         diagnostics: diags.0,
@@ -377,7 +397,7 @@ fn reveal_path(path: &Path) -> std::io::Result<()> {
 // ----- service -------------------------------------------------------------------------
 
 /// `device`: a controller's own slots instead of the shared ones.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn apply_to_slot(
     state: State<AppState>,
     slot: usize,
@@ -387,109 +407,109 @@ pub fn apply_to_slot(
     state.call(ServiceCmd::ApplyToSlot { device, slot, path })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn select_slot(state: State<AppState>, slot: usize, device: Option<String>) -> CmdResult<()> {
     state.call(ServiceCmd::SelectSlot { device, slot })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn clear_slot(state: State<AppState>, slot: usize, device: Option<String>) -> CmdResult<()> {
     state.call(ServiceCmd::ClearSlot { device, slot })
 }
 
 /// Give a controller slots of its own, or let it use the shared slots again.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn own_slots(state: State<AppState>, device: String, on: bool) -> CmdResult<()> {
     state.call(ServiceCmd::OwnSlots { device, on })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn set_remap(state: State<AppState>, on: bool) -> CmdResult<()> {
     state.call(ServiceCmd::SetRemap(on))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn set_auto_switch(state: State<AppState>, on: bool) -> CmdResult<()> {
     state.call(ServiceCmd::SetAutoSwitch(on))
 }
 
 /// Ignore a device completely, or use it again.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn set_blocked(state: State<AppState>, id: String, blocked: bool) -> CmdResult<()> {
     state.call(ServiceCmd::SetBlocked { id, blocked })
 }
 
 /// Replace the groups of controllers that act as one.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn set_groups(state: State<AppState>, groups: Vec<DeviceGroup>) -> CmdResult<()> {
     state.call(ServiceCmd::SetGroups(groups))
 }
 
 /// Turn wireless controllers off after `minutes` without input; 0 never.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn set_power_off_after(state: State<AppState>, minutes: u32) -> CmdResult<()> {
     state.call(ServiceCmd::SetPowerOffAfter(minutes))
 }
 
 /// Store how a generic pad model's inputs map to pad controls.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn set_layout(state: State<AppState>, layout: GenericLayout) -> CmdResult<()> {
     state.call(ServiceCmd::SetLayout(layout))
 }
 
 /// Go back to the guessed layout for a generic pad model.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn forget_layout(state: State<AppState>, device: String) -> CmdResult<()> {
     state.call(ServiceCmd::ForgetLayout(device))
 }
 
 /// Turn the local HTTP API on or off, or change where it listens.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn set_http(state: State<AppState>, settings: HttpSettings) -> CmdResult<()> {
     state.call(ServiceCmd::SetHttp(settings))
 }
 
 /// Replace the HTTP API's token.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn new_http_token(state: State<AppState>) -> CmdResult<()> {
     state.call(ServiceCmd::NewHttpToken)
 }
 
 /// Sleep, focus and disconnect behaviour of remapping.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn set_runtime_options(state: State<AppState>, options: RuntimeOptions) -> CmdResult<()> {
     state.call(ServiceCmd::SetRuntimeOptions(options))
 }
 
 /// Turn the DSU motion server for emulators on or off, or move it.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn set_dsu(state: State<AppState>, settings: DsuSettings) -> CmdResult<()> {
     state.call(ServiceCmd::SetDsu(settings))
 }
 
 /// Turn a wireless controller off now.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn power_off(state: State<AppState>, id: String) -> CmdResult<()> {
     state.call(ServiceCmd::PowerOff(id))
 }
 
 /// What the controllers' player lights and microphone LED show.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn set_lights(state: State<AppState>, player: PlayerLights, mic: bool) -> CmdResult<()> {
     state.call(ServiceCmd::SetLights { player, mic })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn set_preferred_device(state: State<AppState>, id: Option<String>) -> CmdResult<()> {
     state.call(ServiceCmd::SetPreferredDevice(id))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn refresh_drivers(state: State<AppState>) -> CmdResult<()> {
     state.call(ServiceCmd::RefreshDrivers)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn hotkeys_get(state: State<AppState>) -> CmdResult<Hotkeys> {
     match state.service.call(ServiceCmd::GetHotkeys) {
         ServiceReply::Hotkeys(h) => Ok(h),
@@ -500,37 +520,37 @@ pub fn hotkeys_get(state: State<AppState>) -> CmdResult<Hotkeys> {
     }
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn hotkeys_set(state: State<AppState>, hotkeys: Hotkeys) -> CmdResult<()> {
     state.call(ServiceCmd::SetHotkeys(hotkeys))
 }
 
 /// Pause the hotkeys while the user records a new one.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn hotkeys_pause(state: State<AppState>, on: bool) -> CmdResult<()> {
     state.call(ServiceCmd::PauseHotkeys(on))
 }
 
 /// Send one full in-game turn of `counts` mouse counts after a short delay (calibration).
-#[tauri::command]
+#[tauri::command(async)]
 pub fn test_turn(state: State<AppState>, counts: f32) -> CmdResult<()> {
     state.call(ServiceCmd::TestTurn { counts })
 }
 
 /// Measure a controller's gyro bias (it should lie still); `None`: the controller in use.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn gyro_calibrate(state: State<AppState>, device: Option<String>) -> CmdResult<()> {
     state.call(ServiceCmd::CalibrateGyro { device })
 }
 
 /// Switch the automatic gyro calibration of a controller.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn gyro_auto(state: State<AppState>, device: Option<String>, on: bool) -> CmdResult<()> {
     state.call(ServiceCmd::SetGyroAuto { device, on })
 }
 
 /// Forget a controller's gyro bias.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn gyro_reset(state: State<AppState>, device: Option<String>) -> CmdResult<()> {
     state.call(ServiceCmd::ResetGyro { device })
 }
@@ -547,7 +567,7 @@ pub struct RewasdStatus {
 }
 
 /// `None` when reWASD is not installed.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn rewasd_status() -> Option<RewasdStatus> {
     #[cfg(windows)]
     {
@@ -624,15 +644,18 @@ pub fn settings_get(state: State<AppState>) -> GuiSettings {
     state.settings.lock().unwrap().clone()
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn settings_set(
     app: AppHandle,
     state: State<AppState>,
     mut settings: GuiSettings,
 ) -> CmdResult<()> {
     settings.osd = settings.osd.clamped();
-    settings.save().map_err(err)?;
-    *state.settings.lock().unwrap() = settings;
+    {
+        let mut current = state.settings.lock().unwrap();
+        settings.save().map_err(err)?;
+        *current = settings;
+    }
     // "Keep remapping active" may have changed.
     state.sync_suspend()?;
     crate::tray::refresh(&app);
