@@ -2,8 +2,8 @@
 //! (schema 3.0).
 
 pub mod bundle;
-pub mod compat;
-pub mod diag;
+mod compat;
+mod diag;
 pub mod library;
 pub mod store;
 pub mod templates;
@@ -75,9 +75,13 @@ pub fn parse_toml(src: &str) -> Result<Profile, toml::de::Error> {
 pub fn to_toml(p: &Profile) -> Result<String, toml::ser::Error> {
     let body = toml::to_string(p)?;
     Ok(format!(
-        "# Doppelpad profile — https://github.com/doppelpad/doppelpad\n{body}"
+        "{PROFILE_HEADER} — {}\n{body}",
+        env!("CARGO_PKG_REPOSITORY")
     ))
 }
+
+/// How every profile Doppelpad writes starts; the library knows its own files by it.
+pub(crate) const PROFILE_HEADER: &str = "# Doppelpad profile";
 
 /// Load a profile from disk, importing JSON profiles. The diagnostics include
 /// import notes and [`validate`] results.
@@ -654,12 +658,18 @@ pub const CALIBRATION_FILE: &str = "calibration.toml";
 
 /// Per-user configuration directory (`%APPDATA%\doppelpad` or `~/.config/doppelpad`).
 pub fn config_dir() -> PathBuf {
-    let base = if let Some(appdata) = std::env::var_os("APPDATA") {
-        PathBuf::from(appdata)
-    } else if let Some(xdg) = std::env::var_os("XDG_CONFIG_HOME") {
-        PathBuf::from(xdg)
+    user_dir("APPDATA", "XDG_CONFIG_HOME", &[".config"])
+}
+
+/// `doppelpad` in the folder the Windows variable `win_var` names, else the XDG variable
+/// `xdg_var`, else `$HOME/<home_rel>`; a relative `doppelpad` when none is set.
+fn user_dir(win_var: &str, xdg_var: &str, home_rel: &[&str]) -> PathBuf {
+    let base = if let Some(dir) = std::env::var_os(win_var) {
+        PathBuf::from(dir)
+    } else if let Some(dir) = std::env::var_os(xdg_var) {
+        PathBuf::from(dir)
     } else if let Some(home) = std::env::var_os("HOME") {
-        PathBuf::from(home).join(".config")
+        home_rel.iter().fold(PathBuf::from(home), |p, c| p.join(c))
     } else {
         return PathBuf::from("doppelpad");
     };
@@ -675,16 +685,7 @@ pub fn profiles_dir() -> PathBuf {
 /// `$XDG_STATE_HOME/doppelpad/logs` (default `~/.local/state/doppelpad/logs`). Local
 /// rather than roaming: logs describe this machine.
 pub fn log_dir() -> PathBuf {
-    let base = if let Some(local) = std::env::var_os("LOCALAPPDATA") {
-        PathBuf::from(local)
-    } else if let Some(xdg) = std::env::var_os("XDG_STATE_HOME") {
-        PathBuf::from(xdg)
-    } else if let Some(home) = std::env::var_os("HOME") {
-        PathBuf::from(home).join(".local").join("state")
-    } else {
-        return PathBuf::from("doppelpad").join("logs");
-    };
-    base.join("doppelpad").join("logs")
+    user_dir("LOCALAPPDATA", "XDG_STATE_HOME", &[".local", "state"]).join("logs")
 }
 
 /// Whether a file looks like a profile: `.toml`, or content starting with a JSON object.
@@ -710,7 +711,12 @@ mod tests {
     fn toml_roundtrip_through_to_toml() {
         let src = "name = \"x\"\n[[mappings]]\ntrigger = [\"LB\", \"RB\"]\nactions = [{ key = \"Escape\" }]\n";
         let p = parse_toml(src).unwrap();
-        let again = parse_toml(&to_toml(&p).unwrap()).unwrap();
+        let text = to_toml(&p).unwrap();
+        assert!(
+            text.starts_with("# Doppelpad profile — https://github.com/doppelpad/doppelpad\n"),
+            "{text}"
+        );
+        let again = parse_toml(&text).unwrap();
         assert_eq!(p, again);
     }
 
