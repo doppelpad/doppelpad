@@ -73,6 +73,7 @@ describe('controls pressed on a controller', () => {
     state: { buttons, axes, motion: null, touch: [] },
     gyro_calibration: null,
     battery: null,
+    raw: null,
   });
 
   it('reads buttons by catalog position, stick directions and triggers', () => {

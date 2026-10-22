@@ -62,9 +62,11 @@
 
   const handles = $derived(points.map((p) => curveToGraph(p, cfg)));
 
-  function toGraph(e: MouseEvent): CurvePoint {
-    const m = svg!.getScreenCTM()!.inverse();
-    const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(m);
+  /** The graph point under the pointer (null while the graph is not laid out). */
+  function toGraph(e: MouseEvent): CurvePoint | null {
+    const ctm = svg?.getScreenCTM();
+    if (!ctm) return null;
+    const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(ctm.inverse());
     return [(p.x - L) / S, 1 - (p.y - T) / S];
   }
 
@@ -76,8 +78,9 @@
   }
 
   function onMove(e: PointerEvent) {
-    if (dragging === null) return;
-    onchange(moveCurvePoint(points, dragging, graphToCurve(toGraph(e), cfg)));
+    const at = dragging === null ? null : toGraph(e);
+    if (dragging === null || !at) return;
+    onchange(moveCurvePoint(points, dragging, graphToCurve(at, cfg)));
   }
 
   function onUp() {
@@ -85,8 +88,9 @@
   }
 
   function onBackgroundDblClick(e: MouseEvent) {
-    if (disabled || points.length >= MAX_CURVE_POINTS) return;
-    const [x, y] = toGraph(e);
+    const at = toGraph(e);
+    if (disabled || points.length >= MAX_CURVE_POINTS || !at) return;
+    const [x, y] = at;
     if (x <= cfg.deadzone || x >= outer || y < 0 || y > 1) return;
     onchange(addCurvePoint(points, graphToCurve([x, y], cfg)));
   }

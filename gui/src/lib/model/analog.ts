@@ -5,6 +5,7 @@
 
 import type {
   GyroSettings,
+  Jitter,
   Layer,
   Profile,
   StickConfig,
@@ -132,6 +133,11 @@ export function setTrigger(
 }
 
 /** How mappings push a virtual stick, with the defaults filled in, as on `layer`. */
+/** A virtual stick's jitter with the defaults filled in. */
+export function jitterConfig(own: Jitter | undefined, def: Required<Jitter>): Required<Jitter> {
+  return { ...def, ...own };
+}
+
 export function virtualStickConfig(
   p: Profile,
   side: Side,

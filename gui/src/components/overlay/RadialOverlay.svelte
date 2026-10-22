@@ -5,12 +5,11 @@
   import { overlayContent } from '../../lib/overlay';
   import { RING, sectorCentre, sectorPath } from '../../lib/model/radial';
   import { RADIAL_ICONS } from '../radial/icons';
-  import type { RadialMenu } from '../../lib/types';
+  import type { RadialContent } from '../../lib/types';
 
-  type Content = { menu: RadialMenu; pointed: number | null; images: (string | null)[] };
-  let content = $state<Content | null>(null);
+  let content = $state<RadialContent | null>(null);
 
-  onMount(() => overlayContent<Content>((c) => (content = c)));
+  onMount(() => overlayContent<RadialContent>((c) => (content = c)));
 
   const menu = $derived(content?.menu);
   const n = $derived(menu?.sectors.length ?? 0);

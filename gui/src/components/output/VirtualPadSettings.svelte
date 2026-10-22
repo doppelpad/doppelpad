@@ -7,11 +7,14 @@
   import { app } from '../../lib/state/app.svelte';
   import type { Output, VirtualPadType } from '../../lib/types';
   import Toggle from '../ui/Toggle.svelte';
+  import { outputConfig } from '../../lib/model/output';
 
-  const out = $derived<Required<Output>>({
-    ...(app.catalog?.defaults.output ?? { virtual_pad: 'xbox360', hide_physical: true, passthrough: true, mute_mapped_inputs: true }),
-    ...(app.profile?.output ?? {}),
-  } as Required<Output>);
+  const out = $derived(
+    outputConfig(
+      app.profile?.output,
+      app.catalog?.defaults.output ?? { virtual_pad: 'xbox360', hide_physical: true, passthrough: true, mute_mapped_inputs: true },
+    ),
+  );
 
   const drivers = $derived(app.live?.drivers);
 

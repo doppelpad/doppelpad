@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Profile } from '../types';
-import { MOUSE_ZONE_DEFAULTS, pruneDefaults, withMouseZone, withShake, withTurn } from './output';
+import { MOUSE_ZONE_DEFAULTS, pruneDefaults, vibrationConfig, withMouseZone, withShake, withTurn } from './output';
 
 const empty = (): Profile => ({ name: 'Test', mappings: [] });
 
@@ -28,5 +28,13 @@ describe('output settings from typed text', () => {
     expect(withMouseZone(empty(), 1, String(MOUSE_ZONE_DEFAULTS[1])).mouse).toBeUndefined();
     const p = empty();
     expect(withMouseZone(p, 0, 'abc')).toBe(p);
+  });
+});
+
+describe('settings with defaults', () => {
+  it('keep what is set and fill in the rest', () => {
+    const def = { left: 1, right: 1, swap: false, min_delay_ms: 20 };
+    expect(vibrationConfig({ left: 0.5 }, def)).toEqual({ left: 0.5, right: 1, swap: false, min_delay_ms: 20 });
+    expect(vibrationConfig(undefined, def)).toEqual(def);
   });
 });

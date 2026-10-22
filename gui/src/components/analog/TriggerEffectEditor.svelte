@@ -28,8 +28,9 @@
     onchange(v === '' ? undefined : freshEffect(v as EffectKind));
   }
 
-  function set(patch: Record<string, number>) {
-    if (effect) onchange({ ...effect, ...patch } as TriggerEffect);
+  /** Change fields of the effect `e` (the one shown), keeping its kind. */
+  function set<E extends TriggerEffect>(e: E, patch: Partial<Omit<E, 'kind'>>) {
+    onchange({ ...e, ...patch });
   }
 
   function setRaw(text: string) {
@@ -69,6 +70,7 @@
     />
   {/if}
   {#if effect?.kind === 'weapon'}
+    {@const e = effect}
     <Slider
       label={t('analog.trigger.effect_end')}
       value={effect.end}
@@ -78,15 +80,17 @@
       scale={10}
       unit="%"
       {disabled}
-      onchange={(v) => set({ end: v })}
+      onchange={(v) => set(e, { end: v })}
     />
   {/if}
   {#if effect?.kind === 'resistance' || effect?.kind === 'weapon'}
-    <Slider label={t('analog.trigger.effect_strength')} value={effect.strength} min={1} max={8} step={1} {disabled} onchange={(v) => set({ strength: v })} />
+    {@const e = effect}
+    <Slider label={t('analog.trigger.effect_strength')} value={e.strength} min={1} max={8} step={1} {disabled} onchange={(v) => set(e, { strength: v })} />
   {/if}
   {#if effect?.kind === 'vibration'}
-    <Slider label={t('analog.trigger.effect_amplitude')} value={effect.amplitude} min={1} max={8} step={1} {disabled} onchange={(v) => set({ amplitude: v })} />
-    <Slider label={t('analog.trigger.effect_frequency')} value={effect.frequency} min={1} max={255} step={1} unit="Hz" {disabled} onchange={(v) => set({ frequency: v })} />
+    {@const e = effect}
+    <Slider label={t('analog.trigger.effect_amplitude')} value={e.amplitude} min={1} max={8} step={1} {disabled} onchange={(v) => set(e, { amplitude: v })} />
+    <Slider label={t('analog.trigger.effect_frequency')} value={e.frequency} min={1} max={255} step={1} unit="Hz" {disabled} onchange={(v) => set(e, { frequency: v })} />
   {/if}
   {#if effect?.kind === 'raw'}
     <label class="row">

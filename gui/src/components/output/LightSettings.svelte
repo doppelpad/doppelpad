@@ -9,6 +9,7 @@
   import RemoveButton from '../ui/RemoveButton.svelte';
   import Slider from '../ui/Slider.svelte';
   import Toggle from '../ui/Toggle.svelte';
+  import { lightConfig } from '../../lib/model/output';
 
   const MODES: LightMode[] = ['solid', 'breath', 'rainbow', 'shimmer', 'heartbeat', 'strobe', 'off'];
   const def = $derived(app.catalog?.defaults.light);
@@ -19,14 +20,14 @@
   const own = $derived<Light | undefined>(
     layer === 0 ? app.profile?.lightbar : app.profile?.layers?.find((l) => l.id === layer)?.lightbar,
   );
-  const light = $derived({ ...def, ...own } as Required<Light>);
+  const light = $derived(def ? lightConfig(own, def) : null);
 
   function set(patch: Partial<Light> | undefined) {
     app.edit((p) => setLight(p, layer, patch === undefined ? undefined : { ...own, ...patch }));
   }
 
   function setColor(i: number, c: string) {
-    set({ colors: light.colors.map((x, j) => (j === i ? c : x)) });
+    if (light) set({ colors: light.colors.map((x, j) => (j === i ? c : x)) });
   }
 </script>
 
@@ -50,7 +51,7 @@
   onchange={(v) => set(v ? { ...def } : undefined)}
 />
 
-{#if own}
+{#if own && light}
   <div class="box card">
     <label class="row">
       <span>{t('light.mode')}</span>

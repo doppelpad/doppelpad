@@ -5,14 +5,13 @@
   import { setLanguage, t } from '../../lib/i18n/index.svelte';
   import { layerLabel, overlayRows } from '../../lib/model/labels';
   import { overlayContent } from '../../lib/overlay';
-  import type { Corner, PadFamily, Profile } from '../../lib/types';
+  import type { MappingsOverlayContent } from '../../lib/types';
   import CornerFrame from './CornerFrame.svelte';
 
-  type Content = { profile: Profile; layer: number; family: PadFamily | null; lang: string; opacity: number; corner: Corner };
-  let content = $state<Content | null>(null);
+  let content = $state<MappingsOverlayContent | null>(null);
 
   onMount(() =>
-    overlayContent<Content>((c) => {
+    overlayContent<MappingsOverlayContent>((c) => {
       if (c) setLanguage(c.lang);
       content = c;
     }),

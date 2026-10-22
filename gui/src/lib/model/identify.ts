@@ -1,18 +1,18 @@
 // The "identify buttons" wizard for generic pads: one step per pad control, each recording
 // the raw input (button, hat direction or axis) that moved away from the resting state.
-import type { GenericLayout, HatDir, RawInput, RawSource, StickAxis } from '../types';
+import type { GenericLayout, HatDir, PadButtonName, RawInput, RawSource, StickAxis } from '../types';
 
 export type Step =
-  | { kind: 'button'; button: string }
+  | { kind: 'button'; button: PadButtonName }
   | { kind: 'trigger'; trigger: 'left' | 'right' }
   /** Push the stick right (x) or up (y). */
   | { kind: 'stick'; axis: StickAxis };
 
 export const STEPS: Step[] = [
-  ...['A', 'B', 'X', 'Y', 'LB', 'RB'].map((button): Step => ({ kind: 'button', button })),
+  ...(['A', 'B', 'X', 'Y', 'LB', 'RB'] as const).map((button): Step => ({ kind: 'button', button })),
   { kind: 'trigger', trigger: 'left' },
   { kind: 'trigger', trigger: 'right' },
-  ...['Back', 'Start', 'LS', 'RS', 'Guide', 'DpadUp', 'DpadDown', 'DpadLeft', 'DpadRight'].map(
+  ...(['Back', 'Start', 'LS', 'RS', 'Guide', 'DpadUp', 'DpadDown', 'DpadLeft', 'DpadRight'] as const).map(
     (button): Step => ({ kind: 'button', button }),
   ),
   ...(['LeftX', 'LeftY', 'RightX', 'RightY'] as const).map((axis): Step => ({ kind: 'stick', axis })),

@@ -5,16 +5,17 @@ import { ask } from '@tauri-apps/plugin-dialog';
 import { t } from './i18n/index.svelte';
 import type {
   Catalog,
+  DeviceGroup,
   DiagMsg,
   Driver,
   DsuSettings,
-  DeviceGroup,
   Game,
   GameMeta,
   GenericLayout,
   GuiSettings,
   Hotkeys,
   HttpSettings,
+  Imported,
   LayerPreset,
   Library,
   LiveState,
@@ -53,7 +54,7 @@ export const api = {
   configDuplicate: (path: string) => invoke<string>('config_duplicate', { path }),
   configDelete: (path: string) => invoke<void>('config_delete', { path }),
   configImport: (gameDir: string, source: string) =>
-    invoke<{ path: string; diagnostics: DiagMsg[] }>('config_import', { gameDir, source }),
+    invoke<Imported>('config_import', { gameDir, source }),
   reveal: (path: string) => invoke<void>('reveal', { path }),
 
   /** `device`: that controller's own slots instead of the shared ones. */
@@ -91,7 +92,6 @@ export const api = {
 
   settingsGet: () => invoke<GuiSettings>('settings_get'),
   settingsSet: (settings: GuiSettings) => invoke<void>('settings_set', { settings }),
-  /** Show a sample on-screen notification. */
   /** What the player lights and the microphone LED show. */
   setLights: (player: PlayerLights, mic: boolean) => invoke<void>('set_lights', { player, mic }),
   /** Ignore a device completely, or use it again. */
@@ -105,6 +105,7 @@ export const api = {
   setHttp: (settings: HttpSettings) => invoke<void>('set_http', { settings }),
   newHttpToken: () => invoke<void>('new_http_token'),
   setRuntimeOptions: (options: RuntimeOptions) => invoke<void>('set_runtime_options', { options }),
+  /** Show a sample on-screen notification. */
   osdTest: () => invoke<void>('osd_test'),
   /** Sizes of the monitors, the primary one first. */
   osdMonitors: () => invoke<string[]>('osd_monitors'),

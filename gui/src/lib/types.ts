@@ -20,6 +20,10 @@ export type PadButtonName =
   | 'DpadUp' | 'DpadDown' | 'DpadLeft' | 'DpadRight' | 'Guide' | 'Touchpad' | 'Misc'
   | 'PaddleUL' | 'PaddleUR' | 'PaddleLL' | 'PaddleLR' | 'Misc2';
 export type VirtualPadType = 'xbox360' | 'dual_shock4' | 'none';
+/** A virtual controller that exists (sessions report the one they play on). */
+export type VirtualPadKind = Exclude<VirtualPadType, 'none'>;
+/** Mouse buttons as controls (`Mouse:Left`); the catalog lists them. */
+export type MouseControlButton = 'Left' | 'Right' | 'Middle' | 'X1' | 'X2';
 export type JumpMode = 'hold' | 'toggle' | 'switch';
 
 export type Command =
@@ -374,6 +378,9 @@ export interface VirtualStick {
   jitter?: Jitter;
 }
 
+/** A virtual stick with every setting filled in, its jitter's too (the defaults). */
+export type VirtualStickFull = Required<Omit<VirtualStick, 'jitter'>> & { jitter: Required<Jitter> };
+
 export interface VirtualSticks {
   left?: VirtualStick;
   right?: VirtualStick;
@@ -387,7 +394,6 @@ export interface VirtualDevices {
   mouse?: { counts_per_turn?: number; turn_ms?: number; wheel_repeat_ms?: number };
 }
 
-/** How the motion sensors become gyro controls and feed gyro routes. */
 /** How the touchpad becomes region controls. */
 export interface TouchpadSettings {
   /** Left and right halves are two trackpads. */
@@ -398,6 +404,7 @@ export interface TouchpadSettings {
   click_required?: boolean;
 }
 
+/** How the motion sensors become gyro controls and feed gyro routes. */
 export interface GyroSettings {
   mode?: 'motion' | 'tilt';
   steering?: 'roll' | 'yaw';
@@ -481,7 +488,7 @@ export interface LiveDevice {
   /** `null` when the controller does not report one. */
   battery: Battery | null;
   /** Unmapped input of a generic pad, for identifying its buttons. */
-  raw?: RawInput | null;
+  raw: RawInput | null;
 }
 
 /** All keyboard/mouse input, physical devices only, or only what scripts inject. */
@@ -546,7 +553,7 @@ export type RawSource =
 export interface GenericLayout {
   /** `vvvv:pppp` in hex. */
   device: string;
-  buttons: { button: string; from: RawSource }[];
+  buttons: { button: PadButtonName; from: RawSource }[];
   triggers: { trigger: 'left' | 'right'; from: RawSource }[];
   sticks: { axis: StickAxis; from: number; invert: boolean }[];
 }
@@ -680,7 +687,7 @@ export interface LoadedConfig {
 export interface Catalog {
   keys: string[];
   pad_buttons: PadButtonName[];
-  mouse_buttons: string[];
+  mouse_buttons: MouseControlButton[];
   defaults: {
     profile: Profile;
     mapping: Mapping;
@@ -689,7 +696,7 @@ export interface Catalog {
     stick: Required<StickConfig>;
     trigger: TriggerFull;
     analog: Required<AnalogMapping>;
-    virtual_stick: Required<VirtualStick>;
+    virtual_stick: VirtualStickFull;
     gyro: Required<GyroSettings>;
     touchpad: Required<TouchpadSettings>;
     crosshair: CrosshairFull;
@@ -771,6 +778,37 @@ export type OsdEvent =
 
 export type OsdMessage = OsdEvent & { id: number; lang: string; opacity: number; scale: number; corner: Corner };
 
+/** What the controller overlay shows (sent by gui/src-tauri/src/pad_overlay.rs). */
+export interface PadOverlayContent {
+  device: LiveDevice;
+  opacity: number;
+  corner: Corner;
+}
+
+/** What the mappings overlay shows (sent by gui/src-tauri/src/pad_overlay.rs). */
+export interface MappingsOverlayContent {
+  profile: Profile;
+  layer: number;
+  family: PadFamily | null;
+  lang: string;
+  opacity: number;
+  corner: Corner;
+}
+
+/** A radial menu on screen (sent by gui/src-tauri/src/radial.rs). */
+export interface RadialContent {
+  menu: RadialMenu;
+  pointed: number | null;
+  /** Per sector, its image file as a data URL (icons of the app's set stay names). */
+  images: (string | null)[];
+}
+
+/** A config made from an imported file (sent by gui/src-tauri/src/commands.rs). */
+export interface Imported {
+  path: string;
+  diagnostics: DiagMsg[];
+}
+
 /** What of reWASD is running; it keeps the controllers to itself. */
 export interface RewasdStatus {
   /** Display name of its service while that runs. */
@@ -805,5 +843,5 @@ export interface LiveSession {
   profile: string;
   profile_path: string | null;
   layer: number;
-  virtual_pad: string | null;
+  virtual_pad: VirtualPadKind | null;
 }

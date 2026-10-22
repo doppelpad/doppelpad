@@ -35,6 +35,11 @@ const ROUTE_FIELDS: Record<string, RouteField[]> = {
   'stick>flick': ['deadzone', 'smoothing_ms', 'consume'],
 };
 
+/** A route with the defaults filled in. */
+export function routeConfig(route: AnalogMapping, def: Required<AnalogMapping>): Required<AnalogMapping> {
+  return { ...def, ...route };
+}
+
 export const sourceOf = (r: AnalogMapping): AnalogSource => r.source ?? 'right_stick';
 export const targetOf = (r: AnalogMapping): AnalogTarget => r.target ?? 'mouse';
 export const routeLayer = (r: AnalogMapping) => r.layer ?? 0;
