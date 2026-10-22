@@ -497,8 +497,10 @@ little drift do not count). Wired controllers stay on. Its home button turns it 
 remapping off, and without the window (`doppelpad daemon` reads them too): **Slot 1–4**
 (activates that slot and turns remapping on; empty slots do nothing), **Remapping on/off**,
 **Stop macros** (stops running macros, turbo and toggles and releases what they hold),
-**Emergency stop** (the same, then remapping off), and the **Controller overlay** and
-**Mappings overlay** switches (see [Overlays](#overlays)). Hold all buttons of a combo for
+**Emergency stop** (the same, then remapping off), the **Controller overlay** and
+**Mappings overlay** switches (see [Overlays](#overlays)), and **Drive this app with the
+controller** (see [Handheld mode](#handheld-mode); the only hotkey that also works while the
+window has the focus). Hold all buttons of a combo for
 the *hold time* (500 ms by default, 50–2500 ms). Defaults: LB + RB + X / Y / B / A for slots
 1–4, Back + Start + LB + RB for the emergency stop; the others are off.
 
@@ -512,6 +514,27 @@ LB + RB + X) waits for the larger one.
 hotkey rumbles as often as the slot's number, remapping on once long and off twice long, the
 emergency stop twice long, the others once. This also works in exclusive full-screen games,
 where the on-screen notifications cannot draw. The game's own rumble waits for the pattern.
+
+## Handheld mode
+
+On a handheld PC the app can be used with the built-in controller alone. The button with the
+D-pad icon in the bottom bar (or *Settings → General → Drive the app with the controller*,
+or its controller hotkey) turns it on:
+
+| Control | Does |
+|---|---|
+| D-pad, left stick | Move the focus to the nearest element in that direction (held: repeats) |
+| Left / right on a list, slider or number field | Change its value |
+| A | Press the focused button, tick the box, step the list |
+| B | Back: close the menu or dialog, else drop the selection (what Escape does) |
+| LB / RB | Previous / next view (front, back, keyboard, mouse, analog, shortcuts, output) |
+| LT / RT | Previous / next layer |
+| Start | Save the config |
+
+The focused element gets a ring. In a dialog or menu the focus stays inside it, and the views,
+layers and Start wait until it is closed. While the controller drives the app, pressing a
+control no longer selects it in the editor (*Select controls by pressing them on the
+controller* is off meanwhile). Text fields keep the focus for the touch keyboard.
 
 ## Overlays
 

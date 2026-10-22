@@ -31,4 +31,5 @@ export const SETTINGS_PLACEHOLDER: GuiSettings = {
   show_notes: false,
   silenced: [],
   zoom: 100,
+  pad_navigation: false,
 };

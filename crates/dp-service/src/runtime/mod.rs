@@ -165,11 +165,13 @@ struct HotkeyState {
     actions: Vec<(DeviceId, HotkeyAction)>,
 }
 
-/// The live controller overlay and the mappings overlay.
+/// The live controller overlay and the mappings overlay, and the app's controller navigation.
 #[derive(Default)]
 struct Overlays {
     pad: bool,
     mappings: bool,
+    /// How often the app-navigation hotkey fired.
+    navigation: u32,
 }
 
 impl Overlays {
@@ -363,6 +365,11 @@ impl Runtime {
     /// Whether the live controller overlay and the mappings overlay are on.
     pub(crate) fn overlays(&self) -> (bool, bool) {
         (self.overlays.pad, self.overlays.mappings)
+    }
+
+    /// How often the app-navigation hotkey fired (the app toggles at each change).
+    pub(crate) fn navigation_presses(&self) -> u32 {
+        self.overlays.navigation
     }
 
     /// How generic pads' inputs map to pad controls, by model.
@@ -659,6 +666,10 @@ impl Runtime {
                 HotkeyAction::MappingsOverlay => {
                     self.confirm_hotkey(&id, Confirm::Short(1));
                     self.overlays.toggle_mappings();
+                }
+                HotkeyAction::AppNavigation => {
+                    self.confirm_hotkey(&id, Confirm::Short(1));
+                    self.overlays.navigation = self.overlays.navigation.wrapping_add(1);
                 }
                 other => self.hotkeys.actions.push((id, other)),
             }

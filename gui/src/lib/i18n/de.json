@@ -1183,6 +1183,7 @@
     "emergency_stop": "Not-Aus",
     "pad_overlay": "Controller-Overlay",
     "mappings_overlay": "Belegungs-Overlay",
+    "app_navigation": "Diese App mit dem Controller bedienen (auch wenn sie den Fokus hat)",
     "none": "Aus",
     "press": "Tasten halten, dann loslassen …",
     "record": "Aufnehmen",
@@ -1566,5 +1567,11 @@
   },
   "hints": {
     "steam_input": "Steam läuft, während {game} den virtuellen Controller von Doppelpad nutzt. Steam Input kann diesen Controller ebenfalls übernehmen und neu belegen, sodass Tasten doppelt oder anders als gemappt wirken. Passiert das, schalte Steam Input für dieses Spiel aus: in Steam die Eigenschaften des Spiels öffnen, dann Controller, und Steam Input dort deaktivieren."
+  },
+  "padnav": {
+    "toggle": "App mit dem Controller bedienen",
+    "hint": "Steuerkreuz oder linker Stick bewegen den Fokus, A drückt, B geht zurück oder schließt, LB und RB wechseln die Ansicht, LT und RT die Ebene, Start speichert. Ein gedrücktes Bedienelement wird dann nicht mehr ausgewählt.",
+    "on": "Der Controller bedient die App",
+    "off": "Der Controller wählt wieder Bedienelemente aus"
   }
 }

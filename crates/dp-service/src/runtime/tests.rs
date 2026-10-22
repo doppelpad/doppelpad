@@ -72,6 +72,30 @@ fn hotkeys_confirm_with_a_rumble_pattern_when_asked() {
 }
 
 #[test]
+fn the_navigation_hotkey_counts_while_the_app_has_focus() {
+    use dp_core::pad::PadButton::*;
+    let (mut rt, world) = testing::runtime_with(&[("pad1", PadFamily::Xbox)]);
+    rt.set_hotkeys(Hotkeys {
+        hold_ms: 50,
+        app_navigation: vec![Back, Guide],
+        ..Default::default()
+    });
+    rt.apply(Profile::default(), None).unwrap();
+    // The app has the focus: remapping is suspended, hotkeys still count.
+    rt.set_suspended(true);
+    let hold = |rt: &mut Runtime, buttons: u32| {
+        world.lock().unwrap().pads[0].state.buttons = buttons;
+        rt.tick();
+        rt.advance_ms(60);
+        rt.tick();
+        rt.navigation_presses()
+    };
+    assert_eq!(hold(&mut rt, Back.bit() | Guide.bit()), 1);
+    assert_eq!(hold(&mut rt, 0), 1);
+    assert_eq!(hold(&mut rt, Back.bit() | Guide.bit()), 2);
+}
+
+#[test]
 fn hotkeys_stay_quiet_without_the_setting() {
     use dp_core::pad::PadButton::*;
     let (mut rt, world) = testing::runtime_with(&[("pad1", PadFamily::Xbox)]);

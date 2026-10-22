@@ -47,6 +47,9 @@ pub struct GuiSettings {
     pub silenced: Vec<String>,
     /// Size of the window's contents, in percent (80–150).
     pub zoom: u16,
+    /// The controller drives the app (moves the focus, activates, goes back) instead of
+    /// selecting the pressed control.
+    pub pad_navigation: bool,
 }
 
 /// On-screen notifications: which events show one, and where and how.
@@ -181,6 +184,7 @@ impl Default for GuiSettings {
             show_notes: false,
             silenced: Vec::new(),
             zoom: 100,
+            pad_navigation: false,
         }
     }
 }

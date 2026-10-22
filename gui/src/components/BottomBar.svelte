@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Pause, Power, TriangleAlert } from '@lucide/svelte';
+  import { GamepadDirectional, Pause, Power, TriangleAlert } from '@lucide/svelte';
   import { api } from '../lib/api';
   import { t } from '../lib/i18n/index.svelte';
   import { configName } from '../lib/model/labels';
@@ -39,6 +39,17 @@
     </button>
 
     <DevicePicker />
+
+    <button
+      class="power nav"
+      class:on={app.settings.pad_navigation}
+      aria-pressed={app.settings.pad_navigation}
+      aria-label={t('padnav.toggle')}
+      title={t('padnav.hint')}
+      onclick={() => app.setPadNavigation(!app.settings.pad_navigation)}
+    >
+      <GamepadDirectional size={15} />
+    </button>
 
     {#if live && !live.drivers.virtual_pads.available}
       <span class="warn" title={live.drivers.virtual_pads.error ?? ''}>
@@ -94,6 +105,9 @@
     border-color: var(--accent);
     color: var(--accent);
     background: var(--accent-soft);
+  }
+  .power.nav {
+    margin: 0 0 0 4px;
   }
   .power.on:hover {
     background: color-mix(in srgb, var(--accent) 24%, transparent);

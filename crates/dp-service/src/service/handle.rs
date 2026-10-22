@@ -511,7 +511,8 @@ impl Service {
                 HotkeyAction::StopMacros
                 | HotkeyAction::EmergencyStop
                 | HotkeyAction::PadOverlay
-                | HotkeyAction::MappingsOverlay => {}
+                | HotkeyAction::MappingsOverlay
+                | HotkeyAction::AppNavigation => {}
             }
         }
     }

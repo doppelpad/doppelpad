@@ -629,6 +629,8 @@ export interface LiveState {
   has_radial: boolean;
   pad_overlay: boolean;
   mappings_overlay: boolean;
+  /** How often the app-navigation hotkey fired; each change turns controller navigation on or off. */
+  app_navigation: number;
 }
 
 // ----- library --------------------------------------------------------------------------
@@ -753,6 +755,8 @@ export interface GuiSettings {
   silenced: string[];
   /** Size of the window's contents, in percent (80–150). */
   zoom: number;
+  /** The controller drives the app (focus, activate, back) instead of selecting the pressed control. */
+  pad_navigation: boolean;
 }
 
 /** Starting points for new configs. */
@@ -864,6 +868,7 @@ export interface Hotkeys {
   emergency_stop: PadButtonName[];
   pad_overlay: PadButtonName[];
   mappings_overlay: PadButtonName[];
+  app_navigation: PadButtonName[];
   /** Confirm each hotkey with a short rumble pattern on the controller. */
   rumble: boolean;
 }

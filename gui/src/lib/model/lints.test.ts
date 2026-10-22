@@ -24,6 +24,7 @@ const hotkeys: Hotkeys = {
   emergency_stop: ['Back', 'Start', 'LB', 'RB'],
   pad_overlay: [],
   mappings_overlay: [],
+  app_navigation: [],
   rumble: false,
 };
 
