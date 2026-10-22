@@ -7,14 +7,13 @@
 
 use std::ffi::c_void;
 use std::io;
-use std::ptr::{null, null_mut};
+use std::ptr::null_mut;
 use std::sync::Arc;
 use std::time::Duration;
 
 use windows_sys::Win32::Devices::HumanInterfaceDevice::{
-    HIDD_ATTRIBUTES, HIDP_CAPS, HIDP_STATUS_SUCCESS, HidD_FreePreparsedData, HidD_GetAttributes,
-    HidD_GetPreparsedData, HidD_GetProductString, HidD_GetSerialNumberString, HidD_SetFeature,
-    HidP_GetCaps,
+    HIDD_ATTRIBUTES, HidD_GetAttributes, HidD_GetProductString, HidD_GetSerialNumberString,
+    HidD_SetFeature,
 };
 use windows_sys::Win32::Foundation::{
     ERROR_IO_PENDING, GENERIC_READ, GENERIC_WRITE, GetLastError, HANDLE, WAIT_OBJECT_0,
@@ -27,17 +26,17 @@ use windows_sys::Win32::Storage::FileSystem::{
 use windows_sys::Win32::System::IO::{
     CancelIoEx, DeviceIoControl, GetOverlappedResult, OVERLAPPED,
 };
-use windows_sys::Win32::System::Threading::{
-    CreateEventW, SetEvent, WaitForMultipleObjects, WaitForSingleObject,
-};
+use windows_sys::Win32::System::Threading::{SetEvent, WaitForMultipleObjects};
 
+use super::hidparse::PreparsedData;
+use super::overlapped::{EventReset, event, run_overlapped};
 use super::{OwnedHandle, from_wide, wide};
 use crate::padio::ReportIo;
 
 /// `CTL_CODE(FILE_DEVICE_KEYBOARD, 100, METHOD_OUT_DIRECT, FILE_ANY_ACCESS)`.
 const IOCTL_HID_GET_FEATURE: u32 = 0x000B_0192;
 /// Bluetooth writes can take a while; give up after this.
-const WRITE_TIMEOUT_MS: u32 = 1000;
+const WRITE_TIMEOUT: Duration = Duration::from_secs(1);
 
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
 pub struct HidCaps {
@@ -56,11 +55,6 @@ impl Waker {
         // SAFETY: valid event handle.
         unsafe { SetEvent(self.0.raw()) };
     }
-}
-
-fn event(manual_reset: bool) -> io::Result<OwnedHandle> {
-    // SAFETY: plain unnamed event.
-    OwnedHandle::from_null_ret(unsafe { CreateEventW(null(), i32::from(manual_reset), 0, null()) })
 }
 
 /// The pending read: lives on the heap so its address stays fixed while the kernel
@@ -84,6 +78,8 @@ pub struct HidIo {
     pending: bool,
     last_len: usize,
     waker: Arc<Waker>,
+    /// Signalled by writes and feature reads, which run one at a time.
+    io_event: OwnedHandle,
     caps: HidCaps,
 }
 
@@ -119,12 +115,13 @@ impl HidIo {
                 // SAFETY: OVERLAPPED is plain data; all-zero is its initial state.
                 ov: unsafe { std::mem::zeroed() },
                 buf: vec![0u8; caps.input_len.max(64)],
-                event: event(true)?,
+                event: event(EventReset::Manual)?,
             }),
             handle,
             pending: false,
             last_len: 0,
-            waker: Arc::new(Waker(event(false)?)),
+            waker: Arc::new(Waker(event(EventReset::Auto)?)),
+            io_event: event(EventReset::Manual)?,
             caps,
         })
     }
@@ -238,69 +235,43 @@ impl HidIo {
         }
     }
 
-    /// Run one overlapped operation to completion (or cancel it after the timeout).
-    fn complete(&self, ov: &mut OVERLAPPED, started: i32) -> io::Result<usize> {
-        // SAFETY: `ov` belongs to an operation started on our handle; we wait for it to
-        // finish (or cancel it) before returning, so its buffer outlives it.
-        unsafe {
-            if started == 0 && GetLastError() != ERROR_IO_PENDING {
-                return Err(io::Error::last_os_error());
-            }
-            if WaitForSingleObject(ov.hEvent, WRITE_TIMEOUT_MS) == WAIT_TIMEOUT {
-                CancelIoEx(self.handle.raw(), ov);
-            }
-            let mut n = 0u32;
-            if GetOverlappedResult(self.handle.raw(), ov, &mut n, 1) == 0 {
-                return Err(io::Error::last_os_error());
-            }
-            Ok(n as usize)
-        }
-    }
-
     /// Send an output report, zero-padded to the device's output report length.
     pub fn write_report(&self, report: &[u8]) -> io::Result<()> {
         let mut buf = report.to_vec();
         if buf.len() < self.caps.output_len {
             buf.resize(self.caps.output_len, 0);
         }
-        let ev = event(true)?;
-        // SAFETY: a zeroed OVERLAPPED is the documented initial state.
-        let mut ov: OVERLAPPED = unsafe { std::mem::zeroed() };
-        ov.hEvent = ev.0;
-        // SAFETY: `buf` and `ov` (with our event) live until `complete` has waited for the
-        // write to finish.
-        let started = unsafe {
-            WriteFile(
-                self.handle.raw(),
-                buf.as_ptr(),
-                buf.len() as u32,
-                null_mut(),
-                &mut ov,
-            )
+        let handle = self.handle.raw();
+        let start = |ov| {
+            // SAFETY: valid handle, buffer and OVERLAPPED.
+            unsafe { WriteFile(handle, buf.as_ptr(), buf.len() as u32, null_mut(), ov) }
         };
-        self.complete(&mut ov, started).map(drop)
+        // SAFETY: `buf` lives until the write has finished.
+        unsafe { run_overlapped(handle, &self.io_event, Some(WRITE_TIMEOUT), start) }.map(drop)
     }
 
     /// Read a feature report into `buf` (`buf[0]` = report ID).
     pub fn feature(&self, buf: &mut [u8]) -> io::Result<usize> {
-        let ev = event(true)?;
-        // SAFETY: a zeroed OVERLAPPED is the documented initial state.
-        let mut ov: OVERLAPPED = unsafe { std::mem::zeroed() };
-        ov.hEvent = ev.0;
-        // SAFETY: as in `write_report`; `buf` and `ov` outlive the operation.
-        let started = unsafe {
-            DeviceIoControl(
-                self.handle.raw(),
-                IOCTL_HID_GET_FEATURE,
-                buf.as_ptr().cast(),
-                buf.len() as u32,
-                buf.as_mut_ptr().cast(),
-                buf.len() as u32,
-                null_mut(),
-                &mut ov,
-            )
+        let handle = self.handle.raw();
+        let (ptr, len) = (buf.as_mut_ptr(), buf.len() as u32);
+        let start = |ov| {
+            // SAFETY: valid handle, one buffer for input and output, and OVERLAPPED.
+            unsafe {
+                DeviceIoControl(
+                    handle,
+                    IOCTL_HID_GET_FEATURE,
+                    ptr.cast_const().cast(),
+                    len,
+                    ptr.cast(),
+                    len,
+                    null_mut(),
+                    ov,
+                )
+            }
         };
-        self.complete(&mut ov, started)
+        // SAFETY: `buf` lives until the request has finished.
+        let n = unsafe { run_overlapped(handle, &self.io_event, Some(WRITE_TIMEOUT), start) }?;
+        Ok(n as usize)
     }
 }
 
@@ -365,18 +336,8 @@ impl Drop for HidIo {
 }
 
 fn read_caps(handle: HANDLE) -> Option<HidCaps> {
-    let mut pp = 0;
-    // SAFETY: preparsed data is freed below.
-    if !unsafe { HidD_GetPreparsedData(handle, &mut pp) } {
-        return None;
-    }
-    // SAFETY: plain struct filled by HidP_GetCaps.
-    let mut caps: HIDP_CAPS = unsafe { std::mem::zeroed() };
-    // SAFETY: `pp` is the preparsed data read above, `caps` a valid out-pointer.
-    let status = unsafe { HidP_GetCaps(pp, &mut caps) };
-    // SAFETY: `pp` came from HidD_GetPreparsedData and is not used afterwards.
-    unsafe { HidD_FreePreparsedData(pp) };
-    (status == HIDP_STATUS_SUCCESS).then_some(HidCaps {
+    let caps = PreparsedData::get(handle)?.caps()?;
+    Some(HidCaps {
         usage_page: caps.UsagePage,
         usage: caps.Usage,
         input_len: caps.InputReportByteLength as usize,

@@ -64,8 +64,42 @@ impl Value {
     }
 }
 
+/// The parsed report descriptor of an open HID device, freed on drop.
+pub(crate) struct PreparsedData(PHIDP_PREPARSED_DATA);
+
+// SAFETY: a heap block owned by this value; the HID parser functions only read it and may
+// be called from any thread.
+unsafe impl Send for PreparsedData {}
+
+impl PreparsedData {
+    /// The preparsed data of the device behind `handle`.
+    pub(crate) fn get(handle: HANDLE) -> Option<PreparsedData> {
+        let mut pp: PHIDP_PREPARSED_DATA = 0;
+        // SAFETY: valid handle and out-pointer; on success the block is ours.
+        unsafe { HidD_GetPreparsedData(handle, &mut pp) }.then_some(PreparsedData(pp))
+    }
+
+    fn raw(&self) -> PHIDP_PREPARSED_DATA {
+        self.0
+    }
+
+    /// The capabilities of the device's top-level collection.
+    pub(crate) fn caps(&self) -> Option<HIDP_CAPS> {
+        let mut caps = HIDP_CAPS::default();
+        // SAFETY: valid preparsed data and out-pointer.
+        (unsafe { HidP_GetCaps(self.0, &mut caps) } == HIDP_STATUS_SUCCESS).then_some(caps)
+    }
+}
+
+impl Drop for PreparsedData {
+    fn drop(&mut self) {
+        // SAFETY: allocated by HidD_GetPreparsedData and freed once.
+        unsafe { HidD_FreePreparsedData(self.0) };
+    }
+}
+
 pub struct HidDecoder {
-    pp: PHIDP_PREPARSED_DATA,
+    pp: PreparsedData,
     report_len: usize,
     /// Button usages in index order, and the link collections that hold buttons.
     buttons: Vec<u16>,
@@ -75,25 +109,12 @@ pub struct HidDecoder {
     state: RawInput,
 }
 
-// SAFETY: the preparsed data is a heap block owned by this value; the HID parser functions
-// only read it and may be called from any thread.
-unsafe impl Send for HidDecoder {}
-
-impl Drop for HidDecoder {
-    fn drop(&mut self) {
-        // SAFETY: allocated by HidD_GetPreparsedData and freed once.
-        unsafe { HidD_FreePreparsedData(self.pp) };
-    }
-}
-
 impl HidDecoder {
     /// The device's input layout, or `None` if it has no buttons or axes.
     pub fn new(handle: HANDLE) -> Option<HidDecoder> {
-        let mut pp: PHIDP_PREPARSED_DATA = 0;
-        // SAFETY: valid handle; on success the data is owned by the decoder (freed in Drop).
-        if !unsafe { HidD_GetPreparsedData(handle, &mut pp) } {
-            return None;
-        }
+        let pp = PreparsedData::get(handle)?;
+        let caps = pp.caps()?;
+        let raw = pp.raw();
         let mut d = HidDecoder {
             pp,
             report_len: 0,
@@ -103,19 +124,13 @@ impl HidDecoder {
             hats: Vec::new(),
             state: RawInput::default(),
         };
-        // SAFETY: zeroed plain struct filled by the parser.
-        let mut caps: HIDP_CAPS = unsafe { std::mem::zeroed() };
-        // SAFETY: `pp` is valid until the decoder drops, `caps` a valid out-pointer.
-        if unsafe { HidP_GetCaps(pp, &mut caps) } != HIDP_STATUS_SUCCESS {
-            return None;
-        }
         d.report_len = caps.InputReportByteLength as usize;
 
         let mut n = caps.NumberInputButtonCaps;
         let mut bcaps = vec![HIDP_BUTTON_CAPS::default(); n as usize];
         if n > 0
             // SAFETY: the buffer holds `n` entries.
-            && unsafe { HidP_GetButtonCaps(HidP_Input, bcaps.as_mut_ptr(), &mut n, pp) }
+            && unsafe { HidP_GetButtonCaps(HidP_Input, bcaps.as_mut_ptr(), &mut n, raw) }
                 == HIDP_STATUS_SUCCESS
         {
             for c in bcaps
@@ -145,7 +160,7 @@ impl HidDecoder {
         let mut vcaps = vec![HIDP_VALUE_CAPS::default(); n as usize];
         if n > 0
             // SAFETY: the buffer holds `n` entries.
-            && unsafe { HidP_GetValueCaps(HidP_Input, vcaps.as_mut_ptr(), &mut n, pp) }
+            && unsafe { HidP_GetValueCaps(HidP_Input, vcaps.as_mut_ptr(), &mut n, raw) }
                 == HIDP_STATUS_SUCCESS
         {
             for c in vcaps.iter().take(n as usize) {
@@ -206,7 +221,7 @@ impl HidDecoder {
                 v.link,
                 v.usage,
                 &mut raw,
-                self.pp,
+                self.pp.raw(),
                 report.as_ptr(),
                 report.len() as u32,
             )
@@ -235,7 +250,7 @@ impl ReportDecoder for HidDecoder {
                     link,
                     usages.as_mut_ptr(),
                     &mut n,
-                    self.pp,
+                    self.pp.raw(),
                     buf.as_mut_ptr(),
                     buf.len() as u32,
                 )

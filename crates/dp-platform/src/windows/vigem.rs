@@ -6,6 +6,7 @@
 //! ones in ViGEmClient's public headers.
 
 use std::ffi::c_void;
+use std::io;
 use std::os::windows::io::AsRawHandle;
 use std::ptr::{null, null_mut};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -14,15 +15,11 @@ use std::time::Instant;
 
 use dp_core::pad::{Axis, PadButton, PadState, Rgb, Rumble, axis_to_i16, unit_to_u8_round};
 use vigem_client::{Client, TargetId, XButtons, XGamepad, Xbox360Wired};
-use windows_sys::Win32::Foundation::{
-    ERROR_ACCESS_DENIED, ERROR_IO_PENDING, ERROR_OPERATION_ABORTED, GetLastError, HANDLE,
-};
-use windows_sys::Win32::System::IO::{
-    CancelIoEx, DeviceIoControl, GetOverlappedResult, OVERLAPPED,
-};
-use windows_sys::Win32::System::Threading::CreateEventW;
+use windows_sys::Win32::Foundation::{ERROR_ACCESS_DENIED, ERROR_OPERATION_ABORTED, HANDLE};
+use windows_sys::Win32::System::IO::{CancelIoEx, DeviceIoControl};
 
 use super::OwnedHandle;
+use super::overlapped::{self, EventReset, run_overlapped};
 use crate::sony::{DS4_REPORT_LEN, DS4_V1_PID, Ds4Calibration, Ds4ReportBuilder, SONY_VID};
 use crate::{PlatformError, Result, VirtualPad, VirtualPadFactory, VirtualPadKind};
 
@@ -210,48 +207,33 @@ fn size_u32<T>() -> u32 {
 }
 
 /// Run one buffered request on the overlapped bus handle and wait for it. `out` says
-/// whether the driver writes its answer back into `req`. Returns the Win32 error code.
+/// whether the driver writes its answer back into `req`.
 fn bus_request<T>(
     bus: HANDLE,
     event: &OwnedHandle,
     code: u32,
     req: &mut T,
     out: bool,
-) -> std::result::Result<(), u32> {
+) -> io::Result<()> {
     let len = size_u32::<T>();
     let ptr: *mut c_void = (req as *mut T).cast();
-    // SAFETY: `req` lives until the request finished (we wait for it); the event is ours.
-    unsafe {
-        let mut ov: OVERLAPPED = std::mem::zeroed();
-        ov.hEvent = event.raw();
-        let started = DeviceIoControl(
-            bus,
-            code,
-            ptr,
-            len,
-            if out { ptr } else { null_mut() },
-            if out { len } else { 0 },
-            null_mut(),
-            &mut ov,
-        );
-        if started == 0 {
-            let err = GetLastError();
-            if err != ERROR_IO_PENDING {
-                return Err(err);
-            }
+    let start = |ov| {
+        // SAFETY: valid bus handle, request buffer and OVERLAPPED.
+        unsafe {
+            DeviceIoControl(
+                bus,
+                code,
+                ptr,
+                len,
+                if out { ptr } else { null_mut() },
+                if out { len } else { 0 },
+                null_mut(),
+                ov,
+            )
         }
-        let mut n = 0u32;
-        if GetOverlappedResult(bus, &ov, &mut n, 1) == 0 {
-            return Err(GetLastError());
-        }
-    }
-    Ok(())
-}
-
-fn new_event() -> Result<OwnedHandle> {
-    // SAFETY: plain unnamed auto-reset event.
-    OwnedHandle::from_null_ret(unsafe { CreateEventW(null(), 0, 0, null()) })
-        .map_err(|_| PlatformError::last_os("CreateEventW"))
+    };
+    // SAFETY: `req` lives until the request has finished.
+    unsafe { run_overlapped(bus, event, None, start) }.map(drop)
 }
 
 /// What the game last sent to the virtual DualShock 4.
@@ -275,10 +257,13 @@ struct Ds4Pad {
 
 impl Ds4Pad {
     fn plug_in(client: Client) -> Result<Ds4Pad> {
-        let event = new_event()?;
+        let event = overlapped::event(EventReset::Auto).map_err(|source| PlatformError::Os {
+            context: "CreateEventW",
+            source,
+        })?;
         let bus = client.as_raw_handle() as HANDLE;
         let mut serial = 0;
-        let mut last_err = 0;
+        let mut last_err = None;
         for candidate in 1..=MAX_SERIAL {
             let mut req = PluginTarget {
                 size: size_u32::<PluginTarget>(),
@@ -292,12 +277,13 @@ impl Ds4Pad {
                     serial = candidate;
                     break;
                 }
-                Err(e) => last_err = e,
+                Err(e) => last_err = Some(e),
             }
         }
         if serial == 0 {
+            let why = last_err.map(|e| e.to_string()).unwrap_or_default();
             return Err(PlatformError::Other(format!(
-                "ViGEmBus: cannot plug in a DualShock 4 (error {last_err})"
+                "ViGEmBus: cannot plug in a DualShock 4: {why}"
             )));
         }
         let mut wait = SerialRequest {
@@ -306,7 +292,7 @@ impl Ds4Pad {
         };
         // Buses before 1.17 do not know this request; the pad works without it.
         if let Err(e) = bus_request(bus, &event, IOCTL_WAIT_DEVICE_READY, &mut wait, false) {
-            tracing::debug!("ViGEmBus wait-ready failed with error {e}");
+            tracing::debug!("ViGEmBus wait-ready failed: {e}");
         }
         let calibration =
             Ds4Calibration::from_usb_feature(&VIGEM_DS4_CALIBRATION).unwrap_or_default();
@@ -337,7 +323,9 @@ impl Ds4Pad {
         let spawned = std::thread::Builder::new()
             .name("dp-vigem-ds4".into())
             .spawn(move || {
-                let Ok(event) = new_event() else { return };
+                let Ok(event) = overlapped::event(EventReset::Auto) else {
+                    return;
+                };
                 let handle = thread_bus.as_raw_handle() as HANDLE;
                 while !stop.load(Ordering::Relaxed) {
                     let mut n = Ds4Notification {
@@ -360,7 +348,15 @@ impl Ds4Pad {
                                 b: n.blue,
                             });
                         }
-                        Err(ERROR_OPERATION_ABORTED | ERROR_ACCESS_DENIED) => break,
+                        // Unplugged, or cancelled by `drop`.
+                        Err(e)
+                            if matches!(
+                                e.raw_os_error().map(|c| c as u32),
+                                Some(ERROR_OPERATION_ABORTED | ERROR_ACCESS_DENIED)
+                            ) =>
+                        {
+                            break;
+                        }
                         Err(e) => {
                             tracing::debug!("virtual DualShock 4 notification failed: {e}");
                             break;
@@ -388,9 +384,8 @@ impl VirtualPad for Ds4Pad {
             report: self.builder.build(state, elapsed),
         };
         let bus = self.client.as_raw_handle() as HANDLE;
-        bus_request(bus, &self.event, IOCTL_DS4_SUBMIT_REPORT, &mut req, false).map_err(|e| {
-            PlatformError::Other(format!("ViGEmBus: DualShock 4 update failed (error {e})"))
-        })
+        bus_request(bus, &self.event, IOCTL_DS4_SUBMIT_REPORT, &mut req, false)
+            .map_err(|e| PlatformError::Other(format!("ViGEmBus: DualShock 4 update failed: {e}")))
     }
 
     fn take_rumble(&mut self) -> Option<Rumble> {
@@ -411,7 +406,7 @@ impl Drop for Ds4Pad {
         };
         let bus = self.client.as_raw_handle() as HANDLE;
         if let Err(e) = bus_request(bus, &self.event, IOCTL_UNPLUG_TARGET, &mut req, false) {
-            tracing::warn!("cannot unplug the virtual DualShock 4 (error {e})");
+            tracing::warn!("cannot unplug the virtual DualShock 4: {e}");
         }
         if let Some(n) = &self.notify {
             // SAFETY: cancels whatever the notification thread has pending on its handle.

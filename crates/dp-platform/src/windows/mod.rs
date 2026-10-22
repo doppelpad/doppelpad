@@ -14,6 +14,7 @@ mod hidio;
 mod hidparse;
 mod magnifier;
 mod osinfo;
+mod overlapped;
 pub mod overlay;
 mod process;
 mod registry;

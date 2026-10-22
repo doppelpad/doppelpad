@@ -21,6 +21,7 @@ use windows_sys::Win32::Devices::HumanInterfaceDevice::{
 
 use super::devnode::{InterfaceEntry, enumerate_interfaces, is_vigem_device};
 use super::hidio::{HidIo, Wait, Waker};
+use super::hidparse::HidDecoder;
 use crate::generic::{GenericDriver, GenericLayout, RawInput, ReportDecoder};
 use crate::nintendo::switch1::{Link, Switch1Driver};
 use crate::nintendo::wired::WiredDriver;
@@ -134,11 +135,12 @@ impl Base {
         }
     }
 
-    fn driver(&self, io: &HidIo) -> Box<dyn PadDriver> {
+    /// The driver; `decoder` is the report decoder `identify` built for a generic pad.
+    fn driver(&self, io: &HidIo, decoder: Option<HidDecoder>) -> Box<dyn PadDriver> {
         match self.kind {
             DriverKind::Generic => {
                 let name = io.product().unwrap_or_else(|| "Game controller".into());
-                let decoder: Box<dyn ReportDecoder> = match io.decoder() {
+                let decoder: Box<dyn ReportDecoder> = match decoder {
                     Some(d) => Box::new(d),
                     None => Box::new(NoDecoder),
                 };
@@ -351,10 +353,10 @@ impl Scanner {
                 continue;
             }
             match identify(&entry) {
-                Ok(Some((io, base))) => {
+                Ok(Some((io, base, decoder))) => {
                     self.problems.lock().unwrap().remove(&entry.path);
                     let layouts = self.layouts.lock().unwrap().clone();
-                    let device = spawn_device(io, base, layouts);
+                    let device = spawn_device(io, base, decoder, layouts);
                     self.devices.lock().unwrap().insert(entry.path, device);
                 }
                 Ok(None) => {
@@ -369,8 +371,9 @@ impl Scanner {
     }
 }
 
-/// Open an interface and decide whether one of our drivers handles it.
-fn identify(entry: &InterfaceEntry) -> std::io::Result<Option<(HidIo, Base)>> {
+/// Open an interface and decide whether one of our drivers handles it (with the report
+/// decoder of a generic pad).
+fn identify(entry: &InterfaceEntry) -> std::io::Result<Option<(HidIo, Base, Option<HidDecoder>)>> {
     let io = HidIo::open(&entry.path)?;
     let Some((vid, pid)) = io.ids() else {
         return Ok(None);
@@ -384,11 +387,14 @@ fn identify(entry: &InterfaceEntry) -> std::io::Result<Option<(HidIo, Base)>> {
     }
     // XInput reads pads that also speak XInput (`IG_` in the path); the parser must be
     // able to read the others.
-    if matches!(kind, DriverKind::Generic)
-        && (entry.path.to_ascii_uppercase().contains("&IG_") || io.decoder().is_none())
-    {
-        return Ok(None);
-    }
+    let decoder = match kind {
+        DriverKind::Generic if entry.path.to_ascii_uppercase().contains("&IG_") => return Ok(None),
+        DriverKind::Generic => match io.decoder() {
+            Some(d) => Some(d),
+            None => return Ok(None),
+        },
+        _ => None,
+    };
     let bluetooth = is_bluetooth(entry);
     if !bluetooth && matches!(kind, DriverKind::Nintendo(_)) && nintendo::usb_unsupported(vid, pid)
     {
@@ -413,10 +419,16 @@ fn identify(entry: &InterfaceEntry) -> std::io::Result<Option<(HidIo, Base)>> {
             feature_len: caps.feature_len,
             bt_address,
         },
+        decoder,
     )))
 }
 
-fn spawn_device(io: HidIo, base: Base, layouts: Arc<Vec<GenericLayout>>) -> Device {
+fn spawn_device(
+    io: HidIo,
+    base: Base,
+    decoder: Option<HidDecoder>,
+    layouts: Arc<Vec<GenericLayout>>,
+) -> Device {
     let (bluetooth, bt_address) = (base.bluetooth, base.bt_address);
     let shared = Arc::new(Shared {
         state: Mutex::new(DevState::Starting),
@@ -434,7 +446,7 @@ fn spawn_device(io: HidIo, base: Base, layouts: Arc<Vec<GenericLayout>>) -> Devi
     let thread = std::thread::Builder::new()
         .name("dp-hid-device".into())
         .spawn(move || {
-            run_device(io, &base, &thread_shared);
+            run_device(io, &base, decoder, &thread_shared);
             thread_shared.done.store(true, Ordering::Relaxed);
         })
         .expect("spawn HID device thread");
@@ -448,8 +460,8 @@ fn spawn_device(io: HidIo, base: Base, layouts: Arc<Vec<GenericLayout>>) -> Devi
 
 /// The device thread: start the driver, then read, parse and service until stopped or
 /// the device goes away.
-fn run_device(mut io: HidIo, base: &Base, shared: &Shared) {
-    let mut driver = base.driver(&io);
+fn run_device(mut io: HidIo, base: &Base, decoder: Option<HidDecoder>, shared: &Shared) {
+    let mut driver = base.driver(&io, decoder);
     let identity = match driver.init(&mut io) {
         Ok(id) => id,
         Err(e) => {
