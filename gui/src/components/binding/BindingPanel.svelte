@@ -263,8 +263,8 @@
       </div>
       {#if zp.zone && zp.source.kind === 'gyro'}
         <button class="btn gyro-zones" onclick={() => app.openAnalog('gyro')}>{t('zones.gyro_settings')}</button>
-      {:else if zp.zone}
-        <ZoneEditor parts={zp} />
+      {:else if zp.zone && zp.source.kind !== 'gyro'}
+        <ZoneEditor parts={{ ...zp, source: zp.source }} />
       {/if}
     {/if}
 

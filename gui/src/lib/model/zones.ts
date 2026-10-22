@@ -3,7 +3,7 @@
 
 import type { Catalog, Profile, StickZones, TriggerZones, ZoneRadius } from '../types';
 import { setLayerPart, type Side } from './analog';
-import type { ZoneName, ZoneParts } from './controls';
+import { ZONES, type PairSource, type ZoneName } from './controls';
 import { declaredLayer } from './layers';
 import { nonEmpty, setOrDrop } from './util';
 
@@ -59,11 +59,9 @@ export function isElliptic(z: StickZones | undefined): boolean {
   });
 }
 
-const ZONE_OF: ZoneName[] = ['Low', 'Med', 'High'];
-
 /** The zone a trigger pull is in (a value on a threshold is in the higher zone), or null. */
 export function triggerZoneAt(v: number, t: Triple): ZoneName | null {
-  for (let i = 2; i >= 0; i--) if (v >= Math.max(t[i], 0.001)) return ZONE_OF[i];
+  for (let i = 2; i >= 0; i--) if (v >= Math.max(t[i], 0.001)) return ZONES[i];
   return null;
 }
 
@@ -72,7 +70,7 @@ export function stickZoneAt(x: number, y: number, t: { x: Triple; y: Triple }): 
   for (let i = 2; i >= 0; i--) {
     const mx = x / Math.max(t.x[i], 0.001);
     const my = y / Math.max(t.y[i], 0.001);
-    if (mx * mx + my * my >= 1) return ZONE_OF[i];
+    if (mx * mx + my * my >= 1) return ZONES[i];
   }
   return null;
 }
@@ -121,7 +119,7 @@ export function setTriggerLevel(z: TriggerZones | undefined, level: Level, value
 /** The zones stored for one stick or trigger as they are on `layer`: its own, else Main's. */
 export function storedZones(
   p: Profile,
-  source: ZoneParts['source'],
+  source: PairSource,
   layer = 0,
 ): StickZones | TriggerZones | undefined {
   const key = source.kind === 'stick' ? 'sticks' : 'triggers';
@@ -135,7 +133,7 @@ export function storedZones(
  */
 export function withZones(
   p: Profile,
-  source: ZoneParts['source'],
+  source: PairSource,
   zones: StickZones | TriggerZones,
   layer = 0,
 ): Profile {
