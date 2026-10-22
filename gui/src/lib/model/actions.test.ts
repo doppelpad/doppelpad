@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { hasParameters, recordedSteps, stickAmount, withStickAmount } from './actions';
-import { segmentCount as segmentCountOf } from './profile';
 
 describe('stick amount', () => {
   it('scales the deflection and keeps the direction', () => {
@@ -33,10 +32,5 @@ describe('controller recorder', () => {
     expect(recordedSteps(none, new Set(['LT']), 8, 0), 'short gaps are dropped').toEqual([
       { trigger: 'left', action: 'down' },
     ]);
-  });
-
-  it('counts segments', () => {
-    expect(segmentCountOf([{ key: 'A' }, { break: true }, { key: 'B' }])).toBe(2);
-    expect(segmentCountOf([{ break: true }])).toBe(1);
   });
 });

@@ -59,17 +59,21 @@ export function isElliptic(z: StickZones | undefined): boolean {
   });
 }
 
+/** Thresholds count as at least this, so a zero one does not take everything (dp-core
+ * engine/analog.rs `MIN_THRESHOLD`). */
+const MIN_THRESHOLD = 0.001;
+
 /** The zone a trigger pull is in (a value on a threshold is in the higher zone), or null. */
 export function triggerZoneAt(v: number, t: Triple): ZoneName | null {
-  for (let i = 2; i >= 0; i--) if (v >= Math.max(t[i], 0.001)) return ZONES[i];
+  for (let i = 2; i >= 0; i--) if (v >= Math.max(t[i], MIN_THRESHOLD)) return ZONES[i];
   return null;
 }
 
 /** The zone a stick vector is in: each threshold is an ellipse with radii (x, y). */
 export function stickZoneAt(x: number, y: number, t: { x: Triple; y: Triple }): ZoneName | null {
   for (let i = 2; i >= 0; i--) {
-    const mx = x / Math.max(t.x[i], 0.001);
-    const my = y / Math.max(t.y[i], 0.001);
+    const mx = x / Math.max(t.x[i], MIN_THRESHOLD);
+    const my = y / Math.max(t.y[i], MIN_THRESHOLD);
     if (mx * mx + my * my >= 1) return ZONES[i];
   }
   return null;

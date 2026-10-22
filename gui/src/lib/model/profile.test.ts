@@ -21,8 +21,10 @@ import {
   pasteLayer,
   removeLayer,
   removeMapping,
+  segmentCount,
   setLayerInherit,
   setLayerUnlock,
+  setLight,
   setProfileTiming,
   setTriggerInherited,
   setVirtualDevice,
@@ -242,6 +244,25 @@ describe('virtual devices', () => {
 describe('commands', () => {
   it('every command the picker lists has a label', () => {
     for (const c of [...SIMPLE_COMMANDS, ...RADIAL_COMMANDS, ...POWER_COMMANDS]) expect(has(`picker.${c}`), c).toBe(true);
+  });
+});
+
+describe('light bar', () => {
+  it("sets or drops the profile's own, or a layer's", () => {
+    const light = { mode: 'solid' as const, colors: ['#ff0000'] };
+    const p = setLight({ name: 'T', mappings: [], layers: [{ id: 1 }] }, 0, light);
+    expect(p.lightbar).toEqual(light);
+    expect('lightbar' in setLight(p, 0, undefined)).toBe(false);
+    const q = setLight(p, 1, light);
+    expect(q.layers?.[0]).toEqual({ id: 1, lightbar: light });
+    expect(setLight(q, 1, undefined).layers?.[0]).toEqual({ id: 1 });
+  });
+});
+
+describe('segments', () => {
+  it("counts a macro's parts", () => {
+    expect(segmentCount([{ key: 'A' }, { break: true }, { key: 'B' }])).toBe(2);
+    expect(segmentCount([{ break: true }])).toBe(1);
   });
 });
 

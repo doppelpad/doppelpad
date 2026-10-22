@@ -229,7 +229,13 @@ export function applyCurve(points: CurvePoint[], t: number): number {
   return 1;
 }
 
-const outerOf = (cfg: Required<StickConfig>) => Math.max(cfg.outer, cfg.deadzone + 0.01);
+/**
+ * Smallest range a deadzone leaves to rescale: outer and full pull sit at least this far above
+ * it (dp-core engine/analog.rs `MIN_SPAN`).
+ */
+export const MIN_SPAN = 0.01;
+
+const outerOf = (cfg: Required<StickConfig>) => Math.max(cfg.outer, cfg.deadzone + MIN_SPAN);
 const lift = (v: number, anti: number) => (v > 0 && anti > 0 ? anti + (1 - anti) * v : v);
 
 /** Output deflection for a stick deflection: deadzone, outer, curve, anti-deadzone, sensitivity. */
@@ -249,7 +255,7 @@ export function shapeStick([x, y]: [number, number], cfg: Required<StickConfig>)
 /** Trigger output after deadzone and full-pull rescaling. */
 export function shapeTrigger(v: number, cfg: TriggerFull): number {
   if (v <= cfg.deadzone) return 0;
-  const top = Math.max(cfg.full_pull, cfg.deadzone + 0.01);
+  const top = Math.max(cfg.full_pull, cfg.deadzone + MIN_SPAN);
   return clamp((v - cfg.deadzone) / (top - cfg.deadzone), 0, 1);
 }
 

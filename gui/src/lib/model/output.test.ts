@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import type { Profile } from '../types';
+import { emptyProfile as empty } from './fixtures';
 import { MOUSE_ZONE_DEFAULTS, pruneDefaults, vibrationConfig, withMouseZone, withShake, withTurn } from './output';
 
-const empty = (): Profile => ({ name: 'Test', mappings: [] });
 
 describe('output settings from typed text', () => {
   it('leave values at their defaults out', () => {
