@@ -43,12 +43,8 @@ export interface DeviceLayout {
   /** Raw SVG markup; inline it so the `data-control` groups stay clickable. */
   svg: string;
   viewBox: [number, number, number, number];
+  /** The controller has motion sensors (front views), so its gyro can be mapped. */
+  motion?: boolean;
   /** One entry per `data-control` group in the SVG. */
   controls: LayoutControl[];
 }
-
-/**
- * Largest chip (viewBox units) the layouts leave room for: chips up to this size
- * overlap neither each other nor the drawing, and no leader runs through a chip.
- */
-export const CHIP_SIZE = { width: 150, height: 28 } as const;

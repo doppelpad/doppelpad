@@ -7,6 +7,7 @@ export const joycon: DeviceLayout = {
   id: 'joycon',
   svg,
   viewBox: [0, 0, 1000, 700],
+  motion: true,
   controls: [
     { control: 'LB', anchor: [346.1, 251.8], side: 'left', labelAt: [200, 220.2] },
     { control: 'RB', anchor: [653.9, 251.8], side: 'right', labelAt: [800, 220.2] },
