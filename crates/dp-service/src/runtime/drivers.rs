@@ -1,0 +1,67 @@
+//! Driver availability and the devices the backends cannot use.
+
+use dp_platform::GamepadBackend;
+use serde::Serialize;
+
+use super::Runtime;
+
+/// Availability of one optional driver.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize)]
+pub struct DriverState {
+    pub available: bool,
+    /// Why it is unavailable, if it is.
+    pub error: Option<String>,
+}
+
+impl std::fmt::Display for DriverState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match (&self.error, self.available) {
+            (_, true) => f.write_str("ok"),
+            (Some(e), false) => write!(f, "unavailable ({e})"),
+            (None, false) => f.write_str("unavailable"),
+        }
+    }
+}
+
+impl DriverState {
+    fn from(r: dp_platform::Result<()>) -> Self {
+        match r {
+            Ok(()) => DriverState {
+                available: true,
+                error: None,
+            },
+            Err(e) => DriverState {
+                available: false,
+                error: Some(e.to_string()),
+            },
+        }
+    }
+}
+
+/// Drivers Doppelpad can use: ViGEmBus for virtual pads, HidHide for hiding devices.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize)]
+pub struct DriverStatus {
+    pub virtual_pads: DriverState,
+    pub device_hiding: DriverState,
+}
+
+impl Runtime {
+    /// Check which optional drivers are usable (this probes the drivers; not for every tick).
+    pub(crate) fn drivers(&self) -> DriverStatus {
+        DriverStatus {
+            virtual_pads: DriverState::from(self.platform.virtual_pads.available()),
+            device_hiding: DriverState::from(self.platform.hider.available()),
+        }
+    }
+
+    /// Controllers the backends found but cannot use, explained for the user.
+    pub fn device_problems(&self) -> Vec<String> {
+        self.pads.problems()
+    }
+
+    /// Connected controllers the hiding driver hides from Doppelpad itself, explained for
+    /// the user. Asks the driver, so call it now and then rather than every tick.
+    pub fn hiding_problems(&self) -> Vec<String> {
+        self.platform.hider.problems()
+    }
+}
