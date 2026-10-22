@@ -15,6 +15,9 @@ use std::thread::JoinHandle;
 
 use crossbeam_channel::{Receiver, Sender};
 use dp_core::keys::{Key, MouseButton, WheelDir};
+use windows_sys::Win32::Devices::HumanInterfaceDevice::{
+    HID_USAGE_GENERIC_MOUSE, HID_USAGE_PAGE_GENERIC,
+};
 use windows_sys::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
 use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows_sys::Win32::System::Threading::GetCurrentThreadId;
@@ -193,8 +196,7 @@ unsafe extern "system" fn raw_wndproc(
     lparam: LPARAM,
 ) -> LRESULT {
     if msg == WM_INPUT {
-        // SAFETY: RAWINPUT is a plain C struct, for which all zeroes is a valid value.
-        let mut raw: RAWINPUT = unsafe { std::mem::zeroed() };
+        let mut raw = RAWINPUT::default();
         let mut size = size_of::<RAWINPUT>() as u32;
         // SAFETY: buffer is a RAWINPUT, large enough for mouse input.
         let n = unsafe {
@@ -226,6 +228,81 @@ unsafe extern "system" fn raw_wndproc(
     unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
 }
 
+/// The hook thread: install the hooks and the raw-input window, report its thread id (or
+/// the error), then pump messages until WM_QUIT.
+fn hook_thread(ready: &Sender<std::result::Result<u32, String>>) {
+    // SAFETY: returns this program's module handle.
+    let hinst = unsafe { GetModuleHandleW(null()) };
+    // SAFETY: hook procedures of this module, for all threads.
+    let kb = unsafe { SetWindowsHookExW(WH_KEYBOARD_LL, Some(keyboard_proc), hinst, 0) };
+    // SAFETY: as above.
+    let ms = unsafe { SetWindowsHookExW(WH_MOUSE_LL, Some(mouse_proc), hinst, 0) };
+    if kb.is_null() || ms.is_null() {
+        let err = std::io::Error::last_os_error();
+        for hook in [kb, ms] {
+            if !hook.is_null() {
+                // SAFETY: a hook installed above.
+                unsafe { UnhookWindowsHookEx(hook) };
+            }
+        }
+        *CTX.write().unwrap() = None;
+        let _ = ready.send(Err(format!("SetWindowsHookEx failed: {err}")));
+        return;
+    }
+
+    let class = register_class("doppelpad-rawinput", raw_wndproc);
+    // SAFETY: a registered class; a message-only window of this thread.
+    let hwnd = unsafe {
+        CreateWindowExW(
+            0,
+            class.as_ptr(),
+            class.as_ptr(),
+            0,
+            0,
+            0,
+            0,
+            0,
+            HWND_MESSAGE,
+            null_mut(),
+            hinst,
+            null(),
+        )
+    };
+    if !hwnd.is_null() {
+        let rid = RAWINPUTDEVICE {
+            usUsagePage: HID_USAGE_PAGE_GENERIC,
+            usUsage: HID_USAGE_GENERIC_MOUSE,
+            dwFlags: RIDEV_INPUTSINK,
+            hwndTarget: hwnd,
+        };
+        // SAFETY: one device entry with its size.
+        if unsafe { RegisterRawInputDevices(&rid, 1, size_of::<RAWINPUTDEVICE>() as u32) } == 0 {
+            tracing::warn!(
+                "raw mouse input unavailable: {}",
+                std::io::Error::last_os_error()
+            );
+        }
+    }
+
+    // SAFETY: plain query.
+    let _ = ready.send(Ok(unsafe { GetCurrentThreadId() }));
+    let mut msg = MSG::default();
+    // SAFETY: pumps this thread's messages into a valid MSG.
+    while unsafe { GetMessageW(&mut msg, null_mut(), 0, 0) } > 0 {
+        // SAFETY: a message GetMessageW filled in.
+        unsafe { DispatchMessageW(&msg) };
+    }
+
+    // SAFETY: the hooks and the window made above, released once.
+    unsafe {
+        UnhookWindowsHookEx(kb);
+        UnhookWindowsHookEx(ms);
+        if !hwnd.is_null() {
+            DestroyWindow(hwnd);
+        }
+    }
+}
+
 impl KbmCapture for HookCapture {
     fn start(&mut self, filter: Arc<CaptureFilter>) -> Result<Receiver<KbmEvent>> {
         self.stop();
@@ -236,61 +313,7 @@ impl KbmCapture for HookCapture {
 
         let thread = std::thread::Builder::new()
             .name("dp-input-hooks".into())
-            .spawn(move || unsafe {
-                // SAFETY: all calls below are standard Win32 hook / window setup on this thread.
-                let hinst = GetModuleHandleW(null());
-                let kb = SetWindowsHookExW(WH_KEYBOARD_LL, Some(keyboard_proc), hinst, 0);
-                let ms = SetWindowsHookExW(WH_MOUSE_LL, Some(mouse_proc), hinst, 0);
-                if kb.is_null() || ms.is_null() {
-                    let _ = ready_tx.send(Err(format!(
-                        "SetWindowsHookEx failed: {}",
-                        std::io::Error::last_os_error()
-                    )));
-                    return;
-                }
-
-                let class = register_class("doppelpad-rawinput", raw_wndproc);
-                let hwnd = CreateWindowExW(
-                    0,
-                    class.as_ptr(),
-                    class.as_ptr(),
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    HWND_MESSAGE,
-                    null_mut(),
-                    hinst,
-                    null(),
-                );
-                if !hwnd.is_null() {
-                    let rid = RAWINPUTDEVICE {
-                        usUsagePage: 0x01,
-                        usUsage: 0x02,
-                        dwFlags: RIDEV_INPUTSINK,
-                        hwndTarget: hwnd,
-                    };
-                    if RegisterRawInputDevices(&rid, 1, size_of::<RAWINPUTDEVICE>() as u32) == 0 {
-                        tracing::warn!(
-                            "raw mouse input unavailable: {}",
-                            std::io::Error::last_os_error()
-                        );
-                    }
-                }
-
-                let _ = ready_tx.send(Ok(GetCurrentThreadId()));
-                let mut msg: MSG = std::mem::zeroed();
-                while GetMessageW(&mut msg, null_mut(), 0, 0) > 0 {
-                    DispatchMessageW(&msg);
-                }
-
-                UnhookWindowsHookEx(kb);
-                UnhookWindowsHookEx(ms);
-                if !hwnd.is_null() {
-                    DestroyWindow(hwnd);
-                }
-            })
+            .spawn(move || hook_thread(&ready_tx))
             .map_err(|e| PlatformError::Other(e.to_string()))?;
 
         match ready_rx.recv() {

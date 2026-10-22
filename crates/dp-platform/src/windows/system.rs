@@ -6,8 +6,8 @@ use std::ptr::{null, null_mut};
 use windows_sys::Win32::Foundation::{HANDLE, HWND, LUID, POINT, RECT, SYSTEMTIME};
 use windows_sys::Win32::Graphics::Gdi::{
     BitBlt, CAPTUREBLT, CreateCompatibleBitmap, CreateCompatibleDC, DeleteDC, DeleteObject, GetDC,
-    GetMonitorInfoW, MONITOR_DEFAULTTOPRIMARY, MONITORINFO, MonitorFromPoint, MonitorFromWindow,
-    ReleaseDC, SRCCOPY, SelectObject,
+    GetMonitorInfoW, HBITMAP, MONITOR_DEFAULTTOPRIMARY, MONITORINFO, MonitorFromPoint,
+    MonitorFromWindow, ReleaseDC, SRCCOPY, SelectObject,
 };
 use windows_sys::Win32::Graphics::GdiPlus::{
     GdipCreateBitmapFromHBITMAP, GdipDisposeImage, GdipSaveImageToFile, GdiplusShutdown,
@@ -45,50 +45,51 @@ pub struct WinSystem;
 /// Shutting down, restarting and sleeping need the shutdown privilege, which every
 /// interactive user has but which is off by default in a process token.
 fn enable_shutdown_privilege() -> Result<()> {
-    // SAFETY: plain token calls on our own process; the handle is closed by OwnedHandle.
-    unsafe {
-        let mut token: HANDLE = null_mut();
-        if OpenProcessToken(
+    let mut token: HANDLE = null_mut();
+    // SAFETY: our own process and a valid out-pointer.
+    let opened = unsafe {
+        OpenProcessToken(
             GetCurrentProcess(),
             TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY,
             &mut token,
-        ) == 0
-        {
-            return Err(PlatformError::last_os("OpenProcessToken"));
-        }
-        let token = OwnedHandle::new(token);
-        let mut luid = LUID::default();
-        if LookupPrivilegeValueW(null(), SE_SHUTDOWN_NAME, &mut luid) == 0 {
-            return Err(PlatformError::last_os("LookupPrivilegeValueW"));
-        }
-        let tp = TOKEN_PRIVILEGES {
-            PrivilegeCount: 1,
-            Privileges: [LUID_AND_ATTRIBUTES {
-                Luid: luid,
-                Attributes: SE_PRIVILEGE_ENABLED,
-            }],
-        };
-        if AdjustTokenPrivileges(token.raw(), 0, &tp, 0, null_mut(), null_mut()) == 0 {
-            return Err(PlatformError::last_os("AdjustTokenPrivileges"));
-        }
+        )
+    };
+    if opened == 0 {
+        return Err(PlatformError::last_os("OpenProcessToken"));
+    }
+    let token = OwnedHandle::new(token);
+    let mut luid = LUID::default();
+    // SAFETY: a NUL-terminated privilege name and a valid out-pointer.
+    if unsafe { LookupPrivilegeValueW(null(), SE_SHUTDOWN_NAME, &mut luid) } == 0 {
+        return Err(PlatformError::last_os("LookupPrivilegeValueW"));
+    }
+    let tp = TOKEN_PRIVILEGES {
+        PrivilegeCount: 1,
+        Privileges: [LUID_AND_ATTRIBUTES {
+            Luid: luid,
+            Attributes: SE_PRIVILEGE_ENABLED,
+        }],
+    };
+    // SAFETY: our token and a valid privilege list.
+    if unsafe { AdjustTokenPrivileges(token.raw(), 0, &tp, 0, null_mut(), null_mut()) } == 0 {
+        return Err(PlatformError::last_os("AdjustTokenPrivileges"));
     }
     Ok(())
 }
 
 /// `Pictures\Doppelpad`, created if needed.
 fn screenshot_dir() -> Result<PathBuf> {
-    // SAFETY: the returned string is freed with CoTaskMemFree as documented.
-    let pictures = unsafe {
-        let mut p: *mut u16 = null_mut();
-        if SHGetKnownFolderPath(&FOLDERID_Pictures, 0, null_mut(), &mut p) != 0 {
-            CoTaskMemFree(p.cast());
-            return Err(PlatformError::Other(
-                "cannot find the Pictures folder".into(),
-            ));
-        }
-        let s = super::from_wide_ptr(p);
-        CoTaskMemFree(p.cast());
-        s
+    let mut p: *mut u16 = null_mut();
+    // SAFETY: valid out-pointer; the string is freed below.
+    let found = unsafe { SHGetKnownFolderPath(&FOLDERID_Pictures, 0, null_mut(), &mut p) } == 0;
+    // SAFETY: on success `p` is a NUL-terminated string, read before it is freed.
+    let pictures = found.then(|| unsafe { super::from_wide_ptr(p) });
+    // SAFETY: frees the string as documented (on failure too).
+    unsafe { CoTaskMemFree(p.cast()) };
+    let Some(pictures) = pictures else {
+        return Err(PlatformError::Other(
+            "cannot find the Pictures folder".into(),
+        ));
     };
     let dir = PathBuf::from(pictures).join("Doppelpad");
     std::fs::create_dir_all(&dir).map_err(|source| PlatformError::Os {
@@ -122,65 +123,94 @@ fn screenshot_path(dir: &std::path::Path, app: Option<&str>) -> PathBuf {
 
 /// Capture the monitor showing the foreground window and save it as PNG.
 fn capture(path: &std::path::Path) -> Result<()> {
-    // SAFETY: GDI objects are created, used and released in this block; GDI+ is started
-    // and shut down around its use.
-    unsafe {
-        let fg: HWND = GetForegroundWindow();
-        let monitor = if fg.is_null() {
+    let bitmap = grab(foreground_monitor()?)?;
+    save_png(&bitmap, path)
+}
+
+/// The rectangle of the monitor that shows the foreground window (else the primary one).
+fn foreground_monitor() -> Result<RECT> {
+    // SAFETY: plain query.
+    let fg: HWND = unsafe { GetForegroundWindow() };
+    // SAFETY: plain queries; a null window is not passed on.
+    let monitor = unsafe {
+        if fg.is_null() {
             MonitorFromPoint(POINT { x: 0, y: 0 }, MONITOR_DEFAULTTOPRIMARY)
         } else {
             MonitorFromWindow(fg, MONITOR_DEFAULTTOPRIMARY)
-        };
-        let mut info = MONITORINFO {
-            cbSize: size_of::<MONITORINFO>() as u32,
-            rcMonitor: RECT::default(),
-            rcWork: RECT::default(),
-            dwFlags: 0,
-        };
-        if GetMonitorInfoW(monitor, &mut info) == 0 {
-            return Err(PlatformError::last_os("GetMonitorInfoW"));
         }
-        let r = info.rcMonitor;
-        let (w, h) = (r.right - r.left, r.bottom - r.top);
+    };
+    let mut info = MONITORINFO {
+        cbSize: size_of::<MONITORINFO>() as u32,
+        ..Default::default()
+    };
+    // SAFETY: a monitor handle and an out-struct with its size set.
+    if unsafe { GetMonitorInfoW(monitor, &mut info) } == 0 {
+        return Err(PlatformError::last_os("GetMonitorInfoW"));
+    }
+    Ok(info.rcMonitor)
+}
+
+/// A GDI bitmap, deleted on drop.
+struct Bitmap(HBITMAP);
+
+impl Drop for Bitmap {
+    fn drop(&mut self) {
+        // SAFETY: our bitmap, not selected into any device context any more.
+        unsafe { DeleteObject(self.0) };
+    }
+}
+
+/// The screen inside `r`, copied into a bitmap.
+fn grab(r: RECT) -> Result<Bitmap> {
+    let (w, h) = (r.right - r.left, r.bottom - r.top);
+    // SAFETY: the screen and a memory device context, both released here; the bitmap is
+    // selected into the memory one only for the copy.
+    unsafe {
         let screen = GetDC(null_mut());
         let mem = CreateCompatibleDC(screen);
-        let bitmap = CreateCompatibleBitmap(screen, w, h);
-        let old = SelectObject(mem, bitmap);
+        let bitmap = Bitmap(CreateCompatibleBitmap(screen, w, h));
+        let old = SelectObject(mem, bitmap.0);
         let copied = BitBlt(mem, 0, 0, w, h, screen, r.left, r.top, SRCCOPY | CAPTUREBLT);
         SelectObject(mem, old);
         DeleteDC(mem);
         ReleaseDC(null_mut(), screen);
         if copied == 0 {
-            DeleteObject(bitmap);
             return Err(PlatformError::last_os("BitBlt"));
         }
+        Ok(bitmap)
+    }
+}
 
-        let mut token = 0usize;
-        let input = GdiplusStartupInput {
-            GdiplusVersion: 1,
-            ..Default::default()
-        };
-        let status = GdiplusStartup(&mut token, &input, null_mut());
-        if status != 0 {
-            DeleteObject(bitmap);
-            return Err(PlatformError::Other(format!(
-                "GDI+ did not start ({status})"
-            )));
-        }
-        let mut image: *mut GpBitmap = null_mut();
-        let mut status = GdipCreateBitmapFromHBITMAP(bitmap, null_mut(), &mut image);
-        if status == 0 {
-            let file = wide(&path.display().to_string());
-            status = GdipSaveImageToFile(image.cast(), file.as_ptr(), &PNG_ENCODER, null());
-            GdipDisposeImage(image.cast());
-        }
-        GdiplusShutdown(token);
-        DeleteObject(bitmap);
-        if status != 0 {
-            return Err(PlatformError::Other(format!(
-                "cannot save the screenshot (GDI+ status {status})"
-            )));
-        }
+/// Save `bitmap` as a PNG file with GDI+.
+fn save_png(bitmap: &Bitmap, path: &std::path::Path) -> Result<()> {
+    let file = wide(&path.display().to_string());
+    let mut token = 0usize;
+    let input = GdiplusStartupInput {
+        GdiplusVersion: 1,
+        ..Default::default()
+    };
+    // SAFETY: valid input and out-pointer; shut down below.
+    let status = unsafe { GdiplusStartup(&mut token, &input, null_mut()) };
+    if status != 0 {
+        return Err(PlatformError::Other(format!(
+            "GDI+ did not start ({status})"
+        )));
+    }
+    let mut image: *mut GpBitmap = null_mut();
+    // SAFETY: our bitmap and a valid out-pointer; the image is disposed of below.
+    let mut status = unsafe { GdipCreateBitmapFromHBITMAP(bitmap.0, null_mut(), &mut image) };
+    if status == 0 {
+        // SAFETY: the image made above, a NUL-terminated path and the PNG encoder's id.
+        status = unsafe { GdipSaveImageToFile(image.cast(), file.as_ptr(), &PNG_ENCODER, null()) };
+        // SAFETY: disposes of the image made above.
+        unsafe { GdipDisposeImage(image.cast()) };
+    }
+    // SAFETY: balances GdiplusStartup.
+    unsafe { GdiplusShutdown(token) };
+    if status != 0 {
+        return Err(PlatformError::Other(format!(
+            "cannot save the screenshot (GDI+ status {status})"
+        )));
     }
     Ok(())
 }
@@ -197,47 +227,42 @@ impl SystemControl for WinSystem {
     }
 
     fn desktop_active(&self) -> bool {
-        // SAFETY: the desktop handle is closed below; the buffer length is in bytes.
-        unsafe {
-            // The secure desktops refuse ordinary processes.
-            let desk = OpenInputDesktop(0, 0, DESKTOP_READOBJECTS);
-            if desk.is_null() {
-                return false;
-            }
-            let mut name = [0u16; 64];
-            let mut needed = 0u32;
-            let ok = GetUserObjectInformationW(
+        // The secure desktops refuse ordinary processes.
+        // SAFETY: plain query; the handle is closed below.
+        let desk = unsafe { OpenInputDesktop(0, 0, DESKTOP_READOBJECTS) };
+        if desk.is_null() {
+            return false;
+        }
+        let mut name = [0u16; 64];
+        let mut needed = 0u32;
+        // SAFETY: an open desktop; the buffer length is given in bytes.
+        let ok = unsafe {
+            GetUserObjectInformationW(
                 desk,
                 UOI_NAME,
                 name.as_mut_ptr().cast(),
-                (name.len() * 2) as u32,
+                size_of_val(&name) as u32,
                 &mut needed,
-            );
-            CloseDesktop(desk);
-            if ok == 0 {
-                return true;
-            }
-            super::from_wide(&name).eq_ignore_ascii_case("Default")
-        }
+            )
+        };
+        // SAFETY: closes the desktop opened above.
+        unsafe { CloseDesktop(desk) };
+        ok == 0 || super::from_wide(&name).eq_ignore_ascii_case("Default")
     }
 
     fn power(&mut self, action: PowerAction) -> Result<()> {
         let reason = SHTDN_REASON_MAJOR_OTHER | SHTDN_REASON_FLAG_PLANNED;
+        if action != PowerAction::LogOff {
+            enable_shutdown_privilege()?;
+        }
         // Applications may still ask to save their work; nothing is forced.
-        // SAFETY: plain Win32 calls.
+        // SAFETY: plain calls.
         let ok = unsafe {
             match action {
                 PowerAction::LogOff => ExitWindowsEx(EWX_LOGOFF, reason) != 0,
-                PowerAction::Shutdown => {
-                    enable_shutdown_privilege()?;
-                    ExitWindowsEx(EWX_POWEROFF, reason) != 0
-                }
-                PowerAction::Restart => {
-                    enable_shutdown_privilege()?;
-                    ExitWindowsEx(EWX_REBOOT, reason) != 0
-                }
+                PowerAction::Shutdown => ExitWindowsEx(EWX_POWEROFF, reason) != 0,
+                PowerAction::Restart => ExitWindowsEx(EWX_REBOOT, reason) != 0,
                 PowerAction::Sleep | PowerAction::Hibernate => {
-                    enable_shutdown_privilege()?;
                     SetSuspendState(action == PowerAction::Hibernate, false, false)
                 }
             }
@@ -257,15 +282,14 @@ impl SystemControl for WinSystem {
     }
 
     fn close_foreground_window(&mut self) -> Result<()> {
+        // SAFETY: plain query.
+        let fg = unsafe { GetForegroundWindow() };
+        if fg.is_null() {
+            return Err(PlatformError::Other("no window has the focus".into()));
+        }
         // SAFETY: posting WM_CLOSE is what the window's own close button does.
-        unsafe {
-            let fg = GetForegroundWindow();
-            if fg.is_null() {
-                return Err(PlatformError::Other("no window has the focus".into()));
-            }
-            if PostMessageW(fg, WM_CLOSE, 0, 0) == 0 {
-                return Err(PlatformError::last_os("PostMessageW"));
-            }
+        if unsafe { PostMessageW(fg, WM_CLOSE, 0, 0) } == 0 {
+            return Err(PlatformError::last_os("PostMessageW"));
         }
         Ok(())
     }

@@ -112,8 +112,7 @@ impl HidIo {
         let caps = read_caps(handle.raw()).unwrap_or_default();
         Ok(HidIo {
             read: Box::new(PendingRead {
-                // SAFETY: OVERLAPPED is plain data; all-zero is its initial state.
-                ov: unsafe { std::mem::zeroed() },
+                ov: OVERLAPPED::default(),
                 buf: vec![0u8; caps.input_len.max(64)],
                 event: event(EventReset::Manual)?,
             }),
@@ -167,9 +166,10 @@ impl HidIo {
 
     /// Vendor ID, product ID.
     pub fn ids(&self) -> Option<(u16, u16)> {
-        // SAFETY: zeroed plain struct; Size set as the API requires.
-        let mut attrs: HIDD_ATTRIBUTES = unsafe { std::mem::zeroed() };
-        attrs.Size = std::mem::size_of::<HIDD_ATTRIBUTES>() as u32;
+        let mut attrs = HIDD_ATTRIBUTES {
+            Size: size_of::<HIDD_ATTRIBUTES>() as u32,
+            ..Default::default()
+        };
         // SAFETY: valid handle and out-pointer.
         unsafe { HidD_GetAttributes(self.handle.raw(), &mut attrs) }
             .then_some((attrs.VendorID, attrs.ProductID))
@@ -189,22 +189,24 @@ impl HidIo {
             return Ok(());
         }
         let r = &mut *self.read;
-        // SAFETY: zeroed OVERLAPPED with our event; buffer and OVERLAPPED stay alive and
-        // in place (boxed) until the read completes or is cancelled in Drop.
-        unsafe {
-            r.ov = std::mem::zeroed();
-            r.ov.hEvent = r.event.raw();
-            if ReadFile(
+        r.ov = OVERLAPPED {
+            hEvent: r.event.raw(),
+            ..Default::default()
+        };
+        // SAFETY: buffer and OVERLAPPED stay alive and in place (boxed) until the read
+        // completes or is cancelled in Drop.
+        let started = unsafe {
+            ReadFile(
                 self.handle.raw(),
                 r.buf.as_mut_ptr(),
                 r.buf.len() as u32,
                 null_mut(),
                 &mut r.ov,
-            ) == 0
-                && GetLastError() != ERROR_IO_PENDING
-            {
-                return Err(io::Error::last_os_error());
-            }
+            )
+        };
+        // SAFETY: reads the calling thread's last error.
+        if started == 0 && unsafe { GetLastError() } != ERROR_IO_PENDING {
+            return Err(io::Error::last_os_error());
         }
         self.pending = true;
         Ok(())

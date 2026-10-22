@@ -1,14 +1,15 @@
 //! SetupAPI / Configuration Manager helpers: enumerate device interfaces and
 //! tell physical devices apart from ViGEmBus-created virtual ones.
 
+use std::mem::offset_of;
 use std::ptr::{null, null_mut};
 
 use windows_sys::Win32::Devices::DeviceAndDriverInstallation::{
     CM_DRP_SERVICE, CM_Get_DevNode_PropertyW, CM_Get_DevNode_Registry_PropertyW, CM_Get_Device_IDW,
     CM_Get_Parent, CM_LOCATE_DEVNODE_NORMAL, CM_Locate_DevNodeW, CR_SUCCESS, DIGCF_DEVICEINTERFACE,
-    DIGCF_PRESENT, SP_DEVICE_INTERFACE_DATA, SP_DEVICE_INTERFACE_DETAIL_DATA_W, SP_DEVINFO_DATA,
-    SetupDiDestroyDeviceInfoList, SetupDiEnumDeviceInterfaces, SetupDiGetClassDevsW,
-    SetupDiGetDeviceInstanceIdW, SetupDiGetDeviceInterfaceDetailW,
+    DIGCF_PRESENT, HDEVINFO, SP_DEVICE_INTERFACE_DATA, SP_DEVICE_INTERFACE_DETAIL_DATA_W,
+    SP_DEVINFO_DATA, SetupDiDestroyDeviceInfoList, SetupDiEnumDeviceInterfaces,
+    SetupDiGetClassDevsW, SetupDiGetDeviceInstanceIdW, SetupDiGetDeviceInterfaceDetailW,
 };
 use windows_sys::Win32::Devices::Properties::{
     DEVPKEY_Device_BusReportedDeviceDesc, DEVPROP_TYPE_STRING,
@@ -29,84 +30,112 @@ pub struct InterfaceEntry {
     pub devinst: u32,
 }
 
+/// A device information set, destroyed on drop.
+struct DevInfoSet(HDEVINFO);
+
+impl Drop for DevInfoSet {
+    fn drop(&mut self) {
+        // SAFETY: the set SetupDiGetClassDevsW returned, destroyed once.
+        unsafe { SetupDiDestroyDeviceInfoList(self.0) };
+    }
+}
+
 /// All present devices exposing the given interface class.
 pub fn enumerate_interfaces(class: &GUID) -> Vec<InterfaceEntry> {
     let mut out = Vec::new();
-    // SAFETY: standard SetupAPI enumeration; all buffers are sized as the API requests.
-    unsafe {
-        let set = SetupDiGetClassDevsW(
+    // SAFETY: plain query.
+    let set = unsafe {
+        SetupDiGetClassDevsW(
             class,
             null(),
             null_mut(),
             DIGCF_PRESENT | DIGCF_DEVICEINTERFACE,
-        );
-        if set == -1 || set == 0 {
-            return out;
+        )
+    };
+    if set == -1 || set == 0 {
+        return out;
+    }
+    let set = DevInfoSet(set);
+    for index in 0.. {
+        let mut ifdata = SP_DEVICE_INTERFACE_DATA {
+            cbSize: size_of::<SP_DEVICE_INTERFACE_DATA>() as u32,
+            ..Default::default()
+        };
+        // SAFETY: valid set and class; the out-struct has its size set.
+        if unsafe { SetupDiEnumDeviceInterfaces(set.0, null(), class, index, &mut ifdata) } == 0 {
+            break;
         }
-        let mut index = 0;
-        loop {
-            let mut ifdata: SP_DEVICE_INTERFACE_DATA = std::mem::zeroed();
-            ifdata.cbSize = size_of::<SP_DEVICE_INTERFACE_DATA>() as u32;
-            if SetupDiEnumDeviceInterfaces(set, null(), class, index, &mut ifdata) == 0 {
-                break;
-            }
-            index += 1;
-
-            let mut required = 0u32;
-            SetupDiGetDeviceInterfaceDetailW(
-                set,
-                &ifdata,
-                null_mut(),
-                0,
-                &mut required,
-                null_mut(),
-            );
-            if required == 0 {
-                continue;
-            }
-            // u32 backing keeps the detail struct correctly aligned.
-            let mut buf = vec![0u32; (required as usize).div_ceil(4) + 1];
-            let detail = buf.as_mut_ptr().cast::<SP_DEVICE_INTERFACE_DETAIL_DATA_W>();
-            (*detail).cbSize = size_of::<SP_DEVICE_INTERFACE_DETAIL_DATA_W>() as u32;
-            let mut devinfo: SP_DEVINFO_DATA = std::mem::zeroed();
-            devinfo.cbSize = size_of::<SP_DEVINFO_DATA>() as u32;
-            if SetupDiGetDeviceInterfaceDetailW(
-                set,
-                &ifdata,
-                detail,
-                required,
-                null_mut(),
-                &mut devinfo,
-            ) == 0
-            {
-                continue;
-            }
-            let path_ptr = std::ptr::addr_of!((*detail).DevicePath).cast::<u16>();
-            let max = (required as usize - 4) / 2;
-            let path = from_wide(std::slice::from_raw_parts(path_ptr, max));
-
-            let mut id = [0u16; 512];
-            let instance_id = if SetupDiGetDeviceInstanceIdW(
-                set,
-                &devinfo,
-                id.as_mut_ptr(),
-                id.len() as u32,
-                null_mut(),
-            ) != 0
-            {
-                from_wide(&id)
-            } else {
-                String::new()
-            };
-            out.push(InterfaceEntry {
-                path,
-                instance_id,
-                devinst: devinfo.DevInst,
-            });
+        if let Some(entry) = interface_entry(&set, &ifdata) {
+            out.push(entry);
         }
-        SetupDiDestroyDeviceInfoList(set);
     }
     out
+}
+
+/// Path, instance ID and devnode of one interface in `set`.
+fn interface_entry(set: &DevInfoSet, ifdata: &SP_DEVICE_INTERFACE_DATA) -> Option<InterfaceEntry> {
+    let mut required = 0u32;
+    // SAFETY: asks for the size only.
+    unsafe {
+        SetupDiGetDeviceInterfaceDetailW(set.0, ifdata, null_mut(), 0, &mut required, null_mut())
+    };
+    if required == 0 {
+        return None;
+    }
+    // u32 backing keeps the detail struct correctly aligned.
+    let mut buf = vec![0u32; (required as usize).div_ceil(4) + 1];
+    let detail = buf.as_mut_ptr().cast::<SP_DEVICE_INTERFACE_DETAIL_DATA_W>();
+    // SAFETY: `buf` is aligned for the struct and larger than its header.
+    unsafe { (*detail).cbSize = size_of::<SP_DEVICE_INTERFACE_DETAIL_DATA_W>() as u32 };
+    let mut devinfo = SP_DEVINFO_DATA {
+        cbSize: size_of::<SP_DEVINFO_DATA>() as u32,
+        ..Default::default()
+    };
+    // SAFETY: `detail` points at `required` bytes; `devinfo` has its size set.
+    let ok = unsafe {
+        SetupDiGetDeviceInterfaceDetailW(set.0, ifdata, detail, required, null_mut(), &mut devinfo)
+    };
+    if ok == 0 {
+        return None;
+    }
+    let path_at = offset_of!(SP_DEVICE_INTERFACE_DETAIL_DATA_W, DevicePath);
+    let max = (required as usize - path_at) / size_of::<u16>();
+    // SAFETY: the call wrote a NUL-terminated path of at most `max` characters there.
+    let path = from_wide(unsafe {
+        std::slice::from_raw_parts(std::ptr::addr_of!((*detail).DevicePath).cast::<u16>(), max)
+    });
+    let mut id = [0u16; 512];
+    // SAFETY: valid set and device data; the buffer length is given in characters.
+    let has_id = unsafe {
+        SetupDiGetDeviceInstanceIdW(
+            set.0,
+            &devinfo,
+            id.as_mut_ptr(),
+            id.len() as u32,
+            null_mut(),
+        )
+    } != 0;
+    Some(InterfaceEntry {
+        path,
+        instance_id: if has_id {
+            from_wide(&id)
+        } else {
+            String::new()
+        },
+        devinst: devinfo.DevInst,
+    })
+}
+
+/// The parent devnode.
+fn parent(devinst: u32) -> Option<u32> {
+    let mut parent = 0u32;
+    // SAFETY: valid out-pointer.
+    (unsafe { CM_Get_Parent(&mut parent, devinst, 0) } == CR_SUCCESS).then_some(parent)
+}
+
+/// `devinst` and then its ancestors, at most `limit` nodes.
+fn ancestors(devinst: u32, limit: usize) -> impl Iterator<Item = u32> {
+    std::iter::successors(Some(devinst), |&n| parent(n)).take(limit)
 }
 
 fn service_of(devinst: u32) -> Option<String> {
@@ -130,19 +159,8 @@ fn service_of(devinst: u32) -> Option<String> {
 /// True if the device or any ancestor is driven by ViGEmBus, i.e. it is a virtual
 /// controller (ours or another program's) rather than real hardware.
 pub fn is_vigem_device(devinst: u32) -> bool {
-    let mut node = devinst;
-    for _ in 0..16 {
-        if service_of(node).is_some_and(|s| s.eq_ignore_ascii_case("ViGEmBus")) {
-            return true;
-        }
-        let mut parent = 0u32;
-        // SAFETY: valid out-pointer.
-        if unsafe { CM_Get_Parent(&mut parent, node, 0) } != CR_SUCCESS {
-            return false;
-        }
-        node = parent;
-    }
-    false
+    ancestors(devinst, 16)
+        .any(|n| service_of(n).is_some_and(|s| s.eq_ignore_ascii_case("ViGEmBus")))
 }
 
 /// Instance IDs of all physical (non-ViGEm) XInput devices; used to hide Xbox pads.
@@ -170,14 +188,7 @@ fn is_usb_device_id(id: &str) -> bool {
 /// Instance ID of the USB device a HID interface belongs to (walking up past the
 /// composite-device interface node).
 pub fn usb_device_of(devinst: u32) -> Option<String> {
-    let mut node = devinst;
-    for _ in 0..8 {
-        let mut parent = 0u32;
-        // SAFETY: valid out-pointer.
-        if unsafe { CM_Get_Parent(&mut parent, node, 0) } != CR_SUCCESS {
-            return None;
-        }
-        node = parent;
+    for node in ancestors(devinst, 9).skip(1) {
         let id = instance_id_of(node)?;
         if is_usb_device_id(&id) {
             return Some(id);
@@ -221,23 +232,17 @@ fn bus_reported_name(devinst: u32) -> Option<String> {
 /// generic ("HID-compliant game controller") and an interface may report just its label
 /// ("If_Hid"). `None` for devices off USB (Bluetooth), whose ancestors are the radio.
 pub fn product_name(devinst: u32) -> Option<String> {
-    let mut node = devinst;
+    let on_usb =
+        |n: u32| instance_id_of(n).is_some_and(|id| id.to_ascii_uppercase().starts_with(r"USB\"));
     let mut nearest = None;
-    for _ in 0..4 {
+    // Up the USB nodes only.
+    for node in std::iter::successors(Some(devinst), |&n| parent(n).filter(|&p| on_usb(p))).take(4)
+    {
         let name = bus_reported_name(node);
         if instance_id_of(node).is_some_and(|id| is_usb_device_id(&id)) {
             return name.or(nearest);
         }
         nearest = nearest.or(name);
-        let mut parent = 0u32;
-        // SAFETY: valid out-pointer.
-        if unsafe { CM_Get_Parent(&mut parent, node, 0) } != CR_SUCCESS
-            || !instance_id_of(parent)
-                .is_some_and(|id| id.to_ascii_uppercase().starts_with(r"USB\"))
-        {
-            break;
-        }
-        node = parent;
     }
     nearest
 }
