@@ -21,7 +21,7 @@
 <script lang="ts">
   // The app's settings: a list of pages on the left, the chosen page on the right.
   import { api } from '../lib/api';
-  import { LANGUAGES, t } from '../lib/i18n/index.svelte';
+  import { LANGUAGES, has, t } from '../lib/i18n/index.svelte';
   import { app } from '../lib/state/app.svelte';
   import type { RewasdChoice } from '../lib/types';
   import ApiSettings from './settings/ApiSettings.svelte';
@@ -141,6 +141,16 @@
               </div>
             {/if}
           {/if}
+          <SettingsSection title={t('questions.title')}>
+            {#each app.settings.silenced as q (q)}
+              <div class="running">
+                <span>{has(`questions.ids.${q}`) ? t(`questions.ids.${q}`) : q}</span>
+                <button class="btn" onclick={() => app.silence(q, false)}>{t('questions.ask_again')}</button>
+              </div>
+            {:else}
+              <p class="hint">{t('questions.none')}</p>
+            {/each}
+          </SettingsSection>
           <SettingsSection title={t('welcome.settings_title')}>
             <button class="btn welcome" onclick={showWelcome}>{t('welcome.again')}</button>
           </SettingsSection>

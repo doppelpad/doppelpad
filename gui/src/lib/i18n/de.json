@@ -1437,5 +1437,16 @@
     "rename": "Config umbenennen",
     "duplicate": "Config duplizieren",
     "help": "Diese Liste"
+  },
+  "questions": {
+    "dont_ask": "Nicht mehr fragen",
+    "title": "Abgeschaltete Rückfragen",
+    "none": "Keine. Rückfragen zu Änderungen, die sich rückgängig machen lassen, bieten „Nicht mehr fragen“ an.",
+    "ask_again": "Wieder fragen",
+    "ids": {
+      "power_command": "Herunterfahren, Neustart, Energiesparen oder Abmelden zu einem Mapping hinzufügen",
+      "clear_mappings": "Alle Mappings einer Config löschen",
+      "whole_stick_replace": "Richtungen und Routen eines Sticks durch eine Auswahl für den ganzen Stick ersetzen"
+    }
   }
 }

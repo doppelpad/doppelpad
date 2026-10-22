@@ -29,6 +29,12 @@ saving too (the config is then unsaved again); opening another config starts afr
 covers the config only: game settings, slots and the app's settings are not part of it. In a
 text field, Ctrl+Z undoes the typing in that field.
 
+Questions about changes that can be undone (adding a shut-down, restart, sleep or sign-out
+command to a mapping, clearing all mappings, replacing a stick's directions with a whole-stick
+choice) offer *Don't ask again*; ticked and answered with OK, they are not asked again.
+*Settings → General → Questions you turned off* lists them, each with *Ask again*. Deleting
+games or configs and discarding unsaved changes always ask.
+
 ## Copy and paste
 
 Right-click a control (on the drawing, in the list, on the keyboard and mouse views, or a
@@ -512,7 +518,7 @@ reports a running reWASD.
 | `%APPDATA%\doppelpad\state.toml` | The four slots, active slot, remap on/off, autodetect |
 | `%APPDATA%\doppelpad\hotkeys.toml` | Controller hotkeys and their hold time (also read by `doppelpad daemon`) |
 | `%APPDATA%\doppelpad\calibration.toml` | Gyro calibration per controller (also used by `doppelpad daemon`) |
-| `%APPDATA%\doppelpad\gui.toml` | Language, focus pause, press-to-select, what to do about a running reWASD, notifications, the controller and mappings overlays, whether the welcome guide is done |
+| `%APPDATA%\doppelpad\gui.toml` | Language, focus pause, press-to-select, what to do about a running reWASD, notifications, the controller and mappings overlays, whether the welcome guide is done, descriptions or actions in the editor, the questions turned off |
 | `%LOCALAPPDATA%\doppelpad\logs\doppelpad-gui.log` | Log of the current run; the logs of the five runs before are kept as `doppelpad-gui.log.1` (the newest) to `.5` |
 
 The app saves atomically (it writes a temporary file, then renames it). Before it

@@ -725,6 +725,8 @@ export interface GuiSettings {
   welcome_done: boolean;
   /** The editor shows the mappings' notes instead of their actions. */
   show_notes: boolean;
+  /** Questions the user asked not to be asked again (see `QuestionId`); they count as answered OK. */
+  silenced: string[];
 }
 
 /** Starting points for new configs. */

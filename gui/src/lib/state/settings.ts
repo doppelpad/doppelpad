@@ -29,4 +29,5 @@ export const SETTINGS_PLACEHOLDER: GuiSettings = {
   mappings_overlay: { corner: 'top_right', opacity: 90 },
   welcome_done: true,
   show_notes: false,
+  silenced: [],
 };

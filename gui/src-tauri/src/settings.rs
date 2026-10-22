@@ -41,6 +41,8 @@ pub struct GuiSettings {
     pub welcome_done: bool,
     /// The editor shows the mappings' notes instead of their actions.
     pub show_notes: bool,
+    /// Questions the user asked not to be asked again (their ids); they count as answered OK.
+    pub silenced: Vec<String>,
 }
 
 /// On-screen notifications: which events show one, and where and how.
@@ -173,6 +175,7 @@ impl Default for GuiSettings {
             mappings_overlay: MappingsOverlaySettings::default(),
             welcome_done: false,
             show_notes: false,
+            silenced: Vec::new(),
         }
     }
 }
@@ -198,6 +201,8 @@ impl GuiSettings {
         pad.opacity = clamp(pad.opacity, &OPACITY);
         let mappings = &mut self.mappings_overlay;
         mappings.opacity = clamp(mappings.opacity, &OPACITY);
+        self.silenced.sort();
+        self.silenced.dedup();
         self
     }
 
@@ -225,5 +230,14 @@ mod tests {
         assert_eq!((s.osd.scale, s.osd.seconds, s.osd.opacity), (200, 1, 20));
         assert_eq!((s.pad_overlay.size, s.pad_overlay.opacity), (30, 100));
         assert_eq!(s.mappings_overlay.opacity, 20);
+    }
+
+    #[test]
+    fn clamped_keeps_each_silenced_question_once() {
+        let s = GuiSettings {
+            silenced: vec!["b".into(), "a".into(), "b".into()],
+            ..GuiSettings::default()
+        };
+        assert_eq!(s.clamped().silenced, ["a", "b"]);
     }
 }
