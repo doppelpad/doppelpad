@@ -8,6 +8,7 @@
   import { matchShortcut } from './lib/state/shortcuts';
   import { runShortcut } from './components/shortcutActions';
   import ShortcutsDialog from './components/ShortcutsDialog.svelte';
+  import FindPanel from './components/FindPanel.svelte';
   import { win } from './lib/state/window.svelte';
   import ProfilePanel from './components/ProfilePanel.svelte';
   import Header from './components/Header.svelte';
@@ -134,6 +135,7 @@
 
 {#if settingsOpen}<SettingsDialog onclose={() => (settingsOpen = false)} />{/if}
 {#if app.shortcutsOpen}<ShortcutsDialog onclose={() => (app.shortcutsOpen = false)} />{/if}
+{#if app.find && app.profile}<FindPanel />{/if}
 <PromptDialog />
 <ConfirmDialog />
 <RewasdDialog />

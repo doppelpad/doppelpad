@@ -3,7 +3,8 @@
 
 import { t } from '../i18n/index.svelte';
 
-export type ShortcutId = 'save' | 'undo' | 'redo' | 'copy' | 'paste' | 'clear' | 'deselect' | 'layer' | 'rename' | 'duplicate' | 'help';
+export type ShortcutId =
+  'save' | 'undo' | 'redo' | 'copy' | 'paste' | 'clear' | 'deselect' | 'layer' | 'rename' | 'duplicate' | 'find' | 'help';
 
 /** One key combination. `key` is compared with `KeyboardEvent.key`, letters in lower case. */
 export interface Keys {
@@ -46,6 +47,7 @@ export const SHORTCUTS: Shortcut[] = [
   { id: 'layer', keys: DIGITS.map((key) => ({ key, mod: true })) },
   { id: 'rename', keys: [{ key: 'F2' }], keyboardView: [] },
   { id: 'duplicate', keys: [{ key: 'd', mod: true }] },
+  { id: 'find', keys: [{ key: 'f', mod: true }] },
   { id: 'help', keys: [{ key: '/', mod: true, anyShift: true }, { key: 'F1' }], keyboardView: [{ key: '/', mod: true, anyShift: true }] },
 ];
 

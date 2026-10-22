@@ -1437,7 +1437,8 @@
     "layer": "Go to Main (1) or a shift layer",
     "rename": "Rename the config",
     "duplicate": "Duplicate the config",
-    "help": "This list"
+    "help": "This list",
+    "find": "Find mappings"
   },
   "questions": {
     "dont_ask": "Don't ask again",
@@ -1452,5 +1453,13 @@
   },
   "lints": {
     "hotkey": "holds every button of the controller hotkey {hotkey} ({keys}); the hotkey takes them, so this mapping never fires while hotkeys are on"
+  },
+  "find": {
+    "title": "Find mappings",
+    "placeholder": "Find by output, control or description…",
+    "none": "No mapping matches.",
+    "pressing": "Mappings that press {key}",
+    "all": "Search everything instead",
+    "who_presses": "Which mappings press this key?"
   }
 }

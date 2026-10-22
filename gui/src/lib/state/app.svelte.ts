@@ -121,6 +121,8 @@ class AppState {
   canRedo = $state(false);
   /** The list of keyboard shortcuts is open. */
   shortcutsOpen = $state(false);
+  /** The find panel is open: with a query, or listing the mappings that press one key. */
+  find = $state<{ query: string; key?: string } | null>(null);
 
   /** Earlier states of the open config, for undo and redo. */
   private history = new History();

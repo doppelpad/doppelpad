@@ -75,6 +75,16 @@ has the same entries:
 The copy stays while the app runs, so it can be pasted into another config. Pasting and clearing
 can be undone. The macro editor has **Copy steps** and **Paste steps** for whole sequences.
 
+## Find
+
+**Find** (the magnifier in the header, or Ctrl+F) searches the open config across all layers:
+by what mappings output (keys, buttons, commands, also inside macros), by their control, by
+the layer they change to and by their description. Every word must match somewhere; case and
+accents do not matter. Up and down move through the results, Enter or a click selects that
+mapping (on its layer and activator, in the view that shows it). In the keyboard view, a
+key's context menu has *Which mappings press this key?*, which lists exactly the mappings whose
+actions press it.
+
 ## Keyboard shortcuts
 
 Ctrl+/ (or F1, or *Keyboard shortcuts* in the config's options menu) lists them all:
@@ -88,6 +98,7 @@ Ctrl+/ (or F1, or *Keyboard shortcuts* in the config's options menu) lists them 
 | Escape | Deselect, leave the macro editor |
 | Ctrl+1 … Ctrl+9 | Main, then the shift layers in the toolbar's order |
 | F2, Ctrl+D | Rename, duplicate the config |
+| Ctrl+F | Find mappings |
 
 In the keyboard view, plain keys select themselves, so Delete, Escape, F1 and F2 do that there;
 clearing is Ctrl+Delete. In text fields the keys act on the text, and while a dialog or menu is

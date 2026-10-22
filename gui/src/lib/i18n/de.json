@@ -1437,7 +1437,8 @@
     "layer": "Zu Main (1) oder einer Shift-Ebene wechseln",
     "rename": "Config umbenennen",
     "duplicate": "Config duplizieren",
-    "help": "Diese Liste"
+    "help": "Diese Liste",
+    "find": "Mappings suchen"
   },
   "questions": {
     "dont_ask": "Nicht mehr fragen",
@@ -1452,5 +1453,13 @@
   },
   "lints": {
     "hotkey": "enthält alle Tasten des Controller-Hotkeys {hotkey} ({keys}); der Hotkey nimmt sie, deshalb löst dieses Mapping nie aus, solange Hotkeys an sind"
+  },
+  "find": {
+    "title": "Mappings suchen",
+    "placeholder": "Nach Ausgabe, Bedienelement oder Beschreibung suchen…",
+    "none": "Kein Mapping passt.",
+    "pressing": "Mappings, die {key} drücken",
+    "all": "Stattdessen alles durchsuchen",
+    "who_presses": "Welche Mappings drücken diese Taste?"
   }
 }

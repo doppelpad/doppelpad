@@ -63,6 +63,10 @@ export function runShortcut(id: ShortcutId, digit?: number): boolean {
     case 'duplicate':
       app.duplicateConfig();
       return true;
+    case 'find':
+      if (!app.profile) return false;
+      app.find = { query: '' };
+      return true;
     case 'help':
       app.shortcutsOpen = true;
       return true;

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ChevronDown, Ellipsis, Save, Settings, Lock, Undo2, Redo2 } from '@lucide/svelte';
+  import { ChevronDown, Ellipsis, Save, Settings, Lock, Undo2, Redo2, Search } from '@lucide/svelte';
   import { open, save } from '@tauri-apps/plugin-dialog';
   import { api } from '../lib/api';
   import { t } from '../lib/i18n/index.svelte';
@@ -114,6 +114,14 @@
         {/snippet}
       </Menu>
       {#if app.readOnly}<span class="badge" title={t('header.read_only')}><Lock size={12} /> {t('header.read_only')}</span>{/if}
+      <button
+        class="icon-btn"
+        title={withShortcut(t('find.title'), 'find', mac)}
+        disabled={!app.profile}
+        onclick={() => (app.find = { query: '' })}
+      >
+        <Search size={17} />
+      </button>
       <button
         class="icon-btn"
         title={withShortcut(t('header.undo'), 'undo', mac)}
