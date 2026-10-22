@@ -11,7 +11,7 @@
   // touchpad's halves and gestures, and links to their settings.
   import { SlidersHorizontal } from '@lucide/svelte';
   import { t } from '../../lib/i18n/index.svelte';
-  import { SIDES, TOUCH_GESTURES } from '../../lib/model/controls';
+  import { SIDES, TOUCH_GESTURES, controlLabel } from '../../lib/model/controls';
   import { STICK_GROUPS, stickGroupOf } from '../../lib/model/stickgroups';
   import { app } from '../../lib/state/app.svelte';
   import type { ControlName } from '../../lib/types';
@@ -91,7 +91,7 @@
       {:else if CORNERS.has(d) && !diagonals}
         <span></span>
       {:else}
-        <button class="sm-btn" onclick={() => onchoose(`${prefix}${d}`)}>{arrow}</button>
+        <button class="sm-btn" title={controlLabel(`${prefix}${d}`, app.family)} onclick={() => onchoose(`${prefix}${d}`)}>{arrow}</button>
       {/if}
     {/each}
   </div>

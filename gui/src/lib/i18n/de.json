@@ -86,7 +86,8 @@
     "processes_hint": "Programme, bei denen automatisch die Config dieses Spiels aktiv wird, eins pro Zeile (z. B. game.exe)",
     "delete_confirm": "„{name}“ samt allen Configs in den Papierkorb verschieben?",
     "config_count_one": "1 Config",
-    "config_count": "{n} Configs"
+    "config_count": "{n} Configs",
+    "game_options": "Spiel-Optionen"
   },
   "window": {
     "minimize": "Minimieren",
@@ -150,6 +151,7 @@
     "name_prompt": "Name der Ebene",
     "inherit": "Nicht belegte Tasten nutzen die Haupt-Ebene",
     "more": "Weitere Ebenen ({n})",
+    "options": "Ebenen-Optionen",
     "settings": "Ebenen-Einstellungen",
     "settings_title": "Einstellungen von {layer}",
     "inherit_hint_on": "Tasten, die diese Ebene nicht belegt, tun dasselbe wie auf der Haupt-Ebene.",
@@ -408,6 +410,7 @@
     "color": "Farbe",
     "outline_color": "Rand",
     "offset": "Versatz X / Y",
+    "offset_y": "Versatz Y",
     "size": "Größe",
     "thickness": "Linienstärke",
     "opacity": "Deckkraft",
@@ -460,6 +463,8 @@
     "scale": "Größe",
     "scale_hint": "{px} Pixel Durchmesser.",
     "label": "Beschriftung",
+    "icon": "Symbol",
+    "color": "Farbe",
     "no_icon": "Kein Symbol",
     "image": "Eigenes Bild",
     "pick_image": "Bilddatei wählen…",
@@ -609,6 +614,8 @@
   "macro": {
     "title": "Makro für {control}",
     "mode_label": "Ablauf",
+    "move_up": "Nach oben",
+    "move_down": "Nach unten",
     "mode_hold": "Halten bis Loslassen",
     "mode_once": "Einmal komplett ausführen",
     "mode_repeat": "Wiederholen",
@@ -773,7 +780,7 @@
       "invert_x": "Horizontal umkehren",
       "invert_y": "Vertikal umkehren",
       "curve": "Kennlinie",
-      "curve_hint": "Ziehe einen Punkt, um die Kurve zu formen. Doppelklick fügt einen Punkt hinzu, Doppelklick auf einen Punkt entfernt ihn.",
+      "curve_hint": "Ziehe einen Punkt, um die Kurve zu formen. Doppelklick fügt einen Punkt hinzu, Doppelklick auf einen Punkt entfernt ihn. Auf einem gewählten Punkt verschieben ihn die Pfeiltasten, Einfg oder + fügt dahinter einen hinzu, Entf entfernt ihn.",
       "axis_in": "Stick",
       "axis_out": "Ausgabe",
       "point": "Kurvenpunkt {n}",

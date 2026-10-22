@@ -107,6 +107,11 @@
     } else if (e.key === 'Delete' || e.key === 'Backspace') {
       e.preventDefault();
       onchange(removeCurvePoint(points, i));
+    } else if ((e.key === 'Insert' || e.key === '+') && points.length < MAX_CURVE_POINTS) {
+      // Halfway to the next point, or to the curve's end.
+      e.preventDefault();
+      const [t1, v1] = points[i + 1] ?? [1, 1];
+      onchange(addCurvePoint(points, [(t0 + t1) / 2, (v0 + v1) / 2]));
     }
   }
 
@@ -114,9 +119,10 @@
 </script>
 
 <div class="curve">
-  <!-- svelte-ignore a11y_no_static_element_interactions -->
   <svg
     bind:this={svg}
+    role="application"
+    aria-label={t('analog.stick.curve')}
     viewBox="0 0 {L + S + R} {T + S + B}"
     class:disabled
     class:dragging={dragging !== null}

@@ -86,7 +86,8 @@
     "processes_hint": "Programs that switch to this game's config automatically, one per line (e.g. game.exe)",
     "delete_confirm": "Move “{name}” and all its configs to the recycle bin?",
     "config_count_one": "1 config",
-    "config_count": "{n} configs"
+    "config_count": "{n} configs",
+    "game_options": "Game options"
   },
   "window": {
     "minimize": "Minimize",
@@ -150,6 +151,7 @@
     "name_prompt": "Name of the layer",
     "inherit": "Unmapped controls use Main",
     "more": "More layers ({n})",
+    "options": "Layer options",
     "settings": "Layer settings",
     "settings_title": "Settings of {layer}",
     "inherit_hint_on": "Controls this layer does not map do what they do on Main.",
@@ -408,6 +410,7 @@
     "color": "Colour",
     "outline_color": "Outline",
     "offset": "Offset X / Y",
+    "offset_y": "Offset Y",
     "size": "Size",
     "thickness": "Line width",
     "opacity": "Opacity",
@@ -460,6 +463,8 @@
     "scale": "Size",
     "scale_hint": "{px} pixels across.",
     "label": "Label",
+    "icon": "Icon",
+    "color": "Colour",
     "no_icon": "No icon",
     "image": "Own image",
     "pick_image": "Choose an image file…",
@@ -609,6 +614,8 @@
   "macro": {
     "title": "Macro for {control}",
     "mode_label": "Playback",
+    "move_up": "Move up",
+    "move_down": "Move down",
     "mode_hold": "Hold until release",
     "mode_once": "Execute at once",
     "mode_repeat": "Repeat",
@@ -773,7 +780,7 @@
       "invert_x": "Invert horizontal",
       "invert_y": "Invert vertical",
       "curve": "Response curve",
-      "curve_hint": "Drag a point to shape the curve. Double-click to add a point, double-click a point to remove it.",
+      "curve_hint": "Drag a point to shape the curve. Double-click to add a point, double-click a point to remove it. On a selected point the arrow keys move it, Insert or + adds one after it and Delete removes it.",
       "axis_in": "Stick",
       "axis_out": "Output",
       "point": "Curve point {n}",

@@ -13,7 +13,7 @@
 
 {#if shown.length}
   <div class="diag" class:error={errors > 0}>
-    <button class="summary" onclick={() => (open = !open)}>
+    <button class="summary" aria-expanded={open} onclick={() => (open = !open)}>
       {#if errors}<CircleAlert size={15} />{:else}<TriangleAlert size={15} />{/if}
       {#if errors}{t('diagnostics.errors', { n: errors })}{/if}
       {#if errors && warnings}·{/if}
