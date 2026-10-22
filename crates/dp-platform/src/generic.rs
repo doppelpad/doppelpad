@@ -126,7 +126,7 @@ pub struct GenericLayout {
 }
 
 /// The layout key of a model.
-pub fn model_key(vid: u16, pid: u16) -> String {
+fn model_key(vid: u16, pid: u16) -> String {
     format!("{vid:04x}:{pid:04x}")
 }
 
@@ -143,10 +143,7 @@ impl GenericLayout {
             }
         }
         for t in &self.triggers {
-            let axis = match t.trigger {
-                Trigger::Left => Axis::LeftTrigger,
-                Trigger::Right => Axis::RightTrigger,
-            };
+            let axis = t.trigger.axis();
             let v = t.from.level(raw).max(s.axis(axis));
             s.set_axis(axis, v);
         }
@@ -234,7 +231,7 @@ pub struct GenericDriver {
     guess: Option<GenericLayout>,
     raw: Option<RawInput>,
     /// Whether the user's layout was in use when the notice was last reported.
-    noticed: Option<bool>,
+    noticed: bool,
 }
 
 const NOTICE: &str = "buttons not identified yet; choose \"Identify buttons\" in its menu";
@@ -249,7 +246,7 @@ impl GenericDriver {
             layout: None,
             guess: None,
             raw: None,
-            noticed: Some(false),
+            noticed: false,
         }
     }
 }
@@ -306,10 +303,10 @@ impl PadDriver for GenericDriver {
 
     fn take_notice_change(&mut self) -> Option<Option<String>> {
         let known = self.layout.is_some();
-        if self.noticed == Some(known) {
+        if self.noticed == known {
             return None;
         }
-        self.noticed = Some(known);
+        self.noticed = known;
         Some((!known).then(|| NOTICE.into()))
     }
 }

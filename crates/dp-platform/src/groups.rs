@@ -46,7 +46,7 @@ pub struct SeenDevice {
 
 /// Several controllers' states as one: buttons of any, each axis from the member that pushes
 /// it furthest, motion and touch from the first member that has them.
-pub fn merge(states: &[PadState]) -> PadState {
+fn merge(states: &[PadState]) -> PadState {
     let mut out = PadState::default();
     for s in states {
         out.buttons |= s.buttons;
@@ -137,7 +137,7 @@ fn combine(group: &DeviceGroup, members: &[&PadSnapshot]) -> PadSnapshot {
 }
 
 /// Apply the block list and the groups to what the backends report.
-pub fn arrange(raw: &[PadSnapshot], policy: &DevicePolicy, out: &mut Vec<PadSnapshot>) {
+fn arrange(raw: &[PadSnapshot], policy: &DevicePolicy, out: &mut Vec<PadSnapshot>) {
     let blocked = |id: &DeviceId| policy.blocked.contains(&id.0);
     let grouped = |id: &DeviceId| policy.groups.iter().any(|g| g.members.contains(&id.0));
     for g in &policy.groups {

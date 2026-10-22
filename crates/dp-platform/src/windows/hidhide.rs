@@ -215,7 +215,7 @@ fn own_image() -> Result<String> {
 /// at a different path. Devices we hide ourselves never show up here, because hiding
 /// whitelists us first. Inverse mode is left out: there a listed program is the one that
 /// cannot see hidden devices, and Doppelpad never sets that up.
-pub fn hidden_from_us() -> Result<Vec<String>> {
+fn hidden_from_us() -> Result<Vec<String>> {
     let h = open()?;
     if !get_active(&h)? || get_inverse(&h) {
         return Ok(Vec::new());
@@ -389,11 +389,6 @@ pub fn recover_stale() {
 impl HidHide {
     pub fn new() -> Self {
         Self::default()
-    }
-
-    /// Current blacklist (for diagnostics).
-    pub fn blacklist(&self) -> Result<Vec<String>> {
-        get_list(&open()?, IOCTL_GET_BLACKLIST)
     }
 
     fn write_journal(&self) {

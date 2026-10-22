@@ -3,8 +3,9 @@
 //! The protocols are the publicly documented ones (dekuNukem's and ndeadly's research,
 //! SDL `SDL_hidapi_switch*.c`). Everything here is pure, so it is unit-tested on every OS:
 //! [`switch1`] covers the first-generation protocol (Pro Controller, Joy-Con, charging
-//! grip, Nintendo Switch Online pads), [`switch2`] the Switch 2 USB protocol, and [`wired`]
-//! third-party pads that only send a plain input report.
+//! grip, Nintendo Switch Online pads), [`switch2`] the Switch 2 USB protocol, [`wired`]
+//! third-party pads that only send a plain input report, and [`gcadapter`] the GameCube
+//! controller adapter.
 
 pub mod gcadapter;
 pub mod switch1;
@@ -137,7 +138,7 @@ pub fn apply_buttons(s: &mut PadState, right: u8, shared: u8, left: u8) {
 
 /// Player lights for player `n` (1–4) the way the console lights them: LED 1, LEDs 1–2,
 /// 1–3, all four; 0 turns them off.
-pub fn player_mask(n: u8) -> u8 {
+fn player_mask(n: u8) -> u8 {
     match n {
         0 => 0,
         n => (1u8 << n.min(4)) - 1,
