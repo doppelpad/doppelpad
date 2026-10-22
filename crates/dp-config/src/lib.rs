@@ -4,6 +4,7 @@
 pub mod bundle;
 mod compat;
 mod diag;
+pub mod launches;
 pub mod library;
 pub mod store;
 pub mod templates;
@@ -92,13 +93,21 @@ pub fn load(path: &Path) -> Result<(Profile, Diagnostics), LoadError> {
 /// [`load`], also telling which format the file is in.
 pub fn load_with_format(path: &Path) -> Result<(Profile, Diagnostics, Format), LoadError> {
     let src = std::fs::read_to_string(path).map_err(|e| LoadError::Io(path.into(), e))?;
-    let format = Format::detect(path, &src);
+    parse_with_format(path, &src)
+}
+
+/// [`load_with_format`] for `src`, the text of the file `path`.
+pub(crate) fn parse_with_format(
+    path: &Path,
+    src: &str,
+) -> Result<(Profile, Diagnostics, Format), LoadError> {
+    let format = Format::detect(path, src);
     let (mut profile, mut diags) = match format {
         Format::Toml => (
-            parse_toml(&src).map_err(|e| LoadError::Toml(path.into(), e))?,
+            parse_toml(src).map_err(|e| LoadError::Toml(path.into(), e))?,
             Diagnostics::default(),
         ),
-        Format::Json => compat::import(&src).map_err(|e| LoadError::Import(path.into(), e))?,
+        Format::Json => compat::import(src).map_err(|e| LoadError::Import(path.into(), e))?,
     };
     if profile.name.is_empty() {
         profile.name = path

@@ -7,6 +7,7 @@ import { controlsFromPad, drawingsFor, sideShowing } from '../model/devices';
 import { setStickGroup, stickGroupConflicts, stickGroupOf, type StickGroup } from '../model/stickgroups';
 import { comboKey, editMappingIn, layerIds, mappingAt, type LayerCopy } from '../model/profile';
 import { layerLabel } from '../model/labels';
+import { launchRows } from '../model/launches';
 import { clone } from '../model/util';
 import { isStreamingField, pointer } from '../dom';
 import { History, type EditKey } from './history';
@@ -19,6 +20,7 @@ import type {
   DiagMsg,
   Game,
   GuiSettings,
+  Launch,
   Library,
   LiveDevice,
   LiveState,
@@ -45,9 +47,23 @@ interface PromptRequest {
   resolve: (v: string | null) => void;
 }
 
-interface QuestionRequest {
+/** What a question (ConfirmDialog) can show and offer besides its message. */
+export interface QuestionOptions {
+  title?: string;
+  /** Rows under the message: a line of code (a command line, say) and notes under it. */
+  items?: { code: string; notes: string[] }[];
+  /** The label of the OK button. */
+  ok?: string;
+  /** A second answer, between Cancel and OK. */
+  alt?: string;
+}
+
+/** The button a question was answered with; `null` for Cancel (and Escape). */
+export type Answer = 'ok' | 'alt' | null;
+
+interface QuestionRequest extends QuestionOptions {
   message: string;
-  resolve: (ok: boolean) => void;
+  resolve: (answer: Answer) => void;
 }
 
 class AppState {
@@ -248,10 +264,13 @@ class AppState {
     );
   }
 
-  /** Unpack a game bundle into a new game and open it. */
+  /** Unpack a game bundle into a new game and open it, asking first about programs it starts. */
   importGame(file: string): Promise<boolean> {
     return this.attempt(
-      api.gameImport(file).then(async (g) => {
+      api.gameLaunches(file).then(async (found) => {
+        const keep = await this.keepLaunches(found);
+        if (keep === null) return;
+        const g = await api.gameImport(file, keep);
         await this.openCreatedGame(g);
         this.toast(t('profiles.imported', { name: g.meta.name }), 'ok');
       }),
@@ -287,9 +306,30 @@ class AppState {
    * Ask an OK/Cancel question in the app's own dialog (ConfirmDialog); `true` for OK. Not
    * `window.confirm`: in the webview it returns a promise without asking.
    */
-  confirmAsk(message: string): Promise<boolean> {
-    this.question?.resolve(false);
-    return new Promise((resolve) => (this.question = { message, resolve }));
+  async confirmAsk(message: string, options: QuestionOptions = {}): Promise<boolean> {
+    return (await this.choose(message, options)) === 'ok';
+  }
+
+  /** `confirmAsk` that tells which answer, for a question with a second one (`options.alt`). */
+  choose(message: string, options: QuestionOptions = {}): Promise<Answer> {
+    this.question?.resolve(null);
+    return new Promise((resolve) => (this.question = { ...options, message, resolve }));
+  }
+
+  /**
+   * Whether an import keeps the launch commands it brings (`found`), which start programs:
+   * asked in the app's dialog, where leaving them out is the default; `null` when the import
+   * is cancelled. Without any there is no question, and `false`.
+   */
+  async keepLaunches(found: Launch[]): Promise<boolean | null> {
+    if (found.length === 0) return false;
+    const answer = await this.choose(t('launches.message'), {
+      title: t('launches.title'),
+      items: launchRows(found, this.family).map((r) => ({ code: r.command, notes: r.places })),
+      ok: t('launches.drop'),
+      alt: t('launches.keep'),
+    });
+    return answer === null ? null : answer === 'alt';
   }
 
   /** Ask before discarding unsaved changes. */

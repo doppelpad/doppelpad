@@ -3,8 +3,8 @@
 //! The fixtures in `gui/src/lib/model/fixtures` are shared with the frontend tests:
 //! `keys.json` lists every key name, `examples.json` holds the example profiles in JSON
 //! form, `defaults.json` the defaults the `catalog` command sends, `contract.json` the live
-//! state, app settings, hotkeys and a notification as the frontend receives them,
-//! `controls.json` the names of the pad controls and `shaping.json` what the stick and
+//! state, app settings, hotkeys, a notification and the launch commands of an import as the
+//! frontend receives them, `controls.json` the names of the pad controls and `shaping.json` what the stick and
 //! trigger shaping makes of sample inputs. Regenerate them with
 //! `DOPPELPAD_UPDATE_FIXTURES=1 cargo test -p dp-gui`.
 //!
@@ -14,6 +14,7 @@
 use std::collections::BTreeSet;
 use std::path::PathBuf;
 
+use dp_config::launches::{Launch, LaunchPlace};
 use dp_core::control::{Control, Zone};
 use dp_core::engine::{apply_curve, shape_stick, shape_trigger, stick_zone, trigger_zone};
 use dp_core::hotkeys::Hotkeys;
@@ -140,6 +141,7 @@ fn contract_fixture_is_current() {
         gui_settings: GuiSettings,
         hotkeys: Hotkeys,
         osd_message: crate::osd::Message,
+        launches: Vec<Launch>,
     }
     let mut state = PadState::default();
     state.set(PadButton::A, true);
@@ -219,6 +221,31 @@ fn contract_fixture_is_current() {
         gui_settings: GuiSettings::default(),
         hotkeys: Hotkeys::default(),
         osd_message: crate::osd::Message::sample(),
+        launches: vec![
+            Launch {
+                file: Some("racing.toml".into()),
+                config: "Racing".into(),
+                place: LaunchPlace::Mapping {
+                    layer: 1,
+                    layer_name: "Shift".into(),
+                    trigger: Control::Button(PadButton::A).into(),
+                },
+                path: "notepad.exe".into(),
+                args: "notes.txt".into(),
+            },
+            Launch {
+                file: None,
+                config: "Racing".into(),
+                place: LaunchPlace::Radial {
+                    menu: 1,
+                    name: "Tools".into(),
+                    sector: 2,
+                    label: "Notes".into(),
+                },
+                path: "notepad.exe".into(),
+                args: String::new(),
+            },
+        ],
     };
     assert_fixture("contract.json", pretty(&contract));
 }

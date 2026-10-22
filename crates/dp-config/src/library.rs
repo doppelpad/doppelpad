@@ -11,6 +11,7 @@ use std::path::{Path, PathBuf};
 use dp_core::profile::Profile;
 use serde::{Deserialize, Serialize};
 
+use crate::launches::{self, Launch};
 use crate::{Diagnostics, Format, LoadError, compat, is_profile_file, load, to_toml};
 
 /// File holding a game's metadata inside its folder.
@@ -391,14 +392,32 @@ pub fn save_profile_atomic(path: &Path, profile: &Profile) -> Result<()> {
     write_atomic(path, &text)
 }
 
-/// Import a JSON profile (schema 3.0) as a new TOML config in `game_dir`. The source
-/// file is never modified or moved.
-pub fn import_into(game_dir: &Path, source: &Path) -> Result<(PathBuf, Diagnostics)> {
+/// A JSON profile (schema 3.0) as [`import_into`] brings it in.
+fn read_json(source: &Path) -> Result<(Profile, Diagnostics)> {
     let src = std::fs::read_to_string(source).map_err(io(source))?;
     let (mut profile, diags) =
         compat::import(&src).map_err(|e| LoadError::Import(source.to_path_buf(), e))?;
     if profile.name.is_empty() || profile.name == compat::DEFAULT_IMPORT_NAME {
         profile.name = file_stem(source);
+    }
+    Ok((profile, diags))
+}
+
+/// The launch commands of the JSON profile `source`, to ask about before [`import_into`].
+pub fn import_launches(source: &Path) -> Result<Vec<Launch>> {
+    Ok(launches::find(&read_json(source)?.0))
+}
+
+/// Import a JSON profile (schema 3.0) as a new TOML config in `game_dir`, without its launch
+/// commands unless `keep_launches`. The source file is never modified or moved.
+pub fn import_into(
+    game_dir: &Path,
+    source: &Path,
+    keep_launches: bool,
+) -> Result<(PathBuf, Diagnostics)> {
+    let (mut profile, diags) = read_json(source)?;
+    if !keep_launches {
+        launches::strip(&mut profile);
     }
     let target = unique_path(game_dir, &slugify(&profile.name), Some("toml"));
     save_profile_atomic(&target, &profile)?;
@@ -524,10 +543,48 @@ mod tests {
         let game = create_game(root.path(), "Imp").unwrap();
         let src = root.path().join("orig.rwcfg");
         std::fs::write(&src, JSON).unwrap();
-        let (path, _) = import_into(&game.dir, &src).unwrap();
+        let (path, _) = import_into(&game.dir, &src, false).unwrap();
         assert_eq!(std::fs::read_to_string(&src).unwrap(), JSON);
         assert_eq!(load(&path).unwrap().0.name, "Imported");
         assert!(path.extension().is_some_and(|e| e == "toml"));
+    }
+
+    /// [`JSON`] with a second mapping that runs a program.
+    const LAUNCHING: &str = r#"{ "schemaVersion": 3.0, "config": { "appName": "Shared" },
+      "devices": { "hardware": [ { "id": 1, "name": "gamepad" } ] },
+      "commands": [ { "id": 7, "type": 1000, "name": "Run",
+                      "params": { "path": "powershell.exe", "arguments": "-enc ZQBjAGgAbwA=" } } ],
+      "masks": [ { "id": 1, "set": [ { "deviceId": 1, "buttonId": 1 } ] },
+                 { "id": 2, "set": [ { "deviceId": 1, "buttonId": 2 } ] } ],
+      "mappings": [ { "condition": { "mask": { "id": 1, "activator": { "type": "single", "mode": "hold_until_release" } } },
+                      "macros": [ { "keyboard": { "buttonId": 57, "description": "DIK_SPACE" } } ] },
+                    { "condition": { "mask": { "id": 2, "activator": { "type": "single", "mode": "hold_until_release" } } },
+                      "macros": [ { "command": { "id": 7 } } ] } ] }"#;
+
+    #[test]
+    fn json_imports_drop_launches_unless_kept() {
+        let root = tempfile::tempdir().unwrap();
+        let game = create_game(root.path(), "Imp").unwrap();
+        let src = root.path().join("shared.json");
+        std::fs::write(&src, LAUNCHING).unwrap();
+        let found = import_launches(&src).unwrap();
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].config, "Shared");
+        assert_eq!(
+            (found[0].path.as_str(), found[0].args.as_str()),
+            ("powershell.exe", "-enc ZQBjAGgAbwA=")
+        );
+
+        let (dropped, _) = import_into(&game.dir, &src, false).unwrap();
+        let p = load(&dropped).unwrap().0;
+        assert!(launches::find(&p).is_empty());
+        assert_eq!(p.mappings.len(), 1, "the space mapping stays");
+        let (kept, _) = import_into(&game.dir, &src, true).unwrap();
+        assert_eq!(launches::find(&load(&kept).unwrap().0).len(), 1);
+
+        let plain = root.path().join("plain.json");
+        std::fs::write(&plain, JSON).unwrap();
+        assert!(import_launches(&plain).unwrap().is_empty());
     }
 
     #[test]
