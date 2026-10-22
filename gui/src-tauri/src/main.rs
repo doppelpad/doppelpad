@@ -82,7 +82,7 @@ fn main() {
             let handle = dp_service::spawn(HostOptions { service, ipc: true })?;
 
             app.manage(AppState {
-                service: Mutex::new(handle),
+                service: handle,
                 settings: Mutex::new(GuiSettings::load()),
                 profiles_dir,
                 notices: Mutex::new(notices),

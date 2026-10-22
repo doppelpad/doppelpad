@@ -3,7 +3,7 @@
 
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use anyhow::{Result, anyhow};
 use crossbeam_channel::{Sender, bounded, unbounded};
@@ -11,13 +11,10 @@ use dp_ipc::{Request, Response};
 use dp_platform::Platform;
 
 use crate::client::{CallError, round_trip};
-use crate::live::LiveState;
+use crate::live::{LIVE_INTERVAL, LiveState, SharedLive};
 use crate::runtime::{Runtime, TimerResolution};
 use crate::service::{Service, ServiceCmd, ServiceOptions, ServiceReply};
 use crate::timing::TICK;
-
-/// How often the live snapshot is refreshed.
-const LIVE_INTERVAL: Duration = Duration::from_millis(16);
 
 #[derive(Clone, Debug)]
 pub struct HostOptions {
@@ -32,11 +29,15 @@ enum Job {
     Ipc(Request, Sender<Response>),
 }
 
-/// Handle to a running service thread.
+/// Handle to a running service thread. It can be shared between threads as it is.
 pub struct ServiceHandle {
     tx: Sender<Job>,
-    live: Arc<Mutex<LiveState>>,
-    thread: Option<JoinHandle<()>>,
+    live: SharedLive,
+    thread: Mutex<Option<JoinHandle<()>>>,
+    /// The IPC server: it serves until the process ends (`dp_ipc::serve` does not return
+    /// while it works), so it is never joined; after a shutdown it answers that the service
+    /// has stopped.
+    _ipc: Option<JoinHandle<()>>,
 }
 
 impl ServiceHandle {
@@ -54,25 +55,35 @@ impl ServiceHandle {
     }
 
     /// Latest live snapshot.
-    pub fn live(&self) -> LiveState {
-        self.live.lock().unwrap().clone()
+    pub fn live(&self) -> Arc<LiveState> {
+        self.live.get()
     }
 
-    /// Shared live snapshot (for a streaming thread).
-    pub fn live_shared(&self) -> Arc<Mutex<LiveState>> {
+    /// The latest live snapshot and its generation, if it changed since generation `seen`.
+    pub fn live_since(&self, seen: u64) -> Option<(u64, Arc<LiveState>)> {
+        self.live.since(seen)
+    }
+
+    /// The shared live snapshot (for a thread that watches it).
+    pub fn live_shared(&self) -> SharedLive {
         self.live.clone()
     }
 
     pub fn is_running(&self) -> bool {
-        self.thread.as_ref().is_some_and(|t| !t.is_finished())
+        self.thread
+            .lock()
+            .unwrap()
+            .as_ref()
+            .is_some_and(|t| !t.is_finished())
     }
 
     /// Stop the service (releasing outputs, unhiding devices) and wait for its thread.
-    pub fn shutdown(&mut self) {
+    pub fn shutdown(&self) {
         if self.is_running() {
             let _ = self.call(ServiceCmd::Shutdown);
         }
-        if let Some(t) = self.thread.take() {
+        let thread = self.thread.lock().unwrap().take();
+        if let Some(t) = thread {
             let _ = t.join();
         }
     }
@@ -95,10 +106,8 @@ pub fn spawn_with(
     make_platform: impl FnOnce() -> Platform + Send + 'static,
 ) -> Result<ServiceHandle> {
     let (tx, rx) = unbounded::<Job>();
-    let live = Arc::new(Mutex::new(LiveState::default()));
-    let (ready_tx, ready_rx) = bounded::<Result<(), String>>(1);
+    let (ready_tx, ready_rx) = bounded::<Result<SharedLive, String>>(1);
 
-    let live_out = live.clone();
     let service_opts = opts.service.clone();
     let thread = std::thread::Builder::new()
         .name("dp-service".into())
@@ -112,8 +121,8 @@ pub fn spawn_with(
                     return;
                 }
             };
-            *live_out.lock().unwrap() = svc.live();
-            let _ = ready_tx.send(Ok(()));
+            svc.publish_live();
+            let _ = ready_tx.send(Ok(svc.shared_live()));
 
             let mut last_live = Instant::now();
             'run: loop {
@@ -124,14 +133,14 @@ pub fn spawn_with(
                         Job::Cmd(cmd, reply) => {
                             let shutdown = cmd == ServiceCmd::Shutdown;
                             let answer = svc.handle(cmd);
-                            *live_out.lock().unwrap() = svc.live();
+                            svc.publish_live();
                             let _ = reply.send(answer);
                             shutdown
                         }
                         Job::Ipc(req, reply) => {
                             let shutdown = req == Request::Shutdown;
                             let answer = svc.handle_ipc(req);
-                            *live_out.lock().unwrap() = svc.live();
+                            svc.publish_live();
                             let _ = reply.send(answer);
                             shutdown
                         }
@@ -142,18 +151,18 @@ pub fn spawn_with(
                 }
                 svc.tick();
                 if last_live.elapsed() >= LIVE_INTERVAL {
-                    *live_out.lock().unwrap() = svc.live();
+                    svc.publish_live();
                     last_live = Instant::now();
                 }
                 std::thread::sleep(TICK);
             }
             svc.shutdown();
-            *live_out.lock().unwrap() = svc.live();
+            svc.publish_live();
             tracing::info!("remapping service stopped");
         })?;
 
-    match ready_rx.recv() {
-        Ok(Ok(())) => {}
+    let live = match ready_rx.recv() {
+        Ok(Ok(live)) => live,
         Ok(Err(e)) => {
             let _ = thread.join();
             return Err(anyhow!(e));
@@ -163,11 +172,11 @@ pub fn spawn_with(
                 "the remapping service thread exited during start-up"
             ));
         }
-    }
+    };
 
-    if opts.ipc {
+    let ipc = if opts.ipc {
         let ipc_tx = tx.clone();
-        std::thread::Builder::new()
+        let thread = std::thread::Builder::new()
             .name("dp-ipc".into())
             .spawn(move || {
                 let result =
@@ -179,17 +188,23 @@ pub fn spawn_with(
                     tracing::error!("IPC server stopped: {e}");
                 }
             })?;
-    }
+        Some(thread)
+    } else {
+        None
+    };
 
     Ok(ServiceHandle {
         tx,
         live,
-        thread: Some(thread),
+        thread: Mutex::new(Some(thread)),
+        _ipc: ipc,
     })
 }
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use dp_platform::NullPlatform;
 
     use super::*;
@@ -203,7 +218,7 @@ mod tests {
             service: ServiceOptions::new(dir.path().join("profiles")),
             ipc: false,
         };
-        let mut h = spawn_with(opts, NullPlatform::platform).unwrap();
+        let h = spawn_with(opts, NullPlatform::platform).unwrap();
         assert!(h.is_running());
         let r = h.call(ServiceCmd::ApplyToSlot {
             device: None,

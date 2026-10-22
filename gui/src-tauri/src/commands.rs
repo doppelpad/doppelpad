@@ -4,7 +4,6 @@
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
 
 use dp_config::Diagnostic;
 use dp_config::bundle::{self, LayerPreset, PresetEntry};
@@ -24,7 +23,7 @@ use dp_platform::groups::DeviceGroup;
 use dp_service::dsu::DsuSettings;
 use dp_service::httpapi::HttpSettings;
 use dp_service::slots::RuntimeOptions;
-use dp_service::{LiveState, PlayerLights, ServiceCmd, ServiceHandle, ServiceReply};
+use dp_service::{LIVE_INTERVAL, LiveState, PlayerLights, ServiceCmd, ServiceHandle, ServiceReply};
 use serde::Serialize;
 use tauri::ipc::Channel;
 use tauri::{AppHandle, Manager, State};
@@ -32,7 +31,7 @@ use tauri::{AppHandle, Manager, State};
 use crate::settings::GuiSettings;
 
 pub struct AppState {
-    pub service: Mutex<ServiceHandle>,
+    pub service: ServiceHandle,
     pub settings: Mutex<GuiSettings>,
     pub profiles_dir: PathBuf,
     /// Messages for the UI collected before it was ready (e.g. a service takeover).
@@ -52,7 +51,7 @@ fn err(e: impl std::fmt::Display) -> String {
 
 impl AppState {
     pub fn call(&self, cmd: ServiceCmd) -> CmdResult<String> {
-        self.service.lock().unwrap().call(cmd).into_result()
+        self.service.call(cmd).into_result()
     }
 }
 
@@ -470,7 +469,7 @@ pub fn refresh_drivers(state: State<AppState>) -> CmdResult<String> {
 
 #[tauri::command]
 pub fn hotkeys_get(state: State<AppState>) -> CmdResult<Hotkeys> {
-    match state.service.lock().unwrap().call(ServiceCmd::GetHotkeys) {
+    match state.service.call(ServiceCmd::GetHotkeys) {
         ServiceReply::Hotkeys(h) => Ok(h),
         other => Err(other.into_result().err().unwrap_or_default()),
     }
@@ -573,22 +572,21 @@ pub async fn rewasd_quit(
 /// Stream live snapshots (devices, slots, layer, ...) to the frontend while they change.
 #[tauri::command]
 pub fn live_subscribe(state: State<AppState>, on_event: Channel<LiveState>) {
-    let live = state.service.lock().unwrap().live_shared();
+    let live = state.service.live_shared();
     let generation = state.live_generation.fetch_add(1, Ordering::SeqCst) + 1;
     let current = state.live_generation.clone();
     std::thread::Builder::new()
         .name("dp-live".into())
         .spawn(move || {
-            let mut last: Option<LiveState> = None;
+            let mut seen = 0;
             while current.load(Ordering::SeqCst) == generation {
-                let snap = live.lock().unwrap().clone();
-                if last.as_ref() != Some(&snap) {
-                    if on_event.send(snap.clone()).is_err() {
+                if let Some((version, snap)) = live.since(seen) {
+                    if on_event.send((*snap).clone()).is_err() {
                         break;
                     }
-                    last = Some(snap);
+                    seen = version;
                 }
-                std::thread::sleep(Duration::from_millis(16));
+                std::thread::sleep(LIVE_INTERVAL);
             }
         })
         .ok();

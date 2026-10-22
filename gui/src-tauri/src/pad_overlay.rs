@@ -4,12 +4,11 @@
 //! running profile's mappings on the active layer.
 
 use std::path::Path;
-use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use dp_core::profile::Profile;
 use dp_platform::PadFamily;
-use dp_service::{LiveDevice, LiveState};
+use dp_service::{LiveDevice, SharedLive};
 use serde::Serialize;
 use tauri::{AppHandle, Manager};
 
@@ -169,13 +168,13 @@ fn update_mappings(
     *shown = Some(key);
 }
 
-fn watch(app: AppHandle, live: Arc<Mutex<LiveState>>) {
+fn watch(app: AppHandle, live: SharedLive) {
     let mut pad = Pad::default();
     let mut mappings: Option<(String, u8)> = None;
     loop {
         std::thread::sleep(WATCH_INTERVAL);
         let (pad_on, mappings_on, device, profile, layer) = {
-            let l = live.lock().unwrap();
+            let l = live.get();
             let device = l
                 .primary
                 .as_ref()
@@ -196,12 +195,7 @@ fn watch(app: AppHandle, live: Arc<Mutex<LiveState>>) {
 }
 
 pub fn start(app: &AppHandle) -> tauri::Result<()> {
-    let live = app
-        .state::<AppState>()
-        .service
-        .lock()
-        .unwrap()
-        .live_shared();
+    let live = app.state::<AppState>().service.live_shared();
     let handle = app.clone();
     std::thread::Builder::new()
         .name("pad-overlay".into())

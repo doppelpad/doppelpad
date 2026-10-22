@@ -4,11 +4,10 @@
 //! icons travel inside the content, so the page needs no file access.
 
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use dp_core::profile::RadialMenu;
-use dp_service::{LiveRadial, LiveState};
+use dp_service::{LiveRadial, SharedLive};
 use serde::Serialize;
 use tauri::{AppHandle, Manager, PhysicalPosition, PhysicalSize};
 
@@ -17,7 +16,7 @@ use crate::overlay;
 
 const KIND: &str = "radial";
 /// Pointing must feel immediate.
-const WATCH_INTERVAL: Duration = Duration::from_millis(16);
+const WATCH_INTERVAL: Duration = dp_service::LIVE_INTERVAL;
 /// Larger image files are not shown.
 const IMAGE_MAX: u64 = 512 * 1024;
 
@@ -118,13 +117,13 @@ fn prepare(app: &AppHandle) {
     }
 }
 
-fn watch(app: AppHandle, live: Arc<Mutex<LiveState>>) {
+fn watch(app: AppHandle, live: SharedLive) {
     let mut shown: Option<(RadialMenu, Option<usize>)> = None;
     let mut cache = HashMap::new();
     loop {
         std::thread::sleep(WATCH_INTERVAL);
         let (want, has_radial) = {
-            let l = live.lock().unwrap();
+            let l = live.get();
             (l.radial.clone(), l.has_radial)
         };
         // Made ready early: a new webview takes a moment to load.
@@ -147,12 +146,7 @@ fn watch(app: AppHandle, live: Arc<Mutex<LiveState>>) {
 }
 
 pub fn start(app: &AppHandle) -> tauri::Result<()> {
-    let live = app
-        .state::<AppState>()
-        .service
-        .lock()
-        .unwrap()
-        .live_shared();
+    let live = app.state::<AppState>().service.live_shared();
     let handle = app.clone();
     std::thread::Builder::new()
         .name("radial".into())

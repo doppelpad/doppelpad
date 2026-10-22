@@ -5,12 +5,11 @@
 //! "turn remapping off" command show here too.
 
 use std::path::Path;
-use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use dp_config::library::Library;
 use dp_platform::Battery;
-use dp_service::{LiveState, SLOTS, ServiceCmd};
+use dp_service::{LiveState, SLOTS, ServiceCmd, SharedLive};
 use tauri::image::Image;
 use tauri::menu::{CheckMenuItem, IsMenuItem, Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
@@ -99,7 +98,7 @@ impl View {
 
 /// The tray's menu entries and icons, updated in place.
 struct Tray {
-    live: Arc<Mutex<LiveState>>,
+    live: SharedLive,
     open: MenuItem<Wry>,
     status: MenuItem<Wry>,
     remap: CheckMenuItem<Wry>,
@@ -112,7 +111,7 @@ struct Tray {
 
 impl Tray {
     fn view(&self) -> View {
-        View::of(&self.live.lock().unwrap())
+        View::of(&self.live.get())
     }
 }
 
@@ -244,10 +243,10 @@ pub fn refresh(app: &AppHandle) {
 }
 
 /// Refresh the tray whenever the part of the live state it shows changes.
-fn watch(app: AppHandle, live: Arc<Mutex<LiveState>>, mut shown: View) {
+fn watch(app: AppHandle, live: SharedLive, mut shown: View) {
     loop {
         std::thread::sleep(WATCH_INTERVAL);
-        let view = View::of(&live.lock().unwrap());
+        let view = View::of(&live.get());
         if view != shown {
             shown = view;
             refresh(&app);
@@ -265,7 +264,7 @@ pub fn show_main(app: &AppHandle) {
 
 /// Stop the service (releasing outputs and unhiding devices), then exit.
 pub fn quit(app: &AppHandle) {
-    app.state::<AppState>().service.lock().unwrap().shutdown();
+    app.state::<AppState>().service.shutdown();
     app.exit(0);
 }
 
@@ -302,12 +301,7 @@ fn on_menu(app: &AppHandle, id: &str) {
 }
 
 pub fn create(app: &AppHandle) -> tauri::Result<()> {
-    let live = app
-        .state::<AppState>()
-        .service
-        .lock()
-        .unwrap()
-        .live_shared();
+    let live = app.state::<AppState>().service.live_shared();
     let check = |id: &str| CheckMenuItem::with_id(app, id, "", true, false, None::<&str>);
     // A 32 px glyph without the app icon's tile, drawn for tray sizes (icons/source/tray-icon.svg).
     let icon_on = tauri::include_image!("icons/tray.png");

@@ -17,7 +17,7 @@ pub mod slots;
 mod timing;
 
 pub use host::{HostOptions, ServiceHandle, spawn, spawn_with};
-pub use live::{LiveDevice, LiveDeviceSlots, LiveRadial, LiveState};
+pub use live::{LIVE_INTERVAL, LiveDevice, LiveDeviceSlots, LiveRadial, LiveState, SharedLive};
 pub use runtime::{DriverState, DriverStatus, Runtime, SessionInfo, TimerResolution};
 pub use service::{ServiceCmd, ServiceOptions, ServiceReply, ipc_devices, on_off};
 pub use slots::{PlayerLights, SLOTS, SlotSet, SlotState};

@@ -14,6 +14,7 @@ use dp_platform::groups::{DeviceGroup, DevicePolicy};
 
 use crate::dsu::{DsuServer, DsuSettings};
 use crate::httpapi::{HttpApi, HttpSettings, Job};
+use crate::live::SharedLive;
 use crate::live::{LiveDevice, LiveState};
 use crate::net::Listener;
 use crate::runtime::{DriverStatus, Runtime};
@@ -250,6 +251,8 @@ pub struct Service {
     dsu: Listener<DsuServer>,
     /// The local HTTP API.
     http: Listener<HttpApi>,
+    /// The live snapshot as user interfaces and the HTTP API read it.
+    shared_live: SharedLive,
     /// Why remapping is paused: the editor has focus, the desktop is locked or a secure
     /// desktop shows, the config's game is not in front.
     gui_suspended: bool,
@@ -328,6 +331,7 @@ impl Service {
             connected: Vec::new(),
             dsu: Listener::default(),
             http: Listener::default(),
+            shared_live: SharedLive::default(),
             gui_suspended: false,
             gui_since: 0,
             locked: false,
@@ -1004,10 +1008,10 @@ impl Service {
         if self.state.http.enabled && self.state.http.token.is_empty() {
             self.update_state(|s| s.http.token = crate::httpapi::new_token());
         }
-        let settings = &self.state.http;
+        let (settings, live) = (&self.state.http, &self.shared_live);
         self.http
             .restart(settings.enabled, "the HTTP API", settings.port, || {
-                HttpApi::start(settings)
+                HttpApi::start(settings, live.clone())
             });
     }
 
@@ -1018,15 +1022,9 @@ impl Service {
         };
         let jobs: Vec<Job> = api.jobs().try_iter().collect();
         for job in jobs {
-            match job {
-                Job::Ipc(req, reply) => {
-                    let answer = self.handle_ipc(req);
-                    let _ = reply.send(answer);
-                }
-                Job::Live(reply) => {
-                    let _ = reply.send(self.live());
-                }
-            }
+            let Job::Ipc(req, reply) = job;
+            let answer = self.handle_ipc(req);
+            let _ = reply.send(answer);
         }
     }
 
@@ -1253,6 +1251,16 @@ impl Service {
             None if self.auto_active.take().is_some() => self.apply_base(),
             _ => {}
         }
+    }
+
+    /// The snapshot user interfaces read, shared with them.
+    pub fn shared_live(&self) -> SharedLive {
+        self.shared_live.clone()
+    }
+
+    /// Hand the current snapshot to the readers if it changed.
+    pub fn publish_live(&self) {
+        self.shared_live.publish(self.live());
     }
 
     /// Snapshot for user interfaces.
