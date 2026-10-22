@@ -1,0 +1,62 @@
+---
+// The site operator's details from src/lib/operator.ts: `fields` as lines, or with `notice`
+// the warning that some are still placeholders.
+import { Aside } from '@astrojs/starlight/components';
+import { FIELDS, OPERATOR, missingFields } from '../lib/operator';
+
+interface Props {
+  lang: 'de' | 'en';
+  fields?: (keyof typeof FIELDS)[];
+  /** Label per field, e.g. "E-Mail:". */
+  labels?: Partial<Record<keyof typeof FIELDS, string>>;
+  notice?: boolean;
+}
+
+const { lang, fields = [], labels = {}, notice = false } = Astro.props;
+const missing = missingFields();
+if (notice && missing.length > 0) {
+  console.warn(`[legal] ${Astro.url.pathname}: placeholders left in src/lib/operator.ts: ${missing.join(', ')}`);
+}
+const placeholder = (k: keyof typeof FIELDS) => `[${lang === 'de' ? 'Platzhalter' : 'Placeholder'}: ${FIELDS[k][lang]}]`;
+---
+
+{
+  notice && missing.length > 0 && (
+    <Aside type="danger" title={lang === 'de' ? 'Noch nicht ausgefüllt' : 'Not filled in yet'}>
+      {lang === 'de'
+        ? 'Die markierten Platzhalter auf dieser Seite werden vor der Veröffentlichung durch die echten Angaben ersetzt (in site/src/lib/operator.ts).'
+        : 'The highlighted placeholders on this page are replaced with the real details before the site goes public (in site/src/lib/operator.ts).'}
+    </Aside>
+  )
+}
+{
+  fields.length > 0 && (
+    <p class="operator">
+      {fields.map((k, i) => (
+        <>
+          {i > 0 && <br />}
+          {labels[k] && `${labels[k]} `}
+          {OPERATOR[k] ? (
+            k === 'email' ? (
+              <a href={`mailto:${OPERATOR[k]}`}>{OPERATOR[k]}</a>
+            ) : (
+              OPERATOR[k]
+            )
+          ) : (
+            <mark class="placeholder">{placeholder(k)}</mark>
+          )}
+        </>
+      ))}
+    </p>
+  )
+}
+
+<style>
+  .placeholder {
+    padding: 0 0.25em;
+    border-radius: 0.25em;
+    background: var(--sl-color-orange-low);
+    color: var(--sl-color-orange-high);
+    font-weight: 600;
+  }
+</style>
