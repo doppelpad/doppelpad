@@ -8,7 +8,7 @@ use dp_core::profile::Crosshair;
 use dp_service::SharedLive;
 use tauri::{AppHandle, PhysicalPosition, PhysicalSize};
 
-use crate::overlay::{self, OverlayKind};
+use crate::overlay::{self, OverlayKind, Placement};
 
 const KIND: OverlayKind = OverlayKind::Crosshair;
 const WATCH_INTERVAL: Duration = Duration::from_millis(50);
@@ -17,8 +17,7 @@ const PAD: f64 = 2.0;
 
 /// Screen centre (physical pixels) of the crosshair, and the primary monitor's height.
 fn centre(app: &AppHandle, c: &Crosshair) -> Option<((i32, i32), f64, u32)> {
-    let monitors = overlay::monitors(app);
-    let m = monitors.first()?;
+    let m = overlay::primary_monitor(app)?;
     let sf = m.scale_factor();
     let (pos, size) = (m.position(), m.size());
     let x = pos.x + size.width as i32 / 2 + (f64::from(c.offset[0]) * sf).round() as i32;
@@ -36,24 +35,20 @@ fn show(app: &AppHandle, c: &Crosshair, magnifier: &mut Magnifier) {
     let Some(((x, y), sf, height)) = centre(app, c) else {
         return;
     };
-    let mut window = None;
-    if c.visible {
-        match overlay::window(app, KIND) {
-            Ok((w, created)) => {
-                // As the page draws it: the shape plus outline and line width on each side.
-                let line = (f64::from(c.size) / 5.0 * f64::from(c.thickness) / 100.0).max(1.0);
-                let logical = f64::from(c.size) + 2.0 * (f64::from(c.outline) + line + PAD);
-                let side = (logical * sf).round() as i32;
-                let _ = w.set_size(PhysicalSize::new(side as u32, side as u32));
-                let _ = w.set_position(PhysicalPosition::new(x - side / 2, y - side / 2));
-                overlay::present(app, &w, created, KIND, c);
-                window = Some(w);
-            }
-            Err(e) => tracing::warn!("cannot create the crosshair overlay: {e}"),
-        }
+    let window = if c.visible {
+        // As the page draws it: the shape plus outline and line width on each side.
+        let line = (f64::from(c.size) / 5.0 * f64::from(c.thickness) / 100.0).max(1.0);
+        let logical = f64::from(c.size) + 2.0 * (f64::from(c.outline) + line + PAD);
+        let side = (logical * sf).round() as i32;
+        let placement = Placement::Rect {
+            position: PhysicalPosition::new(x - side / 2, y - side / 2),
+            size: PhysicalSize::new(side as u32, side as u32),
+        };
+        overlay::show_content(app, KIND, placement, c)
     } else {
         overlay::dismiss(app, KIND);
-    }
+        None
+    };
     #[cfg(windows)]
     match c.magnifier {
         Some(m) => {

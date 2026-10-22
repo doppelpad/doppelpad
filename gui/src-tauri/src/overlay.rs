@@ -1,6 +1,6 @@
 //! Overlay windows over games: transparent, top-most, click-through windows that never
 //! take the focus, one per kind (`overlay-<kind>`), each sized to its content and placed
-//! in a corner of a monitor. They load `overlay.html`, which picks its content by the
+//! where its [`Placement`] says. They load `overlay.html`, which picks its content by the
 //! window label. They live apart from the main window, so they work while it is hidden
 //! in the tray.
 
@@ -81,6 +81,25 @@ pub fn label(kind: OverlayKind) -> String {
     format!("overlay-{kind}")
 }
 
+/// Where an overlay window goes.
+#[derive(Clone, Copy, Debug)]
+pub enum Placement {
+    /// `size` logical pixels (at the monitor's scale) in `corner` of monitor `monitor` (see
+    /// [`monitors`]; the primary one if there is no such monitor).
+    Corner {
+        monitor: usize,
+        corner: Corner,
+        size: (f64, f64),
+    },
+    /// A rectangle in physical pixels.
+    Rect {
+        position: PhysicalPosition<i32>,
+        size: PhysicalSize<u32>,
+    },
+    /// Covering the primary monitor.
+    PrimaryMonitor,
+}
+
 /// What each overlay page shows, kept for a page that is still loading.
 #[derive(Default)]
 pub struct Overlays {
@@ -94,9 +113,43 @@ struct Page {
     content: Option<Value>,
 }
 
+/// Show `content` in the overlay window of `kind`, placed at `placement`. A page that is
+/// still loading asks for it with `overlay_ready` and then shows. Returns the window, or
+/// `None` when it cannot be created (logged).
+pub fn show_content(
+    app: &AppHandle,
+    kind: OverlayKind,
+    placement: Placement,
+    content: &impl Serialize,
+) -> Option<WebviewWindow> {
+    let (w, created) = ensure(app, kind, placement)?;
+    present(app, &w, created, kind, content);
+    Some(w)
+}
+
+/// The overlay window of `kind` at `placement`, created hidden on first use; also whether it
+/// was created now (its page is still loading). Failures are logged.
+pub fn ensure(
+    app: &AppHandle,
+    kind: OverlayKind,
+    placement: Placement,
+) -> Option<(WebviewWindow, bool)> {
+    let (w, created) = match window(app, kind) {
+        Ok(w) => w,
+        Err(e) => {
+            tracing::warn!("cannot create the {kind} overlay: {e}");
+            return None;
+        }
+    };
+    if let Err(e) = place(app, &w, placement) {
+        tracing::warn!("cannot place the {kind} overlay: {e}");
+    }
+    Some((w, created))
+}
+
 /// Show `content` in `w`, the overlay window of `kind`. A page that is still loading
 /// (`created`) asks for it with `overlay_ready` and then shows.
-pub fn present(
+fn present(
     app: &AppHandle,
     w: &WebviewWindow,
     created: bool,
@@ -119,7 +172,7 @@ pub fn present(
     if ready {
         // Named after the window: every page hears every event.
         let _ = app.emit_to(label(kind), &label(kind), &value);
-        show(w);
+        raise(w);
     }
 }
 
@@ -144,14 +197,14 @@ pub fn overlay_ready(window: WebviewWindow, state: State<Overlays>) -> Option<Va
         page.content.clone()
     };
     if content.is_some() {
-        show(&window);
+        raise(&window);
     }
     content
 }
 
 /// The overlay window of `kind`, created hidden on first use. Returns whether it was created
 /// now (its page is still loading).
-pub fn window(app: &AppHandle, kind: OverlayKind) -> tauri::Result<(WebviewWindow, bool)> {
+fn window(app: &AppHandle, kind: OverlayKind) -> tauri::Result<(WebviewWindow, bool)> {
     let label = label(kind);
     if let Some(w) = app.get_webview_window(&label) {
         return Ok((w, false));
@@ -191,19 +244,40 @@ pub fn monitors(app: &AppHandle) -> Vec<Monitor> {
     all
 }
 
-/// Size `w` to `size` logical pixels (at the monitor's scale) and put it in `corner` of
-/// monitor `index` (the primary one if there is no such monitor).
-pub fn place(
-    app: &AppHandle,
-    w: &WebviewWindow,
-    index: usize,
-    corner: Corner,
-    size: (f64, f64),
-) -> tauri::Result<()> {
-    let monitors = monitors(app);
-    let Some(m) = monitors.get(index).or(monitors.first()) else {
+/// The primary monitor.
+pub fn primary_monitor(app: &AppHandle) -> Option<Monitor> {
+    monitors(app).into_iter().next()
+}
+
+/// Size and move `w` to `placement`; without monitors it stays as it is.
+fn place(app: &AppHandle, w: &WebviewWindow, placement: Placement) -> tauri::Result<()> {
+    let Some((position, size)) = rect(app, placement) else {
         return Ok(());
     };
+    w.set_size(size)?;
+    w.set_position(position)?;
+    Ok(())
+}
+
+/// Where `placement` puts a window, in physical pixels.
+fn rect(
+    app: &AppHandle,
+    placement: Placement,
+) -> Option<(PhysicalPosition<i32>, PhysicalSize<u32>)> {
+    let (index, corner, size) = match placement {
+        Placement::Rect { position, size } => return Some((position, size)),
+        Placement::PrimaryMonitor => {
+            let m = primary_monitor(app)?;
+            return Some((*m.position(), *m.size()));
+        }
+        Placement::Corner {
+            monitor,
+            corner,
+            size,
+        } => (monitor, corner, size),
+    };
+    let monitors = monitors(app);
+    let m = monitors.get(index).or(monitors.first())?;
     let sf = m.scale_factor();
     let (width, height) = ((size.0 * sf).round() as i32, (size.1 * sf).round() as i32);
     let margin = (MARGIN * sf).round() as i32;
@@ -218,13 +292,14 @@ pub fn place(
         Corner::TopLeft | Corner::TopRight => ay + margin,
         Corner::BottomLeft | Corner::BottomRight => ay + ah - height - margin,
     };
-    w.set_size(PhysicalSize::new(width as u32, height as u32))?;
-    w.set_position(PhysicalPosition::new(x, y))?;
-    Ok(())
+    Some((
+        PhysicalPosition::new(x, y),
+        PhysicalSize::new(width as u32, height as u32),
+    ))
 }
 
 /// Show `w` above everything else without activating it.
-pub fn show(w: &WebviewWindow) {
+fn raise(w: &WebviewWindow) {
     #[cfg(windows)]
     if let Ok(hwnd) = w.hwnd() {
         dp_platform::windows::overlay::show(hwnd.0 as isize);

@@ -9,9 +9,9 @@ use std::time::Duration;
 use dp_core::profile::RadialMenu;
 use dp_service::{LiveRadial, SharedLive};
 use serde::Serialize;
-use tauri::{AppHandle, Manager, PhysicalPosition, PhysicalSize};
+use tauri::{AppHandle, Manager};
 
-use crate::overlay::{self, OverlayKind};
+use crate::overlay::{self, OverlayKind, Placement};
 
 const KIND: OverlayKind = OverlayKind::Radial;
 /// Pointing must feel immediate.
@@ -90,32 +90,6 @@ fn content(r: &LiveRadial, cache: &mut HashMap<String, Option<String>>) -> Conte
     }
 }
 
-fn show(app: &AppHandle, c: &Content) {
-    if app.get_webview_window(&overlay::label(KIND)).is_none() {
-        prepare(app);
-    }
-    match overlay::window(app, KIND) {
-        Ok((w, created)) => overlay::present(app, &w, created, KIND, c),
-        Err(e) => tracing::warn!("cannot create the radial menu overlay: {e}"),
-    }
-}
-
-/// Create the hidden window, covering the primary monitor.
-fn prepare(app: &AppHandle) {
-    let monitors = overlay::monitors(app);
-    let Some(m) = monitors.first() else {
-        return;
-    };
-    match overlay::window(app, KIND) {
-        Ok((w, _)) => {
-            let (pos, size) = (m.position(), m.size());
-            let _ = w.set_size(PhysicalSize::new(size.width, size.height));
-            let _ = w.set_position(PhysicalPosition::new(pos.x, pos.y));
-        }
-        Err(e) => tracing::warn!("cannot create the radial menu overlay: {e}"),
-    }
-}
-
 pub(crate) fn watch(app: AppHandle, live: SharedLive) {
     let mut shown: Option<(RadialMenu, Option<usize>)> = None;
     let mut cache = HashMap::new();
@@ -127,14 +101,17 @@ pub(crate) fn watch(app: AppHandle, live: SharedLive) {
         };
         // Made ready early: a new webview takes a moment to load.
         if has_radial && app.get_webview_window(&overlay::label(KIND)).is_none() {
-            prepare(&app);
+            overlay::ensure(&app, KIND, Placement::PrimaryMonitor);
         }
         let key = want.as_ref().map(|r| (r.menu.clone(), r.pointed));
         if key == shown {
             continue;
         }
         match &want {
-            Some(r) => show(&app, &content(r, &mut cache)),
+            Some(r) => {
+                let c = content(r, &mut cache);
+                overlay::show_content(&app, KIND, Placement::PrimaryMonitor, &c);
+            }
             None => {
                 overlay::dismiss(&app, KIND);
                 cache.clear();
