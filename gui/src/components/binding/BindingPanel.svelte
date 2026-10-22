@@ -16,23 +16,21 @@
   import {
     ACTIVATORS,
     activatorOf,
+    addLayer,
     applyMode,
+    effectiveMappings,
     isBlocked,
     isMacroMode,
-    singleControl,
-    actionLabel,
-    addLayer,
-    effectiveMappings,
     layerIds,
     layerOf,
-    mappingSummary,
     modeOf,
     nativeAction,
     removeMapping,
+    singleControl,
   } from '../../lib/model/profile';
   import { hasParameters } from '../../lib/model/actions';
   import { parseNonNegInt } from '../../lib/model/numbers';
-  import { comboLabel } from '../../lib/model/labels';
+  import { actionLabel, comboLabel, mappingSummary } from '../../lib/model/labels';
   import { app, type AnalogTab } from '../../lib/state/app.svelte';
   import type { Action, Activator, Combo, JumpMode, Mapping, Mode } from '../../lib/types';
   import Toggle from '../ui/Toggle.svelte';

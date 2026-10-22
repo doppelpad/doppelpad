@@ -5,7 +5,8 @@
 import type { LayoutControl } from '../../assets/devices/layouts';
 import { t } from '../i18n/index.svelte';
 import type { ControlName, PadFamily, Profile } from '../types';
-import { layerRoutes, sourceOf, targetOf, type Side } from './analog';
+import { type Side } from './analog';
+import { layerRoutes, sourceOf, targetOf } from './routes';
 import {
   DIAGONALS,
   DIRS8,

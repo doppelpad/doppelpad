@@ -3,7 +3,15 @@
   import { Plus } from '@lucide/svelte';
   import { t } from '../../lib/i18n/index.svelte';
   import { controlLabel, controlLabelMixed } from '../../lib/model/controls';
-  import { ROUTE_PRESETS, addRoute, layerRoutes, newRoute, overrideRoute, sourceOf, targetOf } from '../../lib/model/analog';
+  import {
+    ROUTE_PRESETS,
+    addRoute,
+    layerRoutes,
+    newRoute,
+    overrideRoute,
+    sourceOf,
+    targetOf,
+  } from '../../lib/model/routes';
   import { app } from '../../lib/state/app.svelte';
   import type { AnalogMapping } from '../../lib/types';
   import Menu from '../ui/Menu.svelte';

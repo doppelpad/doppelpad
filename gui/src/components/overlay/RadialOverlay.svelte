@@ -3,7 +3,8 @@
   // the primary monitor; the ring sits at its centre plus the menu's offset.
   import { onMount } from 'svelte';
   import { overlayContent } from '../../lib/overlay';
-  import { RADIAL_ICONS, RING, sectorCentre, sectorPath } from '../../lib/model/radial';
+  import { RING, sectorCentre, sectorPath } from '../../lib/model/radial';
+  import { RADIAL_ICONS } from '../radial/icons';
   import type { RadialMenu } from '../../lib/types';
 
   type Content = { menu: RadialMenu; pointed: number | null; images: (string | null)[] };

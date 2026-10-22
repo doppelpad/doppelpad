@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Catalog, Profile } from '../types';
 import defaultsJson from './fixtures/defaults.json';
-import { MOUSE_PRESETS, mousePresetOf, mouseResponse } from './analog';
+import { MOUSE_PRESETS, mousePresetOf, mouseResponse } from './routes';
 import { setStickGroup, stickGroupConflicts, stickGroupOf, stickRouteIndex } from './stickgroups';
 
 // Rust's defaults, as the catalog command sends them.

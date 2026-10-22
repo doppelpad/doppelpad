@@ -4,15 +4,14 @@
   import { open } from '@tauri-apps/plugin-dialog';
   import { Plus, Trash2, X } from '@lucide/svelte';
   import { t } from '../../lib/i18n/index.svelte';
-  import { actionLabel, layerIds } from '../../lib/model/profile';
+  import { layerIds } from '../../lib/model/profile';
+  import { actionLabel } from '../../lib/model/labels';
   import {
     MAX_SECTORS,
-    RADIAL_ICONS,
     RING,
     addMenu,
     addSector,
     firstFreeLayer,
-    isImageIcon,
     removeMenu,
     removeSector,
     sectorCentre,
@@ -20,6 +19,7 @@
     updateMenu,
     updateSector,
   } from '../../lib/model/radial';
+  import { RADIAL_ICONS, isImageIcon } from './icons';
   import { app } from '../../lib/state/app.svelte';
   import type { Action, RadialApply, RadialMenu, RadialSelect } from '../../lib/types';
   import ActionPicker from '../binding/ActionPicker.svelte';

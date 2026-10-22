@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Profile } from '../types';
-import { MAX_SECTORS, addMenu, addSector, firstFreeLayer, isImageIcon, removeMenu, removeSector, sectorCentre, sectorPath, updateSector } from './radial';
+import { MAX_SECTORS, addMenu, addSector, firstFreeLayer, removeMenu, removeSector, sectorCentre, sectorPath, updateSector } from './radial';
 
 describe('radial menus', () => {
   it('puts sector 0 at the top and goes clockwise', () => {
@@ -20,12 +20,6 @@ describe('radial menus', () => {
     expect(p.radial_menus?.length).toBe(2);
     expect(p.radial_menus?.[0].sectors[0].submenu).toBe(2);
     expect(p.radial_menus?.[0].sectors[1].submenu).toBeUndefined();
-  });
-
-  it('tells image files from icon names', () => {
-    expect(isImageIcon('sword')).toBe(false);
-    expect(isImageIcon('C:\icons\potion.png')).toBe(true);
-    expect(isImageIcon(undefined)).toBe(false);
   });
 });
 

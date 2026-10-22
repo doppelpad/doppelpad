@@ -5,8 +5,10 @@ import { setLanguage, t } from '../i18n/index.svelte';
 import type { Side } from '../model/analog';
 import { controlsFromPad, drawingsFor, sideShowing } from '../model/devices';
 import { setStickGroup, stickGroupConflicts, stickGroupOf, type StickGroup } from '../model/stickgroups';
-import { comboKey, type LayerCopy, editMappingIn, mappingAt } from '../model/profile';
+import { comboKey, editMappingIn, mappingAt, type LayerCopy } from '../model/profile';
 import { layerLabel } from '../model/labels';
+import { clone } from '../model/util';
+import { SETTINGS_PLACEHOLDER } from './settings';
 import type {
   Activator,
   Catalog,
@@ -46,30 +48,7 @@ class AppState {
   library = $state<Library>({ games: [], unsorted: [], errors: [] });
   live = $state<LiveState | null>(null);
   /** Placeholder until the app's settings arrive. */
-  settings = $state<GuiSettings>({
-    language: 'en',
-    stay_live: false,
-    hook_buttons: true,
-    rewasd_at_start: 'ask',
-    osd: {
-      enabled: true,
-      remap: true,
-      slot: true,
-      layer: true,
-      keep_layer: false,
-      controller: true,
-      battery: true,
-      monitor: 0,
-      corner: 'bottom_right',
-      scale: 100,
-      opacity: 80,
-      seconds: 5,
-    },
-    pad_overlay: { corner: 'top_left', size: 70, opacity: 90, hide_after: 5 },
-    mappings_overlay: { corner: 'top_right', opacity: 90 },
-    // Not shown before the real settings say so.
-    welcome_done: true,
-  });
+  settings = $state<GuiSettings>(clone(SETTINGS_PLACEHOLDER));
   /** `null` when reWASD is not installed. */
   rewasd = $state<RewasdStatus | null>(null);
   /** The start-up question whether to quit reWASD is open. */

@@ -6,8 +6,8 @@
   import { onDestroy } from 'svelte';
   import { t } from '../../lib/i18n/index.svelte';
   import { CARDINALS, SIDES, SIDE_NAMES, ZONES, controlLabel, withZone } from '../../lib/model/controls';
-  import { comboLabel } from '../../lib/model/labels';
-  import { comboKey, comboList, mappingSummary, sameCombo, shortcuts, toCombo } from '../../lib/model/profile';
+  import { comboLabel, mappingSummary } from '../../lib/model/labels';
+  import { comboKey, comboList, sameCombo, shortcuts, toCombo } from '../../lib/model/profile';
   import { app } from '../../lib/state/app.svelte';
   import type { Combo, ControlName, Mapping } from '../../lib/types';
 

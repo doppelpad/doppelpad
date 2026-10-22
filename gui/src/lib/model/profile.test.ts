@@ -2,10 +2,6 @@ import { describe, expect, it } from 'vitest';
 import type { Mapping, Profile } from '../types';
 import { has, setLanguage } from '../i18n/index.svelte';
 import {
-  POWER_COMMANDS,
-  RADIAL_COMMANDS,
-  SIMPLE_COMMANDS,
-  actionLabel,
   addLayer,
   applyMode,
   clearLayer,
@@ -17,11 +13,10 @@ import {
   inheritableTriggers,
   isBlocked,
   isMacroMode,
+  layerIds,
   layerInheritance,
   layerUnlock,
-  layerIds,
   mappingAt,
-  mappingSummary,
   nativeAction,
   pasteLayer,
   removeLayer,
@@ -29,8 +24,8 @@ import {
   setLayerInherit,
   setLayerUnlock,
   setProfileTiming,
-  setVirtualDevice,
   setTriggerInherited,
+  setVirtualDevice,
   shortcutMembers,
   shortcuts,
   singleControl,
@@ -38,6 +33,7 @@ import {
   toCombo,
   upsertMapping,
 } from './profile';
+import { POWER_COMMANDS, RADIAL_COMMANDS, SIMPLE_COMMANDS, actionLabel, mappingSummary } from './labels';
 
 const base = (): Profile => ({
   name: 'Test',
