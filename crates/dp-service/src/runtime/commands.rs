@@ -50,8 +50,7 @@ impl Runtime {
         match c {
             Command::RemapOff => {
                 tracing::info!("remap-off command");
-                self.stop();
-                self.remap_off_requested = true;
+                self.remap_off();
                 return false;
             }
             Command::Launch { path, args } => {
@@ -81,11 +80,7 @@ impl Runtime {
                 };
                 tracing::info!(?action, "power command");
                 // Let go of everything before the session ends or the PC sleeps.
-                let now = self.now_ms();
-                for s in &mut self.sessions {
-                    let out = s.engine.release_all();
-                    s.emit(&mut self.platform, &out, now);
-                }
+                self.release_all(false);
                 if let Err(e) = self.platform.system.power(action) {
                     tracing::warn!("{action:?} failed: {e}");
                 }
@@ -108,8 +103,8 @@ impl Runtime {
             | Command::RadialRight
             | Command::RadialApply
             | Command::RadialBack => {}
-            Command::PadOverlay => self.overlays.pad = !self.overlays.pad,
-            Command::MappingsOverlay => self.overlays.mappings = !self.overlays.mappings,
+            Command::PadOverlay => self.overlays.toggle_pad(),
+            Command::MappingsOverlay => self.overlays.toggle_mappings(),
             Command::PowerOff => {
                 if let Some(id) = self.sessions.get(i).and_then(|s| s.device.clone()) {
                     self.power_off(&id);
