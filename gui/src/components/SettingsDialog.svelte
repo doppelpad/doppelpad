@@ -1,21 +1,21 @@
 <script lang="ts">
-  import { RefreshCw } from '@lucide/svelte';
   import { api } from '../lib/api';
   import { LANGUAGES, t } from '../lib/i18n/index.svelte';
   import { app } from '../lib/state/app.svelte';
-  import type { MappingsOverlaySettings, OsdSettings, PadOverlaySettings, PlayerLights, RewasdChoice } from '../lib/types';
-  import DeviceSettings from './settings/DeviceSettings.svelte';
+  import type { RewasdChoice } from '../lib/types';
   import ApiSettings from './settings/ApiSettings.svelte';
+  import DeviceSettings from './settings/DeviceSettings.svelte';
+  import DriverSettings from './settings/DriverSettings.svelte';
   import DsuSettings from './settings/DsuSettings.svelte';
-  import RuntimeSettings from './settings/RuntimeSettings.svelte';
   import HotkeySettings from './settings/HotkeySettings.svelte';
-  import CornerSelect from './settings/CornerSelect.svelte';
-  import DriverList from './settings/DriverList.svelte';
+  import OsdSettings from './settings/OsdSettings.svelte';
+  import OverlaySettings from './settings/OverlaySettings.svelte';
   import PathRow from './settings/PathRow.svelte';
+  import PlayerLightSettings from './settings/PlayerLightSettings.svelte';
+  import RuntimeSettings from './settings/RuntimeSettings.svelte';
   import SettingRow from './settings/SettingRow.svelte';
   import SettingsSection from './settings/SettingsSection.svelte';
   import Dialog from './ui/Dialog.svelte';
-  import Slider from './ui/Slider.svelte';
   import Toggle from './ui/Toggle.svelte';
 
   let { onclose }: { onclose: () => void } = $props();
@@ -38,33 +38,6 @@
     app.setSettings({ welcome_done: false });
     onclose();
   }
-
-  const osd = $derived(app.settings.osd);
-  const OSD_EVENTS = ['remap', 'slot', 'layer', 'controller', 'battery'] as const;
-  let monitors = $state<string[]>([]);
-  api.osdMonitors().then((m) => (monitors = m));
-
-  function setOsd(patch: Partial<OsdSettings>) {
-    app.setSettings({ osd: { ...osd, ...patch } });
-  }
-
-  const PLAYER_LIGHTS: PlayerLights[] = ['while_remapping', 'always', 'off'];
-
-  const setLights = (player: PlayerLights, mic: boolean) => app.attempt(api.setLights(player, mic));
-
-  const padOverlay = $derived(app.settings.pad_overlay);
-  const mappingsOverlay = $derived(app.settings.mappings_overlay);
-  const PAD_SIZES = [50, 70, 90] as const;
-
-  function setPadOverlay(patch: Partial<PadOverlaySettings>) {
-    app.setSettings({ pad_overlay: { ...padOverlay, ...patch } });
-  }
-
-  function setMappingsOverlay(patch: Partial<MappingsOverlaySettings>) {
-    app.setSettings({ mappings_overlay: { ...mappingsOverlay, ...patch } });
-  }
-
-  const refresh = () => app.attempt(api.refreshDrivers());
 </script>
 
 <Dialog title={t('settings.title')} {onclose} width={520} gap={14} scroll>
@@ -112,44 +85,7 @@
 
   <HotkeySettings />
 
-  <SettingsSection title={t('settings.osd.title')} hint={t('settings.osd.hint')}>
-    {#snippet actions()}
-      <button class="btn" disabled={!osd.enabled} onclick={() => app.attempt(api.osdTest())}>{t('settings.osd.test')}</button>
-    {/snippet}
-    <Toggle checked={osd.enabled} label={t('settings.osd.enabled')} onchange={(v) => setOsd({ enabled: v })} />
-    {#if osd.enabled}
-      <div class="events">
-        {#each OSD_EVENTS as e (e)}
-          <label class="check">
-            <input type="checkbox" checked={osd[e]} onchange={(ev) => setOsd({ [e]: ev.currentTarget.checked })} />
-            <span>{t(`settings.osd.${e}`)}</span>
-          </label>
-          {#if e === 'layer'}
-            <label class="check sub">
-              <input
-                type="checkbox"
-                checked={osd.keep_layer}
-                disabled={!osd.layer}
-                onchange={(ev) => setOsd({ keep_layer: ev.currentTarget.checked })}
-              />
-              <span>{t('settings.osd.keep_layer')}</span>
-            </label>
-          {/if}
-        {/each}
-      </div>
-      <SettingRow label={t('settings.osd.monitor')}>
-        <select value={osd.monitor} onchange={(e) => setOsd({ monitor: Number(e.currentTarget.value) })}>
-          {#each monitors as size, i (i)}
-            <option value={i}>{i === 0 ? t('settings.osd.primary', { size }) : t('settings.osd.monitor_n', { n: i + 1, size })}</option>
-          {/each}
-        </select>
-      </SettingRow>
-      <CornerSelect value={osd.corner} onchange={(corner) => setOsd({ corner })} />
-      <Slider label={t('settings.osd.scale')} value={osd.scale} def={100} min={50} max={200} step={10} unit="%" onchange={(v) => setOsd({ scale: v })} />
-      <Slider label={t('settings.osd.opacity')} value={osd.opacity} def={80} min={20} max={100} step={5} unit="%" onchange={(v) => setOsd({ opacity: v })} />
-      <Slider label={t('settings.osd.seconds')} value={osd.seconds} def={5} min={1} max={30} step={1} unit="s" onchange={(v) => setOsd({ seconds: v })} />
-    {/if}
-  </SettingsSection>
+  <OsdSettings />
 
   <SettingsSection title={t('welcome.settings_title')}>
     <button class="btn" onclick={showWelcome}>{t('welcome.again')}</button>
@@ -163,49 +99,11 @@
 
   <ApiSettings />
 
-  {#if app.live}
-    {@const live = app.live}
-    <SettingsSection title={t('settings.lights.title')}>
-      <SettingRow label={t('settings.lights.player')}>
-        <select value={live.player_lights} onchange={(e) => setLights(e.currentTarget.value as PlayerLights, live.mic_led)}>
-          {#each PLAYER_LIGHTS as p (p)}<option value={p}>{t(`settings.lights.players.${p}`)}</option>{/each}
-        </select>
-      </SettingRow>
-      <Toggle checked={live.mic_led} label={t('settings.lights.mic')} onchange={(v) => setLights(live.player_lights, v)} />
-    </SettingsSection>
-  {/if}
+  <PlayerLightSettings />
 
-  <SettingsSection title={t('settings.overlays.title')} hint={t('settings.overlays.hint')}>
-    <div class="sub">{t('settings.overlays.pad')}</div>
-    <CornerSelect value={padOverlay.corner} onchange={(corner) => setPadOverlay({ corner })} />
-    <SettingRow label={t('settings.osd.scale')}>
-      <select value={padOverlay.size} onchange={(e) => setPadOverlay({ size: Number(e.currentTarget.value) })}>
-        {#each PAD_SIZES as s (s)}<option value={s}>{t(`settings.overlays.sizes.${s}`)}</option>{/each}
-      </select>
-    </SettingRow>
-    <Slider label={t('settings.osd.opacity')} value={padOverlay.opacity} def={90} min={20} max={100} step={5} unit="%" onchange={(v) => setPadOverlay({ opacity: v })} />
-    <Slider
-      label={t('settings.overlays.hide_after')}
-      value={padOverlay.hide_after}
-      def={5}
-      min={0}
-      max={30}
-      step={1}
-      unit="s"
-      hint={t('settings.overlays.hide_after_hint')}
-      onchange={(v) => setPadOverlay({ hide_after: v })}
-    />
-    <div class="sub">{t('settings.overlays.mappings')}</div>
-    <CornerSelect value={mappingsOverlay.corner} onchange={(corner) => setMappingsOverlay({ corner })} />
-    <Slider label={t('settings.osd.opacity')} value={mappingsOverlay.opacity} def={90} min={20} max={100} step={5} unit="%" onchange={(v) => setMappingsOverlay({ opacity: v })} />
-  </SettingsSection>
+  <OverlaySettings />
 
-  <SettingsSection title={t('settings.drivers')}>
-    {#snippet actions()}
-      <button class="icon-btn" title={t('settings.recheck')} onclick={refresh}><RefreshCw size={15} /></button>
-    {/snippet}
-    <DriverList tone="icon" />
-  </SettingsSection>
+  <DriverSettings />
 
   <SettingsSection title={t('settings.profiles_dir')}>
     <PathRow path={profilesDir} revealLabel={t('common.reveal')} />
@@ -228,23 +126,5 @@
   }
   .note {
     color: var(--warning);
-  }
-  .events {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-  .check {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  .check.sub {
-    margin-left: 24px;
-  }
-  .sub {
-    margin-top: 4px;
-    color: var(--text-dim);
-    font-weight: 600;
   }
 </style>
