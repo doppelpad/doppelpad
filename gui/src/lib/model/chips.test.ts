@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { LayoutControl } from '../../assets/devices/layouts';
 import { setLanguage } from '../i18n/index.svelte';
 import type { Profile } from '../types';
-import { buildChips, clickSide, gyroChipOf, type ChipView } from './chips';
+import { buildChips, clickSide, gyroChipOf, pressedChips, type ChipView } from './chips';
 import { layerLabel } from './labels';
 
 setLanguage('en');
@@ -24,7 +24,6 @@ const view = (patch: Partial<ChipView> = {}): ChipView => ({
   family: 'xbox',
   selectedKey: '',
   stick: null,
-  pressed: new Set(),
   layerLabel: (id) => layerLabel(p, id),
   ...patch,
 });
@@ -39,8 +38,10 @@ describe('drawing chips', () => {
   });
 
   it('select and highlight a stick through its directions', () => {
-    const [ls] = buildChips([at('LS')], view({ selectedKey: 'LeftStickUp', pressed: new Set(['LeftStickLeft']) }));
-    expect(ls).toMatchObject({ selected: true, pressed: true });
+    const [ls] = buildChips([at('LS')], view({ selectedKey: 'LeftStickUp' }));
+    expect(ls.selected).toBe(true);
+    expect(pressedChips([at('LS'), at('A')], new Set(['LeftStickLeft']))).toEqual(new Set(['LS']));
+    expect(pressedChips([at('LS'), at('A')], new Set(['A']))).toEqual(new Set(['A']));
     const [rs] = buildChips([at('RS')], view({ stick: 'right' }));
     expect(rs.selected).toBe(true);
   });

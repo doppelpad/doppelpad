@@ -2,18 +2,15 @@
   // A device drawing with a label chip per control, joined by leader lines. Clicking a
   // part or chip selects the control; sticks ask which direction (or the click) to edit.
   // Live input highlights pressed controls and moves the stick caps.
-  import { Rotate3d, SlidersHorizontal } from '@lucide/svelte';
+  import { Rotate3d } from '@lucide/svelte';
   import { DEVICE_LAYOUTS, type DeviceId, type LayoutControl } from '../../assets/devices/layouts';
   import { t } from '../../lib/i18n/index.svelte';
-  import { SIDES } from '../../lib/model/controls';
-  import type { Side } from '../../lib/model/analog';
   import { hasMotion, moveStickCaps } from '../../lib/model/devices';
-  import { buildChips, clickSide, gyroChipOf, type ChipView } from '../../lib/model/chips';
+  import { buildChips, clickSide, gyroChipOf, pressedChips, type ChipView } from '../../lib/model/chips';
   import { polylinePoints } from '../../lib/svg';
-  import { STICK_GROUPS, stickGroupOf, type StickGroup } from '../../lib/model/stickgroups';
   import { app } from '../../lib/state/app.svelte';
   import type { ControlName } from '../../lib/types';
-  import Segmented from '../ui/Segmented.svelte';
+  import PartMenu, { type PartMenuAt } from './PartMenu.svelte';
 
   let { device }: { device: DeviceId } = $props();
 
@@ -23,7 +20,7 @@
 
   let drawing: HTMLDivElement | undefined = $state();
   /** Direction picker of a stick, the touchpad regions or the gyro directions, at a point of the drawing. */
-  let menu = $state<{ kind: 'stick' | 'touch' | 'gyro'; stick?: Side; click?: ControlName; x: number; y: number } | null>(null);
+  let menu = $state<PartMenuAt | null>(null);
   /** On a split touchpad, which half the touch menu shows. */
   let half = $state<'Left' | 'Right'>('Left');
   let stageEl: HTMLDivElement | undefined = $state();
@@ -39,25 +36,18 @@
     const y = d.top + (((menu.y - vy) / vh) * d.height);
     menuUp = y + 12 + h > s.bottom && y - 12 - h >= s.top;
   });
-  const split = $derived(!!app.profile?.touchpad?.split);
-  const GESTURES = ['Tap', 'TapLeft', 'TapCenter', 'TapRight', 'MultiTap', 'ZoomIn', 'ZoomOut', 'SwipeUp', 'SwipeDown', 'SwipeLeft', 'SwipeRight', 'Swipe2Up', 'Swipe2Down', 'Swipe2Left', 'Swipe2Right'] as const;
-
   const chipView = $derived<ChipView>({
     profile: app.profile,
     layer: app.layer,
     family: app.family,
     selectedKey: app.selectedKey,
     stick: app.stick,
-    pressed: app.pressed,
     layerLabel: app.layerLabel,
   });
   const chips = $derived(buildChips(layout.controls, chipView));
+  /** Drawn controls held right now; apart from the chips, which do not change with every press. */
+  const pressed = $derived(pressedChips(layout.controls, app.pressed));
   const gyroChip = $derived(gyroChipOf(chipView));
-
-  function wholeStick(side: Side, g: StickGroup) {
-    menu = null;
-    app.setStickGroup(side, g);
-  }
 
   const pct = (x: number, y: number) => ({ left: ((x - vx) / vw) * 100, top: ((y - vy) / vh) * 100 });
 
@@ -72,11 +62,11 @@
   function choose(c: ControlName, at?: [number, number]) {
     const side = clickSide(c);
     if (side && at) {
-      menu = { kind: 'stick', stick: side, click: c, x: at[0], y: at[1] };
+      menu = { kind: 'stick', side, x: at[0], y: at[1] };
       return;
     }
     if (c === 'Touchpad' && at) {
-      menu = { kind: 'touch', click: c, x: at[0], y: at[1] };
+      menu = { kind: 'touch', x: at[0], y: at[1] };
       return;
     }
     menu = null;
@@ -101,7 +91,7 @@
     choose(c, [x, y]);
   }
 
-  // Reflect state on the drawing's parts: mapped / selected / pressed, and stick deflection.
+  // Reflect state on the drawing's parts: mapped and selected ...
   $effect(() => {
     if (!drawing) return;
     const byControl = new Map(chips.map((ch) => [ch.lc.control, ch]));
@@ -109,9 +99,19 @@
       const ch = byControl.get(g.getAttribute('data-control') ?? '');
       g.classList.toggle('mapped', !!ch?.mapped);
       g.classList.toggle('selected', !!ch?.selected);
-      g.classList.toggle('pressed', !!ch?.pressed);
     }
-    moveStickCaps(drawing, app.primary?.state.axes ?? [0, 0, 0, 0]);
+  });
+  // ... held ...
+  $effect(() => {
+    if (!drawing) return;
+    for (const g of drawing.querySelectorAll<SVGGElement>('[data-control]')) {
+      g.classList.toggle('pressed', pressed.has(g.getAttribute('data-control') ?? ''));
+    }
+  });
+  // ... and the sticks' deflection (again when another drawing comes in).
+  $effect(() => {
+    void layout;
+    if (drawing) moveStickCaps(drawing, app.primary?.state.axes ?? [0, 0, 0, 0]);
   });
 </script>
 
@@ -140,7 +140,7 @@
         class:mapped={ch.mapped}
         class:inherited={ch.inherited}
         class:selected={ch.selected}
-        class:pressed={ch.pressed}
+        class:pressed={pressed.has(ch.lc.control)}
         style={chipStyle(ch.lc)}
         title={ch.summary ? `${ch.label}: ${ch.summary}` : ch.label}
         onclick={(e) => {
@@ -176,101 +176,17 @@
     {/if}
 
     {#if menu}
-      {@const m = menu}
-      {@const p = pct(m.x, m.y)}
-      {@const prefix = m.kind === 'stick' ? SIDES[m.stick!].stick : m.kind === 'touch' ? (split ? `Trackpad${half}` : 'Touch') : 'Gyro'}
-      {@const diag = m.kind === 'touch' || (m.kind === 'stick' && !!app.profile?.sticks?.[m.stick!]?.diagonals)}
-      <div class="stick-menu" class:up={menuUp} style="left: {p.left}%; top: {p.top}%" bind:this={menuEl}>
-        <div class="sm-title">{t(`binding.${m.kind}_choose`)}</div>
-        {#if m.kind === 'touch' && split}
-          <Segmented
-            variant="chips"
-            size="s"
-            class="sm-pick"
-            label={t('binding.touch_choose')}
-            options={(['Left', 'Right'] as const).map((h) => ({ value: h, label: t(`binding.half_${h.toLowerCase()}`) }))}
-            value={half}
-            onchange={(h) => (half = h)}
-          />
-        {/if}
-        {#snippet corner(d: string, arrow: string)}
-          {#if diag}<button onclick={() => choose(`${prefix}${d}`)}>{arrow}</button>{:else}<span></span>{/if}
-        {/snippet}
-        <div class="sm-grid">
-          {@render corner('UpLeft', '↖')}
-          <button onclick={() => choose(`${prefix}Up`)}>↑</button>
-          {@render corner('UpRight', '↗')}
-          <button onclick={() => choose(`${prefix}Left`)}>←</button>
-          {#if m.kind === 'gyro'}
-            <span></span>
-          {:else if m.kind === 'touch'}
-            <button title={t('controls.touch.center')} onclick={() => choose(`${prefix}Center`)}>◎</button>
-          {:else}
-            <button class="click" onclick={() => choose(m.click!)}>{t('binding.click')}</button>
-          {/if}
-          <button onclick={() => choose(`${prefix}Right`)}>→</button>
-          {@render corner('DownLeft', '↙')}
-          <button onclick={() => choose(`${prefix}Down`)}>↓</button>
-          {@render corner('DownRight', '↘')}
-        </div>
-        {#if m.kind === 'stick'}
-          {@const side = m.stick!}
-          {@const group = app.profile ? stickGroupOf(app.profile, app.layer, side) : null}
-          <button class="sm-any" onclick={() => choose(`${prefix}Low`)}>{t('zones.any_direction_button')}</button>
-          <div class="sm-sub">{t('binding.whole_stick')}</div>
-          <Segmented
-            variant="chips"
-            size="s"
-            class="sm-pick"
-            label={t('binding.whole_stick')}
-            options={STICK_GROUPS.map((g) => ({ value: g, label: t(`binding.stick_groups.${g}`) }))}
-            value={group}
-            disabled={app.readOnly}
-            onchange={(g) => g && wholeStick(side, g)}
-          />
-          <button class="sm-settings" onclick={() => app.openAnalog(m.stick!)}>
-            <SlidersHorizontal size={13} />
-            {t('binding.stick_settings')}
-          </button>
-        {:else if m.kind === 'touch'}
-          {#if split}
-            <div class="sm-lean">
-              <button onclick={() => choose(`${prefix}Tap`)}>{t('binding.trackpad_tap')}</button>
-              <button onclick={() => choose(`${prefix}Click`)}>{t('binding.click')}</button>
-            </div>
-          {:else}
-            <button class="sm-any" onclick={() => choose('Touchpad')}>{t('controls.Touchpad')}</button>
-          {/if}
-          <div class="sm-sub">{t('binding.gestures')}</div>
-          <div class="sm-gestures">
-            {#each GESTURES as g (g)}
-              <button onclick={() => choose(`Touch${g}`)}>{t(`controls.gesture.${g}`)}</button>
-            {/each}
-          </div>
-          <button class="sm-settings" onclick={() => app.openAnalog('touchpad')}>
-            <SlidersHorizontal size={13} />
-            {t('binding.touchpad_controls_settings')}
-          </button>
-          <button class="sm-settings" onclick={() => app.openAnalog('routes')}>
-            <SlidersHorizontal size={13} />
-            {t('binding.touch_settings')}
-          </button>
-        {:else}
-          <div class="sm-lean">
-            <button onclick={() => choose('GyroLeanLeft')}>{t('binding.lean_left')}</button>
-            <button onclick={() => choose('GyroLeanRight')}>{t('binding.lean_right')}</button>
-          </div>
-          <button class="sm-any" onclick={() => choose('GyroLow')}>{t('zones.any_direction_button')}</button>
-          <button class="sm-settings" onclick={() => app.openAnalog('gyro')}>
-            <SlidersHorizontal size={13} />
-            {t('binding.gyro_controls_settings')}
-          </button>
-          <button class="sm-settings" onclick={() => app.openAnalog('routes')}>
-            <SlidersHorizontal size={13} />
-            {t('binding.gyro_settings')}
-          </button>
-        {/if}
-      </div>
+      {@const p = pct(menu.x, menu.y)}
+      <PartMenu
+        {menu}
+        left={p.left}
+        top={p.top}
+        up={menuUp}
+        bind:half
+        bind:el={menuEl}
+        onchoose={(c) => choose(c)}
+        onclose={() => (menu = null)}
+      />
     {/if}
   </div>
 </div>
@@ -420,114 +336,5 @@
     margin-left: 2px;
     color: var(--layer-1);
     font-weight: 700;
-  }
-  .stick-menu {
-    position: absolute;
-    transform: translate(-50%, 12px);
-    background: var(--bg-2);
-    border: 1px solid var(--line-strong);
-    border-radius: var(--radius-m);
-    box-shadow: var(--shadow);
-    padding: 8px;
-    z-index: 10;
-  }
-  .stick-menu.up {
-    transform: translate(-50%, calc(-100% - 12px));
-  }
-  .sm-title {
-    font-size: var(--fs-xs);
-    color: var(--text-dim);
-    margin-bottom: 6px;
-    white-space: nowrap;
-  }
-  .sm-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 40px);
-    grid-auto-rows: 32px;
-    gap: 4px;
-    justify-content: center;
-  }
-  .sm-grid button {
-    border-radius: var(--radius-s);
-    background: var(--bg-3);
-    border: 1px solid var(--line);
-    font-size: 15px;
-  }
-  .sm-grid button:hover {
-    border-color: var(--accent);
-    color: var(--accent);
-  }
-  .sm-grid .click {
-    font-size: 10px;
-  }
-  .sm-any,
-  .sm-settings {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 5px;
-    width: 100%;
-    margin-top: 6px;
-    padding: 5px 8px;
-    border-radius: var(--radius-s);
-    background: var(--bg-3);
-    border: 1px solid var(--line);
-    font-size: var(--fs-xs);
-    white-space: nowrap;
-  }
-  .sm-settings {
-    color: var(--text-dim);
-  }
-  .sm-any:hover,
-  .sm-settings:hover {
-    border-color: var(--accent);
-    color: var(--accent);
-  }
-  .sm-lean {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 4px;
-    margin-top: 6px;
-  }
-  .sm-lean button {
-    padding: 5px 6px;
-    border-radius: var(--radius-s);
-    background: var(--bg-3);
-    border: 1px solid var(--line);
-    font-size: var(--fs-xs);
-    white-space: nowrap;
-  }
-  .sm-lean button:hover {
-    border-color: var(--accent);
-    color: var(--accent);
-  }
-  .stick-menu :global(.sm-pick) {
-    margin-top: 6px;
-  }
-  .sm-sub {
-    margin-top: 8px;
-    font-size: 10.5px;
-    color: var(--text-faint);
-    text-align: center;
-  }
-  .sm-gestures {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 3px;
-    margin-top: 4px;
-    max-height: 116px;
-    overflow-y: auto;
-  }
-  .sm-gestures button {
-    padding: 3px 6px;
-    border-radius: var(--radius-s);
-    background: var(--bg-3);
-    border: 1px solid var(--line);
-    font-size: 10.5px;
-    white-space: nowrap;
-  }
-  .sm-gestures button:hover {
-    border-color: var(--accent);
-    color: var(--accent);
   }
 </style>
