@@ -70,7 +70,7 @@
   ] as const;
 </script>
 
-<div class="stick-menu" class:up style="left: {left}%; top: {top}%" bind:this={el}>
+<div class="stick-menu" class:up style="left: {left}%; top: {top}%" bind:this={el} data-popover>
   <div class="sm-title">{t(`binding.${menu.kind}_choose`)}</div>
   {#if menu.kind === 'touch' && split}
     <Segmented

@@ -51,6 +51,24 @@ has the same entries:
 The copy stays while the app runs, so it can be pasted into another config. Pasting and clearing
 can be undone. The macro editor has **Copy steps** and **Paste steps** for whole sequences.
 
+## Keyboard shortcuts
+
+Ctrl+/ (or F1, or *Keyboard shortcuts* in the config's options menu) lists them all:
+
+| Keys | Does |
+|---|---|
+| Ctrl+S | Save the config |
+| Ctrl+Z, Ctrl+Y or Ctrl+Shift+Z | Undo, redo |
+| Ctrl+C, Ctrl+V | Copy the selected control, paste onto it (a copied direction group pastes onto the selected control's group) |
+| Delete | Clear the selected control on the current layer |
+| Escape | Deselect, leave the macro editor |
+| Ctrl+1 … Ctrl+9 | Main, then the shift layers in the toolbar's order |
+| F2, Ctrl+D | Rename, duplicate the config |
+
+In the keyboard view, plain keys select themselves, so Delete, Escape, F1 and F2 do that there;
+clearing is Ctrl+Delete. In text fields the keys act on the text, and while a dialog or menu is
+open it gets them (Ctrl+S still saves). On macOS, Cmd takes the place of Ctrl.
+
 ## Editing a control
 
 1. Pick the layer in the toolbar and click the control (or press it). A stick asks for its

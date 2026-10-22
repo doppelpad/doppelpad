@@ -1409,5 +1409,21 @@
       "Gyro": "Gyro",
       "MouseMove": "Mouse movement"
     }
+  },
+  "shortcuts_list": {
+    "title": "Keyboard shortcuts",
+    "or": "or",
+    "hint": "Copy, paste and clear act on the selected control on the current layer. In the keyboard view, plain keys select themselves, so clearing there is Ctrl+Delete. In text fields the keys work on the text.",
+    "save": "Save the config",
+    "undo": "Undo",
+    "redo": "Redo",
+    "copy": "Copy the selected control",
+    "paste": "Paste onto the selected control",
+    "clear": "Clear the selected control",
+    "deselect": "Deselect, leave the macro editor",
+    "layer": "Go to Main (1) or a shift layer",
+    "rename": "Rename the config",
+    "duplicate": "Duplicate the config",
+    "help": "This list"
   }
 }

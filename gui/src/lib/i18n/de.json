@@ -1398,7 +1398,7 @@
     "clear_group": "Alle Richtungen leeren",
     "copied": "Kopiert: {name}",
     "pasted": "Eingefügt: {name}. Strg+Z macht es rückgängig.",
-    "pasted_dropped": "Eingefügt: {name}. {n} Belegungen oder Routen hatten dort keinen Platz und wurden weggelassen. Strg+Z macht es rückgängig.",
+    "pasted_dropped": "Eingefügt: {name}. {n} Mappings oder Routen hatten dort keinen Platz und wurden weggelassen. Strg+Z macht es rückgängig.",
     "groups": {
       "LeftStick": "Linker Stick",
       "RightStick": "Rechter Stick",
@@ -1409,5 +1409,21 @@
       "Gyro": "Gyro",
       "MouseMove": "Mausbewegung"
     }
+  },
+  "shortcuts_list": {
+    "title": "Tastenkürzel",
+    "or": "oder",
+    "hint": "Kopieren, Einfügen und Leeren wirken auf das gewählte Bedienelement auf der aktuellen Ebene. In der Tastaturansicht wählen einfache Tasten sich selbst aus, Leeren ist dort deshalb Strg+Entf. In Textfeldern wirken die Tasten auf den Text.",
+    "save": "Config speichern",
+    "undo": "Rückgängig",
+    "redo": "Wiederholen",
+    "copy": "Gewähltes Bedienelement kopieren",
+    "paste": "Auf das gewählte Bedienelement einfügen",
+    "clear": "Gewähltes Bedienelement leeren",
+    "deselect": "Auswahl aufheben, Makro-Editor verlassen",
+    "layer": "Zu Main (1) oder einer Shift-Ebene wechseln",
+    "rename": "Config umbenennen",
+    "duplicate": "Config duplizieren",
+    "help": "Diese Liste"
   }
 }

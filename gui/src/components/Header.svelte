@@ -7,6 +7,7 @@
   import { TEMPLATES } from '../lib/model/labels';
   import { app } from '../lib/state/app.svelte';
   import { platform } from '../lib/state/window.svelte';
+  import { shortcutLabel, withShortcut } from '../lib/state/shortcuts';
   import type { Profile, Template } from '../lib/types';
   import Menu, { type MenuItem } from './ui/Menu.svelte';
   import WindowControls from './WindowControls.svelte';
@@ -14,6 +15,7 @@
   let { onsettings }: { onsettings: () => void } = $props();
 
   const configName = $derived(app.profile?.name || '—');
+  const mac = platform === 'macos';
 
   function fromTemplate(tpl: Template) {
     if (app.gameDir) app.createConfig(api.configFromTemplate(app.gameDir, t(`welcome.templates.${tpl}`), tpl));
@@ -44,18 +46,6 @@
     });
     if (!path) return;
     await app.attempt(api.sheetSave(path, bindingsSheet($state.snapshot(app.profile) as Profile, app.family)), t('sheet.saved'));
-  }
-
-  async function renameConfig() {
-    if (!app.profile) return;
-    const name = await app.ask(t('header.rename_config'), app.profile.name ?? '');
-    if (name) app.edit((p) => ({ ...p, name }));
-  }
-
-  async function duplicate() {
-    if (!app.configPath) return;
-    if (app.dirty && !(await app.save())) return;
-    await app.createConfig(api.configDuplicate(app.configPath));
   }
 
   async function remove() {
@@ -91,11 +81,22 @@
   ]);
 
   const optionItems = $derived<MenuItem[]>([
-    { label: t('header.rename_config') + '…', onclick: renameConfig, disabled: !app.profile || app.readOnly },
-    { label: t('common.duplicate'), onclick: duplicate, disabled: !app.configPath },
+    {
+      label: t('header.rename_config') + '…',
+      onclick: () => app.renameConfig(),
+      disabled: !app.profile || app.readOnly,
+      detail: shortcutLabel('rename', mac),
+    },
+    {
+      label: t('common.duplicate'),
+      onclick: () => app.duplicateConfig(),
+      disabled: !app.configPath,
+      detail: shortcutLabel('duplicate', mac),
+    },
     { label: t('sheet.menu') + '…', onclick: saveSheet, disabled: !app.profile },
     { label: t('common.reveal'), onclick: () => app.configPath && app.attempt(api.reveal(app.configPath)), disabled: !app.configPath },
     { label: t('header.clear_mappings'), onclick: clearMappings, disabled: !app.profile || app.readOnly },
+    { label: t('shortcuts_list.title'), onclick: () => (app.shortcutsOpen = true), detail: shortcutLabel('help', mac) },
     { separator: true, label: '' },
     { label: t('common.delete'), danger: true, onclick: remove, disabled: !app.configPath },
   ]);
@@ -113,16 +114,26 @@
         {/snippet}
       </Menu>
       {#if app.readOnly}<span class="badge" title={t('header.read_only')}><Lock size={12} /> {t('header.read_only')}</span>{/if}
-      <button class="icon-btn" title={t('header.undo') + ' (Ctrl+Z)'} disabled={!app.canUndo || app.readOnly} onclick={() => app.undo()}>
+      <button
+        class="icon-btn"
+        title={withShortcut(t('header.undo'), 'undo', mac)}
+        disabled={!app.canUndo || app.readOnly}
+        onclick={() => app.undo()}
+      >
         <Undo2 size={17} />
       </button>
-      <button class="icon-btn" title={t('header.redo') + ' (Ctrl+Y)'} disabled={!app.canRedo || app.readOnly} onclick={() => app.redo()}>
+      <button
+        class="icon-btn"
+        title={withShortcut(t('header.redo'), 'redo', mac)}
+        disabled={!app.canRedo || app.readOnly}
+        onclick={() => app.redo()}
+      >
         <Redo2 size={17} />
       </button>
       <button
         class="icon-btn save"
         class:dirty={app.dirty}
-        title={t('header.save') + ' (Ctrl+S)'}
+        title={withShortcut(t('header.save'), 'save', mac)}
         disabled={!app.dirty || app.readOnly}
         onclick={() => app.save()}
       >

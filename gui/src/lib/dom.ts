@@ -31,6 +31,11 @@ export function menuOpen(): boolean {
   return document.querySelector('[role=menu]') !== null;
 }
 
+/** A popover marked `data-popover` (e.g. the stick's direction menu) is open; Escape closes it first. */
+export function popoverOpen(): boolean {
+  return document.querySelector('[data-popover]') !== null;
+}
+
 /**
  * The pointer gesture in progress: `down` while a button is held, `id` counts the gestures.
  * Changes made while it is down (a drag) belong together.
