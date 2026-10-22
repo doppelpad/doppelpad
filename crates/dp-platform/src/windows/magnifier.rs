@@ -210,7 +210,8 @@ unsafe fn place(host: HWND, mag: HWND, v: &MagnifierView) {
     let mut t = MAGTRANSFORM {
         v: [z, 0.0, 0.0, 0.0, z, 0.0, 0.0, 0.0, 1.0],
     };
-    // The magnifier leaves itself out on its own.
+    // The magnifier leaves itself out on its own. The list is set on every show, also when
+    // empty, so a window left out before (an overlay since closed) does not stay left out.
     let mut list: Vec<HWND> = v.exclude.iter().map(|&h| h as HWND).collect();
     // SAFETY: as for this function; the region belongs to the window once set.
     unsafe {
@@ -218,14 +219,12 @@ unsafe fn place(host: HWND, mag: HWND, v: &MagnifierView) {
         SetWindowPos(mag, null_mut(), 0, 0, side, side, SWP_NOACTIVATE);
         SetWindowRgn(host, CreateEllipticRgn(0, 0, side + 1, side + 1), 1);
         MagSetWindowTransform(mag, &mut t);
-        if !list.is_empty() {
-            MagSetWindowFilterList(
-                mag,
-                MW_FILTERMODE_EXCLUDE,
-                list.len() as i32,
-                list.as_mut_ptr(),
-            );
-        }
+        MagSetWindowFilterList(
+            mag,
+            MW_FILTERMODE_EXCLUDE,
+            list.len() as i32,
+            list.as_mut_ptr(),
+        );
         ShowWindow(host, SW_SHOWNOACTIVATE);
     }
 }
