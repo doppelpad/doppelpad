@@ -34,7 +34,7 @@ describe('zone controls', () => {
     expect(zoneParts('LT')).toEqual({ base: 'LT', zone: null, source: { kind: 'trigger', side: 'left' } });
     expect(zoneParts('LeftStickLeft')?.zone).toBeNull();
     for (const c of ['LeftStick', 'LTFull', 'A', 'Key:L', 'Gyro']) expect(zoneParts(c)).toBeNull();
-    expect(zoneParts('GyroLeanLeftHigh')).toEqual({ base: 'GyroLeanLeft', zone: 'High', source: { kind: 'gyro', side: 'left' } });
+    expect(zoneParts('GyroLeanLeftHigh')).toEqual({ base: 'GyroLeanLeft', zone: 'High', source: { kind: 'gyro' } });
     expect(zoneParts('GyroLow')?.base).toBe('Gyro');
     expect(zoneParts('GyroUp')?.zone).toBeNull();
   });

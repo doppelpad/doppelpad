@@ -3,6 +3,7 @@
 
 import { has, t } from '../i18n/index.svelte';
 import { replaceLayerRoutes, routeLayer } from './analog';
+import { parseControl, type Dir8 } from './controls';
 import { declaredLayer, patchLayer } from './layers';
 import { clone, dropUndefined, nonEmpty, sameJson, setOrDrop } from './util';
 import type {
@@ -169,7 +170,7 @@ export function newMapping(layer: number, combo: Combo, activator: Activator): M
 }
 
 const D = Math.SQRT1_2;
-const STICK_DIRS: Record<string, [number, number]> = {
+const STICK_DIRS: Record<Dir8, [number, number]> = {
   Up: [0, 1],
   Down: [0, -1],
   Left: [-1, 0],
@@ -186,26 +187,31 @@ const STICK_DIRS: Record<string, [number, number]> = {
  * regions, gyro, mouse motion, stick zones in any direction, shortcuts of several controls).
  */
 export function nativeAction(combo: Combo): Action | null {
-  const list = comboList(combo);
-  if (list.length !== 1) return null;
-  const c = list[0];
-  if (c.startsWith('Key:')) return { key: c.slice(4) };
-  if (c.startsWith('Mouse:')) return { mouse: c.slice(6).toLowerCase() as MouseButtonName };
-  if (c.startsWith('Wheel:')) return { wheel: c.slice(6).toLowerCase() as WheelDir };
-  if (c.startsWith('MouseMove:')) return null;
-  const stick = /^(Left|Right)Stick(UpLeft|UpRight|DownLeft|DownRight|Up|Down|Left|Right)(Low|Med|High)?$/.exec(c);
-  if (stick) {
-    const [x, y] = STICK_DIRS[stick[2]];
-    return { stick: stick[1] === 'Left' ? 'left' : 'right', x, y };
+  const c = singleControl(combo);
+  const p = c === null ? null : parseControl(c);
+  switch (p?.kind) {
+    case 'key':
+      return { key: p.key };
+    case 'mouse':
+      return { mouse: p.button.toLowerCase() as MouseButtonName };
+    case 'wheel':
+      return { wheel: p.dir.toLowerCase() as WheelDir };
+    case 'stick_dir':
+    case 'stick_zone': {
+      // A stick zone in any direction has no single direction to reproduce.
+      if (!p.dir) return null;
+      const [x, y] = STICK_DIRS[p.dir];
+      return { stick: p.side, x, y };
+    }
+    case 'trigger_press':
+    case 'trigger_zone':
+    case 'trigger_full':
+      return { trigger: p.side };
+    case 'button':
+      return { pad: c as PadButtonName };
+    default:
+      return null;
   }
-  const trigger = /^(LT|RT)(Full|Low|Med|High)?$/.exec(c);
-  if (trigger) return { trigger: trigger[1] === 'LT' ? 'left' : 'right' };
-  // A stick zone in any direction has no single direction to reproduce.
-  if (/^(Left|Right)Stick(Low|Med|High)$/.test(c)) return null;
-  if (/^Touch[A-Z][a-zA-Z0-9]*$/.test(c) && c !== 'Touchpad') return null;
-  if (/^Trackpad[A-Z]/.test(c)) return null;
-  if (/^Gyro[A-Z]/.test(c)) return null;
-  return { pad: c as PadButtonName };
 }
 
 export function sameAction(a: Action, b: Action): boolean {

@@ -43,48 +43,128 @@ export const gyroControls = (): ControlName[] => GYRO_DIRS.map((d) => `Gyro${d}`
 export const ZONES = ['Low', 'Med', 'High'] as const;
 export type ZoneName = (typeof ZONES)[number];
 
+export type Dir8 = (typeof DIRS8)[number];
+export type GyroDir = (typeof GYRO_DIRS)[number];
+export type TouchRegion = (typeof TOUCH_REGIONS)[number] | (typeof DIAGONALS)[number];
+export type TouchGesture = (typeof TOUCH_GESTURES)[number];
+export type TrackpadPart = Dir8 | 'Center' | 'Tap' | 'Click';
+
+/** A control name split into its parts, as the engine's `Control` enum has them (`dp-core`). */
+export type ParsedControl =
+  /** A pad button, or a name nothing else claims. */
+  | { kind: 'button' }
+  | { kind: 'stick_dir'; side: Side; dir: Dir8 }
+  /** The stick deflected into a zone, in a direction or (`null`) any. */
+  | { kind: 'stick_zone'; side: Side; dir: Dir8 | null; zone: ZoneName }
+  | { kind: 'trigger_press'; side: Side }
+  | { kind: 'trigger_zone'; side: Side; zone: ZoneName }
+  | { kind: 'trigger_full'; side: Side }
+  | { kind: 'touch'; region: TouchRegion }
+  | { kind: 'gesture'; gesture: TouchGesture }
+  | { kind: 'trackpad'; half: 'Left' | 'Right'; part: TrackpadPart }
+  | { kind: 'gyro'; dir: GyroDir }
+  | { kind: 'gyro_zone'; dir: GyroDir | null; zone: ZoneName }
+  | { kind: 'key'; key: string }
+  | { kind: 'mouse'; button: string }
+  | { kind: 'wheel'; dir: string }
+  | { kind: 'mouse_move'; dir: Dir8 }
+  | { kind: 'mouse_zone'; dir: Dir8 | null; zone: ZoneName };
+
+const alt = (names: readonly string[]) => names.join('|');
+const DIR8 = alt(DIRS8);
+const ZONE = alt(ZONES);
+const STICK = new RegExp(`^(Left|Right)Stick(${DIR8})?(${ZONE})?$`);
+const TRIGGER = new RegExp(`^(LT|RT)(Full|${ZONE})?$`);
+const GYRO = new RegExp(`^Gyro(${alt(GYRO_DIRS)})?(${ZONE})?$`);
+const TOUCH = new RegExp(`^Touch(${alt([...TOUCH_REGIONS, ...DIAGONALS])})$`);
+const GESTURE = new RegExp(`^Touch(${alt(TOUCH_GESTURES)})$`);
+const TRACKPAD = new RegExp(`^Trackpad(Left|Right)(${alt([...DIRS8, 'Center', 'Tap', 'Click'])})$`);
+const MOUSE_MOVE = new RegExp(`^MouseMove:(${DIR8})?(${ZONE})?$`);
+
+const sideOf = (s: string): Side => (s === 'Left' || s === 'LT' ? 'left' : 'right');
+
+/** Split a control name into its parts; `null` for a `MouseMove:` name without a direction or zone. */
+export function parseControl(c: ControlName): ParsedControl | null {
+  if (c.startsWith('Key:')) return { kind: 'key', key: c.slice(4) };
+  if (c.startsWith('Mouse:')) return { kind: 'mouse', button: c.slice(6) };
+  if (c.startsWith('Wheel:')) return { kind: 'wheel', dir: c.slice(6) };
+  if (c.startsWith('MouseMove:')) {
+    const [, dir, zone] = MOUSE_MOVE.exec(c) ?? [];
+    if (zone) return { kind: 'mouse_zone', dir: (dir as Dir8 | undefined) ?? null, zone: zone as ZoneName };
+    return dir ? { kind: 'mouse_move', dir: dir as Dir8 } : null;
+  }
+  let m = STICK.exec(c);
+  if (m) {
+    const [, stick, dir, zone] = m;
+    const side = sideOf(stick);
+    if (zone) return { kind: 'stick_zone', side, dir: (dir as Dir8 | undefined) ?? null, zone: zone as ZoneName };
+    if (dir) return { kind: 'stick_dir', side, dir: dir as Dir8 };
+  }
+  if ((m = TRIGGER.exec(c))) {
+    const [, trigger, part] = m;
+    const side = sideOf(trigger);
+    if (!part) return { kind: 'trigger_press', side };
+    return part === 'Full' ? { kind: 'trigger_full', side } : { kind: 'trigger_zone', side, zone: part as ZoneName };
+  }
+  if ((m = GYRO.exec(c))) {
+    const [, dir, zone] = m;
+    if (zone) return { kind: 'gyro_zone', dir: (dir as GyroDir | undefined) ?? null, zone: zone as ZoneName };
+    if (dir) return { kind: 'gyro', dir: dir as GyroDir };
+  }
+  if ((m = TOUCH.exec(c))) return { kind: 'touch', region: m[1] as TouchRegion };
+  if ((m = GESTURE.exec(c))) return { kind: 'gesture', gesture: m[1] as TouchGesture };
+  if ((m = TRACKPAD.exec(c))) return { kind: 'trackpad', half: m[1] as 'Left' | 'Right', part: m[2] as TrackpadPart };
+  return { kind: 'button' };
+}
+
 /** "LeftStickUp" → ["LeftStick", "Up"], else null. */
 export function splitStickDir(c: ControlName): [string, string] | null {
-  for (const stick of ['LeftStick', 'RightStick']) {
-    for (const d of DIRS8) if (c === `${stick}${d}`) return [stick, d];
-  }
-  return null;
+  const p = parseControl(c);
+  return p?.kind === 'stick_dir' ? [SIDES[p.side].stick, p.dir] : null;
+}
+
+/** Where a stick's or trigger's zone thresholds live. */
+export interface PairSource {
+  kind: 'stick' | 'trigger';
+  side: Side;
 }
 
 /** A control that has zones, split into the control without its zone and the zone. */
-export interface ZoneParts {
+export interface ZoneParts<S = PairSource | { kind: 'gyro' }> {
   /** `LeftStickUp`, `RT`, or `LeftStick` for the stick in any direction (not a control itself). */
   base: string;
   zone: ZoneName | null;
-  /** Where the zone thresholds live. */
-  source: { kind: 'stick' | 'trigger' | 'gyro'; side: 'left' | 'right' };
+  /** Where the zone thresholds live; the gyro's are in the profile's gyro settings. */
+  source: S;
 }
 
-const ZONED = /^(?:(Left|Right)Stick(UpLeft|UpRight|DownLeft|DownRight|Up|Down|Left|Right)?|(LT|RT))(Low|Med|High)?$/;
-const GYRO_ZONED = /^Gyro(LeanLeft|LeanRight|Up|Down|Left|Right)?(Low|Med|High)?$/;
-
 /**
- * Zone parts of a stick direction, a trigger or one of their zone controls (`LeftStickUpHigh`,
- * `RTMed`, `LeftStickLow` = any direction); null for every other control.
+ * Zone parts of a stick direction, a trigger, a gyro direction or one of their zone controls
+ * (`LeftStickUpHigh`, `RTMed`, `LeftStickLow` = any direction); null for every other control.
  */
 export function zoneParts(c: ControlName): ZoneParts | null {
-  const g = GYRO_ZONED.exec(c);
-  if (g) {
-    const [, dir, zone] = g;
-    if (!dir && !zone) return null;
-    // Gyro zones live in the profile's gyro settings, not per side.
-    return { base: `Gyro${dir ?? ''}`, zone: (zone as ZoneName | undefined) ?? null, source: { kind: 'gyro', side: 'left' } };
+  const p = parseControl(c);
+  switch (p?.kind) {
+    case 'gyro':
+    case 'gyro_zone':
+      return { base: `Gyro${p.dir ?? ''}`, zone: p.kind === 'gyro_zone' ? p.zone : null, source: { kind: 'gyro' } };
+    case 'stick_dir':
+    case 'stick_zone':
+      return {
+        base: SIDES[p.side].stick + (p.dir ?? ''),
+        zone: p.kind === 'stick_zone' ? p.zone : null,
+        source: { kind: 'stick', side: p.side },
+      };
+    case 'trigger_press':
+    case 'trigger_zone':
+      return {
+        base: SIDES[p.side].trigger,
+        zone: p.kind === 'trigger_zone' ? p.zone : null,
+        source: { kind: 'trigger', side: p.side },
+      };
+    default:
+      return null;
   }
-  const m = ZONED.exec(c);
-  if (!m) return null;
-  const [, stick, dir, trigger, zone] = m;
-  if (stick && !dir && !zone) return null;
-  const side = (stick ?? (trigger === 'LT' ? 'Left' : 'Right')).toLowerCase() as 'left' | 'right';
-  return {
-    base: stick ? `${stick}Stick${dir ?? ''}` : trigger,
-    zone: (zone as ZoneName | undefined) ?? null,
-    source: { kind: stick ? 'stick' : 'trigger', side },
-  };
 }
 
 /** The base control in a zone, or the base itself for `null`. */
@@ -144,31 +224,41 @@ export function zoneBaseLabel(base: string, family: PadFamily | null): string {
 
 /** Human-readable name of a control for the given controller family. */
 export function controlLabel(c: ControlName, family: PadFamily | null): string {
-  if (c.startsWith('Key:')) return c.slice(4);
-  if (c.startsWith('Mouse:')) return t(`controls.mouse.${c.slice(6).toLowerCase()}`);
-  if (c.startsWith('Wheel:')) return `${t('picker.mouse_wheel')} ${t(`dirs.${c.slice(6).toLowerCase()}`)}`;
-  if (c.startsWith('MouseMove:')) {
-    const m = /^MouseMove:(UpLeft|UpRight|DownLeft|DownRight|Up|Down|Left|Right)?(Low|Med|High)?$/.exec(c);
-    const dir = m?.[1] ? ` ${t(`dirs.${dirKey(m[1])}`)}` : '';
-    const zone = m?.[2] ? ` · ${t(`zones.in.${m[2].toLowerCase()}`)}` : '';
-    return `${t('picker.mouse_move')}${dir}${zone}`;
+  const p = parseControl(c);
+  const zoneIn = (zone: ZoneName) => t(`zones.in.${zone.toLowerCase()}`);
+  switch (p?.kind) {
+    case 'key':
+      return p.key;
+    case 'mouse':
+      return t(`controls.mouse.${p.button.toLowerCase()}`);
+    case 'wheel':
+      return `${t('picker.mouse_wheel')} ${t(`dirs.${p.dir.toLowerCase()}`)}`;
+    case 'mouse_move':
+    case 'mouse_zone': {
+      const dir = p.dir ? ` ${t(`dirs.${dirKey(p.dir)}`)}` : '';
+      const zone = p.kind === 'mouse_zone' ? ` · ${zoneIn(p.zone)}` : '';
+      return `${t('picker.mouse_move')}${dir}${zone}`;
+    }
+    case 'stick_zone':
+    case 'trigger_zone':
+    case 'gyro_zone':
+      return `${zoneBaseLabel(zoneParts(c)!.base, family)} · ${zoneIn(p.zone)}`;
+    case 'stick_dir':
+      return `${t(`controls.${SIDES[p.side].stick}`)} ${t(`dirs.${dirKey(p.dir)}`)}`;
+    case 'touch':
+      return t(`controls.touch.${dirKey(p.region)}`);
+    case 'gesture':
+      return t(`controls.gesture.${p.gesture}`);
+    case 'trackpad': {
+      const own = p.part === 'Tap' || p.part === 'Click' || p.part === 'Center';
+      const part = own ? t(`controls.trackpad_${p.part.toLowerCase()}`) : t(`dirs.${dirKey(p.part)}`);
+      return t('controls.trackpad', { half: t(`binding.half_${p.half.toLowerCase()}`), part });
+    }
+    case 'gyro':
+      return t('controls.gyro', { dir: t(`dirs.${dirKey(p.dir)}`) });
   }
-  const zp = zoneParts(c);
-  if (zp?.zone) return `${zoneBaseLabel(zp.base, family)} · ${t(`zones.in.${zp.zone.toLowerCase()}`)}`;
-  const sd = splitStickDir(c);
-  if (sd) return `${t(`controls.${sd[0]}`)} ${t(`dirs.${dirKey(sd[1])}`)}`;
-  const touch = /^Touch(UpLeft|UpRight|DownLeft|DownRight|Up|Down|Left|Right|Center)$/.exec(c);
-  if (touch) return t(`controls.touch.${dirKey(touch[1])}`);
-  const gesture = /^Touch(Tap|TapLeft|TapCenter|TapRight|MultiTap|Swipe2?(?:Up|Down|Left|Right)|ZoomIn|ZoomOut)$/.exec(c);
-  if (gesture) return t(`controls.gesture.${gesture[1]}`);
-  const pad = /^Trackpad(Left|Right)(UpLeft|UpRight|DownLeft|DownRight|Up|Down|Left|Right|Center|Tap|Click)$/.exec(c);
-  if (pad) {
-    const own = ['Tap', 'Click', 'Center'].includes(pad[2]);
-    const part = own ? t(`controls.trackpad_${pad[2].toLowerCase()}`) : t(`dirs.${dirKey(pad[2])}`);
-    return t('controls.trackpad', { half: t(`binding.half_${pad[1].toLowerCase()}`), part });
-  }
-  const gyro = /^Gyro(LeanLeft|LeanRight|Up|Down|Left|Right)$/.exec(c);
-  if (gyro) return t('controls.gyro', { dir: t(`dirs.${dirKey(gyro[1])}`) });
+  // A `MouseMove:` name without a direction or zone.
+  if (!p) return t('picker.mouse_move');
   const named = familyName(c, family);
   if (named) return named;
   if (has(`controls.${c}`)) return t(`controls.${c}`);
@@ -189,11 +279,12 @@ export function controlShort(c: ControlName, family: PadFamily | null): string {
 /** The analog settings page of a stick or trigger control, its zones included. */
 export function analogTabOf(c: ControlName): Side | 'triggers' | null {
   for (const side of SIDE_NAMES) if (c === SIDES[side].click || c.startsWith(SIDES[side].stick)) return side;
-  if (/^(LT|RT)(Full|Low|Med|High)?$/.test(c)) return 'triggers';
+  if (TRIGGER.test(c)) return 'triggers';
   return null;
 }
 
 /** The trigger (`LT`/`RT`) of a full-pull control (`LTFull`), else null. */
 export function fullPullBase(c: ControlName): string | null {
-  return /^(LT|RT)Full$/.exec(c)?.[1] ?? null;
+  const p = parseControl(c);
+  return p?.kind === 'trigger_full' ? SIDES[p.side].trigger : null;
 }

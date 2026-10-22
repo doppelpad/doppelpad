@@ -7,7 +7,7 @@
   import { layerOverrides, triggerConfig } from '../../lib/model/analog';
   import { stickAxes, triggerAxis } from '../../lib/model/devices';
   import { parsePercent } from '../../lib/model/numbers';
-  import type { ZoneName, ZoneParts } from '../../lib/model/controls';
+  import type { PairSource, ZoneName, ZoneParts } from '../../lib/model/controls';
   import {
     LEVELS,
     axisOf,
@@ -29,7 +29,7 @@
   import { app } from '../../lib/state/app.svelte';
   import type { StickZones, TriggerZones } from '../../lib/types';
 
-  let { parts }: { parts: ZoneParts } = $props();
+  let { parts }: { parts: ZoneParts<PairSource> } = $props();
 
   const ZONE_OF: Record<Level, ZoneName> = { low: 'Low', med: 'Med', high: 'High' };
 
