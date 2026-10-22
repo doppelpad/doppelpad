@@ -89,6 +89,8 @@ class AppState {
   /** Controls held on the primary controller; the drawing highlights exactly these. */
   pressed = $state.raw(new Set<ControlName>());
   private toastId = 0;
+  /** The settings write in flight: the next one waits for it, so it builds on its result. */
+  private settingsWrite: Promise<void> = Promise.resolve();
 
   dirty = $derived(this.profile !== null && JSON.stringify(this.profile) !== this.savedJson);
   game = $derived<Game | null>(this.library.games.find((g) => g.dir === this.gameDir) ?? null);
@@ -184,12 +186,21 @@ class AppState {
     return true;
   }
 
-  async setSettings(patch: Partial<GuiSettings>) {
-    const next = { ...this.settings, ...patch };
-    if (await this.attempt(api.settingsSet(next))) {
-      this.settings = next;
-      setLanguage(next.language);
-    }
+  /**
+   * Change some settings. Writes go one after the other; a function patch sees the settings as
+   * the writes before it left them (for a part of a nested setting).
+   */
+  setSettings(patch: Partial<GuiSettings> | ((s: GuiSettings) => Partial<GuiSettings>)): Promise<void> {
+    const write = this.settingsWrite.then(async () => {
+      const next = { ...this.settings, ...(typeof patch === 'function' ? patch(this.settings) : patch) };
+      if (await this.attempt(api.settingsSet(next))) {
+        this.settings = next;
+        setLanguage(next.language);
+      }
+    });
+    // A write that throws must not stop the ones after it.
+    this.settingsWrite = write.catch(() => {});
+    return write;
   }
 
   async refreshLibrary() {

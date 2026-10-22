@@ -17,7 +17,7 @@
   api.osdMonitors().then((m) => (monitors = m));
 
   function set(patch: Partial<OsdSettings>) {
-    app.setSettings({ osd: { ...osd, ...patch } });
+    app.setSettings((s) => ({ osd: { ...s.osd, ...patch } }));
   }
 </script>
 
