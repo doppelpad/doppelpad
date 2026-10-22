@@ -1029,6 +1029,16 @@
   },
   "settings": {
     "title": "Einstellungen",
+    "pages": {
+      "general": "Allgemein",
+      "controllers": "Controller",
+      "hotkeys": "Hotkeys",
+      "display": "Anzeige",
+      "remapping": "Remapping",
+      "connections": "Verbindungen",
+      "drivers": "Treiber",
+      "files": "Dateien"
+    },
     "language": "Sprache",
     "stay_live": "Remapping aktiv lassen, während dieses Fenster im Vordergrund ist",
     "hook_buttons": "Tasten durch Drücken am Controller auswählen",

@@ -1,10 +1,32 @@
+<script module lang="ts">
+  import { FolderOpen, Gamepad2, HardDrive, Monitor, Network, Shuffle, SlidersHorizontal, Zap } from '@lucide/svelte';
+
+  /** The pages of the settings, in the order of the list on the left. */
+  const PAGES = [
+    { id: 'general', icon: SlidersHorizontal },
+    { id: 'controllers', icon: Gamepad2 },
+    { id: 'hotkeys', icon: Zap },
+    { id: 'display', icon: Monitor },
+    { id: 'remapping', icon: Shuffle },
+    { id: 'connections', icon: Network },
+    { id: 'drivers', icon: HardDrive },
+    { id: 'files', icon: FolderOpen },
+  ] as const;
+  type Page = (typeof PAGES)[number]['id'];
+
+  /** The settings open on the page shown last while the app runs. */
+  let lastPage: Page = 'general';
+</script>
+
 <script lang="ts">
+  // The app's settings: a list of pages on the left, the chosen page on the right.
   import { api } from '../lib/api';
   import { LANGUAGES, t } from '../lib/i18n/index.svelte';
   import { app } from '../lib/state/app.svelte';
   import type { RewasdChoice } from '../lib/types';
   import ApiSettings from './settings/ApiSettings.svelte';
   import DeviceSettings from './settings/DeviceSettings.svelte';
+  import { driverStates } from './settings/DriverList.svelte';
   import DriverSettings from './settings/DriverSettings.svelte';
   import DsuSettings from './settings/DsuSettings.svelte';
   import HotkeySettings from './settings/HotkeySettings.svelte';
@@ -20,6 +42,11 @@
 
   let { onclose }: { onclose: () => void } = $props();
 
+  const id = $props.id();
+  let page = $state<Page>(lastPage);
+  /** The drivers page carries a warning dot while a driver is missing. */
+  const driverMissing = $derived(driverStates(app.live).some((d) => !d.state.available));
+
   let profilesDir = $state('');
   api.profilesDir().then((d) => (profilesDir = d));
   let logFile = $state('');
@@ -27,6 +54,22 @@
   /** Read from Windows each time the dialog opens: Task Manager can change it too. */
   let autostart = $state<boolean | null>(null);
   api.autostartGet().then((on) => (autostart = on));
+
+  function show(p: Page) {
+    page = p;
+    lastPage = p;
+  }
+
+  /** Up and down (Home, End) move through the pages, as in any vertical tab list. */
+  function onListKey(e: KeyboardEvent) {
+    const i = PAGES.findIndex((p) => p.id === page);
+    const to = { ArrowDown: i + 1, ArrowUp: i - 1, Home: 0, End: PAGES.length - 1 }[e.key];
+    if (to === undefined) return;
+    e.preventDefault();
+    const next = PAGES[(to + PAGES.length) % PAGES.length]!;
+    show(next.id);
+    document.getElementById(`${id}-tab-${next.id}`)?.focus();
+  }
 
   async function setAutostart(on: boolean) {
     await app.attempt(api.autostartSet(on));
@@ -40,74 +83,156 @@
   }
 </script>
 
-<Dialog title={t('settings.title')} {onclose} width={520} gap={14} scroll>
-  <SettingRow label={t('settings.language')}>
-    <select value={app.settings.language} onchange={(e) => app.setSettings({ language: e.currentTarget.value })}>
-      {#each Object.entries(LANGUAGES) as [code, name] (code)}
-        <option value={code}>{name}</option>
+<Dialog title={t('settings.title')} {onclose} width={860} gap={14}>
+  <div class="layout">
+    <div class="pages" role="tablist" aria-orientation="vertical" tabindex="-1" onkeydown={onListKey}>
+      {#each PAGES as p (p.id)}
+        <button
+          type="button"
+          role="tab"
+          id="{id}-tab-{p.id}"
+          aria-selected={page === p.id}
+          aria-controls="{id}-page"
+          tabindex={page === p.id ? 0 : -1}
+          class:on={page === p.id}
+          onclick={() => show(p.id)}
+        >
+          <p.icon size={16} />
+          <span class="name">{t(`settings.pages.${p.id}`)}</span>
+          {#if p.id === 'drivers' && driverMissing}<span class="dot" title={t('drivers.missing')}></span>{/if}
+        </button>
       {/each}
-    </select>
-  </SettingRow>
+    </div>
 
-  <Toggle checked={app.settings.stay_live} label={t('settings.stay_live')} onchange={(v) => app.setSettings({ stay_live: v })} />
-  <Toggle checked={app.settings.hook_buttons} label={t('settings.hook_buttons')} onchange={(v) => app.setSettings({ hook_buttons: v })} />
-  {#if autostart !== null}
-    <Toggle checked={autostart} label={t('settings.autostart')} onchange={setAutostart} />
-  {/if}
-
-  {#if app.rewasd}
-    <SettingRow label={t('settings.rewasd')}>
-      <select
-        value={app.settings.rewasd_at_start}
-        onchange={(e) => app.setSettings({ rewasd_at_start: e.currentTarget.value as RewasdChoice })}
-      >
-        <option value="ask">{t('settings.rewasd_ask')}</option>
-        <option value="quit">{t('settings.rewasd_quit')}</option>
-        <option value="ignore">{t('settings.rewasd_ignore')}</option>
-      </select>
-    </SettingRow>
-    {#if app.rewasdRunning}
-      <div class="running">
-        <span class="note">{t('settings.rewasd_running')}</span>
-        <button class="btn" disabled={app.rewasdQuitting} onclick={() => app.quitRewasd()}>{t('rewasd.quit')}</button>
+    {#key page}
+      <div class="page" role="tabpanel" id="{id}-page" aria-labelledby="{id}-tab-{page}" tabindex="-1">
+        {#if page === 'general'}
+          <SettingRow label={t('settings.language')}>
+            <select value={app.settings.language} onchange={(e) => app.setSettings({ language: e.currentTarget.value })}>
+              {#each Object.entries(LANGUAGES) as [code, name] (code)}
+                <option value={code}>{name}</option>
+              {/each}
+            </select>
+          </SettingRow>
+          {#if autostart !== null}
+            <Toggle checked={autostart} label={t('settings.autostart')} onchange={setAutostart} />
+          {/if}
+          <Toggle checked={app.settings.stay_live} label={t('settings.stay_live')} onchange={(v) => app.setSettings({ stay_live: v })} />
+          <Toggle
+            checked={app.settings.hook_buttons}
+            label={t('settings.hook_buttons')}
+            onchange={(v) => app.setSettings({ hook_buttons: v })}
+          />
+          {#if app.rewasd}
+            <SettingRow label={t('settings.rewasd')}>
+              <select
+                value={app.settings.rewasd_at_start}
+                onchange={(e) => app.setSettings({ rewasd_at_start: e.currentTarget.value as RewasdChoice })}
+              >
+                <option value="ask">{t('settings.rewasd_ask')}</option>
+                <option value="quit">{t('settings.rewasd_quit')}</option>
+                <option value="ignore">{t('settings.rewasd_ignore')}</option>
+              </select>
+            </SettingRow>
+            {#if app.rewasdRunning}
+              <div class="running">
+                <span class="note">{t('settings.rewasd_running')}</span>
+                <button class="btn" disabled={app.rewasdQuitting} onclick={() => app.quitRewasd()}>{t('rewasd.quit')}</button>
+              </div>
+            {/if}
+          {/if}
+          <SettingsSection title={t('welcome.settings_title')}>
+            <button class="btn welcome" onclick={showWelcome}>{t('welcome.again')}</button>
+          </SettingsSection>
+        {:else if page === 'controllers'}
+          <DeviceSettings />
+          <PlayerLightSettings />
+        {:else if page === 'hotkeys'}
+          <HotkeySettings />
+        {:else if page === 'display'}
+          <OsdSettings />
+          <OverlaySettings />
+        {:else if page === 'remapping'}
+          <RuntimeSettings />
+        {:else if page === 'connections'}
+          <DsuSettings />
+          <ApiSettings />
+        {:else if page === 'drivers'}
+          <DriverSettings />
+        {:else}
+          <SettingsSection title={t('settings.profiles_dir')}>
+            <PathRow path={profilesDir} revealLabel={t('common.reveal')} />
+          </SettingsSection>
+          <SettingsSection title={t('settings.log_file')}>
+            <PathRow path={logFile} revealLabel={t('settings.open_log_folder')} />
+          </SettingsSection>
+        {/if}
       </div>
-    {/if}
-  {/if}
-
-  <HotkeySettings />
-
-  <OsdSettings />
-
-  <SettingsSection title={t('welcome.settings_title')}>
-    <button class="btn" onclick={showWelcome}>{t('welcome.again')}</button>
-  </SettingsSection>
-
-  <DeviceSettings />
-
-  <RuntimeSettings />
-
-  <DsuSettings />
-
-  <ApiSettings />
-
-  <PlayerLightSettings />
-
-  <OverlaySettings />
-
-  <DriverSettings />
-
-  <SettingsSection title={t('settings.profiles_dir')}>
-    <PathRow path={profilesDir} revealLabel={t('common.reveal')} />
-  </SettingsSection>
-
-  <SettingsSection title={t('settings.log_file')}>
-    <PathRow path={logFile} revealLabel={t('settings.open_log_folder')} />
-  </SettingsSection>
+    {/key}
+  </div>
 </Dialog>
 
 <style>
+  /* The same height on every page, so the dialog does not jump when the page changes. */
+  .layout {
+    display: grid;
+    grid-template-columns: 184px 1fr;
+    gap: 20px;
+    height: min(560px, calc(100vh - 150px));
+  }
+  .pages {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding-right: 12px;
+    border-right: 1px solid var(--line);
+    outline: none;
+  }
+  .pages button {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 10px;
+    border-radius: var(--radius-m);
+    color: var(--text-dim);
+    text-align: left;
+  }
+  .pages button:hover:not(.on) {
+    color: var(--text);
+    background: var(--bg-2);
+  }
+  .pages button.on {
+    color: var(--accent);
+    background: var(--accent-soft);
+  }
+  .name {
+    flex: 1;
+  }
+  .dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--warning);
+  }
+  .page {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    min-height: 0;
+    overflow-y: auto;
+    padding-right: 6px;
+    outline: none;
+  }
+  /* The page's first section needs no line above it. */
+  .page > :global(.section:first-child) {
+    border-top: none;
+    padding-top: 0;
+  }
   select {
     min-width: 160px;
+  }
+  .welcome {
+    align-self: flex-start;
   }
   .running {
     display: flex;

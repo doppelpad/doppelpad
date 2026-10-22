@@ -294,7 +294,7 @@ Commands:
 | `radial_up`, `radial_down`, `radial_left`, `radial_right` | Open radial menu: point at the sector in that direction |
 | `radial_apply` | Run the pointed sector, or open its sub-menu |
 | `radial_back` | Back to the parent menu, or close the menu |
-| `pad_overlay` | Show or hide the live controller overlay (the app's *Settings → Overlays*) |
+| `pad_overlay` | Show or hide the live controller overlay (the app's *Settings → Display → Overlays*) |
 | `mappings_overlay` | Show or hide the list of the active layer's mappings over the game |
 | `power_off` | Turn this controller off (wireless DualShock 4, DualSense, Switch controllers and Xbox controllers; wired ones stay on) |
 | `shutdown`, `restart`, `sleep`, `hibernate`, `log_off` | Power commands; applications may still ask to save their work (Linux: `systemctl`, `loginctl`) |
@@ -404,9 +404,10 @@ lightbar = { mode = "solid", colors = ["#f97316"] }
 ```
 
 Without a `[lightbar]` the game sets the colour through the virtual DualShock 4. The player
-lights and the DualSense microphone LED are app settings (*Settings → Controller lights*): the
-player lights show the active slot's number (by default only while remapping is on), and the
-microphone LED can show whether remapping is on. Light changes work over USB and Bluetooth.
+lights and the DualSense microphone LED are app settings (*Settings → Controllers → Controller
+lights*): the player lights show the active slot's number (by default only while remapping is
+on), and the microphone LED can show whether remapping is on. Light changes work over USB and
+Bluetooth.
 
 ## Vibration
 
