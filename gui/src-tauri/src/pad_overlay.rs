@@ -168,7 +168,7 @@ fn update_mappings(
     *shown = Some(key);
 }
 
-fn watch(app: AppHandle, live: SharedLive) {
+pub(crate) fn watch(app: AppHandle, live: SharedLive) {
     let mut pad = Pad::default();
     let mut mappings: Option<(String, u8)> = None;
     loop {
@@ -192,13 +192,4 @@ fn watch(app: AppHandle, live: SharedLive) {
         update_pad(&app, &mut pad, pad_on, device);
         update_mappings(&app, &mut mappings, mappings_on, profile, layer, family);
     }
-}
-
-pub fn start(app: &AppHandle) -> tauri::Result<()> {
-    let live = app.state::<AppState>().service.live_shared();
-    let handle = app.clone();
-    std::thread::Builder::new()
-        .name("pad-overlay".into())
-        .spawn(move || watch(handle, live))?;
-    Ok(())
 }

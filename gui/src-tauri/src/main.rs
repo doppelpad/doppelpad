@@ -17,7 +17,7 @@ mod settings;
 mod tests;
 mod tray;
 
-use std::sync::atomic::AtomicU64;
+use std::sync::atomic::{AtomicBool, AtomicU64};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -82,20 +82,21 @@ fn main() {
             let handle = dp_service::spawn(HostOptions { service, ipc: true })?;
 
             app.manage(AppState {
+                live: handle.live_shared(),
                 service: handle,
                 settings: Mutex::new(GuiSettings::load()),
                 profiles_dir,
                 notices: Mutex::new(notices),
                 live_generation: Arc::new(AtomicU64::new(0)),
-                main_focused: std::sync::atomic::AtomicBool::new(false),
+                main_focused: AtomicBool::new(false),
             });
             app.manage(overlay::Overlays::default());
             app.manage(osd::OsdState::default());
             tray::create(app.handle())?;
-            osd::start(app.handle())?;
-            crosshair::start(app.handle())?;
-            radial::start(app.handle())?;
-            pad_overlay::start(app.handle())?;
+            overlay::spawn_watcher(app.handle(), "osd", osd::watch)?;
+            overlay::spawn_watcher(app.handle(), "crosshair", crosshair::watch)?;
+            overlay::spawn_watcher(app.handle(), "radial", radial::watch)?;
+            overlay::spawn_watcher(app.handle(), "pad-overlay", pad_overlay::watch)?;
 
             // Started with Windows: only the tray icon shows.
             let window = create_main_window(app, !autostart::started_hidden())?;
@@ -104,13 +105,7 @@ fn main() {
                 let state = app_handle.state::<AppState>();
                 match event {
                     // Pause remapping while editing so mapped keys don't reach the editor.
-                    WindowEvent::Focused(focused) => {
-                        state
-                            .main_focused
-                            .store(*focused, std::sync::atomic::Ordering::Relaxed);
-                        let stay_live = state.settings.lock().unwrap().stay_live;
-                        let _ = state.call(ServiceCmd::SetSuspended(*focused && !stay_live));
-                    }
+                    WindowEvent::Focused(focused) => state.set_main_focused(*focused),
                     // Closing hides to the tray; remapping keeps running.
                     WindowEvent::CloseRequested { api, .. } => {
                         api.prevent_close();

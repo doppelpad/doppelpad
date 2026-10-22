@@ -259,19 +259,13 @@ fn expire(app: &AppHandle) -> bool {
     true
 }
 
-fn main_focused(app: &AppHandle) -> bool {
-    app.state::<AppState>()
-        .main_focused
-        .load(std::sync::atomic::Ordering::Relaxed)
-}
-
 /// "Game › Config" for a config path.
 fn config_label(app: &AppHandle, path: &str) -> String {
     let dir = app.state::<AppState>().profiles_dir.clone();
     crate::tray::config_label(&library::scan(&dir), path)
 }
 
-fn watch(app: AppHandle, live: SharedLive) {
+pub(crate) fn watch(app: AppHandle, live: SharedLive) {
     let started = Instant::now();
     let mut seen = View::of(&live.get());
     let mut warned = HashMap::new();
@@ -279,7 +273,9 @@ fn watch(app: AppHandle, live: SharedLive) {
         std::thread::sleep(WATCH_INTERVAL);
         let view = View::of(&live.get());
         let s = app.state::<AppState>().settings.lock().unwrap().osd.clone();
-        let quiet = !s.enabled || started.elapsed() < STARTUP_QUIET || main_focused(&app);
+        let quiet = !s.enabled
+            || started.elapsed() < STARTUP_QUIET
+            || app.state::<AppState>().main_focused();
         if view != seen {
             if !quiet {
                 for mut e in events(&seen, &view, &s) {
@@ -310,15 +306,6 @@ fn watch(app: AppHandle, live: SharedLive) {
             notify(&app, e, true);
         }
     }
-}
-
-pub fn start(app: &AppHandle) -> tauri::Result<()> {
-    let live = app.state::<AppState>().service.live_shared();
-    let handle = app.clone();
-    std::thread::Builder::new()
-        .name("osd".into())
-        .spawn(move || watch(handle, live))?;
-    Ok(())
 }
 
 /// Show a sample notification with the current settings.

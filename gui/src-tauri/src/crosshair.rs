@@ -6,9 +6,8 @@ use std::time::Duration;
 
 use dp_core::profile::Crosshair;
 use dp_service::SharedLive;
-use tauri::{AppHandle, Manager, PhysicalPosition, PhysicalSize};
+use tauri::{AppHandle, PhysicalPosition, PhysicalSize};
 
-use crate::commands::AppState;
 use crate::overlay;
 
 const KIND: &str = "crosshair";
@@ -90,7 +89,7 @@ fn hide_magnifier(magnifier: &mut Magnifier) {
     let _ = magnifier;
 }
 
-fn watch(app: AppHandle, live: SharedLive) {
+pub(crate) fn watch(app: AppHandle, live: SharedLive) {
     let mut magnifier = Magnifier::default();
     let mut shown: Option<Crosshair> = None;
     loop {
@@ -108,13 +107,4 @@ fn watch(app: AppHandle, live: SharedLive) {
         }
         shown = want;
     }
-}
-
-pub fn start(app: &AppHandle) -> tauri::Result<()> {
-    let live = app.state::<AppState>().service.live_shared();
-    let handle = app.clone();
-    std::thread::Builder::new()
-        .name("crosshair".into())
-        .spawn(move || watch(handle, live))?;
-    Ok(())
 }

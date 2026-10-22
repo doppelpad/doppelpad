@@ -11,7 +11,6 @@ use dp_service::{LiveRadial, SharedLive};
 use serde::Serialize;
 use tauri::{AppHandle, Manager, PhysicalPosition, PhysicalSize};
 
-use crate::commands::AppState;
 use crate::overlay;
 
 const KIND: &str = "radial";
@@ -117,7 +116,7 @@ fn prepare(app: &AppHandle) {
     }
 }
 
-fn watch(app: AppHandle, live: SharedLive) {
+pub(crate) fn watch(app: AppHandle, live: SharedLive) {
     let mut shown: Option<(RadialMenu, Option<usize>)> = None;
     let mut cache = HashMap::new();
     loop {
@@ -143,15 +142,6 @@ fn watch(app: AppHandle, live: SharedLive) {
         }
         shown = key;
     }
-}
-
-pub fn start(app: &AppHandle) -> tauri::Result<()> {
-    let live = app.state::<AppState>().service.live_shared();
-    let handle = app.clone();
-    std::thread::Builder::new()
-        .name("radial".into())
-        .spawn(move || watch(handle, live))?;
-    Ok(())
 }
 
 #[cfg(test)]
