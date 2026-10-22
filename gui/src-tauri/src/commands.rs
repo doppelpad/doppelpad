@@ -648,9 +648,9 @@ pub fn settings_get(state: State<AppState>) -> GuiSettings {
 pub fn settings_set(
     app: AppHandle,
     state: State<AppState>,
-    mut settings: GuiSettings,
+    settings: GuiSettings,
 ) -> CmdResult<()> {
-    settings.osd = settings.osd.clamped();
+    let settings = settings.clamped();
     {
         let mut current = state.settings.lock().unwrap();
         settings.save().map_err(err)?;
