@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import en from './en.json';
-import de from './de.json';
+import { catalogs, has } from './index.svelte';
 
 type Tree = { [k: string]: string | Tree };
 
@@ -20,14 +20,31 @@ function placeholders(o: Tree): Map<string, string> {
   return out;
 }
 
-describe('translations', () => {
-  it('German has exactly the English keys', () => {
-    expect(keys(de as Tree).sort()).toEqual(keys(en as Tree).sort());
-  });
+/** Every source file of the GUI, as text. */
+const sources = import.meta.glob('../../**/*.{ts,svelte}', { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
 
-  it('placeholders match', () => {
-    const e = placeholders(en as Tree);
-    const d = placeholders(de as Tree);
-    for (const [k, v] of e) expect(d.get(k), k).toBe(v);
+describe('translations', () => {
+  for (const [lang, catalog] of Object.entries(catalogs)) {
+    if (lang === 'en') continue;
+    it(`${lang} has exactly the English keys`, () => {
+      expect(keys(catalog as Tree).sort()).toEqual(keys(en as Tree).sort());
+    });
+
+    it(`${lang} has the English placeholders`, () => {
+      const e = placeholders(en as Tree);
+      const other = placeholders(catalog as Tree);
+      for (const [k, v] of e) expect(other.get(k), k).toBe(v);
+    });
+  }
+
+  it('has every key the code asks for by name', () => {
+    expect(Object.keys(sources).length).toBeGreaterThan(100);
+    const missing: string[] = [];
+    for (const [file, text] of Object.entries(sources)) {
+      for (const m of text.matchAll(/(?<![.\w])(?:t|has)\(\s*'([^'$]+)'/g)) {
+        if (!has(m[1])) missing.push(`${file}: ${m[1]}`);
+      }
+    }
+    expect(missing).toEqual([]);
   });
 });

@@ -21,7 +21,7 @@
   import type { AnalogMapping, AnalogSource, AnalogTarget, ControlName } from '../../lib/types';
   import Chip from '../ui/Chip.svelte';
   import Slider from '../ui/Slider.svelte';
-  import { PCT, sliderHint, type SliderSpec } from '../ui/sliderSpec';
+  import { PCT, sliderHint, sliderUnit, type SliderSpec } from '../ui/sliderSpec';
   import Toggle from '../ui/Toggle.svelte';
 
   /** `fixedSource`: shown for one source (a whole stick), so the source cannot change here. */
@@ -182,7 +182,7 @@
         max={s.max}
         step={s.step}
         scale={s.scale}
-        unit={s.unit}
+        unit={sliderUnit(s)}
         hint={flick && f === 'deadzone' ? t('analog.routes.flick_threshold_hint') : sliderHint('analog.routes', f, s)}
         {disabled}
         onchange={(v) => set({ [f]: v })}

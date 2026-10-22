@@ -15,6 +15,9 @@ export interface SliderSpec {
 /** A 0–1 value shown as a percentage. */
 export const PCT = { scale: 100, unit: '%' } as const;
 
+/** The unit to show: ms as the language writes it, the other symbols as they are. */
+export const sliderUnit = (s: SliderSpec): string | undefined => (s.unit === 'ms' ? t('common.ms') : s.unit);
+
 /** The hint text of a table slider (`prefix` is the field's label namespace), or none. */
 export function sliderHint(prefix: string, field: string, s: SliderSpec): string {
   if (s.hint === true) return t(`${prefix}.${field}_hint`);

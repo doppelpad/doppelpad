@@ -31,7 +31,7 @@
     min={10}
     max={200}
     step={5}
-    unit="ms"
+    unit={t('common.ms')}
     hint={t('vibration.gap_hint')}
     {disabled}
     onchange={(x) => set({ min_delay_ms: Math.round(x) })}

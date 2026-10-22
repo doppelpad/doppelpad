@@ -110,7 +110,7 @@
     <p class="prompt">{prompt(STEPS[index])}</p>
     <p class="hint">{waiting ? t('identify.release') : t('identify.waiting')}</p>
     <div class="actions">
-      <button class="btn" disabled={index === 0} onclick={back}>{t('identify.back')}</button>
+      <button class="btn" disabled={index === 0} onclick={back}>{t('common.back')}</button>
       <button class="btn" onclick={next}>{t('identify.skip')}</button>
     </div>
   {:else}

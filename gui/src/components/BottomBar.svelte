@@ -42,7 +42,7 @@
 
     {#if live && !live.drivers.virtual_pads.available}
       <span class="warn" title={live.drivers.virtual_pads.error ?? ''}>
-        <TriangleAlert size={13} /> ViGEmBus {t('drivers.missing')}
+        <TriangleAlert size={13} /> {t('drivers.missing_named', { driver: 'ViGEmBus' })}
       </span>
     {/if}
   </div>

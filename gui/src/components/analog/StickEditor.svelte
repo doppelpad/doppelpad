@@ -9,7 +9,7 @@
   import { app } from '../../lib/state/app.svelte';
   import type { StickConfig } from '../../lib/types';
   import Slider from '../ui/Slider.svelte';
-  import { PCT, sliderHint, type SliderSpec } from '../ui/sliderSpec';
+  import { PCT, sliderHint, sliderUnit, type SliderSpec } from '../ui/sliderSpec';
   import Toggle from '../ui/Toggle.svelte';
   import CurveEditor from './CurveEditor.svelte';
   import EditorColumns from './EditorColumns.svelte';
@@ -82,7 +82,7 @@
           max={s.max}
           step={s.step}
           scale={s.scale}
-          unit={s.unit}
+          unit={sliderUnit(s)}
           hint={sliderHint('analog.stick', f, s)}
           {disabled}
           onchange={(v) => set({ [f]: v })}
