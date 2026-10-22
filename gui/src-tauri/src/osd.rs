@@ -308,11 +308,11 @@ pub(crate) fn watch(app: AppHandle, live: SharedLive) {
     }
 }
 
-/// Show a sample notification with the current settings.
-#[tauri::command]
+/// Show a sample notification with the current settings. Async: window creation must not
+/// run on the main thread, where plain commands run.
+#[tauri::command(async)]
 pub fn osd_test(app: AppHandle) {
-    // Window creation must not run on the main thread, where sync commands run.
-    std::thread::spawn(move || notify(&app, Event::Test, false));
+    notify(&app, Event::Test, false);
 }
 
 /// Names of the monitors notifications can use, the primary one first.
