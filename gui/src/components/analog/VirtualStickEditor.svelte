@@ -10,7 +10,8 @@
   import Slider from '../ui/Slider.svelte';
   import Toggle from '../ui/Toggle.svelte';
   import CurveEditor from './CurveEditor.svelte';
-  import LayerNote from './LayerNote.svelte';
+  import EditorColumns from './EditorColumns.svelte';
+  import AnalogLayerNote from './AnalogLayerNote.svelte';
 
   let { side }: { side: Side } = $props();
 
@@ -59,9 +60,9 @@
   <section class="virtual">
     <div class="section-title">{t('analog.virtual.title')}</div>
     <p class="hint">{t('analog.virtual.hint')}</p>
-    <LayerNote kind="virtual_sticks" sides={[side]} />
-    <div class="grid">
-      <div class="controls">
+    <AnalogLayerNote kind="virtual_sticks" sides={[side]} />
+    <EditorColumns>
+      {#snippet controls()}
         <Segmented
           variant="chips"
           label={t('analog.virtual.title')}
@@ -216,8 +217,8 @@
             />
           {/if}
         </div>
-      </div>
-      <div class="previews">
+      {/snippet}
+      {#snippet previews()}
         <svg viewBox="-4 -4 {W + 8} {H + 22}" role="img" aria-label={t('analog.virtual.preview')}>
           <rect x="0" y="0" width={W} height={H} class="frame" />
           <line x1="0" x2={W} y1={(1 - cfg.max) * H} y2={(1 - cfg.max) * H} class="cap" />
@@ -232,8 +233,8 @@
           <CurveEditor cfg={curveCfg} live={null} {disabled} onchange={(curve: CurvePoint[]) => set({ curve })} />
           <p class="live-hint">{t('analog.virtual.curve_hint')}</p>
         {/if}
-      </div>
-    </div>
+      {/snippet}
+    </EditorColumns>
   </section>
 {/if}
 
@@ -250,34 +251,11 @@
     color: var(--text-dim);
     font-size: var(--fs-s);
   }
-  .grid {
-    display: grid;
-    grid-template-columns: minmax(240px, 1fr) minmax(260px, 320px);
-    gap: 28px;
-    align-items: start;
-  }
-  @container analog (max-width: 620px) {
-    .grid {
-      grid-template-columns: minmax(0, 1fr);
-    }
-  }
-  .controls {
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-    min-width: 0;
-  }
   .jitter {
     display: flex;
     flex-direction: column;
     gap: 14px;
     padding-top: 4px;
-  }
-  .previews {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    min-width: 0;
   }
   svg {
     width: 100%;

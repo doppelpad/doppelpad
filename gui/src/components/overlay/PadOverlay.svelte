@@ -9,6 +9,7 @@
   import { controlsFromPad, drawingsFor, moveStickCaps, triggerAxis } from '../../lib/model/devices';
   import { overlayContent } from '../../lib/overlay';
   import type { Catalog, Corner, LiveDevice } from '../../lib/types';
+  import CornerFrame from './CornerFrame.svelte';
 
   type Content = { device: LiveDevice; opacity: number; corner: Corner };
   let content = $state<Content | null>(null);
@@ -59,12 +60,7 @@
 
 {#if content && layout}
   {@const [, , vw, vh] = layout.viewBox}
-  <div
-    class="frame"
-    class:right={content.corner.endsWith('right')}
-    class:bottom={content.corner.startsWith('bottom')}
-    style:opacity={content.opacity / 100}
-  >
+  <CornerFrame corner={content.corner} opacity={content.opacity}>
     <div class="card" style="aspect-ratio: {vw} / {vh}">
       <div class="drawing" bind:this={drawing}>{@html layout.svg}</div>
       {#if bars.length}
@@ -82,24 +78,10 @@
         </svg>
       {/if}
     </div>
-  </div>
+  </CornerFrame>
 {/if}
 
 <style>
-  .frame {
-    position: fixed;
-    inset: 0;
-    display: flex;
-    align-items: flex-start;
-    justify-content: flex-start;
-    padding: 6px;
-  }
-  .frame.right {
-    justify-content: flex-end;
-  }
-  .frame.bottom {
-    align-items: flex-end;
-  }
   .card {
     position: relative;
     max-width: 100%;

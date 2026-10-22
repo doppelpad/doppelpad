@@ -1,9 +1,18 @@
 <script lang="ts">
   // Right-hand editor for the selected control: activator, actions, mode, block, layer
   // jump, description and timing overrides.
-  import { Plus, X, Trash2, Info, ChevronRight, Zap, Repeat, Ban, Clapperboard, SlidersHorizontal } from '@lucide/svelte';
+  import {
+    Plus,
+    Trash2,
+    Info,
+    ChevronRight,
+    Zap,
+    Repeat,
+    Ban,
+    Clapperboard,
+    SlidersHorizontal,
+  } from '@lucide/svelte';
   import { t } from '../../lib/i18n/index.svelte';
-  import { layerColor } from '../../lib/theme/layers';
   import {
     ZONES,
     analogTabOf,
@@ -34,11 +43,14 @@
   import { app, type AnalogTab } from '../../lib/state/app.svelte';
   import type { Action, Activator, Combo, JumpMode, Mapping, Mode } from '../../lib/types';
   import Segmented, { type SegmentedOption } from '../ui/Segmented.svelte';
+  import Chip from '../ui/Chip.svelte';
+  import LayerNote from '../ui/LayerNote.svelte';
   import Toggle from '../ui/Toggle.svelte';
   import ActionParams from './ActionParams.svelte';
   import ActionPicker from './ActionPicker.svelte';
   import ActivatorIcon from './ActivatorIcon.svelte';
   import MsInput from './MsInput.svelte';
+  import PanelHeader from './PanelHeader.svelte';
   import ZoneEditor from './ZoneEditor.svelte';
 
   let picking = $state(false);
@@ -219,13 +231,7 @@
       {/each}
     </div>
   {:else}
-    <div class="head">
-      <div class="title">
-        <span class="name">{title}</span>
-        <span class="layer" style="--c: {layerColor(app.layer)}">{app.layerLabel(app.layer)}</span>
-      </div>
-      <button class="icon-btn" title={t('common.close')} onclick={() => app.select(null)}><X size={16} /></button>
-    </div>
+    <PanelHeader {title} layer={app.layer} onclose={() => app.select(null)} />
 
     {#if analogTab}
       {@const stick = analogTab !== 'triggers'}
@@ -279,7 +285,7 @@
     </div>
 
     {#if inheritedFrom}
-      <div class="note"><Info size={14} /> {t('binding.inherited')}</div>
+      <LayerNote icon={Info}>{t('binding.inherited')}</LayerNote>
     {/if}
 
     <div class="section-title">{t('binding.actions')}</div>
@@ -288,7 +294,7 @@
     {:else}
       <div class="chips">
         {#each shown?.actions ?? [] as a, i (i)}
-          <span class="chip" class:editing={editingIdx === i}>
+          <Chip active={editingIdx === i} onremove={readOnly ? undefined : () => removeAction(i)}>
             {#if hasParameters(a)}
               <button class="chip-label" title={t('binding.edit_params')} onclick={() => (editingIdx = editingIdx === i ? null : i)}>
                 {actionLabel(a)}
@@ -296,13 +302,10 @@
             {:else}
               {actionLabel(a)}
             {/if}
-            {#if !readOnly}
-              <button class="chip-x" title={t('common.remove')} onclick={() => removeAction(i)}><X size={11} /></button>
-            {/if}
-          </span>
+          </Chip>
         {/each}
         {#if !readOnly}
-          <button class="chip add" class:on={picking} onclick={() => (picking = !picking)}>
+          <button class="add" class:on={picking} onclick={() => (picking = !picking)}>
             <Plus size={13} /> {t('binding.add_action')}
           </button>
         {/if}
@@ -515,30 +518,6 @@
   .ov-name {
     color: var(--text);
   }
-  .head {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 8px;
-  }
-  .title {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    min-width: 0;
-  }
-  .name {
-    font-size: 16px;
-    font-weight: 600;
-  }
-  .layer {
-    align-self: flex-start;
-    font-size: var(--fs-xs);
-    padding: 1px 8px;
-    border-radius: var(--radius-pill);
-    border: 1px solid var(--c);
-    color: var(--c);
-  }
   .analog-link {
     display: flex;
     align-items: center;
@@ -615,16 +594,6 @@
     color: var(--text);
     font-weight: 600;
   }
-  .note {
-    display: flex;
-    gap: 6px;
-    align-items: center;
-    font-size: var(--fs-s);
-    color: var(--layer-2);
-    background: color-mix(in srgb, var(--layer-2) 10%, transparent);
-    border-radius: var(--radius-s);
-    padding: 6px 8px;
-  }
   .section-title {
     margin-top: 6px;
   }
@@ -633,52 +602,31 @@
     flex-wrap: wrap;
     gap: 6px;
   }
-  .chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 5px 8px 5px 10px;
-    border-radius: var(--radius-pill);
-    background: var(--bg-3);
-    border: 1px solid var(--line-strong);
-    font-weight: 500;
-  }
-  .chip.editing {
-    border-color: var(--accent);
-  }
   .chip-label {
     color: inherit;
     font: inherit;
     text-decoration: underline dotted;
     text-underline-offset: 3px;
   }
+  .add {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 5px 10px;
+    border-radius: var(--radius-pill);
+    border: 1px dashed var(--line-strong);
+    color: var(--accent);
+    font-weight: 500;
+  }
+  .add.on {
+    border-style: solid;
+    background: var(--accent-soft);
+  }
   .params-box {
     padding: 8px 10px;
     border: 1px solid var(--line);
     border-radius: var(--radius-m);
     background: var(--bg-1);
-  }
-  .chip-x {
-    display: inline-grid;
-    place-items: center;
-    width: 16px;
-    height: 16px;
-    border-radius: 50%;
-    color: var(--text-dim);
-  }
-  .chip-x:hover {
-    background: var(--danger);
-    color: var(--on-danger);
-  }
-  .chip.add {
-    background: none;
-    border-style: dashed;
-    color: var(--accent);
-    padding-right: 10px;
-  }
-  .chip.add.on {
-    border-style: solid;
-    background: var(--accent-soft);
   }
   .blocked {
     display: flex;

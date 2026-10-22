@@ -2,9 +2,7 @@
   // Side panel for a whole stick: what it does on the current layer (mouse, WASD, arrow keys,
   // flick stick) and, for a route, its settings; a mouse route also gets response presets
   // and a graph with the live stick deflection.
-  import { X } from '@lucide/svelte';
   import { t } from '../../lib/i18n/index.svelte';
-  import { layerColor } from '../../lib/theme/layers';
   import { type Side } from '../../lib/model/analog';
   import {
     MOUSE_PRESETS,
@@ -19,6 +17,7 @@
   import { app } from '../../lib/state/app.svelte';
   import type { AnalogMapping } from '../../lib/types';
   import RouteCard from '../analog/RouteCard.svelte';
+  import PanelHeader from './PanelHeader.svelte';
   import Segmented from '../ui/Segmented.svelte';
 
   let { side }: { side: Side } = $props();
@@ -58,13 +57,7 @@
 </script>
 
 <div class="panel">
-  <div class="head">
-    <div class="title">
-      <span class="name">{t(`analog.routes.sources.${SIDES[side].source}`)}</span>
-      <span class="layer" style="--c: {layerColor(app.layer)}">{app.layerLabel(app.layer)}</span>
-    </div>
-    <button class="icon-btn" title={t('common.close')} onclick={() => app.select(null)}><X size={16} /></button>
-  </div>
+  <PanelHeader title={t(`analog.routes.sources.${SIDES[side].source}`)} layer={app.layer} onclose={() => app.select(null)} />
 
   <div class="section-title">{t('binding.whole_stick')}</div>
   <Segmented
@@ -128,30 +121,6 @@
     flex-direction: column;
     gap: 10px;
     padding: 14px 14px 20px;
-  }
-  .head {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 8px;
-  }
-  .title {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    min-width: 0;
-  }
-  .name {
-    font-size: 16px;
-    font-weight: 600;
-  }
-  .layer {
-    align-self: flex-start;
-    font-size: var(--fs-xs);
-    padding: 1px 8px;
-    border-radius: var(--radius-pill);
-    border: 1px solid var(--c);
-    color: var(--c);
   }
   .section-title {
     margin-top: 4px;

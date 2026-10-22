@@ -1,11 +1,12 @@
 <script lang="ts">
   // The controller's light bar: for Main and, optionally, per layer — a mode, its colours and
   // how fast it animates. DualShock 4 and DualSense show it.
-  import { Plus, X } from '@lucide/svelte';
+  import { Plus } from '@lucide/svelte';
   import { t } from '../lib/i18n/index.svelte';
   import { layerIds, setLight } from '../lib/model/profile';
   import { app } from '../lib/state/app.svelte';
   import type { Light, LightMode } from '../lib/types';
+  import RemoveButton from './ui/RemoveButton.svelte';
   import Slider from './ui/Slider.svelte';
   import Toggle from './ui/Toggle.svelte';
 
@@ -63,7 +64,7 @@
           <span class="color">
             <input type="color" value={c} {disabled} onchange={(e) => setColor(i, e.currentTarget.value)} />
             {#if !disabled && light.colors.length > 1}
-              <button class="chip-x" title={t('common.remove')} onclick={() => set({ colors: light.colors.filter((_, j) => j !== i) })}><X size={11} /></button>
+              <RemoveButton onclick={() => set({ colors: light.colors.filter((_, j) => j !== i) })} />
             {/if}
           </span>
         {/each}
@@ -126,17 +127,5 @@
   }
   .color input {
     width: 34px;
-  }
-  .chip-x {
-    display: inline-grid;
-    place-items: center;
-    width: 16px;
-    height: 16px;
-    border-radius: 50%;
-    color: var(--text-dim);
-  }
-  .chip-x:hover {
-    background: var(--danger);
-    color: var(--on-danger);
   }
 </style>

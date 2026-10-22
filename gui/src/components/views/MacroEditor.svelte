@@ -5,7 +5,6 @@
   import { ArrowLeft, ArrowUp, ArrowDown, X, Circle, Square, Plus, Timer, Vibrate, Gamepad2, SeparatorHorizontal } from '@lucide/svelte';
   import { onDestroy } from 'svelte';
   import { t } from '../../lib/i18n/index.svelte';
-  import { layerColor } from '../../lib/theme/layers';
   import { actionLabel, comboLabel } from '../../lib/model/labels';
   import { keyFromEvent } from '../../lib/model/keymap';
   import { recordedSteps } from '../../lib/model/actions';
@@ -15,6 +14,7 @@
   import type { Action, ControlName, Mapping, Mode, Press } from '../../lib/types';
   import ActionParams from '../binding/ActionParams.svelte';
   import ActionPicker from '../binding/ActionPicker.svelte';
+  import LayerBadge from '../ui/LayerBadge.svelte';
   import Segmented from '../ui/Segmented.svelte';
 
   const target = $derived(app.macroTarget);
@@ -152,7 +152,7 @@
           control: comboLabel(target.trigger, app.family),
         })}
       </h2>
-      <span class="layer" style="--c: {layerColor(target.layer)}">{app.layerLabel(target.layer)}</span>
+      <LayerBadge layer={target.layer} />
     </div>
 
     <Segmented
@@ -281,13 +281,6 @@
     margin: 0;
     font-size: 17px;
     font-weight: 600;
-  }
-  .layer {
-    font-size: var(--fs-xs);
-    padding: 1px 8px;
-    border-radius: var(--radius-pill);
-    border: 1px solid var(--c);
-    color: var(--c);
   }
   .params {
     display: flex;

@@ -10,7 +10,7 @@
   import { app } from '../../lib/state/app.svelte';
   import type { TriggerConfig } from '../../lib/types';
   import Slider from '../ui/Slider.svelte';
-  import LayerNote from './LayerNote.svelte';
+  import AnalogLayerNote from './AnalogLayerNote.svelte';
   import TriggerEffectEditor from './TriggerEffectEditor.svelte';
 
 
@@ -27,7 +27,7 @@
 </script>
 
 {#if app.profile && def}
-  <LayerNote kind="triggers" sides={['left', 'right']} />
+  <AnalogLayerNote kind="triggers" sides={['left', 'right']} />
   <div class="triggers">
     {#each SIDE_NAMES as side (side)}
       {@const cfg = triggerConfig(app.profile, side, def, app.layer)}
