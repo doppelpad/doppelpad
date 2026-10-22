@@ -4,11 +4,11 @@
 // `null` is simply not shown.
 
 export const OPERATOR: Record<keyof typeof FIELDS, string | null> = {
-  name: null,
-  street: null,
-  city: null,
-  country: null,
-  email: null,
+  name: 'Julian Zameit',
+  street: 'Im Schneppenkamp 2',
+  city: '45525 Hattingen',
+  country: 'Deutschland',
+  email: 'julian.zameit.96@gmail.com',
   phone: null,
 };
 
