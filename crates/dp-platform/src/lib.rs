@@ -393,7 +393,7 @@ pub trait DeviceHider: Send {
 pub trait ForegroundWatcher: Send {
     fn foreground_process(&mut self) -> Option<String>;
     /// Process id of the application that has focus (for a dialog, of the window that owns
-    /// it), where the platform can tell.
+    /// it on Windows; Linux reports the dialog's own process), where the platform can tell.
     fn foreground_pid(&mut self) -> Option<u32> {
         None
     }

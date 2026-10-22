@@ -11,22 +11,25 @@
 //! that handle hides the controller from everyone else while our reader keeps receiving
 //! events, and rumble written through it still reaches a grabbed device.
 
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, HashSet};
 use std::io;
 use std::os::fd::{AsFd, AsRawFd};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use dp_core::pad::{Motion, PadButton, PadState, Rumble, TouchPoint, unit_to_u16_trunc};
 use evdev::{
-    AbsoluteAxisCode, Device, FFEffect, FFEffectCode, FFEffectData, FFEffectKind, FFReplay,
-    FFTrigger, KeyCode, PropType,
+    Device, FFEffect, FFEffectCode, FFEffectData, FFEffectKind, FFReplay, FFTrigger, InputEvent,
+    PropType,
 };
 
 use super::codes::*;
-use super::dev::{abs_axes, event_nodes, is_own, parent_device, set_grab, wait_readable};
+use super::dev::{
+    Fetch, NodeTracker, abs_axes, event_nodes, fetch, has_abs, has_key, is_own, parent_device,
+    set_grab,
+};
 use super::padmap::{
     AbsRange, MotionMapper, NINTENDO_VID, PadMapper, TouchMapper, family_for, joycon_side,
     stable_id,
@@ -36,9 +39,6 @@ use crate::{
     DeviceHider, DeviceId, DeviceInfo, GamepadBackend, PadFamily, PadSnapshot, PlatformError,
     Result,
 };
-
-const RETRY_FAILED: Duration = Duration::from_secs(30);
-const READ_TIMEOUT_MS: i32 = 250;
 
 /// The latest state of one controller, written by its node readers.
 #[derive(Copy, Clone, Debug, Default)]
@@ -160,15 +160,11 @@ fn read_loop(
 ) {
     let fd = dev.as_raw_fd();
     'outer: while !stop.load(Ordering::Relaxed) {
-        match wait_readable(fd, READ_TIMEOUT_MS) {
-            Ok(true) => {}
-            Ok(false) => continue,
-            Err(_) => break,
-        }
-        let events = match dev.fetch_events() {
-            Ok(events) => events,
-            Err(e) if e.kind() == io::ErrorKind::WouldBlock => continue,
-            Err(_) => break, // ENODEV: unplugged
+        let events: Vec<InputEvent> = match fetch(fd, || dev.fetch_events().map(Iterator::collect))
+        {
+            Fetch::Ready(events) => events,
+            Fetch::Idle => continue,
+            Fetch::Closed(_) => break, // ENODEV: unplugged
         };
         for ev in events {
             let (ty, code, value) = (ev.event_type().0, ev.code(), ev.value());
@@ -295,8 +291,7 @@ impl EvdevBackend {
         let shared: SharedRef = Arc::default();
         let mut scan = Scanner {
             shared: shared.clone(),
-            ignored: HashMap::new(),
-            failed: HashMap::new(),
+            nodes: NodeTracker::default(),
             warned_access: false,
             warned_switch2: false,
         };
@@ -331,16 +326,11 @@ fn classify(dev: &Device) -> Kind {
     if is_own(dev) {
         return Kind::Other;
     }
-    let has_key = |c| dev.supported_keys().is_some_and(|k| k.contains(KeyCode(c)));
-    let has_abs = |c| {
-        dev.supported_absolute_axes()
-            .is_some_and(|a| a.contains(AbsoluteAxisCode(c)))
-    };
-    if dev.properties().contains(PropType::ACCELEROMETER) && has_abs(ABS_RX) {
+    if dev.properties().contains(PropType::ACCELEROMETER) && has_abs(dev, ABS_RX) {
         Kind::Motion
-    } else if has_key(BTN_SOUTH) && has_abs(ABS_X) {
+    } else if has_key(dev, BTN_SOUTH) && has_abs(dev, ABS_X) {
         Kind::Pad
-    } else if has_abs(ABS_MT_POSITION_X) && has_key(BTN_LEFT) {
+    } else if has_abs(dev, ABS_MT_POSITION_X) && has_key(dev, BTN_LEFT) {
         Kind::Touch // only kept if it belongs to a controller
     } else {
         Kind::Other
@@ -349,11 +339,9 @@ fn classify(dev: &Device) -> Kind {
 
 struct Scanner {
     shared: SharedRef,
-    /// Nodes that are not controllers, until they disappear. `true` marks motion / touch
-    /// nodes without a controller yet, which are retried when a new controller shows up.
-    ignored: HashMap<PathBuf, bool>,
-    /// Nodes we could not open, with the time of the failure.
-    failed: HashMap<PathBuf, Instant>,
+    /// Nodes that are not controllers; motion / touch nodes without a controller yet wait
+    /// for the next new controller.
+    nodes: NodeTracker,
     warned_access: bool,
     warned_switch2: bool,
 }
@@ -361,13 +349,11 @@ struct Scanner {
 impl Scanner {
     fn scan(&mut self, pass: &Pass) {
         if pass.requested {
-            self.failed.clear();
+            self.nodes.retry_failed();
         }
         let present = event_nodes();
         let now = Instant::now();
-        self.ignored.retain(|p, _| present.contains(p));
-        self.failed
-            .retain(|p, t| present.contains(p) && now - *t < RETRY_FAILED);
+        self.nodes.prune(&present, now);
 
         let mut shared = self.shared.lock().unwrap();
         shared.pads.retain(|_, pad| {
@@ -393,10 +379,7 @@ impl Scanner {
             if pass.stopping() {
                 return;
             }
-            if known.contains(&path)
-                || self.ignored.contains_key(&path)
-                || self.failed.contains_key(&path)
-            {
+            if known.contains(&path) || self.nodes.skips(&path) {
                 continue;
             }
             let dev = match Device::open(&path) {
@@ -409,7 +392,7 @@ impl Scanner {
                         );
                         self.warned_access = true;
                     }
-                    self.failed.insert(path, now);
+                    self.nodes.failed(path, now);
                     continue;
                 }
             };
@@ -421,22 +404,20 @@ impl Scanner {
                     tracing::warn!("Switch 2 controllers are not supported on Linux yet");
                     self.warned_switch2 = true;
                 }
-                self.ignored.insert(path, false);
+                self.nodes.ignore(path);
                 continue;
             }
             match classify(&dev) {
                 Kind::Pad => pads.push((path, dev)),
                 Kind::Motion | Kind::Touch => extras.push((path, dev)),
-                Kind::Other => {
-                    self.ignored.insert(path, false);
-                }
+                Kind::Other => self.nodes.ignore(path),
             }
         }
 
         let mut shared = self.shared.lock().unwrap();
         if !pads.is_empty() {
             // Motion / touch nodes seen before their controller get another chance.
-            self.ignored.retain(|_, extra| !*extra);
+            self.nodes.retry_waiting();
         }
         for (path, dev) in pads {
             match open_pad(&path, dev) {
@@ -446,7 +427,7 @@ impl Scanner {
                 }
                 Err(e) => {
                     tracing::debug!(path = %path.display(), "cannot open controller: {e}");
-                    self.failed.insert(path, now);
+                    self.nodes.failed(path, now);
                 }
             }
         }
@@ -461,12 +442,12 @@ impl Scanner {
                     id.product(),
                 )
             }) else {
-                self.ignored.insert(path, true);
+                self.nodes.wait(path);
                 continue;
             };
             if let Err(e) = attach_extra(pad, &path, dev) {
                 tracing::debug!(path = %path.display(), "cannot open controller node: {e}");
-                self.failed.insert(path, now);
+                self.nodes.failed(path, now);
             }
         }
         if let Err(e) = shared.sync_grabs() {

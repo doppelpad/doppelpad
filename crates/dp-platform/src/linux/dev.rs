@@ -1,11 +1,13 @@
 //! Shared helpers for evdev device nodes and uinput.
 
+use std::collections::HashMap;
 use std::ffi::CString;
 use std::io;
 use std::os::fd::RawFd;
 use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
 
-use evdev::{AbsInfo, AbsoluteAxisCode, Device};
+use evdev::{AbsInfo, AbsoluteAxisCode, Device, KeyCode, RelativeAxisCode};
 
 use super::padmap::AbsRange;
 use crate::{PlatformError, Result};
@@ -43,9 +45,106 @@ pub fn event_nodes() -> Vec<PathBuf> {
     nodes.into_iter().map(|(_, p)| p).collect()
 }
 
+/// How long a node that could not be opened is left alone.
+const RETRY_FAILED: Duration = Duration::from_secs(30);
+
+/// The nodes a scanner leaves alone: ones it does not want, until they disappear, and ones it
+/// could not open, for [`RETRY_FAILED`].
+#[derive(Default)]
+pub struct NodeTracker {
+    /// `true` marks nodes that only wait for something else (see [`NodeTracker::wait`]).
+    ignored: HashMap<PathBuf, bool>,
+    /// With the time of the failure.
+    failed: HashMap<PathBuf, Instant>,
+}
+
+impl NodeTracker {
+    /// Forget the nodes that are gone and the failures old enough to retry.
+    pub fn prune(&mut self, present: &[PathBuf], now: Instant) {
+        self.ignored.retain(|p, _| present.contains(p));
+        self.failed
+            .retain(|p, t| present.contains(p) && now - *t < RETRY_FAILED);
+    }
+
+    /// Whether the scanner leaves `path` alone.
+    pub fn skips(&self, path: &Path) -> bool {
+        self.ignored.contains_key(path) || self.failed.contains_key(path)
+    }
+
+    /// Leave `path` alone until it disappears.
+    pub fn ignore(&mut self, path: PathBuf) {
+        self.ignored.insert(path, false);
+    }
+
+    /// Leave `path` alone until [`NodeTracker::retry_waiting`].
+    pub fn wait(&mut self, path: PathBuf) {
+        self.ignored.insert(path, true);
+    }
+
+    /// Look at the nodes left waiting again.
+    pub fn retry_waiting(&mut self) {
+        self.ignored.retain(|_, waiting| !*waiting);
+    }
+
+    /// `path` could not be opened at `now`.
+    pub fn failed(&mut self, path: PathBuf, now: Instant) {
+        self.failed.insert(path, now);
+    }
+
+    /// Retry every node that could not be opened.
+    pub fn retry_failed(&mut self) {
+        self.failed.clear();
+    }
+}
+
+/// Whether `dev` reports key or button `code`.
+pub fn has_key(dev: &Device, code: u16) -> bool {
+    dev.supported_keys()
+        .is_some_and(|k| k.contains(KeyCode(code)))
+}
+
+/// Whether `dev` reports absolute axis `code`.
+pub fn has_abs(dev: &Device, code: u16) -> bool {
+    dev.supported_absolute_axes()
+        .is_some_and(|a| a.contains(AbsoluteAxisCode(code)))
+}
+
+/// Whether `dev` reports relative axis `code`.
+pub fn has_rel(dev: &Device, code: u16) -> bool {
+    dev.supported_relative_axes()
+        .is_some_and(|r| r.contains(RelativeAxisCode(code)))
+}
+
+/// How long a reader thread waits for events before it looks at its stop flag again.
+pub const READ_TIMEOUT_MS: i32 = 100;
+
+/// What a reader thread found on its node.
+pub enum Fetch<T> {
+    /// Events, as the fetch collected them.
+    Ready(T),
+    /// None yet: look at the stop flag and wait again.
+    Idle,
+    /// The node failed or is gone (unplugged).
+    Closed(io::Error),
+}
+
+/// Wait up to [`READ_TIMEOUT_MS`] for `fd` to be readable, then `fetch` its events.
+pub fn fetch<T>(fd: RawFd, fetch: impl FnOnce() -> io::Result<T>) -> Fetch<T> {
+    match wait_readable(fd, READ_TIMEOUT_MS) {
+        Ok(true) => {}
+        Ok(false) => return Fetch::Idle,
+        Err(e) => return Fetch::Closed(e),
+    }
+    match fetch() {
+        Ok(events) => Fetch::Ready(events),
+        Err(e) if e.kind() == io::ErrorKind::WouldBlock => Fetch::Idle,
+        Err(e) => Fetch::Closed(e),
+    }
+}
+
 /// Wait up to `timeout_ms` for `fd` to have data (or an error / hangup, which the next read
-/// then reports). Lets reader threads notice their stop flag.
-pub fn wait_readable(fd: RawFd, timeout_ms: i32) -> io::Result<bool> {
+/// then reports).
+fn wait_readable(fd: RawFd, timeout_ms: i32) -> io::Result<bool> {
     let mut p = libc::pollfd {
         fd,
         events: libc::POLLIN,

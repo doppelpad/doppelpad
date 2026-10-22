@@ -6,7 +6,7 @@
 //! `phys` starting with `doppelpad/`, which the input backends use to skip their own
 //! devices (the Linux counterpart of the `VirtualIgnoreList` on Windows).
 //!
-//! The pure translation code (`codes`, `padmap`, `kbmmap`, `procname`) also compiles in
+//! The pure translation code (`codes`, `padmap`, `x360`, `kbmmap`, `procname`) also compiles in
 //! tests on other OSes, so it is unit-tested everywhere.
 
 #![cfg_attr(not(target_os = "linux"), allow(dead_code))]
@@ -15,6 +15,7 @@ mod codes;
 mod kbmmap;
 mod padmap;
 mod procname;
+mod x360;
 
 #[cfg(target_os = "linux")]
 mod capture;
@@ -28,6 +29,8 @@ mod gamepad;
 mod system;
 #[cfg(target_os = "linux")]
 mod uinput;
+#[cfg(target_os = "linux")]
+mod x11;
 
 #[cfg(target_os = "linux")]
 pub fn platform() -> crate::Platform {
