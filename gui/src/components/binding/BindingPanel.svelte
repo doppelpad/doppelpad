@@ -5,9 +5,9 @@
   import { t } from '../../lib/i18n/index.svelte';
   import { layerColor } from '../../lib/theme/layers';
   import {
-    SIDES,
-    SIDE_NAMES,
     ZONES,
+    analogTabOf,
+    fullPullBase,
     isAnyDirection,
     withZone,
     zoneParts,
@@ -16,9 +16,12 @@
   import {
     ACTIVATORS,
     activatorOf,
+    applyMode,
+    isBlocked,
+    isMacroMode,
+    singleControl,
     actionLabel,
     addLayer,
-    comboList,
     effectiveMappings,
     layerIds,
     layerOf,
@@ -26,9 +29,9 @@
     modeOf,
     nativeAction,
     removeMapping,
-    sameAction,
   } from '../../lib/model/profile';
   import { hasParameters } from '../../lib/model/actions';
+  import { parseNonNegInt } from '../../lib/model/numbers';
   import { comboLabel } from '../../lib/model/labels';
   import { app, type AnalogTab } from '../../lib/state/app.svelte';
   import type { Action, Activator, Combo, JumpMode, Mapping, Mode } from '../../lib/types';
@@ -56,8 +59,8 @@
   /** What the panel shows: this layer's mapping, else the inherited one. */
   const shown = $derived<Mapping | undefined>(own ?? inheritedFrom);
   const mode = $derived<Mode>(shown ? modeOf(shown) : 'hold');
-  const blocked = $derived(!!shown && (shown.actions ?? []).length === 0 && !shown.jump);
-  const isMacro = $derived(mode === 'once' || mode === 'repeat' || mode === 'while_held');
+  const blocked = $derived(isBlocked(shown));
+  const isMacro = $derived(isMacroMode(mode));
   /** The control's own output, which turbo/toggle fall back to when nothing is assigned. */
   const native = $derived(combo ? nativeAction(combo) : null);
   /** Turbo/toggle can always be switched off; on needs outputs: assigned ones or the control's own. */
@@ -68,27 +71,14 @@
 
   const title = $derived(combo ? comboLabel(combo, app.family) : '');
 
+  /** The selected control, when it is a single one. */
+  const single = $derived(combo ? singleControl(combo) : null);
   /** The analog settings page of a selected stick or trigger control (including its zones). */
-  const analogTab = $derived.by<AnalogTab | null>(() => {
-    const list = combo ? comboList(combo) : [];
-    if (list.length !== 1) return null;
-    const c = list[0];
-    for (const side of SIDE_NAMES) if (c === SIDES[side].click || c.startsWith(SIDES[side].stick)) return side;
-    if (/^(LT|RT)(Full|Low|Med|High)?$/.test(c)) return 'triggers';
-    return null;
-  });
-
+  const analogTab = $derived<AnalogTab | null>(single ? analogTabOf(single) : null);
   /** The trigger (`LT`/`RT`) whose full pull is selected, which sits next to its zones. */
-  const fullPull = $derived.by(() => {
-    const list = combo ? comboList(combo) : [];
-    return list.length === 1 ? (/^(LT|RT)Full$/.exec(list[0])?.[1] ?? null) : null;
-  });
+  const fullPull = $derived(single ? fullPullBase(single) : null);
   /** A stick direction, trigger or one of their zones: the panel offers its zones. */
-  const zone = $derived.by(() => {
-    const list = combo ? comboList(combo) : [];
-    if (list.length !== 1) return null;
-    return zoneParts(fullPull ?? list[0]);
-  });
+  const zone = $derived(single ? zoneParts(fullPull ?? single) : null);
   /** Zones (and the whole range, `null`) that have a mapping on this layer. */
   const usedZones = $derived.by(() => {
     const used = new Set<ZoneName | null>();
@@ -124,18 +114,8 @@
     edit((m) => (m.actions = (m.actions ?? []).filter((_, j) => j !== i)));
   }
 
-  /**
-   * Turbo and toggle act on the outputs, so a control without any starts from its own output
-   * (turbo on A pulses A). Back in hold mode a mapping that is just that output goes away.
-   */
   function setMode(next: Mode) {
-    edit((m) => {
-      m.mode = next;
-      const acts = m.actions ?? [];
-      if (next !== 'hold' && acts.length === 0 && native) m.actions = [{ ...native }];
-      const onlyNative = acts.length === 1 && !!native && sameAction(acts[0], native) && !m.jump && !m.description;
-      if (next === 'hold' && onlyNative) m.actions = [];
-    });
+    edit((m) => applyMode(m, next, native));
   }
 
   function setBlocked(on: boolean) {
@@ -169,10 +149,7 @@
     edit((m) => m.jump && (m.jump = { ...m.jump, mode }));
   }
 
-  function num(v: string): number | undefined {
-    const n = parseInt(v, 10);
-    return Number.isFinite(n) && n >= 0 ? n : undefined;
-  }
+  const num = (v: string) => parseNonNegInt(v) ?? undefined;
 
   type TimingField = 'turbo_ms' | 'long_press_ms' | 'double_tap_ms' | 'triple_tap_ms' | 'key_delay_ms';
   function setTiming(field: TimingField, v: string) {

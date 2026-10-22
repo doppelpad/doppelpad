@@ -3,7 +3,8 @@
   import { api } from '../lib/api';
   import { t } from '../lib/i18n/index.svelte';
   import { setProfileTiming, setVirtualDevice, type TimingField } from '../lib/model/profile';
-  import { setOrDrop } from '../lib/model/util';
+  import { MOUSE_ZONE_DEFAULTS, SHAKE_DEFAULTS, TURN_DEFAULTS, withMouseZone, withShake, withTurn } from '../lib/model/output';
+  import { parseNonNegInt } from '../lib/model/numbers';
   import { app } from '../lib/state/app.svelte';
   import type { KbmSource, KeyRepeat, Output, VirtualPadType } from '../lib/types';
   import CrosshairSettings from './crosshair/CrosshairSettings.svelte';
@@ -19,55 +20,36 @@
   const REPEATS = ['native', 'fast', 'slow', 'off', 'custom'] as const;
 
   function setRepeat(r: KeyRepeat) {
-
     app.edit((p) => setVirtualDevice(p, 'keyboard', r === 'native' ? undefined : { repeat: r }));
   }
 
   /** How the game turns with mouse motion: flick stick and turn actions. */
-  const TURN = { counts_per_turn: 18000, turn_ms: 100, wheel_repeat_ms: 0 };
-  const turn = $derived({ ...TURN, ...app.profile?.virtual?.mouse });
+  const turn = $derived({ ...TURN_DEFAULTS, ...app.profile?.virtual?.mouse });
 
-  function setTurn(field: keyof typeof TURN, raw: string) {
-    const n = Math.round(Number(raw.replace(',', '.')));
-    const ok = field === 'counts_per_turn' ? n > 0 : n >= 0 && n <= 5000;
-    const next = { ...turn, [field]: Number.isFinite(n) && ok ? n : TURN[field] };
-    const isDefault = (Object.keys(TURN) as (keyof typeof TURN)[]).every((k) => next[k] === TURN[k]);
-    app.edit((p) => setVirtualDevice(p, 'mouse', isDefault ? undefined : next));
+  function setTurn(field: keyof typeof TURN_DEFAULTS, raw: string) {
+    app.edit((p) => withTurn(p, field, raw));
   }
 
   const KBM_SOURCES: KbmSource[] = ['all', 'physical', 'scripts'];
 
   /** Speeds (counts/s) where the physical mouse's zones start. */
-  const MOUSE_ZONES: [number, number, number] = [200, 1000, 3000];
-  const mouseZones = $derived(app.profile?.mouse?.zones ?? MOUSE_ZONES);
+  const mouseZones = $derived(app.profile?.mouse?.zones ?? MOUSE_ZONE_DEFAULTS);
 
   function setMouseZone(i: number, raw: string) {
-    const n = Math.round(Number(raw));
-    if (!Number.isFinite(n) || n <= 0) return;
-    const z = [...mouseZones] as [number, number, number];
-    z[i] = n;
-    for (let j = i + 1; j < 3; j++) z[j] = Math.max(z[j], z[j - 1] + 1);
-    for (let j = i - 1; j >= 0; j--) z[j] = Math.min(z[j], z[j + 1] - 1);
-    app.edit((p) => setOrDrop(p, 'mouse', z.every((v, j) => v === MOUSE_ZONES[j]) ? undefined : { zones: z }));
+    app.edit((p) => withMouseZone(p, i, raw));
   }
 
   const testTurn = () => app.attempt(api.testTurn(turn.counts_per_turn), t('output.test_turn_started'));
 
   /** Shake actions: strength and length (the virtual controller's accelerometer). */
-  const SHAKE = { shake_g: 2, shake_ms: 150 };
-  const shake = $derived({ ...SHAKE, ...app.profile?.virtual?.motion });
+  const shake = $derived({ ...SHAKE_DEFAULTS, ...app.profile?.virtual?.motion });
 
-  function setShake(field: keyof typeof SHAKE, raw: string) {
-    const n = Number(raw.replace(',', '.'));
-    const v = field === 'shake_ms' ? Math.round(n) : n;
-    const next = { ...shake, [field]: Number.isFinite(v) && v > 0 ? v : SHAKE[field] };
-    const isDefault = next.shake_g === SHAKE.shake_g && next.shake_ms === SHAKE.shake_ms;
-    app.edit((p) => setVirtualDevice(p, 'motion', isDefault ? undefined : next));
+  function setShake(field: keyof typeof SHAKE_DEFAULTS, raw: string) {
+    app.edit((p) => withShake(p, field, raw));
   }
 
   function setTiming(field: TimingField, raw: string) {
-    const n = parseInt(raw, 10);
-    app.edit((p) => setProfileTiming(p, field, Number.isFinite(n) && n >= 0 ? n : undefined));
+    app.edit((p) => setProfileTiming(p, field, parseNonNegInt(raw) ?? undefined));
   }
 
   const out = $derived<Required<Output>>({

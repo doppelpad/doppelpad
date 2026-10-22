@@ -6,6 +6,7 @@
   import { t } from '../../lib/i18n/index.svelte';
   import { layerOverrides, triggerConfig } from '../../lib/model/analog';
   import { stickAxes, triggerAxis } from '../../lib/model/devices';
+  import { parsePercent } from '../../lib/model/numbers';
   import type { ZoneName, ZoneParts } from '../../lib/model/controls';
   import {
     LEVELS,
@@ -90,8 +91,7 @@
   }
 
   function set(level: Level, axis: 'both' | 0 | 1, raw: string) {
-    const n = parseFloat(raw.replace(',', '.'));
-    const v = Number.isFinite(n) ? Math.min(Math.max(n, 0), 100) / 100 : undefined;
+    const v = parsePercent(raw) ?? undefined;
     const zones = isStick
       ? setStickLevel(stickZones, level, axis, v, defaults)
       : setTriggerLevel(trigger?.zones, level, v);

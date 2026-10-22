@@ -50,6 +50,18 @@ export const layerOf = (m: Mapping) => m.layer ?? 0;
 export const activatorOf = (m: Mapping): Activator => m.activator ?? 'single';
 export const modeOf = (m: Mapping): Mode => m.mode ?? 'hold';
 
+/** The control of a combo of exactly one, else null. */
+export function singleControl(c: Combo): ControlName | null {
+  const list = comboList(c);
+  return list.length === 1 ? list[0] : null;
+}
+
+/** Modes that play the outputs as a sequence (the macro editor's modes). */
+export const isMacroMode = (mode: Mode) => mode === 'once' || mode === 'repeat' || mode === 'while_held';
+
+/** A mapping without outputs or a layer jump: it blocks its control. */
+export const isBlocked = (m: Mapping | undefined) => !!m && (m.actions ?? []).length === 0 && !m.jump;
+
 /** The mapping for exactly this layer, trigger and activator (no inheritance). */
 export function findMapping(p: Profile, layer: number, combo: Combo, activator: Activator): Mapping | undefined {
   return p.mappings.find(
@@ -83,6 +95,49 @@ export function effectiveMappings(p: Profile, layer: number, combo: Combo): { ma
   if (comboList(combo).some((c) => unlocks(decl?.unlock, c))) return { mappings: [], inherited: false };
   const base = ownMappings(p, 0, combo);
   return { mappings: base, inherited: base.length > 0 };
+}
+
+/** A layer's own mapping for a trigger + activator, else the one it inherits from Main. */
+export function mappingAt(p: Profile, layer: number, combo: Combo, activator: Activator): { own?: Mapping; inherited?: Mapping } {
+  const own = findMapping(p, layer, combo, activator);
+  if (own) return { own };
+  const eff = effectiveMappings(p, layer, combo);
+  return { inherited: eff.inherited ? eff.mappings.find((m) => activatorOf(m) === activator) : undefined };
+}
+
+/**
+ * `p` with one mapping changed by `change`. It starts from the layer's own mapping, else a copy
+ * of the inherited one, else a new mapping. A change that leaves nothing behind removes the
+ * mapping, unless `keepEmpty` is set (an empty mapping blocks the control).
+ */
+export function editMappingIn(
+  p: Profile,
+  layer: number,
+  combo: Combo,
+  activator: Activator,
+  change: (m: Mapping) => void,
+  keepEmpty = false,
+): Profile {
+  const { own, inherited } = mappingAt(p, layer, combo, activator);
+  const from = own ?? inherited;
+  const m: Mapping = from ? clone(from) : newMapping(layer, combo, activator);
+  change(m);
+  const tidy = tidyMapping({ ...m, layer, activator });
+  const empty = (tidy.actions ?? []).length === 0 && !tidy.jump && !tidy.description && modeOf(tidy) === 'hold';
+  return empty && !keepEmpty ? removeMapping(p, layer, combo, activator) : upsertMapping(p, tidy);
+}
+
+/**
+ * Switch a mapping to `next`. Turbo and toggle act on the outputs, so a mapping without any
+ * starts from its control's own output (`native`: turbo on A pulses A); back in hold mode a
+ * mapping that is just that output loses it again.
+ */
+export function applyMode(m: Mapping, next: Mode, native: Action | null) {
+  m.mode = next;
+  const acts = m.actions ?? [];
+  if (next !== 'hold' && acts.length === 0 && native) m.actions = [{ ...native }];
+  const onlyNative = acts.length === 1 && !!native && sameAction(acts[0], native) && !m.jump && !m.description;
+  if (next === 'hold' && onlyNative) m.actions = [];
 }
 
 /** Insert or replace the mapping with the same layer + trigger + activator. */
@@ -381,7 +436,7 @@ export function mappingSummary(m: Mapping, layerLabel: (id: number) => string): 
   const mode = modeOf(m);
   if (mode === 'turbo') s = `⚡ ${s}`;
   if (mode === 'toggle') s = `⇄ ${s}`;
-  if (mode === 'once' || mode === 'repeat' || mode === 'while_held') s = `▶ ${s}`;
+  if (isMacroMode(mode)) s = `▶ ${s}`;
   if (m.jump) s = s ? `${s} · → ${layerLabel(m.jump.layer)}` : `→ ${layerLabel(m.jump.layer)}`;
   if (!s) s = '⊘';
   return s;

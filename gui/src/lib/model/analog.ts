@@ -21,7 +21,7 @@ import type {
   VirtualSticks,
 } from '../types';
 import { declaredLayer, patchLayer, setVirtualDevice } from './layers';
-import { clamp, clone, nonEmpty, roundTo, sameJson, setOrDrop } from './util';
+import { clamp, clone, nonEmpty, roundTo, sameJson, setOrDrop, setRising } from './util';
 
 export type Side = StickName;
 /** A response curve point: `[input, output]`, both in 0..1. */
@@ -170,6 +170,17 @@ export function setTouchpad(p: Profile, patch: Partial<TouchpadSettings>, def: R
 /** The gyro settings with the defaults filled in. */
 export function gyroConfig(p: Profile, def: Required<GyroSettings>): Required<GyroSettings> {
   return { ...def, ...p.gyro };
+}
+
+/**
+ * Set zone threshold `i` (°/s, or ° when tilting) of the gyro's current mode; the others move
+ * so they keep rising, and none goes below 0.5.
+ */
+export function setGyroZone(p: Profile, i: number, v: number, def: Required<GyroSettings>): Profile {
+  const cfg = gyroConfig(p, def);
+  const key = cfg.mode === 'tilt' ? 'tilt_zones' : 'motion_zones';
+  const zones = setRising(cfg[key], i, v).map((x) => Math.max(x, 0.5)) as [number, number, number];
+  return setGyro(p, { [key]: zones }, def);
 }
 
 /** Change the gyro settings; like Rust, they are written in full unless all are defaults. */

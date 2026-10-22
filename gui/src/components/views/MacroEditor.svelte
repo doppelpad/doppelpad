@@ -9,6 +9,7 @@
   import { comboLabel } from '../../lib/model/labels';
   import { keyFromEvent } from '../../lib/model/keymap';
   import { recordedSteps } from '../../lib/model/actions';
+  import { parseNonNegInt } from '../../lib/model/numbers';
   import { actionLabel, modeOf, segmentCount } from '../../lib/model/profile';
   import { app } from '../../lib/state/app.svelte';
   import type { Action, ControlName, Mapping, Mode, Press } from '../../lib/types';
@@ -58,8 +59,8 @@
   }
 
   function setPause(i: number, v: string) {
-    const n = parseInt(v, 10);
-    if (!(n >= 0)) return;
+    const n = parseNonNegInt(v);
+    if (n === null) return;
     setSteps(steps.map((s, j) => (j === i ? { pause: n } : s)));
   }
 
@@ -67,10 +68,7 @@
     return 'key' in a || 'mouse' in a || 'pad' in a || 'stick' in a || 'trigger' in a;
   }
 
-  function num(v: string): number | undefined {
-    const n = parseInt(v, 10);
-    return Number.isFinite(n) && n >= 0 ? n : undefined;
-  }
+  const num = (v: string) => parseNonNegInt(v) ?? undefined;
 
   /** Rough run time: explicit pauses plus the delay the engine inserts between steps. */
   const total = $derived(

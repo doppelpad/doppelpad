@@ -21,7 +21,6 @@
   const light = $derived({ ...def, ...own } as Required<Light>);
 
   function set(patch: Partial<Light> | undefined) {
-
     app.edit((p) => setLight(p, layer, patch === undefined ? undefined : { ...own, ...patch }));
   }
 

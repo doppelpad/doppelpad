@@ -7,15 +7,20 @@ import {
   SIMPLE_COMMANDS,
   actionLabel,
   addLayer,
+  applyMode,
   clearLayer,
   comboKey,
   copyLayer,
+  editMappingIn,
   effectiveMappings,
   findMapping,
   inheritableTriggers,
+  isBlocked,
+  isMacroMode,
   layerInheritance,
   layerUnlock,
   layerIds,
+  mappingAt,
   mappingSummary,
   nativeAction,
   pasteLayer,
@@ -28,6 +33,7 @@ import {
   setTriggerInherited,
   shortcutMembers,
   shortcuts,
+  singleControl,
   tidyMapping,
   toCombo,
   upsertMapping,
@@ -240,5 +246,55 @@ describe('virtual devices', () => {
 describe('commands', () => {
   it('every command the picker lists has a label', () => {
     for (const c of [...SIMPLE_COMMANDS, ...RADIAL_COMMANDS, ...POWER_COMMANDS]) expect(has(`picker.${c}`), c).toBe(true);
+  });
+});
+
+describe('editing one mapping', () => {
+  // Layer 1 inherits A from Main; B is mapped on the layer itself.
+  const p = (): Profile => ({
+    name: 'Test',
+    mappings: [
+      { trigger: 'A', actions: [{ key: 'Space' }] },
+      { trigger: 'B', layer: 1, actions: [{ key: 'E' }] },
+    ],
+  });
+
+  it('finds the own mapping, else the inherited one', () => {
+    expect(mappingAt(p(), 1, 'B', 'single').own?.actions).toEqual([{ key: 'E' }]);
+    expect(mappingAt(p(), 1, 'A', 'single')).toEqual({ inherited: p().mappings[0] });
+    expect(mappingAt(p(), 1, 'A', 'long')).toEqual({ inherited: undefined });
+  });
+
+  it('overrides an inherited mapping on the layer, leaving Main alone', () => {
+    const next = editMappingIn(p(), 1, 'A', 'single', (m) => (m.mode = 'turbo'));
+    expect(findMapping(next, 1, 'A', 'single')).toEqual({ trigger: 'A', layer: 1, mode: 'turbo', actions: [{ key: 'Space' }] });
+    expect(findMapping(next, 0, 'A', 'single')).toEqual({ trigger: 'A', actions: [{ key: 'Space' }] });
+  });
+
+  it('removes a mapping an edit empties, unless it should block', () => {
+    const cleared = editMappingIn(p(), 1, 'B', 'single', (m) => (m.actions = []));
+    expect(findMapping(cleared, 1, 'B', 'single')).toBeUndefined();
+    const blocking = editMappingIn(p(), 1, 'B', 'single', (m) => (m.actions = []), true);
+    expect(findMapping(blocking, 1, 'B', 'single')).toEqual({ trigger: 'B', layer: 1 });
+    expect(isBlocked(findMapping(blocking, 1, 'B', 'single'))).toBe(true);
+    expect(isBlocked(findMapping(p(), 1, 'B', 'single'))).toBe(false);
+  });
+
+  it("gives turbo the control's own output and takes it back in hold mode", () => {
+    const native = nativeAction('A');
+    const m: Mapping = { trigger: 'A' };
+    applyMode(m, 'turbo', native);
+    expect(m).toEqual({ trigger: 'A', mode: 'turbo', actions: [{ pad: 'A' }] });
+    applyMode(m, 'hold', native);
+    expect(m).toEqual({ trigger: 'A', mode: 'hold', actions: [] });
+    const own: Mapping = { trigger: 'A', actions: [{ key: 'E' }] };
+    applyMode(own, 'toggle', native);
+    expect(own.actions).toEqual([{ key: 'E' }]);
+  });
+
+  it('knows macro modes and single controls', () => {
+    expect(['once', 'repeat', 'while_held', 'hold', 'turbo'].map((m) => isMacroMode(m as never))).toEqual([true, true, true, false, false]);
+    expect(singleControl('A')).toBe('A');
+    expect(singleControl(['LB', 'A'])).toBeNull();
   });
 });

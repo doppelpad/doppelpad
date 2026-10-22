@@ -3,10 +3,9 @@
   // lib/overlay.ts): one row per trigger, in columns of up to 40 rows.
   import { onMount } from 'svelte';
   import { setLanguage, t } from '../../lib/i18n/index.svelte';
-  import { comboLabel, layerLabel } from '../../lib/model/labels';
-  import { comboKey, effectiveMappings, mappingSummary } from '../../lib/model/profile';
+  import { layerLabel, overlayRows } from '../../lib/model/labels';
   import { overlayContent } from '../../lib/overlay';
-  import type { Combo, Corner, PadFamily, Profile } from '../../lib/types';
+  import type { Corner, PadFamily, Profile } from '../../lib/types';
 
   type Content = { profile: Profile; layer: number; family: PadFamily | null; lang: string; opacity: number; corner: Corner };
   let content = $state<Content | null>(null);
@@ -21,38 +20,7 @@
   const ROWS = 40;
   const MAX = ROWS * 3;
 
-  type Row = { control: string; action: string; note: string };
-  const rows = $derived.by((): Row[] => {
-    if (!content) return [];
-    const { profile, layer, family } = content;
-    const label = (id: number) => layerLabel(profile, id);
-    // Triggers of this layer first, then the base layer's that it takes over.
-    const seen = new Set<string>();
-    const triggers: Combo[] = [];
-    const own = profile.mappings.filter((m) => (m.layer ?? 0) === layer);
-    const base = profile.mappings.filter((m) => (m.layer ?? 0) === 0);
-    for (const m of [...own, ...base]) {
-      const k = comboKey(m.trigger);
-      if (!seen.has(k)) {
-        seen.add(k);
-        triggers.push(m.trigger);
-      }
-    }
-    return triggers.flatMap((trigger) => {
-      const eff = effectiveMappings(profile, layer, trigger);
-      if (eff.mappings.length === 0) return [];
-      return [
-        {
-          control: comboLabel(trigger, family),
-          action: eff.mappings.map((m) => mappingSummary(m, label)).join(' · '),
-          note: eff.mappings
-            .map((m) => m.description ?? '')
-            .filter(Boolean)
-            .join(' · '),
-        },
-      ];
-    });
-  });
+  const rows = $derived(content ? overlayRows(content.profile, content.layer, content.family) : []);
   const columns = $derived(
     Array.from({ length: Math.ceil(Math.min(rows.length, MAX) / ROWS) }, (_, i) => rows.slice(i * ROWS, (i + 1) * ROWS)),
   );

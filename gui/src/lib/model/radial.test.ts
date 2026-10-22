@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Profile } from '../types';
-import { addMenu, isImageIcon, removeMenu, sectorCentre, sectorPath, updateSector } from './radial';
+import { MAX_SECTORS, addMenu, addSector, firstFreeLayer, isImageIcon, removeMenu, removeSector, sectorCentre, sectorPath, updateSector } from './radial';
 
 describe('radial menus', () => {
   it('puts sector 0 at the top and goes clockwise', () => {
@@ -26,5 +26,27 @@ describe('radial menus', () => {
     expect(isImageIcon('sword')).toBe(false);
     expect(isImageIcon('C:\icons\potion.png')).toBe(true);
     expect(isImageIcon(undefined)).toBe(false);
+  });
+});
+
+describe('radial sectors and layers', () => {
+  it('adds numbered sectors up to the maximum and keeps at least one', () => {
+    let p: Profile = addMenu({ name: 't', mappings: [] }, 1);
+    p = addSector(p, 0);
+    expect(p.radial_menus?.[0].sectors.at(-1)).toEqual({ label: '5' });
+    while ((p.radial_menus?.[0].sectors.length ?? 0) < MAX_SECTORS) p = addSector(p, 0);
+    expect(addSector(p, 0)).toBe(p);
+    p = removeSector(p, 0, 0);
+    expect(p.radial_menus?.[0].sectors[0].label).toBe('2');
+    let one: Profile = addMenu({ name: 't', mappings: [] }, 1);
+    for (let k = 0; k < 3; k++) one = removeSector(one, 0, 0);
+    expect(removeSector(one, 0, 0)).toBe(one);
+  });
+
+  it('opens a new menu with the first layer that has none', () => {
+    const p: Profile = { name: 't', mappings: [], layers: [{ id: 1 }, { id: 2 }] };
+    expect(firstFreeLayer(p)).toBe(1);
+    expect(firstFreeLayer(addMenu(p, 1))).toBe(2);
+    expect(firstFreeLayer(addMenu(addMenu(p, 1), 2))).toBe(0);
   });
 });
