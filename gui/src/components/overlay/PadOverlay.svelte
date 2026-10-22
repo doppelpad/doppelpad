@@ -4,7 +4,9 @@
   import { invoke } from '@tauri-apps/api/core';
   import { onMount } from 'svelte';
   import { DEVICE_LAYOUTS } from '../../assets/devices/layouts';
-  import { controlsFromPad, drawingsFor } from '../../lib/model/devices';
+  import type { Side } from '../../lib/model/analog';
+  import { SIDES, SIDE_NAMES } from '../../lib/model/controls';
+  import { controlsFromPad, drawingsFor, moveStickCaps, triggerAxis } from '../../lib/model/devices';
   import { overlayContent } from '../../lib/overlay';
   import type { Catalog, Corner, LiveDevice } from '../../lib/types';
 
@@ -20,7 +22,7 @@
 
   const layout = $derived(content ? DEVICE_LAYOUTS[drawingsFor(content.device).front] : null);
   const pressed = $derived(content ? controlsFromPad(content.device, buttons) : new Set<string>());
-  const STICKS: Record<string, string> = { LS: 'LeftStick', RS: 'RightStick' };
+  const STICKS: Record<string, string> = { LS: SIDES.left.stick, RS: SIDES.right.stick };
 
   // Light up the pressed parts and move the stick caps.
   $effect(() => {
@@ -31,17 +33,13 @@
       const stick = STICKS[c];
       g.classList.toggle('pressed', pressed.has(c) || (!!stick && held.some((p) => p.startsWith(stick))));
     }
-    const a = content.device.state.axes;
-    for (const g of drawing.querySelectorAll<SVGGElement>('[data-stick]')) {
-      const [x, y] = g.getAttribute('data-stick') === 'Left' ? [a[0], a[1]] : [a[2], a[3]];
-      g.querySelector('.stick-cap')?.setAttribute('transform', `translate(${(x * 14).toFixed(1)} ${(-y * 14).toFixed(1)})`);
-    }
+    moveStickCaps(drawing, content.device.state.axes);
   });
 
   // The front drawing hides the triggers behind the bumpers, so a bar above each bumper
   // shows how far its trigger is pulled.
   const BAR = { h: 12, gap: 14 };
-  type Bar = { name: 'LT' | 'RT'; axis: number; x: number; y: number; w: number; left: boolean };
+  type Bar = { name: 'LT' | 'RT'; side: Side; x: number; y: number; w: number; left: boolean };
   let bars = $state<Bar[]>([]);
   $effect(() => {
     if (!drawing || !layout || layout.controls.some((lc) => lc.control === 'LT')) {
@@ -52,10 +50,11 @@
       const g = drawing!.querySelector<SVGGElement>(`[data-control="${bumper}"]`);
       if (!g) return [];
       const b = g.getBBox();
-      return [{ name: i ? 'RT' : 'LT', axis: 4 + i, x: b.x, y: b.y - BAR.gap - BAR.h, w: b.width, left: !i }];
+      const side = SIDE_NAMES[i];
+      return [{ name: SIDES[side].trigger, side, x: b.x, y: b.y - BAR.gap - BAR.h, w: b.width, left: !i }];
     });
   });
-  const pull = (axis: number) => Math.min(1, Math.max(0, content?.device.state.axes[axis] ?? 0));
+  const pull = (side: Side) => Math.min(1, Math.max(0, content ? triggerAxis(content.device, side) : 0));
 </script>
 
 {#if content && layout}
@@ -71,7 +70,7 @@
       {#if bars.length}
         <svg class="triggers" viewBox={layout.viewBox.join(' ')} aria-hidden="true">
           {#each bars as bar (bar.name)}
-            {@const w = bar.w * pull(bar.axis)}
+            {@const w = bar.w * pull(bar.side)}
             <g class:pressed={pressed.has(bar.name)}>
               <rect class="track" x={bar.x} y={bar.y} width={bar.w} height={BAR.h} rx={BAR.h / 2} />
               {#if w > 0}

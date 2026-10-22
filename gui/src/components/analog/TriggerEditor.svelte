@@ -3,26 +3,19 @@
   // zone) and the full pull, with the live pull and output of the controller in use. The
   // medium and high zones are edited in the binding panel's zone editor.
   import { t } from '../../lib/i18n/index.svelte';
-  import { controlLabel } from '../../lib/model/controls';
+  import { SIDES, SIDE_NAMES, controlLabel } from '../../lib/model/controls';
+  import { triggerAxis } from '../../lib/model/devices';
   import { setTrigger, shapeTrigger, triggerConfig, type Side } from '../../lib/model/analog';
-  import { setTriggerLevel, triggerThresholds, type ZoneDefaults } from '../../lib/model/zones';
+  import { setTriggerLevel, triggerThresholds, zoneDefaults as zoneDefaultsOf } from '../../lib/model/zones';
   import { app } from '../../lib/state/app.svelte';
   import type { TriggerConfig } from '../../lib/types';
   import Slider from '../ui/Slider.svelte';
   import LayerNote from './LayerNote.svelte';
   import TriggerEffectEditor from './TriggerEffectEditor.svelte';
 
-  const SIDES: { side: Side; control: string; axis: number }[] = [
-    { side: 'left', control: 'LT', axis: 4 },
-    { side: 'right', control: 'RT', axis: 5 },
-  ];
 
   const def = $derived(app.catalog?.defaults.trigger);
-  const zoneDefaults = $derived<ZoneDefaults>({
-    stickLow: app.catalog?.defaults.stick.zones.low ?? 0.24,
-    triggerLow: def?.zones.low ?? 0.03,
-    fullPull: def?.full_pull ?? 0.99,
-  });
+  const zoneDefaults = $derived(zoneDefaultsOf(app.catalog?.defaults));
   const disabled = $derived(app.readOnly);
   const resetLabel = $derived(app.layer === 0 ? undefined : t('analog.layer.reset_field'));
 
@@ -36,11 +29,11 @@
 {#if app.profile && def}
   <LayerNote kind="triggers" sides={['left', 'right']} />
   <div class="triggers">
-    {#each SIDES as s (s.side)}
-      {@const cfg = triggerConfig(app.profile, s.side, def, app.layer)}
-      {@const ref = app.layer === 0 ? def : triggerConfig(app.profile, s.side, def)}
-      {@const raw = app.primary?.state.axes[s.axis] ?? null}
-      {@const name = controlLabel(s.control, app.family)}
+    {#each SIDE_NAMES as side (side)}
+      {@const cfg = triggerConfig(app.profile, side, def, app.layer)}
+      {@const ref = app.layer === 0 ? def : triggerConfig(app.profile, side, def)}
+      {@const raw = app.primary ? triggerAxis(app.primary, side) : null}
+      {@const name = controlLabel(SIDES[side].trigger, app.family)}
       {@const zones = triggerThresholds(cfg.zones, cfg.full_pull, zoneDefaults)}
       <section class="card">
         <h3>{name}</h3>
@@ -79,7 +72,7 @@
           unit="%"
           hint={t('analog.trigger.deadzone_hint')}
           {disabled}
-          onchange={(v) => set(s.side, { deadzone: v })}
+          onchange={(v) => set(side, { deadzone: v })}
         />
         <Slider
           label={t('analog.trigger.press_threshold')}
@@ -93,7 +86,7 @@
           unit="%"
           hint={t('analog.trigger.press_threshold_hint', { control: name })}
           {disabled}
-          onchange={(v) => set(s.side, { zones: setTriggerLevel(cfg.zones, 'low', v) })}
+          onchange={(v) => set(side, { zones: setTriggerLevel(cfg.zones, 'low', v) })}
         />
         <Slider
           label={t('analog.trigger.full_pull')}
@@ -105,15 +98,15 @@
           step={0.01}
           scale={100}
           unit="%"
-          hint={t('analog.trigger.full_pull_hint', { control: controlLabel(`${s.control}Full`, app.family) })}
+          hint={t('analog.trigger.full_pull_hint', { control: controlLabel(`${SIDES[side].trigger}Full`, app.family) })}
           {disabled}
-          onchange={(v) => set(s.side, { full_pull: v })}
+          onchange={(v) => set(side, { full_pull: v })}
         />
         <TriggerEffectEditor
           effect={cfg.effect}
           onlayer={app.layer !== 0}
           {disabled}
-          onchange={(e) => set(s.side, { effect: e })}
+          onchange={(e) => set(side, { effect: e })}
         />
       </section>
     {/each}

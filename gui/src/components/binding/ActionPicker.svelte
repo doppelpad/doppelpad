@@ -6,7 +6,7 @@
   import { confirmAsk } from '../../lib/api';
   import { t } from '../../lib/i18n/index.svelte';
   import { keyFromEvent } from '../../lib/model/keymap';
-  import { controlLabel } from '../../lib/model/controls';
+  import { SIDES, controlLabel } from '../../lib/model/controls';
   import { POWER_COMMANDS, RADIAL_COMMANDS, SIMPLE_COMMANDS } from '../../lib/model/profile';
   import { app } from '../../lib/state/app.svelte';
   import type { Action, Dir, MouseButtonName, PadButtonName, ShakeAxis, StickName, TouchOutput, TriggerName } from '../../lib/types';
@@ -181,7 +181,7 @@
         <div class="grid">
           {#each DIRS as d (d)}
             <button class="chip" onclick={() => onpick(stickAction(s, d))}>
-              {t(s === 'left' ? 'controls.LeftStick' : 'controls.RightStick')} {t(`dirs.${d}`)}
+              {t(`controls.${SIDES[s].stick}`)} {t(`dirs.${d}`)}
             </button>
           {/each}
         </div>
@@ -195,7 +195,7 @@
       <div class="grid">
         {#each ['left', 'right'] as const as tr (tr)}
           <button class="chip" onclick={() => onpick({ trigger: tr as TriggerName })}>
-            {t(tr === 'left' ? 'controls.LT' : 'controls.RT')}
+            {t(`controls.${SIDES[tr].trigger}`)}
           </button>
         {/each}
       </div>

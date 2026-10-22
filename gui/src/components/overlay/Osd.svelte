@@ -8,6 +8,7 @@
   import { overlayContent } from '../../lib/overlay';
   import { layerColor } from '../../lib/theme/layers';
   import type { OsdMessage } from '../../lib/types';
+  import { defaultLayerName } from '../../lib/model/labels';
 
   let msg = $state<OsdMessage | null>(null);
 
@@ -18,8 +19,7 @@
 
   onMount(() => overlayContent<OsdMessage>(show));
 
-  const layerName = (layer: number, name: string | null) =>
-    name ?? (layer === 0 ? t('layers.main') : t('layers.shift', { n: layer }));
+  const layerName = (layer: number, name: string | null) => name ?? defaultLayerName(layer);
 
   /** Icon, headline, second line and accent colour of the message. */
   const view = $derived.by(() => {

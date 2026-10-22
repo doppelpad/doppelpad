@@ -5,7 +5,7 @@
   import { untrack } from 'svelte';
   import { api } from '../lib/api';
   import { t } from '../lib/i18n/index.svelte';
-  import { controlLabel } from '../lib/model/controls';
+  import { SIDES, controlLabel } from '../lib/model/controls';
   import { STEPS, buildLayout, detect, modelKey, settled, type Hit, type Step } from '../lib/model/identify';
   import { app } from '../lib/state/app.svelte';
   import type { RawInput } from '../lib/types';
@@ -64,7 +64,7 @@
 
   function prompt(step: Step): string {
     if (step.kind === 'button') return t('identify.press', { control: controlLabel(step.button, null) });
-    if (step.kind === 'trigger') return t('identify.pull', { control: controlLabel(step.trigger === 'left' ? 'LT' : 'RT', null) });
+    if (step.kind === 'trigger') return t('identify.pull', { control: controlLabel(SIDES[step.trigger].trigger, null) });
     const stick = t(`controls.${step.axis.startsWith('Left') ? 'LeftStick' : 'RightStick'}`);
     return t(step.axis.endsWith('X') ? 'identify.push_right' : 'identify.push_up', { stick });
   }

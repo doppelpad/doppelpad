@@ -1,12 +1,21 @@
 // Display names for controls, per controller family.
 
 import { has, t } from '../i18n/index.svelte';
-import type { ControlName, PadFamily } from '../types';
+import type { AnalogSource, ControlName, PadFamily } from '../types';
+import type { Side } from './analog';
 
-const DIRS = ['Up', 'Down', 'Left', 'Right'] as const;
+/** The four directions of sticks, mouse motion and the gyro. */
+export const CARDINALS = ['Up', 'Down', 'Left', 'Right'] as const;
 /** Diagonals; sticks with separate diagonals, the touchpad and mouse motion have them. */
 export const DIAGONALS = ['UpLeft', 'UpRight', 'DownLeft', 'DownRight'] as const;
-const DIRS8 = [...DIRS, ...DIAGONALS] as const;
+export const DIRS8 = [...CARDINALS, ...DIAGONALS] as const;
+
+export const SIDE_NAMES: readonly Side[] = ['left', 'right'];
+/** Per side: its stick's direction controls (`LeftStickUp`), its click, its trigger and the stick as a route source. */
+export const SIDES = {
+  left: { stick: 'LeftStick', click: 'LS', trigger: 'LT', source: 'left_stick' },
+  right: { stick: 'RightStick', click: 'RS', trigger: 'RT', source: 'right_stick' },
+} as const satisfies Record<Side, { stick: string; click: ControlName; trigger: ControlName; source: AnalogSource }>;
 
 /** Key of a direction in the `dirs` catalog (`UpLeft` → `up_left`). */
 export function dirKey(d: string): string {
@@ -16,7 +25,7 @@ export function dirKey(d: string): string {
 /** Touchpad regions; the controls are `TouchUp` … `TouchCenter`. */
 export const TOUCH_REGIONS = ['Up', 'Down', 'Left', 'Right', 'Center'] as const;
 /** Gyro directions; the controls are `GyroUp` … `GyroLeanRight`, and their zones. */
-export const GYRO_DIRS = [...DIRS, 'LeanLeft', 'LeanRight'] as const;
+export const GYRO_DIRS = [...CARDINALS, 'LeanLeft', 'LeanRight'] as const;
 
 /** Touchpad gestures; the controls are `TouchTap` … `TouchZoomOut`. */
 export const TOUCH_GESTURES = ['Tap', 'TapLeft', 'TapCenter', 'TapRight', 'MultiTap', 'SwipeUp', 'SwipeDown', 'SwipeLeft', 'SwipeRight', 'Swipe2Up', 'Swipe2Down', 'Swipe2Left', 'Swipe2Right', 'ZoomIn', 'ZoomOut'] as const;

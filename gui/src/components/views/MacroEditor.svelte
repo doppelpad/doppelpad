@@ -6,10 +6,10 @@
   import { onDestroy } from 'svelte';
   import { t } from '../../lib/i18n/index.svelte';
   import { layerColor } from '../../lib/theme/layers';
-  import { controlLabel } from '../../lib/model/controls';
+  import { comboLabel } from '../../lib/model/labels';
   import { keyFromEvent } from '../../lib/model/keymap';
   import { recordedSteps } from '../../lib/model/actions';
-  import { actionLabel, comboList, modeOf, segmentCount } from '../../lib/model/profile';
+  import { actionLabel, modeOf, segmentCount } from '../../lib/model/profile';
   import { app } from '../../lib/state/app.svelte';
   import type { Action, ControlName, Mapping, Mode, Press } from '../../lib/types';
   import ActionParams from '../binding/ActionParams.svelte';
@@ -150,7 +150,7 @@
       <button class="btn" onclick={() => (app.view = 'front')}><ArrowLeft size={14} /> {t('macro.back')}</button>
       <h2>
         {t('macro.title', {
-          control: comboList(target.trigger).map((c) => controlLabel(c, app.family)).join(' + '),
+          control: comboLabel(target.trigger, app.family),
         })}
       </h2>
       <span class="layer" style="--c: {layerColor(target.layer)}">{app.layerLabel(target.layer)}</span>

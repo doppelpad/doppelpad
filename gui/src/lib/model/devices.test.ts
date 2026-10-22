@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { PadFamily } from '../types';
-import { drawingsFor, hasMotion, sideShowing } from './devices';
+import type { LiveDevice, PadFamily } from '../types';
+import { controlsFromPad, drawingsFor, hasMotion, sideShowing } from './devices';
 
 const dev = (family: PadFamily, vendor_id: number, product_id: number) => ({ family, vendor_id, product_id });
 
@@ -59,5 +59,28 @@ describe('motion sensors', () => {
     expect(hasMotion('switchpro')).toBe(true);
     expect(hasMotion('xbox')).toBe(false);
     expect(hasMotion('gamecube')).toBe(false);
+  });
+});
+
+describe('controls pressed on a controller', () => {
+  const pad = (buttons: number, axes: number[]): LiveDevice => ({
+    id: 'p',
+    name: 'Pad',
+    family: 'xbox',
+    backend: 'xinput',
+    vendor_id: 0,
+    product_id: 0,
+    state: { buttons, axes, motion: null, touch: [] },
+    gyro_calibration: null,
+    battery: null,
+  });
+
+  it('reads buttons by catalog position, stick directions and triggers', () => {
+    const held = controlsFromPad(pad(0b101, [-0.9, 0.1, 0.7, -0.8, 0.5, 0.3]), ['A', 'B', 'X']);
+    expect([...held]).toEqual(['A', 'X', 'LeftStickLeft', 'RightStickDown', 'RightStickRight', 'LT']);
+  });
+
+  it('ignores small deflections and light pulls', () => {
+    expect(controlsFromPad(pad(0, [0.6, -0.6, 0, 0, 0.4, 0.39]), ['A']).size).toBe(0);
   });
 });

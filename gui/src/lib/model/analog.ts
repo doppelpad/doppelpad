@@ -11,6 +11,7 @@ import type {
   Layer,
   Profile,
   StickConfig,
+  StickName,
   Sticks,
   TouchpadSettings,
   TriggerConfig,
@@ -22,7 +23,7 @@ import type {
 import { declaredLayer, patchLayer, setVirtualDevice } from './layers';
 import { clamp, clone, nonEmpty, roundTo, sameJson, setOrDrop } from './util';
 
-export type Side = 'left' | 'right';
+export type Side = StickName;
 /** A response curve point: `[input, output]`, both in 0..1. */
 export type CurvePoint = [number, number];
 

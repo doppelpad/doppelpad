@@ -2,7 +2,7 @@
   // On-screen ANSI keyboard. Keys are controls `Key:<name>`; clicking or pressing a
   // physical key selects it for the binding panel.
   import { keyFromEvent } from '../../lib/model/keymap';
-  import { effectiveMappings, mappingSummary } from '../../lib/model/profile';
+  import { effectiveSummary } from '../../lib/model/labels';
   import { app } from '../../lib/state/app.svelte';
 
   interface KeyBox {
@@ -83,12 +83,7 @@
     return k;
   }
 
-  function summary(k: string): { text: string; inherited: boolean } | null {
-    if (!app.profile) return null;
-    const eff = effectiveMappings(app.profile, app.layer, `Key:${k}`);
-    if (eff.mappings.length === 0) return null;
-    return { text: eff.mappings.map((m) => mappingSummary(m, app.layerLabel)).join(' · '), inherited: eff.inherited };
-  }
+  const summary = (k: string) => app.profile && effectiveSummary(app.profile, app.layer, `Key:${k}`, app.layerLabel);
 
   let held = $state(new Set<string>());
 

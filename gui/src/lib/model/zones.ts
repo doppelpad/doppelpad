@@ -1,13 +1,12 @@
 // Zone thresholds of sticks and triggers: the effective values the engine uses, the zone a
 // live value is in, and edits to them. Mirrors dp-core's zone rule.
 
-import type { Profile, StickZones, TriggerZones, ZoneRadius } from '../types';
-import { setLayerPart } from './analog';
+import type { Catalog, Profile, StickZones, TriggerZones, ZoneRadius } from '../types';
+import { setLayerPart, type Side } from './analog';
 import type { ZoneName, ZoneParts } from './controls';
 import { declaredLayer } from './layers';
 import { nonEmpty, setOrDrop } from './util';
 
-export type Side = 'left' | 'right';
 export type Level = 'low' | 'med' | 'high';
 export const LEVELS: Level[] = ['low', 'med', 'high'];
 /** `[low, med, high]` along one axis. */
@@ -18,6 +17,15 @@ export interface ZoneDefaults {
   stickLow: ZoneRadius;
   triggerLow: number;
   fullPull: number;
+}
+
+/** The defaults from the catalog; the engine's own values until the catalog has arrived. */
+export function zoneDefaults(d: Catalog['defaults'] | undefined): ZoneDefaults {
+  return {
+    stickLow: d?.stick.zones.low ?? 0.24,
+    triggerLow: d?.trigger.zones.low ?? 0.03,
+    fullPull: d?.trigger.full_pull ?? 0.99,
+  };
 }
 
 /** One axis of a threshold (`0` = x, `1` = y). */

@@ -35,7 +35,7 @@ import contract from './fixtures/contract.json';
 import controls from './fixtures/controls.json';
 import defaultsJson from './fixtures/defaults.json';
 import shaping from './fixtures/shaping.json';
-import { stickThresholds, stickZoneAt, triggerThresholds, triggerZoneAt, type ZoneDefaults } from './zones';
+import { stickThresholds, stickZoneAt, triggerThresholds, triggerZoneAt, zoneDefaults } from './zones';
 
 type Keys<T> = Record<keyof T, true>;
 
@@ -225,11 +225,7 @@ describe('control names', () => {
 
 // Through `unknown`: JSON imports type arrays as `number[]`, the model uses tuples.
 const def = defaultsJson as unknown as Catalog['defaults'];
-const zd: ZoneDefaults = {
-  stickLow: def.stick.zones.low!,
-  triggerLow: def.trigger.zones.low!,
-  fullPull: def.trigger.full_pull,
-};
+const zd = zoneDefaults(def);
 
 const near = (a: number, b: number) => Math.abs(a - b) < 1e-5;
 

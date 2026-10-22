@@ -5,13 +5,14 @@
   import { Plus, Trash2, Check, X } from '@lucide/svelte';
   import { onDestroy } from 'svelte';
   import { t } from '../../lib/i18n/index.svelte';
-  import { ZONES, controlLabel, withZone } from '../../lib/model/controls';
+  import { CARDINALS, SIDES, SIDE_NAMES, ZONES, controlLabel, withZone } from '../../lib/model/controls';
+  import { comboLabel } from '../../lib/model/labels';
   import { comboKey, comboList, mappingSummary, sameCombo, shortcuts, toCombo } from '../../lib/model/profile';
   import { app } from '../../lib/state/app.svelte';
   import type { Combo, ControlName, Mapping } from '../../lib/types';
 
   const MAX = 4;
-  const STICKS = ['LeftStick', 'RightStick'].flatMap((s) => ['Up', 'Down', 'Left', 'Right'].map((d) => s + d));
+  const STICKS = SIDE_NAMES.flatMap((s) => CARDINALS.map((d) => SIDES[s].stick + d));
 
   let picking = $state<ControlName[] | null>(null);
 
@@ -60,7 +61,7 @@
     if (app.selected && sameCombo(app.selected, trigger)) app.select(null);
   }
 
-  const label = (c: Combo) => comboList(c).map((x) => controlLabel(x, app.family)).join(' + ');
+  const label = (c: Combo) => comboLabel(c, app.family);
 
   onDestroy(stop);
 </script>

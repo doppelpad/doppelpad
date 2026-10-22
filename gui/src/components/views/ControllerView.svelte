@@ -7,6 +7,9 @@
   import { t } from '../../lib/i18n/index.svelte';
   import {
     DIAGONALS,
+    DIRS8,
+    SIDES,
+    SIDE_NAMES,
     TOUCH_REGIONS,
     ZONES,
     controlShort,
@@ -18,8 +21,9 @@
     zoneTag,
   } from '../../lib/model/controls';
   import { layerRoutes, sourceOf, targetOf, type Side } from '../../lib/model/analog';
-  import { hasMotion } from '../../lib/model/devices';
-  import { effectiveMappings, mappingSummary, shortcutMembers } from '../../lib/model/profile';
+  import { hasMotion, moveStickCaps } from '../../lib/model/devices';
+  import { effectiveSummary } from '../../lib/model/labels';
+  import { shortcutMembers } from '../../lib/model/profile';
   import { STICK_GROUPS, stickGroupOf, type StickGroup } from '../../lib/model/stickgroups';
   import { app } from '../../lib/state/app.svelte';
   import type { ControlName } from '../../lib/types';
@@ -32,7 +36,7 @@
 
   let drawing: HTMLDivElement | undefined = $state();
   /** Direction picker of a stick, the touchpad regions or the gyro directions, at a point of the drawing. */
-  let menu = $state<{ kind: 'stick' | 'touch' | 'gyro'; stick?: 'Left' | 'Right'; click?: ControlName; x: number; y: number } | null>(null);
+  let menu = $state<{ kind: 'stick' | 'touch' | 'gyro'; stick?: Side; click?: ControlName; x: number; y: number } | null>(null);
   /** On a split touchpad, which half the touch menu shows. */
   let half = $state<'Left' | 'Right'>('Left');
   let stageEl: HTMLDivElement | undefined = $state();
@@ -51,7 +55,6 @@
   const split = $derived(!!app.profile?.touchpad?.split);
   const GESTURES = ['Tap', 'TapLeft', 'TapCenter', 'TapRight', 'MultiTap', 'ZoomIn', 'ZoomOut', 'SwipeUp', 'SwipeDown', 'SwipeLeft', 'SwipeRight', 'Swipe2Up', 'Swipe2Down', 'Swipe2Left', 'Swipe2Right'] as const;
 
-  const DIRS = ['Up', 'Down', 'Left', 'Right'] as const;
   const ARROW: Record<string, string> = {
     Up: '↑',
     Down: '↓',
@@ -66,26 +69,18 @@
 
   const combos = $derived(app.profile ? shortcutMembers(app.profile, app.layer) : new Set<string>());
 
-  function summaryOf(c: ControlName): { text: string; inherited: boolean } | null {
-    if (!app.profile) return null;
-    const eff = effectiveMappings(app.profile, app.layer, c);
-    if (eff.mappings.length === 0) return null;
-    return { text: eff.mappings.map((m) => mappingSummary(m, app.layerLabel)).join(' · '), inherited: eff.inherited };
-  }
+  const summaryOf = (c: ControlName) => app.profile && effectiveSummary(app.profile, app.layer, c, app.layerLabel);
 
-  /** Stick name for a stick-click control (`LS` → `LeftStick`). */
-  function stickOf(c: ControlName): string | null {
-    return c === 'LS' ? 'LeftStick' : c === 'RS' ? 'RightStick' : null;
-  }
+  /** The side of a stick-click control (`LS` → left), else null. */
+  const clickSide = (c: ControlName): Side | null => SIDE_NAMES.find((s) => SIDES[s].click === c) ?? null;
 
   /** What the routes on this layer make of each whole stick ("Mouse", "Flick stick"). */
   const stickRoutes = $derived.by(() => {
     const out = new Map<Side, { text: string; inherited: boolean }>();
     for (const ref of app.profile ? layerRoutes(app.profile, app.layer) : []) {
       const s = sourceOf(ref.route);
-      if (s !== 'left_stick' && s !== 'right_stick') continue;
-      const side: Side = s === 'left_stick' ? 'left' : 'right';
-      if (!out.has(side)) out.set(side, { text: t(`analog.routes.targets.${targetOf(ref.route)}`), inherited: ref.inherited });
+      const side = SIDE_NAMES.find((x) => SIDES[x].source === s);
+      if (side && !out.has(side)) out.set(side, { text: t(`analog.routes.targets.${targetOf(ref.route)}`), inherited: ref.inherited });
     }
     return out;
   });
@@ -106,10 +101,11 @@
    * directions, their zones and its any-direction zones; a trigger's zones.
    */
   function related(c: ControlName): { c: ControlName; tag: string }[] {
-    const stick = stickOf(c);
-    if (stick) {
+    const side = clickSide(c);
+    if (side) {
+      const stick = SIDES[side].stick;
       return [
-        ...[...DIRS, ...DIAGONALS].flatMap((d) => zoneFamily(stick + d).map((x) => ({ c: x, tag: ARROW[d] + zoneSuffix(x) }))),
+        ...DIRS8.flatMap((d) => zoneFamily(stick + d).map((x) => ({ c: x, tag: ARROW[d] + zoneSuffix(x) }))),
         ...zoneFamily(stick).map((x) => ({ c: x, tag: '◎' + zoneSuffix(x) })),
       ];
     }
@@ -155,7 +151,7 @@
       // Stick chips also show the directions and zones, trigger chips the zones.
       const parts: string[] = [];
       // A whole-stick route comes first: it is what the stick mostly does.
-      const side: Side | null = c === 'LS' ? 'left' : c === 'RS' ? 'right' : null;
+      const side = clickSide(c);
       const route = side ? stickRoutes.get(side) : undefined;
       if (route) parts.push(route.text);
       if (side && app.stick === side) selected = true;
@@ -196,9 +192,9 @@
   }
 
   function choose(c: ControlName, at?: [number, number]) {
-    const stick = stickOf(c);
-    if (stick && at) {
-      menu = { kind: 'stick', stick: stick === 'LeftStick' ? 'Left' : 'Right', click: c, x: at[0], y: at[1] };
+    const side = clickSide(c);
+    if (side && at) {
+      menu = { kind: 'stick', stick: side, click: c, x: at[0], y: at[1] };
       return;
     }
     if (c === 'Touchpad' && at) {
@@ -237,14 +233,7 @@
       g.classList.toggle('selected', !!ch?.selected);
       g.classList.toggle('pressed', !!ch?.pressed);
     }
-    const a = app.primary?.state.axes ?? [0, 0, 0, 0];
-    const caps = drawing.querySelectorAll<SVGGElement>('[data-stick]');
-    for (const g of caps) {
-      const left = g.getAttribute('data-stick') === 'Left';
-      const [x, y] = left ? [a[0], a[1]] : [a[2], a[3]];
-      const cap = g.querySelector<SVGGElement>('.stick-cap');
-      cap?.setAttribute('transform', `translate(${(x * 14).toFixed(1)} ${(-y * 14).toFixed(1)})`);
-    }
+    moveStickCaps(drawing, app.primary?.state.axes ?? [0, 0, 0, 0]);
   });
 </script>
 
@@ -279,7 +268,7 @@
         onclick={(e) => {
           e.stopPropagation();
           const c = ch.lc.control;
-          choose(c, stickOf(c) || c === 'Touchpad' ? ch.lc.labelAt : undefined);
+          choose(c, clickSide(c) || c === 'Touchpad' ? ch.lc.labelAt : undefined);
         }}
       >
         {#if ch.summary}
@@ -311,8 +300,8 @@
     {#if menu}
       {@const m = menu}
       {@const p = pct(m.x, m.y)}
-      {@const prefix = m.kind === 'stick' ? (m.stick === 'Left' ? 'LeftStick' : 'RightStick') : m.kind === 'touch' ? (split ? `Trackpad${half}` : 'Touch') : 'Gyro'}
-      {@const diag = m.kind === 'touch' || (m.kind === 'stick' && !!app.profile?.sticks?.[m.stick === 'Left' ? 'left' : 'right']?.diagonals)}
+      {@const prefix = m.kind === 'stick' ? SIDES[m.stick!].stick : m.kind === 'touch' ? (split ? `Trackpad${half}` : 'Touch') : 'Gyro'}
+      {@const diag = m.kind === 'touch' || (m.kind === 'stick' && !!app.profile?.sticks?.[m.stick!]?.diagonals)}
       <div class="stick-menu" class:up={menuUp} style="left: {p.left}%; top: {p.top}%" bind:this={menuEl}>
         <div class="sm-title">{t(`binding.${m.kind}_choose`)}</div>
         {#if m.kind === 'touch' && split}
@@ -343,7 +332,7 @@
           {@render corner('DownRight', '↘')}
         </div>
         {#if m.kind === 'stick'}
-          {@const side = m.stick === 'Left' ? 'left' : 'right'}
+          {@const side = m.stick!}
           {@const group = app.profile ? stickGroupOf(app.profile, app.layer, side) : null}
           <button class="sm-any" onclick={() => choose(`${prefix}Low`)}>{t('zones.any_direction_button')}</button>
           <div class="sm-sub">{t('binding.whole_stick')}</div>
@@ -354,7 +343,7 @@
               </button>
             {/each}
           </div>
-          <button class="sm-settings" onclick={() => app.openAnalog(m.stick === 'Left' ? 'left' : 'right')}>
+          <button class="sm-settings" onclick={() => app.openAnalog(m.stick!)}>
             <SlidersHorizontal size={13} />
             {t('binding.stick_settings')}
           </button>

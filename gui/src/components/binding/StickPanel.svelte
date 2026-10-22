@@ -6,7 +6,9 @@
   import { t } from '../../lib/i18n/index.svelte';
   import { layerColor } from '../../lib/theme/layers';
   import { MOUSE_PRESETS, mousePresetOf, mouseResponse, updateRoute, type MousePreset, type Side } from '../../lib/model/analog';
-  import { STICK_GROUPS, stickGroupOf, stickRouteIndex, stickSource } from '../../lib/model/stickgroups';
+  import { STICK_GROUPS, stickGroupOf, stickRouteIndex } from '../../lib/model/stickgroups';
+  import { SIDES } from '../../lib/model/controls';
+  import { stickAxes } from '../../lib/model/devices';
   import { app } from '../../lib/state/app.svelte';
   import type { AnalogMapping } from '../../lib/types';
   import RouteCard from '../analog/RouteCard.svelte';
@@ -37,9 +39,8 @@
   );
   /** The stick's deflection right now, for the dot on the graph. */
   const deflection = $derived.by(() => {
-    const a = app.primary?.state.axes;
-    if (!a) return null;
-    const [x, y] = side === 'left' ? [a[0], a[1]] : [a[2], a[3]];
+    if (!app.primary) return null;
+    const [x, y] = stickAxes(app.primary, side);
     return Math.min(Math.hypot(x, y), 1);
   });
 
@@ -51,7 +52,7 @@
 <div class="panel">
   <div class="head">
     <div class="title">
-      <span class="name">{t(`analog.routes.sources.${stickSource(side)}`)}</span>
+      <span class="name">{t(`analog.routes.sources.${SIDES[side].source}`)}</span>
       <span class="layer" style="--c: {layerColor(app.layer)}">{app.layerLabel(app.layer)}</span>
     </div>
     <button class="icon-btn" title={t('common.close')} onclick={() => app.select(null)}><X size={16} /></button>

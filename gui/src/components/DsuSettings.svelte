@@ -3,6 +3,7 @@
   // gyro from it. Off by default; this computer only unless the network is allowed.
   import { api } from '../lib/api';
   import { t } from '../lib/i18n/index.svelte';
+  import { parsePort } from '../lib/model/util';
   import { app } from '../lib/state/app.svelte';
   import type { DsuSettings } from '../lib/types';
   import Toggle from './ui/Toggle.svelte';
@@ -14,8 +15,8 @@
   }
 
   function setPort(v: string) {
-    const port = Number(v);
-    if (Number.isInteger(port) && port > 0 && port < 65536) set({ port });
+    const port = parsePort(v);
+    if (port !== null) set({ port });
   }
 </script>
 

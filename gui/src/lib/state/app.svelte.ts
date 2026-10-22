@@ -10,7 +10,6 @@ import {
   comboKey,
   effectiveMappings,
   findMapping,
-  layerName,
   modeOf,
   newMapping,
   removeMapping,
@@ -19,6 +18,7 @@ import {
   type LayerCopy,
 } from '../model/profile';
 import { clone } from '../model/util';
+import { layerLabel } from '../model/labels';
 import type {
   Activator,
   Catalog,
@@ -136,8 +136,7 @@ class AppState {
   });
   rewasdRunning = $derived(!!this.rewasd && (this.rewasd.service !== null || this.rewasd.programs.length > 0));
 
-  layerLabel = (id: number) =>
-    this.profile ? layerName(this.profile, id, t('layers.main'), (n) => t('layers.shift', { n })) : String(id);
+  layerLabel = (id: number) => (this.profile ? layerLabel(this.profile, id) : String(id));
 
   async init() {
     try {

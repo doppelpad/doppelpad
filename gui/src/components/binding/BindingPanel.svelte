@@ -4,7 +4,15 @@
   import { Plus, X, Trash2, Info, ChevronRight, Zap, Repeat, Ban, Clapperboard, SlidersHorizontal } from '@lucide/svelte';
   import { t } from '../../lib/i18n/index.svelte';
   import { layerColor } from '../../lib/theme/layers';
-  import { ZONES, controlLabel, isAnyDirection, withZone, zoneParts, type ZoneName } from '../../lib/model/controls';
+  import {
+    SIDES,
+    SIDE_NAMES,
+    ZONES,
+    isAnyDirection,
+    withZone,
+    zoneParts,
+    type ZoneName,
+  } from '../../lib/model/controls';
   import {
     ACTIVATORS,
     activatorOf,
@@ -21,6 +29,7 @@
     sameAction,
   } from '../../lib/model/profile';
   import { hasParameters } from '../../lib/model/actions';
+  import { comboLabel } from '../../lib/model/labels';
   import { app, type AnalogTab } from '../../lib/state/app.svelte';
   import type { Action, Activator, Combo, JumpMode, Mapping, Mode } from '../../lib/types';
   import Toggle from '../ui/Toggle.svelte';
@@ -57,15 +66,14 @@
   /** Activators that have a mapping (own or inherited) for the selected control. */
   const usedActivators = $derived(new Set(effective.mappings.map(activatorOf)));
 
-  const title = $derived(combo ? comboList(combo).map((c) => controlLabel(c, app.family)).join(' + ') : '');
+  const title = $derived(combo ? comboLabel(combo, app.family) : '');
 
   /** The analog settings page of a selected stick or trigger control (including its zones). */
   const analogTab = $derived.by<AnalogTab | null>(() => {
     const list = combo ? comboList(combo) : [];
     if (list.length !== 1) return null;
     const c = list[0];
-    if (c === 'LS' || c.startsWith('LeftStick')) return 'left';
-    if (c === 'RS' || c.startsWith('RightStick')) return 'right';
+    for (const side of SIDE_NAMES) if (c === SIDES[side].click || c.startsWith(SIDES[side].stick)) return side;
     if (/^(LT|RT)(Full|Low|Med|High)?$/.test(c)) return 'triggers';
     return null;
   });
@@ -214,7 +222,7 @@
       {#each layerMappings as m, i (i)}
         <button class="ov-row" onclick={() => selectMapping(m)}>
           <span class="ov-act"><ActivatorIcon activator={activatorOf(m)} size={14} /></span>
-          <span class="ov-name">{comboList(m.trigger).map((c) => controlLabel(c, app.family)).join(' + ')}</span>
+          <span class="ov-name">{comboLabel(m.trigger, app.family)}</span>
           <span class="ov-sum">{mappingSummary(m, app.layerLabel)}</span>
           <ChevronRight size={14} />
         </button>

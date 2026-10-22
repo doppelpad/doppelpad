@@ -4,6 +4,7 @@
   import { Copy, RefreshCw } from '@lucide/svelte';
   import { api } from '../lib/api';
   import { t } from '../lib/i18n/index.svelte';
+  import { parsePort } from '../lib/model/util';
   import { app } from '../lib/state/app.svelte';
   import type { HttpSettings } from '../lib/types';
   import Toggle from './ui/Toggle.svelte';
@@ -13,8 +14,8 @@
   const set = (patch: Partial<HttpSettings>) => http && app.attempt(api.setHttp({ ...http.settings, ...patch }));
 
   function setPort(v: string) {
-    const port = Number(v);
-    if (Number.isInteger(port) && port > 0 && port < 65536) set({ port });
+    const port = parsePort(v);
+    if (port !== null) set({ port });
   }
 
   function copyToken() {
