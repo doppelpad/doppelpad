@@ -9,9 +9,9 @@
   import DsuSettings from './DsuSettings.svelte';
   import RuntimeSettings from './RuntimeSettings.svelte';
   import HotkeySettings from './HotkeySettings.svelte';
+  import Dialog from './ui/Dialog.svelte';
   import Slider from './ui/Slider.svelte';
   import Toggle from './ui/Toggle.svelte';
-  import Dialog from './ui/Dialog.svelte';
 
   let { onclose }: { onclose: () => void } = $props();
 

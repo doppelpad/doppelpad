@@ -9,6 +9,7 @@
   import { LEVELS } from '../../lib/model/zones';
   import { app } from '../../lib/state/app.svelte';
   import type { GyroSettings } from '../../lib/types';
+  import Segmented from '../ui/Segmented.svelte';
   import Slider from '../ui/Slider.svelte';
   import Toggle from '../ui/Toggle.svelte';
 
@@ -35,11 +36,15 @@
 {#snippet choice<T extends string>(label: string, value: T, options: readonly T[], key: string, onpick: (v: T) => void)}
   <div class="choice">
     <span class="cl">{label}</span>
-    <div class="seg">
-      {#each options as o (o)}
-        <button class:on={value === o} {disabled} onclick={() => onpick(o)}>{t(`analog.gyro.${key}.${o}`)}</button>
-      {/each}
-    </div>
+    <Segmented
+      options={options.map((o) => ({ value: o, label: t(`analog.gyro.${key}.${o}`) }))}
+      {value}
+      onchange={onpick}
+      {label}
+      {disabled}
+      size="s"
+      hover={false}
+    />
   </div>
 {/snippet}
 
@@ -116,24 +121,6 @@
   .cl {
     min-width: 120px;
     font-size: 13px;
-  }
-  .seg {
-    display: flex;
-    border: 1px solid var(--line);
-    border-radius: var(--radius-s);
-    overflow: hidden;
-  }
-  .seg button {
-    padding: 5px 12px;
-    font-size: var(--fs-s);
-    color: var(--text-dim);
-  }
-  .seg button + button {
-    border-left: 1px solid var(--line);
-  }
-  .seg button.on {
-    background: var(--accent-soft);
-    color: var(--accent);
   }
   .hint {
     margin: -4px 0 4px;

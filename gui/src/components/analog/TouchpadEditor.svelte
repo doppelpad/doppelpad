@@ -6,6 +6,7 @@
   import { setTouchpad, touchpadConfig } from '../../lib/model/analog';
   import { app } from '../../lib/state/app.svelte';
   import type { TouchpadSettings } from '../../lib/types';
+  import Segmented from '../ui/Segmented.svelte';
   import Slider from '../ui/Slider.svelte';
   import Toggle from '../ui/Toggle.svelte';
 
@@ -25,11 +26,15 @@
 
     <div class="choice">
       <span class="cl">{t('analog.touchpad.zones')}</span>
-      <div class="seg">
-        {#each ['radial', 'grid'] as const as z (z)}
-          <button class:on={cfg.zones === z} {disabled} onclick={() => set({ zones: z })}>{t(`analog.touchpad.zones_${z}`)}</button>
-        {/each}
-      </div>
+      <Segmented
+        options={(['radial', 'grid'] as const).map((z) => ({ value: z, label: t(`analog.touchpad.zones_${z}`) }))}
+        value={cfg.zones}
+        onchange={(z) => set({ zones: z })}
+        label={t('analog.touchpad.zones')}
+        {disabled}
+        size="s"
+        hover={false}
+      />
     </div>
     <p class="hint">{t(`analog.touchpad.zones_hint_${cfg.zones}`)}</p>
 
@@ -75,24 +80,6 @@
   .cl {
     min-width: 120px;
     font-size: 13px;
-  }
-  .seg {
-    display: flex;
-    border: 1px solid var(--line);
-    border-radius: var(--radius-s);
-    overflow: hidden;
-  }
-  .seg button {
-    padding: 5px 12px;
-    font-size: var(--fs-s);
-    color: var(--text-dim);
-  }
-  .seg button + button {
-    border-left: 1px solid var(--line);
-  }
-  .seg button.on {
-    background: var(--accent-soft);
-    color: var(--accent);
   }
   .hint {
     margin: -4px 0 4px;

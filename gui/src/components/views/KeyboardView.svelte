@@ -3,8 +3,8 @@
   // physical key selects it for the binding panel.
   import { keyFromEvent } from '../../lib/model/keymap';
   import { effectiveSummary } from '../../lib/model/labels';
-  import { modalOpen } from '../ui/Dialog.svelte';
   import { app } from '../../lib/state/app.svelte';
+  import { modalOpen } from '../ui/Dialog.svelte';
 
   interface KeyBox {
     k: string;

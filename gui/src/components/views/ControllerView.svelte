@@ -13,6 +13,7 @@
   import { STICK_GROUPS, stickGroupOf, type StickGroup } from '../../lib/model/stickgroups';
   import { app } from '../../lib/state/app.svelte';
   import type { ControlName } from '../../lib/types';
+  import Segmented from '../ui/Segmented.svelte';
 
   let { device }: { device: DeviceId } = $props();
 
@@ -182,11 +183,15 @@
       <div class="stick-menu" class:up={menuUp} style="left: {p.left}%; top: {p.top}%" bind:this={menuEl}>
         <div class="sm-title">{t(`binding.${m.kind}_choose`)}</div>
         {#if m.kind === 'touch' && split}
-          <div class="sm-lean">
-            {#each ['Left', 'Right'] as const as h (h)}
-              <button class:on={half === h} onclick={() => (half = h)}>{t(`binding.half_${h.toLowerCase()}`)}</button>
-            {/each}
-          </div>
+          <Segmented
+            variant="chips"
+            size="s"
+            class="sm-pick"
+            label={t('binding.touch_choose')}
+            options={(['Left', 'Right'] as const).map((h) => ({ value: h, label: t(`binding.half_${h.toLowerCase()}`) }))}
+            value={half}
+            onchange={(h) => (half = h)}
+          />
         {/if}
         {#snippet corner(d: string, arrow: string)}
           {#if diag}<button onclick={() => choose(`${prefix}${d}`)}>{arrow}</button>{:else}<span></span>{/if}
@@ -213,13 +218,16 @@
           {@const group = app.profile ? stickGroupOf(app.profile, app.layer, side) : null}
           <button class="sm-any" onclick={() => choose(`${prefix}Low`)}>{t('zones.any_direction_button')}</button>
           <div class="sm-sub">{t('binding.whole_stick')}</div>
-          <div class="sm-lean">
-            {#each STICK_GROUPS as g (g)}
-              <button class:on={group === g} disabled={app.readOnly} onclick={() => wholeStick(side, g)}>
-                {t(`binding.stick_groups.${g}`)}
-              </button>
-            {/each}
-          </div>
+          <Segmented
+            variant="chips"
+            size="s"
+            class="sm-pick"
+            label={t('binding.whole_stick')}
+            options={STICK_GROUPS.map((g) => ({ value: g, label: t(`binding.stick_groups.${g}`) }))}
+            value={group}
+            disabled={app.readOnly}
+            onchange={(g) => g && wholeStick(side, g)}
+          />
           <button class="sm-settings" onclick={() => app.openAnalog(m.stick!)}>
             <SlidersHorizontal size={13} />
             {t('binding.stick_settings')}
@@ -489,10 +497,12 @@
     font-size: var(--fs-xs);
     white-space: nowrap;
   }
-  .sm-lean button:hover,
-  .sm-lean button.on {
+  .sm-lean button:hover {
     border-color: var(--accent);
     color: var(--accent);
+  }
+  .stick-menu :global(.sm-pick) {
+    margin-top: 6px;
   }
   .sm-sub {
     margin-top: 8px;

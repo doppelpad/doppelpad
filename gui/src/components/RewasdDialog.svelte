@@ -2,8 +2,8 @@
   import { LoaderCircle, ShieldCheck, TriangleAlert } from '@lucide/svelte';
   import { t } from '../lib/i18n/index.svelte';
   import { app } from '../lib/state/app.svelte';
-  import Toggle from './ui/Toggle.svelte';
   import Dialog from './ui/Dialog.svelte';
+  import Toggle from './ui/Toggle.svelte';
 
   let remember = $state(false);
 

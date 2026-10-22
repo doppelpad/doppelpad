@@ -8,8 +8,8 @@
   import type { Template } from '../lib/types';
   import { TEMPLATES } from '../lib/model/labels';
   import IdentifyWizard from './IdentifyWizard.svelte';
-  import Toggle from './ui/Toggle.svelte';
   import Dialog from './ui/Dialog.svelte';
+  import Toggle from './ui/Toggle.svelte';
 
   const STEPS = ['welcome', 'drivers', 'controller', 'output', 'finish'] as const;
 

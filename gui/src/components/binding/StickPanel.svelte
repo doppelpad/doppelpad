@@ -19,6 +19,7 @@
   import { app } from '../../lib/state/app.svelte';
   import type { AnalogMapping } from '../../lib/types';
   import RouteCard from '../analog/RouteCard.svelte';
+  import Segmented from '../ui/Segmented.svelte';
 
   let { side }: { side: Side } = $props();
 
@@ -66,19 +67,14 @@
   </div>
 
   <div class="section-title">{t('binding.whole_stick')}</div>
-  <div class="tabs" role="radiogroup" aria-label={t('binding.whole_stick')}>
-    {#each STICK_GROUPS as g (g)}
-      <button
-        role="radio"
-        aria-checked={group === g}
-        class:active={group === g}
-        disabled={app.readOnly}
-        onclick={() => app.setStickGroup(side, g)}
-      >
-        {t(`binding.stick_groups.${g}`)}
-      </button>
-    {/each}
-  </div>
+  <Segmented
+    variant="fill"
+    label={t('binding.whole_stick')}
+    options={STICK_GROUPS.map((g) => ({ value: g, label: t(`binding.stick_groups.${g}`) }))}
+    value={group}
+    disabled={app.readOnly}
+    onchange={(g) => g && app.setStickGroup(side, g)}
+  />
 
   {#if group === 'wasd' || group === 'arrows'}
     <p class="muted">{t(`binding.whole_stick_keys.${group}`)}</p>
@@ -88,20 +84,14 @@
 
   {#if route && r && group === 'mouse'}
     <div class="section-title">{t('binding.response')}</div>
-    <div class="tabs" role="radiogroup" aria-label={t('binding.response')}>
-      {#each PRESETS as p (p)}
-        <button
-          role="radio"
-          aria-checked={preset === p}
-          class:active={preset === p}
-          disabled={app.readOnly}
-          title={t(`binding.presets.${p}_hint`)}
-          onclick={() => applyPreset(p)}
-        >
-          {t(`binding.presets.${p}`)}
-        </button>
-      {/each}
-    </div>
+    <Segmented
+      variant="fill"
+      label={t('binding.response')}
+      options={PRESETS.map((p) => ({ value: p, label: t(`binding.presets.${p}`), title: t(`binding.presets.${p}_hint`) }))}
+      value={preset}
+      disabled={app.readOnly}
+      onchange={(p) => p && applyPreset(p)}
+    />
     <figure class="graph">
       <div class="plot">
         <svg viewBox="0 0 {W} {H}" preserveAspectRatio="none" aria-label={t('binding.response_graph')}>
@@ -165,30 +155,6 @@
   }
   .section-title {
     margin-top: 4px;
-  }
-  .tabs {
-    display: grid;
-    grid-auto-columns: 1fr;
-    grid-auto-flow: column;
-    border: 1px solid var(--line);
-    border-radius: var(--radius-s);
-    overflow: hidden;
-  }
-  .tabs button {
-    padding: 6px 4px;
-    font-size: var(--fs-s);
-    color: var(--text-dim);
-  }
-  .tabs button + button {
-    border-left: 1px solid var(--line);
-  }
-  .tabs button:hover:not(:disabled, .active) {
-    color: var(--text);
-    background: var(--bg-2);
-  }
-  .tabs button.active {
-    background: var(--accent-soft);
-    color: var(--accent);
   }
   .muted {
     margin: 0;

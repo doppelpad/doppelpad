@@ -353,6 +353,7 @@
     "err_order": "Niedrig, mittel und hoch müssen ansteigen."
   },
   "activators": {
+    "title": "Activator",
     "single": "Einfacher Druck",
     "long": "Langer Druck",
     "double": "Doppelter Druck",
@@ -607,6 +608,7 @@
   },
   "macro": {
     "title": "Makro für {control}",
+    "mode_label": "Ablauf",
     "mode_hold": "Halten bis Loslassen",
     "mode_once": "Einmal komplett ausführen",
     "mode_repeat": "Wiederholen",
