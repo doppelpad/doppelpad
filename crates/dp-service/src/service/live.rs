@@ -73,7 +73,7 @@ impl Service {
                     gyro_calibration: s
                         .state
                         .motion
-                        .map(|_| self.rt.calibration().status(&s.info.id.0, now)),
+                        .map(|_| self.rt.calibration().status(s.info.id.as_str(), now)),
                     battery: s.battery,
                     raw: s.raw.as_deref().cloned(),
                 })

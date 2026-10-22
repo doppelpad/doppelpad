@@ -82,6 +82,18 @@ impl PlatformError {
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct DeviceId(pub String);
 
+impl DeviceId {
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl From<String> for DeviceId {
+    fn from(id: String) -> DeviceId {
+        DeviceId(id)
+    }
+}
+
 impl std::fmt::Display for DeviceId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(&self.0)

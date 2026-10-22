@@ -267,7 +267,7 @@ impl Service {
             .rt
             .devices()
             .iter()
-            .map(|s| s.info.id.0.clone())
+            .map(|s| s.info.id.to_string())
             .collect();
         // With the option on, a disconnected controller keeps its session (and so its
         // virtual controller, idle) until it is back.
@@ -292,12 +292,13 @@ impl Service {
             if let Some(owner) = s.owner
                 && !wanted.iter().any(|(id, _)| *id == owner)
             {
-                self.rt.stop_device(&dp_platform::DeviceId(owner.clone()));
+                self.rt
+                    .stop_device(&dp_platform::DeviceId::from(owner.clone()));
                 self.errors.devices.remove(&owner);
             }
         }
         for (id, path) in wanted {
-            let device = dp_platform::DeviceId(id.clone());
+            let device = dp_platform::DeviceId::from(id.clone());
             if self.rt.device_profile_path(&device) == Some(&path) {
                 continue;
             }
@@ -468,7 +469,12 @@ impl Service {
     fn show_lights(&mut self) {
         let state = &self.state;
         self.rt.set_indicators(|id| {
-            let slot = state.devices.get(&id.0).unwrap_or(&state.shared).active as u8 + 1;
+            let slot = state
+                .devices
+                .get(id.as_str())
+                .unwrap_or(&state.shared)
+                .active as u8
+                + 1;
             Leds {
                 player: match state.player_lights {
                     PlayerLights::Always => Some(slot),
@@ -500,7 +506,7 @@ impl Service {
                 .devices()
                 .iter()
                 .zip(&self.connected)
-                .any(|(s, id)| s.info.id.0 != *id)
+                .any(|(s, id)| s.info.id.as_str() != id)
         {
             self.sync_devices();
         }

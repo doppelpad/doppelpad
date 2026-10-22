@@ -328,17 +328,22 @@ impl DsuServer {
         for slot in self.slots.iter_mut() {
             if slot
                 .as_ref()
-                .is_some_and(|id| !pads.iter().any(|p| &p.info.id.0 == id))
+                .is_some_and(|id| !pads.iter().any(|p| p.info.id.as_str() == id))
             {
                 *slot = None;
             }
         }
         for p in pads {
-            if self.slots.iter().flatten().any(|id| *id == p.info.id.0) {
+            if self
+                .slots
+                .iter()
+                .flatten()
+                .any(|id| *id == p.info.id.as_str())
+            {
                 continue;
             }
             if let Some(free) = self.slots.iter_mut().find(|s| s.is_none()) {
-                *free = Some(p.info.id.0.clone());
+                *free = Some(p.info.id.to_string());
             }
         }
         let now_us = self.epoch.elapsed().as_micros() as u64;
@@ -346,7 +351,7 @@ impl DsuServer {
         for (i, slot) in self.slots.iter().enumerate() {
             let Some(p) = slot
                 .as_ref()
-                .and_then(|id| pads.iter().find(|p| &p.info.id.0 == id))
+                .and_then(|id| pads.iter().find(|p| p.info.id.as_str() == id))
             else {
                 self.last[i] = None;
                 continue;
@@ -364,7 +369,7 @@ impl DsuServer {
                 }
             }
             let pad = SlotPad {
-                mac: mac_of(&p.info.id.0),
+                mac: mac_of(p.info.id.as_str()),
                 state: p.state,
                 battery: p.battery,
                 has_motion: p.info.has_motion,

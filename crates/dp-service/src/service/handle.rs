@@ -127,7 +127,7 @@ impl Service {
             ServiceCmd::SetRemap(on) => self.set_remap(on),
             ServiceCmd::SetSuspended(on) => self.set_suspended(on),
             ServiceCmd::SetPreferredDevice(id) => {
-                self.rt.set_preferred_device(id.map(dp_platform::DeviceId));
+                self.rt.set_preferred_device(id.map(dp_platform::DeviceId::from));
                 ServiceReply::Ok("device preference set".into())
             }
             ServiceCmd::SetAutoSwitch(on) => {
@@ -225,7 +225,8 @@ impl Service {
             own.slots[slot] = Some(path.clone());
             own.active = slot;
             // Re-apply even if the same file is active: it may have been edited.
-            self.rt.stop_device(&dp_platform::DeviceId(device.clone()));
+            self.rt
+                .stop_device(&dp_platform::DeviceId::from(device.clone()));
             return self.device_reply(&device, format!("applied to slot {}", slot + 1));
         }
         self.clear_overrides();
@@ -416,7 +417,7 @@ impl Service {
 
     /// Turn a wireless controller off now.
     fn power_off(&mut self, id: String) -> ServiceReply {
-        if self.rt.power_off(&dp_platform::DeviceId(id)) {
+        if self.rt.power_off(&dp_platform::DeviceId::from(id)) {
             ServiceReply::Ok("controller turned off".into())
         } else {
             ServiceReply::Err(
@@ -454,7 +455,7 @@ impl Service {
         for (id, action) in self.rt.take_hotkey_actions() {
             match action {
                 HotkeyAction::Slot(n) => {
-                    let device = self.has_own_slots(Some(&id.0));
+                    let device = self.has_own_slots(Some(id.as_str()));
                     let slots = &self.slot_set(device.as_deref()).slots;
                     if slots.get(n as usize).is_none_or(Option::is_none) {
                         tracing::info!("slot {} is empty", n + 1);
