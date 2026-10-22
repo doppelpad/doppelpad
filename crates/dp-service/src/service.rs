@@ -964,7 +964,7 @@ impl Service {
 
     /// Persist the gyro calibration: explicit changes at once, automatic ones once a minute.
     fn save_calibration(&mut self) {
-        let Some(path) = self.opts.calibration_path.clone() else {
+        let Some(path) = &self.opts.calibration_path else {
             return;
         };
         let now = self.rt.now_ms();
@@ -972,7 +972,7 @@ impl Service {
             .calibration_saved
             .is_none_or(|t| now.saturating_sub(t) >= CALIBRATION_SAVE_MS);
         if self.rt.calibration().needs_save(periodic) {
-            if let Err(e) = self.rt.calibration_mut().save(&path) {
+            if let Err(e) = self.rt.calibration_mut().save(path) {
                 tracing::warn!("cannot save {}: {e}", path.display());
             }
             self.calibration_saved = Some(now);
@@ -1247,11 +1247,10 @@ impl Service {
             self.foreground = None;
             return;
         }
-        let fg = self.fg_now.clone();
-        if fg == self.foreground {
+        if self.fg_now == self.foreground {
             return;
         }
-        self.foreground = fg;
+        self.foreground = self.fg_now.clone();
         let target = self
             .foreground
             .as_deref()

@@ -192,6 +192,10 @@ pub struct Runtime {
     kbm_buf: Vec<KbmEvent>,
     epoch: Instant,
     snapshots: Vec<PadSnapshot>,
+    /// The ids of `snapshots`, kept to notice a changed device list without allocating.
+    device_ids: Vec<DeviceId>,
+    /// The pad states of `snapshots` as the engines get them (hotkey buttons withheld).
+    pad_buf: Vec<PadState>,
     /// The controller of the default session.
     primary: Option<DeviceId>,
     /// The controller picked in the app for the default session.
@@ -414,17 +418,20 @@ fn feedback(s: &mut Session, platform: &mut Platform, mapping_rumble: Option<Rum
     if let Some(c) = s.vpad.as_mut().and_then(|v| v.take_lightbar()) {
         s.game_lightbar = Some(c);
     }
-    let Some(id) = s.device.clone() else { return };
+    let Some(id) = s.device.as_ref() else { return };
     let vibration = &s.engine.profile().vibration;
     let game = vibration.apply(s.game_rumble);
     let gap = u64::from(vibration.min_delay_ms.clamp(10, 200));
-    let rumble = (id.clone(), mapping_rumble.unwrap_or(game));
+    let rumble = mapping_rumble.unwrap_or(game);
     // At most one command per gap; a change held back goes out with a later tick.
-    if s.sent_rumble.as_ref() != Some(&rumble) && s.rumble_at.is_none_or(|t| now >= t + gap) {
+    let sent = |sent: &Option<(DeviceId, Rumble)>| {
+        sent.as_ref().is_some_and(|(d, r)| d == id && *r == rumble)
+    };
+    if !sent(&s.sent_rumble) && s.rumble_at.is_none_or(|t| now >= t + gap) {
         for b in &mut platform.gamepads {
-            b.set_rumble(&rumble.0, rumble.1);
+            b.set_rumble(id, rumble);
         }
-        s.sent_rumble = Some(rumble);
+        s.sent_rumble = Some((id.clone(), rumble));
         s.rumble_at = Some(now);
     }
     // A trigger whose effect ends is turned off rather than left playing.
@@ -432,31 +439,37 @@ fn feedback(s: &mut Session, platform: &mut Platform, mapping_rumble: Option<Rum
     let before = s
         .sent_triggers
         .as_ref()
-        .filter(|(d, _)| *d == id)
+        .filter(|(d, _)| d == id)
         .map_or([None; 2], |(_, t)| *t);
     let effects = [0, 1].map(|i| want[i].or(before[i].map(|_| TriggerEffect::Off)));
-    let triggers = (id.clone(), effects);
-    if s.sent_triggers.as_ref() != Some(&triggers) {
+    if !s
+        .sent_triggers
+        .as_ref()
+        .is_some_and(|(d, t)| d == id && *t == effects)
+    {
         for b in &mut platform.gamepads {
-            b.set_trigger_effects(&triggers.0, triggers.1);
+            b.set_trigger_effects(id, effects);
         }
-        s.sent_triggers = Some(triggers);
+        s.sent_triggers = Some((id.clone(), effects));
     }
-    let light = (id, profile_light(s, now).or(s.game_lightbar));
-    if s.sent_lightbar.as_ref() == Some(&light) {
+    let light = profile_light(s, now).or(s.game_lightbar);
+    if s.sent_lightbar
+        .as_ref()
+        .is_some_and(|(d, l)| d == id && *l == light)
+    {
         return;
     }
     if let Some((old, Some(_))) = &s.sent_lightbar
-        && *old != light.0
+        && old != id
     {
         for b in &mut platform.gamepads {
             b.set_lightbar(old, None);
         }
     }
     for b in &mut platform.gamepads {
-        b.set_lightbar(&light.0, light.1);
+        b.set_lightbar(id, light);
     }
-    s.sent_lightbar = Some(light);
+    s.sent_lightbar = Some((id.clone(), light));
 }
 
 /// Stop a session's feedback on its controller.
@@ -510,6 +523,8 @@ impl Runtime {
             kbm_buf: Vec::new(),
             epoch: Instant::now(),
             snapshots: Vec::new(),
+            device_ids: Vec::new(),
+            pad_buf: Vec::new(),
             primary: None,
             preferred: None,
             lost: None,
@@ -689,7 +704,10 @@ impl Runtime {
                 reference: s.state,
                 tried: false,
             };
-            let e = self.idle.entry(s.info.id.clone()).or_insert(fresh);
+            if !self.idle.contains_key(&s.info.id) {
+                self.idle.insert(s.info.id.clone(), fresh);
+            }
+            let e = self.idle.get_mut(&s.info.id).expect("inserted above");
             if moved(&e.reference, &s.state) {
                 *e = fresh;
             } else if !e.tried && now.saturating_sub(e.since) >= after {
@@ -718,15 +736,18 @@ impl Runtime {
 
     /// Show `leds(controller)` on every connected controller, sending only changes.
     pub(crate) fn set_indicators(&mut self, leds: impl Fn(&DeviceId) -> Leds) {
-        let ids: Vec<DeviceId> = self.snapshots.iter().map(|s| s.info.id.clone()).collect();
-        self.sent_leds.retain(|id, _| ids.contains(id));
-        for id in ids {
-            let want = leds(&id);
-            if self.sent_leds.get(&id) != Some(&want) {
-                for b in &mut self.platform.gamepads {
-                    b.set_leds(&id, want);
+        self.sent_leds.retain(|id, _| self.device_ids.contains(id));
+        for id in &self.device_ids {
+            let want = leds(id);
+            match self.sent_leds.get_mut(id) {
+                Some(sent) if *sent == want => continue,
+                Some(sent) => *sent = want,
+                None => {
+                    self.sent_leds.insert(id.clone(), want);
                 }
-                self.sent_leds.insert(id, want);
+            }
+            for b in &mut self.platform.gamepads {
+                b.set_leds(id, want);
             }
         }
     }
@@ -1011,14 +1032,9 @@ impl Runtime {
     /// without a session of its own: the preferred one, else the one it lost, else the
     /// current one, else the first. Returns whether any session changed controllers.
     fn bind_sessions(&mut self) -> bool {
-        let ids: Vec<DeviceId> = self.snapshots.iter().map(|s| s.info.id.clone()).collect();
-        let owned: Vec<DeviceId> = self
-            .sessions
-            .iter()
-            .filter_map(|s| s.owner.clone())
-            .collect();
-        let free: Vec<&DeviceId> = ids.iter().filter(|id| !owned.contains(id)).collect();
-        let is_free = |p: &&DeviceId| free.contains(p);
+        let owned = |id: &DeviceId| self.sessions.iter().any(|s| s.owner.as_ref() == Some(id));
+        let is_free = |p: &&DeviceId| self.device_ids.contains(p) && !owned(p);
+        let first_free = || self.device_ids.iter().find(|id| !owned(id));
         let (primary, reason) = if let Some(p) = self.preferred.as_ref().filter(is_free) {
             (Some(p), "picked in the app")
         } else if let Some(p) = self.lost.as_ref().filter(is_free) {
@@ -1027,9 +1043,9 @@ impl Runtime {
             (Some(p), "still connected")
         } else if self.primary.is_some() {
             let reason = "the controller in use went away or has its own profile";
-            (free.first().copied(), reason)
+            (first_free(), reason)
         } else {
-            (free.first().copied(), "first free controller")
+            (first_free(), "first free controller")
         };
         let primary = primary.cloned();
         if primary != self.primary {
@@ -1039,7 +1055,7 @@ impl Runtime {
             }
             if self.lost.is_none()
                 && let Some(old) = &self.primary
-                && !free.contains(&old)
+                && !is_free(&old)
             {
                 self.lost = Some(old.clone());
             }
@@ -1051,17 +1067,18 @@ impl Runtime {
         let mut changed = false;
         for s in &mut self.sessions {
             let device = match &s.owner {
-                Some(id) => ids.contains(id).then(|| id.clone()),
-                None => self.primary.clone(),
+                Some(id) => self.device_ids.contains(id).then_some(id),
+                None => self.primary.as_ref(),
             };
-            changed |= device != s.device;
-            s.device = device;
+            if device != s.device.as_ref() {
+                s.device = device.cloned();
+                changed = true;
+            }
         }
         changed
     }
 
     fn poll_devices(&mut self, now: u64) {
-        let before: Vec<DeviceId> = self.snapshots.iter().map(|s| s.info.id.clone()).collect();
         self.snapshots.clear();
         for b in &mut self.platform.gamepads {
             b.poll(&mut self.snapshots);
@@ -1069,14 +1086,23 @@ impl Runtime {
         for s in &mut self.snapshots {
             self.calibration.apply(&s.info.id.0, &mut s.state, now);
         }
-        let ids: Vec<DeviceId> = self.snapshots.iter().map(|s| s.info.id.clone()).collect();
-        let devices_changed = ids != before;
+        let devices_changed = !self
+            .snapshots
+            .iter()
+            .map(|s| &s.info.id)
+            .eq(&self.device_ids);
+        if devices_changed {
+            self.device_ids.clear();
+            self.device_ids
+                .extend(self.snapshots.iter().map(|s| s.info.id.clone()));
+        }
+        let ids = &self.device_ids;
         let primary_lost = self.primary.as_ref().is_some_and(|p| !ids.contains(p));
         let preferred_back = self.preferred.is_some() && self.preferred != self.primary;
         let rebound = (devices_changed || primary_lost || preferred_back || self.primary.is_none())
             && self.bind_sessions();
         if devices_changed {
-            self.detectors.retain(|id, _| ids.contains(id));
+            self.detectors.retain(|id, _| self.device_ids.contains(id));
         }
         // A session on another controller must hide that one instead.
         if devices_changed || rebound {
@@ -1133,12 +1159,9 @@ impl Runtime {
         if let Some(rx) = &self.kbm_rx {
             self.kbm_buf.extend(rx.try_iter());
         }
-        let mut pads: HashMap<DeviceId, PadState> = self
-            .snapshots
-            .iter()
-            .map(|s| (s.info.id.clone(), s.state))
-            .collect();
-        for (id, action) in self.detect_hotkeys(&mut pads, now) {
+        self.pad_buf.clear();
+        self.pad_buf.extend(self.snapshots.iter().map(|s| s.state));
+        for (id, action) in self.detect_hotkeys(now) {
             tracing::info!(device = %id, ?action, "hotkey");
             if let Some(echo) = &mut self.echo {
                 echo.events.push(format!("hotkey      {action:?}"));
@@ -1170,7 +1193,10 @@ impl Runtime {
         let mut commands = Vec::new();
         for i in 0..self.sessions.len() {
             let s = &mut self.sessions[i];
-            let pad = s.device.as_ref().and_then(|id| pads.get(id)).copied();
+            let pad = s.device.as_ref().and_then(|id| {
+                let i = self.snapshots.iter().position(|p| &p.info.id == id)?;
+                Some(self.pad_buf[i])
+            });
             let kbm: &[KbmEvent] = if Some(i) == kbm_session {
                 &self.kbm_buf
             } else {
@@ -1283,19 +1309,19 @@ impl Runtime {
     }
 
     /// Run the hotkey detectors on every controller and withhold the buttons of complete
-    /// hotkeys from the engines.
-    fn detect_hotkeys(
-        &mut self,
-        pads: &mut HashMap<DeviceId, PadState>,
-        now: u64,
-    ) -> Vec<(DeviceId, HotkeyAction)> {
+    /// hotkeys from the engines (in `pad_buf`).
+    fn detect_hotkeys(&mut self, now: u64) -> Vec<(DeviceId, HotkeyAction)> {
         if self.hotkeys_paused || self.suspended {
             self.detectors.clear();
             return Vec::new();
         }
         let mut fired = Vec::new();
-        for (id, pad) in pads.iter_mut() {
-            let d = self.detectors.entry(id.clone()).or_default();
+        for (s, pad) in self.snapshots.iter().zip(&mut self.pad_buf) {
+            let id = &s.info.id;
+            if !self.detectors.contains_key(id) {
+                self.detectors.insert(id.clone(), HotkeyDetector::default());
+            }
+            let d = self.detectors.get_mut(id).expect("inserted above");
             if let Some(a) = d.update(&self.hotkeys, pad.buttons, now) {
                 fired.push((id.clone(), a));
             }
