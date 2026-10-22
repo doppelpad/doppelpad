@@ -5,9 +5,11 @@ import { setLanguage, t } from '../i18n/index.svelte';
 import type { Side } from '../model/analog';
 import { controlsFromPad, drawingsFor, sideShowing } from '../model/devices';
 import { setStickGroup, stickGroupConflicts, stickGroupOf, type StickGroup } from '../model/stickgroups';
-import { comboKey, editMappingIn, mappingAt, type LayerCopy } from '../model/profile';
+import { comboKey, editMappingIn, layerIds, mappingAt, type LayerCopy } from '../model/profile';
 import { layerLabel } from '../model/labels';
 import { clone } from '../model/util';
+import { isStreamingField, pointer } from '../dom';
+import { History, type EditKey } from './history';
 import { SETTINGS_PLACEHOLDER } from './settings';
 import type {
   Activator,
@@ -83,7 +85,13 @@ class AppState {
   prompt = $state<PromptRequest | null>(null);
   question = $state<QuestionRequest | null>(null);
   copiedLayer = $state.raw<LayerCopy | null>(null);
+  canUndo = $state(false);
+  canRedo = $state(false);
 
+  /** Earlier states of the open config, for undo and redo. */
+  private history = new History();
+  /** While set, every change belongs to one undo step (e.g. a recording); see `editGroup`. */
+  private group: unknown = null;
   /** Who gets the controller's presses instead of the editor (see `capturePresses`). */
   private pressListener: ((c: ControlName) => void) | null = null;
   /** Controls held on the primary controller; the drawing highlights exactly these. */
@@ -305,6 +313,7 @@ class AppState {
     this.configPath = null;
     this.profile = null;
     this.savedJson = '';
+    this.clearHistory();
     this.selected = null;
     this.stick = null;
   }
@@ -317,6 +326,7 @@ class AppState {
       this.profile = loaded.profile;
       this.savedJson = JSON.stringify(loaded.profile);
       this.readOnly = loaded.read_only;
+      this.clearHistory();
       this.diagnostics = loaded.diagnostics;
       this.layer = 0;
       this.selected = null;
@@ -328,15 +338,76 @@ class AppState {
     }
   }
 
-  /** Replace the draft profile with one computed from it (all edits go through here). */
+  /** Replace the draft profile with one computed from it (all edits go through here or `edit`). */
   update(p: Profile) {
     if (this.readOnly) return;
-    this.profile = p;
+    if (!this.profile) {
+      this.profile = p;
+      return;
+    }
+    this.commit(JSON.stringify(this.profile), p);
   }
 
   /** Change the draft profile; nothing happens without one or when it is read-only. */
   edit(change: (p: Profile) => Profile) {
-    if (this.profile && !this.readOnly) this.profile = change(this.profile);
+    if (!this.profile || this.readOnly) return;
+    // Taken first: `change` may change the draft in place.
+    const before = JSON.stringify(this.profile);
+    this.commit(before, change(this.profile));
+  }
+
+  /** Make `next` the draft; `before` (the draft before, as JSON) becomes an undo step if anything changed. */
+  private commit(before: string, next: Profile) {
+    if (JSON.stringify(next) !== before) {
+      this.history.record(before, this.editKey(), performance.now());
+      this.syncHistory();
+    }
+    this.profile = next;
+  }
+
+  /** What the change being made belongs to (see `EditKey`). */
+  private editKey(): EditKey {
+    if (this.group !== null) return { kind: 'gesture', id: this.group };
+    if (pointer.down) return { kind: 'gesture', id: `pointer:${pointer.id}` };
+    const el = typeof document === 'undefined' ? null : document.activeElement;
+    return isStreamingField(el) ? { kind: 'field', id: el } : null;
+  }
+
+  /** From now until `endEditGroup`, every change is part of one undo step (e.g. a macro recording). */
+  beginEditGroup() {
+    this.group = Symbol('edit group');
+  }
+
+  endEditGroup() {
+    this.group = null;
+  }
+
+  undo() {
+    this.travel((current) => this.history.undo(current));
+  }
+
+  redo() {
+    this.travel((current) => this.history.redo(current));
+  }
+
+  private travel(step: (current: string) => string | null) {
+    if (!this.profile || this.readOnly) return;
+    const target = step(JSON.stringify(this.profile));
+    this.syncHistory();
+    if (target === null) return;
+    this.profile = JSON.parse(target) as Profile;
+    if (!layerIds(this.profile).includes(this.layer)) this.layer = 0;
+  }
+
+  private clearHistory() {
+    this.history.clear();
+    this.group = null;
+    this.syncHistory();
+  }
+
+  private syncHistory() {
+    this.canUndo = this.history.canUndo;
+    this.canRedo = this.history.canRedo;
   }
 
   async save(): Promise<boolean> {
