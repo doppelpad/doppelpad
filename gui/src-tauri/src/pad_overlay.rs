@@ -13,7 +13,7 @@ use serde::Serialize;
 use tauri::{AppHandle, Manager};
 
 use crate::commands::AppState;
-use crate::overlay::{self, OverlayKind};
+use crate::overlay::{self, OverlayKind, Placement};
 use crate::settings::Corner;
 
 const PAD: OverlayKind = OverlayKind::Pad;
@@ -53,21 +53,12 @@ fn input_between(a: &LiveDevice, b: &LiveDevice) -> bool {
             .any(|(x, y)| (x - y).abs() > ACTIVITY)
 }
 
-fn present<T: Serialize>(
-    app: &AppHandle,
-    kind: OverlayKind,
-    corner: Corner,
-    size: (f64, f64),
-    content: &T,
-) {
-    match overlay::window(app, kind) {
-        Ok((w, created)) => {
-            if let Err(e) = overlay::place(app, &w, 0, corner, size) {
-                tracing::warn!("cannot place the {kind} overlay: {e}");
-            }
-            overlay::present(app, &w, created, kind, content);
-        }
-        Err(e) => tracing::warn!("cannot create the {kind} overlay: {e}"),
+/// `size` logical pixels in `corner` of the primary monitor.
+fn in_corner(corner: Corner, size: (f64, f64)) -> Placement {
+    Placement::Corner {
+        monitor: 0,
+        corner,
+        size,
     }
 }
 
@@ -118,13 +109,8 @@ fn update_pad(app: &AppHandle, pad: &mut Pad, on: bool, device: Option<LiveDevic
             opacity: s.opacity.clamp(20, 100),
             corner: s.corner,
         };
-        present(
-            app,
-            PAD,
-            s.corner,
-            (PAD_SIZE.0 * k, PAD_SIZE.1 * k),
-            &content,
-        );
+        let placement = in_corner(s.corner, (PAD_SIZE.0 * k, PAD_SIZE.1 * k));
+        overlay::show_content(app, PAD, placement, &content);
         pad.shown = Some(d);
     }
 }
@@ -161,7 +147,8 @@ fn update_mappings(
                 opacity: s.opacity.clamp(20, 100),
                 corner: s.corner,
             };
-            present(app, MAPPINGS, s.corner, MAPPINGS_SIZE, &content);
+            let placement = in_corner(s.corner, MAPPINGS_SIZE);
+            overlay::show_content(app, MAPPINGS, placement, &content);
         }
         Err(e) => tracing::warn!("cannot read {} for the mappings overlay: {e:#}", key.0),
     }

@@ -16,7 +16,7 @@ use serde::Serialize;
 use tauri::{AppHandle, Manager};
 
 use crate::commands::AppState;
-use crate::overlay::{self, OverlayKind};
+use crate::overlay::{self, OverlayKind, Placement};
 use crate::settings::{Corner, OsdSettings};
 
 const KIND: OverlayKind = OverlayKind::Osd;
@@ -220,17 +220,6 @@ pub fn notify(app: &AppHandle, event: Event, keep: bool) {
         let settings = app.state::<AppState>().settings.lock().unwrap().clone();
         (settings.language, settings.osd.clamped())
     };
-    let (w, created) = match overlay::window(app, KIND) {
-        Ok(w) => w,
-        Err(e) => {
-            tracing::warn!("cannot create the notification overlay: {e}");
-            return;
-        }
-    };
-    let k = f64::from(s.scale) / 100.0;
-    if let Err(e) = overlay::place(app, &w, s.monitor, s.corner, (SIZE.0 * k, SIZE.1 * k)) {
-        tracing::warn!("cannot place the notification overlay: {e}");
-    }
     let state = app.state::<OsdState>();
     let mut inner = state.inner.lock().unwrap();
     inner.next_id += 1;
@@ -244,7 +233,13 @@ pub fn notify(app: &AppHandle, event: Event, keep: bool) {
     };
     inner.until = (!keep).then(|| Instant::now() + Duration::from_secs(u64::from(s.seconds)));
     drop(inner);
-    overlay::present(app, &w, created, KIND, &msg);
+    let k = f64::from(s.scale) / 100.0;
+    let placement = Placement::Corner {
+        monitor: s.monitor,
+        corner: s.corner,
+        size: (SIZE.0 * k, SIZE.1 * k),
+    };
+    overlay::show_content(app, KIND, placement, &msg);
 }
 
 /// Hide the message whose time is up. Returns whether one went away.
