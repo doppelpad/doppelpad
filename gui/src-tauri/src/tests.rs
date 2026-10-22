@@ -7,7 +7,11 @@
 //! `controls.json` the names of the pad controls and `shaping.json` what the stick and
 //! trigger shaping makes of sample inputs. Regenerate them with
 //! `DOPPELPAD_UPDATE_FIXTURES=1 cargo test -p dp-gui`.
+//!
+//! Also checked: every command main.rs registers has a permission (build.rs) that the editor
+//! window holds (permissions/editor.toml).
 
+use std::collections::BTreeSet;
 use std::path::PathBuf;
 
 use dp_core::control::{Control, Zone};
@@ -402,4 +406,50 @@ fn shaping_fixture_is_current() {
         trigger,
     };
     assert_fixture("shaping.json", pretty(&shaping));
+}
+
+/// The part of `text` between `start` and the next `end`.
+fn between<'a>(text: &'a str, start: &str, end: &str) -> &'a str {
+    let rest = &text[text.find(start).unwrap() + start.len()..];
+    &rest[..rest.find(end).unwrap()]
+}
+
+/// The strings in double quotes.
+fn quoted(text: &str) -> BTreeSet<String> {
+    text.split('"')
+        .skip(1)
+        .step_by(2)
+        .map(str::to_owned)
+        .collect()
+}
+
+#[test]
+fn every_command_has_a_permission_the_editor_holds() {
+    let registered: BTreeSet<String> = between(include_str!("main.rs"), "generate_handler![", "]")
+        .split(',')
+        .filter_map(|item| item.trim().rsplit("::").next())
+        .filter(|name| !name.is_empty())
+        .map(str::to_owned)
+        .collect();
+    let permitted = quoted(between(
+        include_str!("../build.rs"),
+        "const COMMANDS: &[&str] = &[",
+        "];",
+    ));
+    let editor: BTreeSet<String> = quoted(between(
+        include_str!("../permissions/editor.toml"),
+        "permissions = [",
+        "]",
+    ))
+    .iter()
+    .map(|p| p.strip_prefix("allow-").unwrap().replace('-', "_"))
+    .collect();
+    assert_eq!(
+        permitted, registered,
+        "build.rs COMMANDS and main.rs differ"
+    );
+    assert_eq!(
+        editor, registered,
+        "permissions/editor.toml and main.rs differ"
+    );
 }
