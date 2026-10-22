@@ -14,11 +14,20 @@ only edits profiles and sends commands.
 | Area | What it does |
 |---|---|
 | **Games** (left) | One entry per game. A game has one or more configs and an optional list of programs (`game.exe`) that switch to it automatically. A green dot marks the game whose config is running. Configs outside a game folder appear under *Other configs*. |
-| **Header** | *Game › Config* picker (switch, create, import a JSON profile), **Save** (Ctrl+S; a dot means unsaved changes), options (rename, duplicate, show in Explorer, clear, delete), settings. Imported JSON files are read-only; duplicate them to edit. The header and the top of the games list also act as the title bar: drag them to move the window, double-click to maximize. On Windows and Linux the app draws its own minimize, maximize and close buttons at the right. On macOS the system buttons sit at the top left. |
+| **Header** | *Game › Config* picker (switch, create, import a JSON profile), **Undo** and **Redo** (see [Undo](#undo)), **Save** (Ctrl+S; a dot means unsaved changes), options (rename, duplicate, show in Explorer, clear, delete), settings. Imported JSON files are read-only; duplicate them to edit. The header and the top of the games list also act as the title bar: drag them to move the window, double-click to maximize. On Windows and Linux the app draws its own minimize, maximize and close buttons at the right. On macOS the system buttons sit at the top left. |
 | **Toolbar** | Views: *Controller*, *Back side*, *Keyboard*, *Mouse*. The two controller views draw the connected model as it looks from that side: the front shows the bumpers (L1 / R1, L / R) but not the triggers behind them; the back side shows the triggers, the bumpers where they show from behind (not on the DualSense), and the back buttons the model has, e.g. GL / GR on the Switch 2 Pro Controller, none on the first one. Layer chips: *Main* plus shift layers, which you can add, rename, copy, paste, clear and remove (together with their analog routes), and whose *Layer settings* say what they inherit from *Main*. On the right: *Analog* (see [Sticks, triggers and analog routes](#sticks-triggers-and-analog-routes)), *Shortcuts* and *Config settings*. |
 | **Centre** | The selected view. Click a control to edit it. On the controller views, pressing a button on the controller selects it, and turns the drawing to the side that shows it (a trigger to the back side, a face button to the front). On the keyboard view, pressing a key does the same. |
 | **Binding panel** (right) | See below. With nothing selected, it lists the mappings of the current layer. |
 | **Bottom bar** | On the left: the remap button (on in teal, off in grey; a pause sign while remapping pauses, see [Remapping while the window is open](#remapping-while-the-window-is-open); its tooltip names the running config), the controller in use with its battery level where the controller reports one (DualShock 4, DualSense, Switch controllers, wireless Xbox controllers; orange below 40 %, red below 20 %), and driver warnings. *+1* means another controller is connected; it turns orange or red when that one's battery runs low. The controller list picks the one to use, and the cog next to it holds that controller's options: *own slots* (see [Several controllers](#several-controllers)), identifying a generic pad's buttons, **Turn off** and **Ignore this controller**. On the right: *Apply to slot n* (saves, puts the config in that slot and activates it; the arrow picks the slot, and hovering the button marks it) and the four slots (click to activate, which also turns remapping on; × to unload). |
+
+## Undo
+
+**Undo** (Ctrl+Z) takes back the last change to the open config, **Redo** (Ctrl+Y or
+Ctrl+Shift+Z) brings it back, up to 100 steps. A slider drag, typing into a field and a macro
+recording each count as one step. Saving keeps the steps, so a change can be undone after
+saving too (the config is then unsaved again); opening another config starts afresh. Undo
+covers the config only: game settings, slots and the app's settings are not part of it. In a
+text field, Ctrl+Z undoes the typing in that field.
 
 ## Editing a control
 
@@ -330,7 +339,11 @@ the config menu as **New from template: …**.
 
 To share a game, choose **Export game …** in its menu in the game list: one `.dpgame` file holds
 its settings, every config and its picture. **Import game** (the arrow next to *+*) unpacks such
-a file into a new game; nothing existing is overwritten. **Save bindings sheet …** in a config's
+a file into a new game; nothing existing is overwritten. A config can start programs (the
+*launch* command), so a shared one could run something harmful: when a game or a JSON profile
+you import has launch commands, the app first lists each program with its arguments and where
+it sits. **Import without these** (the default) leaves them out, **Import with them** keeps
+them, *Cancel* imports nothing. **Save bindings sheet …** in a config's
 menu writes an HTML page listing every layer's mappings and routes, to print from a browser. A
 layer's menu can **Save as preset …** (its settings, mappings and routes); presets of all configs
 appear in every layer menu as **Insert preset: …**, which adds them as a new layer (layer

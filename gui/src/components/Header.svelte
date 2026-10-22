@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ChevronDown, Ellipsis, Save, Settings, Lock } from '@lucide/svelte';
+  import { ChevronDown, Ellipsis, Save, Settings, Lock, Undo2, Redo2 } from '@lucide/svelte';
   import { open, save } from '@tauri-apps/plugin-dialog';
   import { api } from '../lib/api';
   import { t } from '../lib/i18n/index.svelte';
@@ -20,14 +20,18 @@
   }
 
   async function importJson() {
-    if (!app.gameDir) {
+    const dir = app.gameDir;
+    if (!dir) {
       app.toast(t('header.no_selection'), 'error');
       return;
     }
     const source = await open({ title: t('header.import_title'), multiple: false, directory: false });
     if (typeof source !== 'string') return;
     await app.attempt(
-      api.configImport(app.gameDir, source).then(async (r) => {
+      api.configImportLaunches(source).then(async (found) => {
+        const keep = await app.keepLaunches(found);
+        if (keep === null) return;
+        const r = await api.configImport(dir, source, keep);
         await app.openCreated(r.path);
         app.toast(t('notices.imported', { name: app.profile?.name ?? '' }), 'ok');
         for (const d of r.diagnostics.filter((d) => d.severity !== 'info').slice(0, 3)) app.toast(d.message, 'info');
@@ -113,6 +117,12 @@
         {/snippet}
       </Menu>
       {#if app.readOnly}<span class="badge" title={t('header.read_only')}><Lock size={12} /> {t('header.read_only')}</span>{/if}
+      <button class="icon-btn" title={t('header.undo') + ' (Ctrl+Z)'} disabled={!app.canUndo || app.readOnly} onclick={() => app.undo()}>
+        <Undo2 size={17} />
+      </button>
+      <button class="icon-btn" title={t('header.redo') + ' (Ctrl+Y)'} disabled={!app.canRedo || app.readOnly} onclick={() => app.redo()}>
+        <Redo2 size={17} />
+      </button>
       <button
         class="icon-btn save"
         class:dirty={app.dirty}
@@ -192,7 +202,7 @@
     border-radius: 50%;
     background: var(--accent);
   }
-  .save:disabled {
+  .crumbs .icon-btn:disabled {
     opacity: 0.35;
     cursor: default;
   }

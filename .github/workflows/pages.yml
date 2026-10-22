@@ -1,0 +1,57 @@
+# Builds the website in site/ and publishes it on GitHub Pages. The site renders the handbook
+# from docs/ and the controller drawings and control names from the desktop app, so changes
+# there rebuild it too. Settings → Pages → Source must be "GitHub Actions".
+name: Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'site/**'
+      - 'docs/**'
+      - 'gui/src/assets/devices/**'
+      - 'gui/src/lib/svg.ts'
+      - 'gui/src/lib/i18n/*.json'
+      - 'gui/src-tauri/icons/source/**'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time; a running one finishes before the next starts.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+      - name: Dependencies
+        working-directory: site
+        run: npm ci
+      - name: Build
+        working-directory: site
+        run: npm run build
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: site/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

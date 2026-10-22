@@ -1,0 +1,80 @@
+/* The desktop app's look on Starlight: its dark surfaces and teal accent, Inter served from the site. */
+:root {
+  --sl-font: 'Inter Variable', 'Inter';
+
+  --sl-color-accent-low: #0b3a35;
+  --sl-color-accent: #14b8a6;
+  --sl-color-accent-high: #99f6e4;
+  --sl-color-white: #ffffff;
+  --sl-color-gray-1: #e6e9ef;
+  --sl-color-gray-2: #c3c9d4;
+  --sl-color-gray-3: #9aa3b2;
+  --sl-color-gray-4: #6b7483;
+  --sl-color-gray-5: #3a4250;
+  --sl-color-gray-6: #161a21;
+  --sl-color-black: #0f1115;
+
+  /* The controller drawings, after the app's tokens.css. */
+  --pad-line: #3a4250;
+  --pad-line-soft: #2a313c;
+  --pad-chip: #161a21;
+  --pad-text: #e6e9ef;
+  --pad-text-dim: #9aa3b2;
+  --pad-accent: #14b8a6;
+  --pad-accent-hover: #2dd4bf;
+  --pad-twin: #8b5cf6;
+}
+
+:root[data-theme='light'] {
+  --sl-color-accent-low: #ccfbf1;
+  --sl-color-accent: #0f766e;
+  --sl-color-accent-high: #134e4a;
+  --sl-color-white: #0f1115;
+  --sl-color-gray-1: #1e232c;
+  --sl-color-gray-2: #343b47;
+  --sl-color-gray-3: #535c6b;
+  --sl-color-gray-4: #8a93a2;
+  --sl-color-gray-5: #c7ccd5;
+  --sl-color-gray-6: #eef0f4;
+  --sl-color-gray-7: #f6f7f9;
+  --sl-color-black: #ffffff;
+
+  --pad-line: #8a93a2;
+  --pad-line-soft: #c7ccd5;
+  --pad-chip: #ffffff;
+  --pad-text: #1e232c;
+  --pad-text-dim: #535c6b;
+  --pad-accent: #0d9488;
+  --pad-accent-hover: #0f766e;
+  --pad-twin: #7c3aed;
+}
+
+/* Landing page sections. */
+.landing h2 {
+  margin-top: 3.5rem;
+}
+.landing .lead {
+  font-size: var(--sl-text-lg);
+  color: var(--sl-color-gray-2);
+  max-width: 60ch;
+}
+.landing .card-grid {
+  margin-top: 1.5rem;
+}
+.landing details {
+  margin-top: 0.75rem;
+  border: 1px solid var(--sl-color-gray-5);
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem;
+}
+.landing details[open] {
+  padding-bottom: 1rem;
+}
+.landing summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--sl-color-white);
+}
+.landing details > :not(summary) {
+  margin-top: 0.5rem;
+}

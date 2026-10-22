@@ -17,3 +17,8 @@ Thumbs.db
 # Windows installer payload (gui/scripts/fetch-drivers.mjs, gui/scripts/stage-cli.mjs)
 /gui/src-tauri/installer/drivers/
 /gui/src-tauri/installer/bin/
+
+# Website (site/)
+/site/node_modules/
+/site/dist/
+/site/.astro/

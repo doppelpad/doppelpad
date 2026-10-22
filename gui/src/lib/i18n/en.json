@@ -88,6 +88,14 @@
     "config_count": "{n} configs",
     "game_options": "Game options"
   },
+  "launches": {
+    "title": "This import starts programs",
+    "message": "Buttons in it would start these programs on your computer, with these arguments. A config from someone else can do harm this way: keep them only if you trust where it came from.",
+    "drop": "Import without these",
+    "keep": "Import with them",
+    "radial": "{name} (radial menu)",
+    "sector": "Sector {n}"
+  },
   "window": {
     "minimize": "Minimize",
     "maximize": "Maximize",
@@ -113,6 +121,8 @@
     "default_config_name": "Default",
     "import": "Import JSON profile…",
     "import_title": "Import a JSON profile",
+    "undo": "Undo",
+    "redo": "Redo",
     "save": "Save",
     "unsaved": "Unsaved changes",
     "discard_confirm": "Discard the unsaved changes?",

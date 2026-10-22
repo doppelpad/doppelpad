@@ -1,0 +1,214 @@
+---
+title: Open-Source-Controller-Remapping
+description: Freies Open-Source-Controller-Remapping für Windows, Linux als Vorschau. Umbelegungen, Kombinationen, Makros, Shift-Ebenen, Gyro-Zielen und virtuelle Xbox- oder DualShock-4-Controller.
+template: splash
+editUrl: false
+hero:
+  title: Doppelpad
+  tagline: Freies Open-Source-Controller-Remapping für Windows, Linux als Vorschau. Tasten umbelegen, Kombinationen und Makros bauen, Shift-Ebenen anlegen, mit Gyro zielen oder mit Tastatur und Maus als Xbox-Controller spielen.
+  actions:
+    - text: Für Windows herunterladen
+      link: https://github.com/doppelpad/doppelpad/releases/latest
+      icon: download
+      variant: primary
+    - text: Zum Handbuch
+      link: /de/handbook/desktop-app/
+      icon: open-book
+      variant: secondary
+    - text: Quellcode auf GitHub
+      link: https://github.com/doppelpad/doppelpad
+      icon: github
+      variant: minimal
+---
+
+import { Aside, Card, CardGrid, LinkButton, Steps } from '@astrojs/starlight/components';
+import ControllerGallery from '../../../components/ControllerGallery.svelte';
+import { controllers } from '../../../lib/controllers';
+
+<div class="landing">
+
+<Aside type="note" title="Frühe Vorschau (0.3)">
+Die Remapping-Engine, das Profilformat, der Import und die Windows-Backends sind fertig und mit
+Unit-Tests abgedeckt, echte DualSense-Eingaben sind geprüft. Die Desktop-App ist neu und wird noch
+verfeinert, und mehrere Controller und Funktionen liefen noch nicht auf echter Hardware. Welche
+das sind, steht in der [Roadmap](https://github.com/doppelpad/doppelpad/blob/main/docs/ROADMAP.md)
+(englisch). Mit Ecken und Kanten ist zu rechnen.
+</Aside>
+
+## Was es kann
+
+<p class="lead">
+  Doppelpad macht aus Controller, Tastatur oder Maus genau das, was ein Spiel erwartet. Es ist eine
+  unabhängige, offene Alternative zu reWASD und nutzt nur offene Treiber.
+</p>
+
+<CardGrid>
+  <Card title="Alles umbelegen" icon="random">
+    Tasten umbelegen oder abschalten, vom Controller Tasten- und Mauseingaben senden oder mit
+    Tastatur und Maus als virtueller Xbox-360- oder DualShock-4-Controller spielen, samt Rumble
+    aus dem Spiel.
+  </Card>
+  <Card title="Kombinationen und Auslöser" icon="puzzle">
+    Kombinationen aus bis zu vier Eingaben. Einfach, lang, doppelt und dreifach drücken, beim
+    Drücken oder Loslassen, dazu Zonen auf Sticks, Triggern, Gyro und Mausgeschwindigkeit.
+  </Card>
+  <Card title="Turbo, Umschalten und Makros" icon="rocket">
+    Halten, Turbo, Umschalten, einmal, wiederholen oder solange gedrückt. Makros mit Pausen,
+    Rumble und Programmstart, eine Anti-Recoil-Vorlage und Aufnahme von Tastatur oder Controller.
+  </Card>
+  <Card title="Shift-Ebenen" icon="list-format">
+    Ebenen zum Halten, Umschalten oder Wechseln, die von der Grundebene erben, jede mit eigenen
+    Einstellungen für Sticks, Trigger und Lichtleiste.
+  </Card>
+  <Card title="Sticks, Gyro und Touchpad" icon="setting">
+    Totzonen, Anti-Totzone, Kurven und Drehung. Stick als Maus, Maus als Stick, Flick Stick, Gyro
+    als Maus oder Stick und Touchpad-Gesten (Gyro und Touchpad warten noch auf Hardwaretests).
+  </Card>
+  <Card title="Profile pro Spiel" icon="laptop">
+    Vier Slots pro Controller, umgeschaltet per Controller-Tastenkürzel oder automatisch nach dem
+    Spiel im Vordergrund. Back + Start + LB + RB halten stoppt alle Makros und gibt alles frei.
+  </Card>
+  <Card title="Overlays" icon="desktop">
+    Einblendungen, Fadenkreuze mit Lupe, Radialmenüs, ein Controller-Overlay und eine
+    Belegungsübersicht (Windows, in der App).
+  </Card>
+  <Card title="Teilen und importieren" icon="document">
+    Spiele als `.dpgame`-Paket teilen, eine Belegungsübersicht drucken, Ebenen-Vorlagen anlegen
+    und JSON-Profile (Schema 3.0) anderer Remapper importieren.
+  </Card>
+</CardGrid>
+
+Dazu kommen Lichtleistenfarben, Spieler-LEDs, adaptive Trigger des DualSense,
+Vibrationseinstellungen, Akkustände, ein DSU-Bewegungsserver für Emulatoren und eine lokale
+HTTP-API. Die App spricht Deutsch und Englisch. Alle Einzelheiten stehen im
+[Handbuch](handbook/desktop-app/) (englisch).
+
+## Unterstützte Controller
+
+Doppelpad liest Controller direkt, so erscheint jeder mit seinen eigenen Tasten, gezeichnet wie
+in der App. Wähle einen aus, um Vorder- und Rückseite zu sehen.
+
+<ControllerGallery
+  client:visible
+  controllers={controllers.de}
+  sides={{ front: 'Vorderseite', back: 'Rückseite', label: 'Controller' }}
+/>
+
+Außerdem unterstützt: der Steam Controller (USB und sein Funkempfänger) und das Steam Deck mit
+Trackpads, Gyro und Rücktasten (Windows, Hardwaretest steht aus), sowie Tastaturen und Mäuse als
+Eingabe. Die Paddles des Xbox Elite, die Wii-Fernbedienung und der DualShock 3 werden noch nicht
+unterstützt.
+
+## Herunterladen
+
+<LinkButton href="https://github.com/doppelpad/doppelpad/releases/latest" icon="download" iconPlacement="start">
+  Neueste Version herunterladen
+</LinkButton>
+
+Doppelpad läuft unter **Windows 10 und 11 (x64)**. Das Setup installiert die beiden nötigen
+Treiber, wenn sie fehlen. Unter Linux ist Doppelpad eine Vorschau, die du aus dem Quellcode baust;
+die Einrichtung steht auf der [Linux-Seite](handbook/linux/) (englisch).
+
+<Aside type="caution" title="Windows SmartScreen warnt dich">
+Das Setup ist noch nicht code-signiert; das Signieren ist für später geplant. Windows kennt
+deshalb den Herausgeber nicht und zeigt beim Start *Der Computer wurde durch Windows geschützt*. Lade das Setup nur von der GitHub-Releases-Seite oben herunter, dann:
+
+<Steps>
+
+1. Klicke im SmartScreen-Fenster auf **Weitere Informationen**.
+2. Prüfe, dass es das eben heruntergeladene Doppelpad-Setup ist. Als Herausgeber steht
+   *Unbekannter Herausgeber*.
+3. Klicke auf **Trotzdem ausführen**.
+
+</Steps>
+
+Auch der Browser meldet vielleicht, dass die Datei nicht häufig heruntergeladen wird. Wähle dann
+**Beibehalten**.
+</Aside>
+
+## Treiber
+
+Doppelpad nutzt zwei Open-Source-Treiber von Nefarius und keine geschlossenen:
+
+- **[ViGEmBus](https://github.com/nefarius/ViGEmBus)** erzeugt den virtuellen Xbox-360- oder
+  DualShock-4-Controller, den Spiele sehen. Er ist für die Controller-Ausgabe nötig.
+- **[HidHide](https://github.com/nefarius/HidHide)** versteckt den echten Controller vor Spielen,
+  damit sie keine doppelten Eingaben sehen. Er ist optional.
+
+Das Setup installiert beide, wenn sie fehlen. `doppelpad doctor` prüft die Treiber und listet die
+erkannten Controller auf. Linux braucht keine zusätzlichen Treiber, nur eine udev-Regel für
+`/dev/uinput` und die Eingabegeräte.
+
+## Häufige Fragen
+
+<details>
+<summary>Ist Doppelpad kostenlos?</summary>
+
+Ja. Es ist frei und quelloffen, wahlweise unter der MIT- oder der Apache-2.0-Lizenz. Es gibt kein
+Konto und kein Abo.
+
+</details>
+
+<details>
+<summary>Warum warnt Windows vor dem Setup?</summary>
+
+Das Setup ist noch nicht code-signiert, deshalb kennt SmartScreen den Herausgeber nicht. Unter
+[Herunterladen](#herunterladen) steht, wie du es trotzdem startest.
+
+</details>
+
+<details>
+<summary>Läuft es unter Linux oder macOS?</summary>
+
+Das Linux-Backend (evdev und uinput) ist fertig und mit Unit-Tests abgedeckt, wurde aber noch
+nicht auf echter Hardware getestet; siehe die [Linux-Seite](handbook/linux/). macOS ist geplant.
+Die Engine lässt sich dort bauen, aber ein virtuelles Gamepad braucht eine signierte
+Treibererweiterung, für die Apple eine eigene Berechtigung vergeben muss.
+
+</details>
+
+<details>
+<summary>Kann ich meine bisherigen Profile verwenden?</summary>
+
+Doppelpad importiert JSON-Profile (Schema 3.0) anderer Remapping-Programme, mit ein paar
+Einschränkungen, die in der [Profil-Referenz](handbook/profiles/#importing-json-profiles)
+stehen. Eigene Profile sind gut lesbare TOML-Dateien.
+
+</details>
+
+<details>
+<summary>Was hat es mit reWASD zu tun?</summary>
+
+Doppelpad ist eine unabhängige Open-Source-Alternative zu reWASD und nicht damit verbunden. Es
+entsteht aus öffentlicher Dokumentation, offenen Treibern und eigenen Beobachtungen. reWASD
+behält Controller für sich, solange es läuft, deshalb bietet die App beim Start an, es zu
+beenden. Alle Marken gehören ihren jeweiligen Inhabern.
+
+</details>
+
+<details>
+<summary>Ist Remapping in Online-Spielen erlaubt?</summary>
+
+Das hängt vom Spiel ab. Doppelpad arbeitet über einen virtuellen Controller, wie andere Remapper
+auch, aber manche Spiele verbieten im Online-Spiel Makros, Turbo oder Umbelegungen. Prüfe die
+Regeln der Spiele, die du spielst.
+
+</details>
+
+<details>
+<summary>Ein Makro hängt. Wie stoppe ich alles?</summary>
+
+Halte **Back + Start + LB + RB** am Controller. Das stoppt alle Makros und gibt alle Ausgaben
+frei. Die Haltezeit lässt sich in der App einstellen.
+
+</details>
+
+<details>
+<summary>Wo melde ich Fehler oder wünsche mir Funktionen?</summary>
+
+In den [Issues auf GitHub](https://github.com/doppelpad/doppelpad/issues). Beiträge sind ebenfalls
+willkommen.
+
+</details>
+
+</div>

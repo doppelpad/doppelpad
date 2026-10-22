@@ -822,6 +822,22 @@ export interface Imported {
   diagnostics: DiagMsg[];
 }
 
+/** Where a launch command sits: a mapping, or a radial menu sector (both counted from 1). */
+export type LaunchPlace =
+  | { kind: 'mapping'; layer: number; layer_name: string; trigger: Combo }
+  | { kind: 'radial'; menu: number; name: string; sector: number; label: string };
+
+/** A program that a config being imported would start (crates/dp-config/src/launches.rs). */
+export interface Launch {
+  /** The config file, for a game bundle's configs. */
+  file: string | null;
+  /** The config's name. */
+  config: string;
+  place: LaunchPlace;
+  path: string;
+  args: string;
+}
+
 /** What of reWASD is running; it keeps the controllers to itself. */
 export interface RewasdStatus {
   /** Display name of its service while that runs. */

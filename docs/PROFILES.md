@@ -298,7 +298,7 @@ Commands:
 | `mappings_overlay` | Show or hide the list of the active layer's mappings over the game |
 | `power_off` | Turn this controller off (wireless DualShock 4, DualSense, Switch controllers and Xbox controllers; wired ones stay on) |
 | `shutdown`, `restart`, `sleep`, `hibernate`, `log_off` | Power commands; applications may still ask to save their work (Linux: `systemctl`, `loginctl`) |
-| `{ launch = { path, args } }` | Start a program |
+| `{ launch = { path, args } }` | Start a program. Importing a game or a JSON profile (in the app or with `doppelpad import`) lists these commands first and leaves them out unless you keep them, since a shared config could start anything |
 
 **Break** cuts a sequence into segments. Each activation plays the next segment, and after
 the last one it starts over with the first (for example "1, break, 2, break, 3" cycles
@@ -553,7 +553,8 @@ other remapping tools. Files are recognized by their content, so the extension d
 matter. The importer reports
 everything it could not represent, as diagnostics with JSON paths. These include radial-menu
 icons, crosshair shapes (each imported crosshair is drawn as a cross), adaptive triggers,
-LED settings and unsupported commands.
+LED settings and unsupported commands. Launch commands, which start programs, are listed
+and left out of the TOML unless you pass `--keep-launches` (only for a profile you trust).
 
 In that format a button that pushes a stick ramps up gradually by default, so imported
 profiles get `[virtual.sticks.*]` settings with that ramp for every stick that buttons push.

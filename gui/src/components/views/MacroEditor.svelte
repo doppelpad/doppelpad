@@ -127,6 +127,13 @@
     });
   });
 
+  // A whole recording is one undo step.
+  $effect(() => {
+    if (!recording && !padRecording) return;
+    app.beginEditGroup();
+    return () => app.endEditGroup();
+  });
+
   function replace(i: number, a: Action) {
     setSteps(steps.map((s, j) => (j === i ? a : s)));
   }
