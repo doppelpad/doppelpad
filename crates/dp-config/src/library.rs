@@ -75,6 +75,9 @@ pub struct ConfigEntry {
     pub name: String,
     /// Why the file cannot be loaded, if it cannot.
     pub error: Option<String>,
+    /// Executables that switch to this config (read with it, not sent to the app).
+    #[serde(skip)]
+    pub processes: Vec<String>,
 }
 
 /// One game folder with its configs.
@@ -110,6 +113,20 @@ pub struct Library {
     pub errors: Vec<String>,
 }
 
+impl Library {
+    /// The config to switch to for the executable `exe` (case-insensitive): the default config
+    /// of a game that lists it, else a loose config that does.
+    pub fn config_for_process(&self, exe: &str) -> Option<PathBuf> {
+        let lists = |names: &[String]| names.iter().any(|n| n.eq_ignore_ascii_case(exe));
+        self.games
+            .iter()
+            .filter(|g| lists(&g.meta.processes))
+            .find_map(Game::default_config)
+            .or_else(|| self.unsorted.iter().find(|c| lists(&c.processes)))
+            .map(|c| c.path.clone())
+    }
+}
+
 fn file_stem(path: &Path) -> String {
     path.file_stem()
         .and_then(|s| s.to_str())
@@ -123,11 +140,13 @@ fn config_entry(path: PathBuf) -> ConfigEntry {
             name: p.name,
             path,
             error: None,
+            processes: p.processes,
         },
         Err(e) => ConfigEntry {
             name: file_stem(&path),
             path,
             error: Some(e.to_string()),
+            processes: Vec::new(),
         },
     }
 }
@@ -383,16 +402,6 @@ pub fn import_into(game_dir: &Path, source: &Path) -> Result<(PathBuf, Diagnosti
     Ok((target, diags))
 }
 
-/// The game whose `processes` contain `exe` (case-insensitive), with the config to use.
-pub fn game_for_process<'a>(lib: &'a Library, exe: &str) -> Option<(&'a Game, PathBuf)> {
-    lib.games.iter().find_map(|g| {
-        if !g.meta.processes.iter().any(|p| p.eq_ignore_ascii_case(exe)) {
-            return None;
-        }
-        g.default_config().map(|c| (g, c.path.clone()))
-    })
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -539,9 +548,18 @@ mod tests {
         };
         update_game_meta(&game.dir, &meta).unwrap();
         let lib = scan(root.path());
-        let (g, cfg) = game_for_process(&lib, "shooter.EXE").unwrap();
-        assert_eq!(g.meta.name, "Shooter");
-        assert_eq!(cfg, second);
-        assert!(game_for_process(&lib, "other.exe").is_none());
+        assert_eq!(lib.config_for_process("shooter.EXE"), Some(second));
+        assert!(lib.config_for_process("other.exe").is_none());
+    }
+
+    #[test]
+    fn process_lookup_falls_back_to_loose_configs() {
+        let root = tempfile::tempdir().unwrap();
+        let loose = root.path().join("loose.toml");
+        std::fs::write(&loose, "name = \"Loose\"\nprocesses = [\"Game.exe\"]\n").unwrap();
+        std::fs::write(root.path().join("broken.toml"), "processes = 1\n").unwrap();
+        let lib = scan(root.path());
+        assert_eq!(lib.config_for_process("game.EXE"), Some(loose));
+        assert!(lib.config_for_process("other.exe").is_none());
     }
 }
