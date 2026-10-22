@@ -128,6 +128,11 @@
             onchange={(v) => app.setSettings({ hook_buttons: v })}
           />
           <Toggle checked={app.settings.pad_navigation} label={t('padnav.toggle')} onchange={(v) => app.setPadNavigation(v)} />
+          <Toggle
+            checked={app.settings.tray_per_controller}
+            label={t('settings.tray_per_controller')}
+            onchange={(v) => app.setSettings({ tray_per_controller: v })}
+          />
           <p class="hint">{t('padnav.hint')}</p>
           {#if app.rewasd}
             <SettingRow label={t('settings.rewasd')}>

@@ -757,6 +757,10 @@ export interface GuiSettings {
   zoom: number;
   /** The controller drives the app (focus, activate, back) instead of selecting the pressed control. */
   pad_navigation: boolean;
+  /** One more tray icon for each connected controller. */
+  tray_per_controller: boolean;
+  /** The colour of each controller's tray icon (`#rrggbb`) by device id. */
+  controller_colors: Record<string, string>;
 }
 
 /** Starting points for new configs. */

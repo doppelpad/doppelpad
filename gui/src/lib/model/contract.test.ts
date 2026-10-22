@@ -135,6 +135,8 @@ const guiSettings = {
   silenced: true,
   zoom: true,
   pad_navigation: true,
+  tray_per_controller: true,
+  controller_colors: true,
 } satisfies Keys<GuiSettings>;
 const osdSettings = {
   enabled: true,
