@@ -28,6 +28,7 @@ import type {
   PadFamily,
   Profile,
   RewasdStatus,
+  UpdateInfo,
 } from '../types';
 
 export type View = 'front' | 'back' | 'keyboard' | 'mouse' | 'shortcuts' | 'macro' | 'output' | 'analog';
@@ -47,15 +48,24 @@ interface PromptRequest {
   resolve: (v: string | null) => void;
 }
 
-/** What a question (ConfirmDialog) can show and offer besides its message. */
+/**
+ * What a question (ConfirmDialog) can show and offer besides its message; without options it
+ * asks with a warning sign, OK and Cancel.
+ */
 export interface QuestionOptions {
   title?: string;
+  /** Longer text below the message, kept as written (line breaks too), e.g. release notes. */
+  details?: string | null;
   /** Rows under the message: a line of code (a command line, say) and notes under it. */
   items?: { code: string; notes: string[] }[];
   /** The label of the OK button. */
   ok?: string;
+  /** The label of the Cancel button. */
+  cancel?: string;
   /** A second answer, between Cancel and OK. */
   alt?: string;
+  /** The sign before the title. */
+  kind?: 'warning' | 'update';
 }
 
 /** The button a question was answered with; `null` for Cancel (and Escape). */
@@ -77,6 +87,10 @@ class AppState {
   /** The start-up question whether to quit reWASD is open. */
   rewasdAsk = $state(false);
   rewasdQuitting = $state(false);
+  /** The update check runs. */
+  updateChecking = $state(false);
+  /** While an update downloads: its progress in percent. */
+  updateProgress = $state<number | null>(null);
 
   gameDir = $state<string | null>(null);
   configPath = $state<string | null>(null);
@@ -157,6 +171,8 @@ class AppState {
       const applied = this.live?.profile_path;
       const game = this.library.games.find((g) => g.configs.some((c) => c.path === applied)) ?? this.library.games[0];
       if (game) this.selectGame(game.dir);
+      // The question waits in the window, also when the app started hidden with Windows.
+      if (this.settings.check_updates) this.checkForUpdate();
     } catch (e) {
       this.toast(errorText(e), 'error');
     }
@@ -314,6 +330,51 @@ class AppState {
   choose(message: string, options: QuestionOptions = {}): Promise<Answer> {
     this.question?.resolve(null);
     return new Promise((resolve) => (this.question = { ...options, message, resolve }));
+  }
+
+  /**
+   * Ask the update endpoints (GitHub) for a newer version and offer to install it. `manual`
+   * (*Check now*) also says when there is none or the check failed; the check at start-up
+   * leaves that to the log.
+   */
+  async checkForUpdate(manual = false) {
+    if (this.updateChecking || this.updateProgress !== null) return;
+    this.updateChecking = true;
+    let update: UpdateInfo | null;
+    try {
+      update = await api.updateCheck();
+    } catch (e) {
+      if (manual) this.toast(t('updates.check_failed', { error: errorText(e) }), 'error');
+      return;
+    } finally {
+      this.updateChecking = false;
+    }
+    if (!update) {
+      if (manual) this.toast(t('updates.up_to_date'), 'ok');
+      return;
+    }
+    const install = await this.confirmAsk(t('updates.available', { version: update.version, current: update.current }), {
+      title: t('updates.title'),
+      details: update.notes,
+      ok: t('updates.install'),
+      cancel: t('updates.later'),
+      kind: 'update',
+    });
+    if (install) await this.installUpdate();
+  }
+
+  /** Download and install the update the last check found; the app starts again when it worked. */
+  private async installUpdate() {
+    if (!(await this.confirmDiscard())) return;
+    this.updateProgress = 0;
+    this.toast(t('updates.downloading'));
+    try {
+      await api.updateInstall((percent) => (this.updateProgress = percent));
+    } catch (e) {
+      this.toast(t('updates.install_failed', { error: errorText(e) }), 'error');
+    } finally {
+      this.updateProgress = null;
+    }
   }
 
   /**

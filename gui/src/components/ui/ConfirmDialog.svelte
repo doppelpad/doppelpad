@@ -1,6 +1,6 @@
 <script lang="ts">
   // The app's questions (`app.confirmAsk`, `app.choose`); the system's message box is never used.
-  import { TriangleAlert } from '@lucide/svelte';
+  import { CircleArrowDown, TriangleAlert } from '@lucide/svelte';
   import { t } from '../../lib/i18n/index.svelte';
   import { app, type Answer } from '../../lib/state/app.svelte';
   import Dialog from './Dialog.svelte';
@@ -14,9 +14,22 @@
 
 {#if app.question}
   {@const q = app.question}
-  <Dialog title={q.title ?? t('common.confirm')} onclose={() => finish(null)} width={q.items ? 540 : 420} gap={14} showClose={false}>
-    {#snippet icon()}<span class="warn"><TriangleAlert size={17} /></span>{/snippet}
+  <Dialog
+    title={q.title ?? t('common.confirm')}
+    onclose={() => finish(null)}
+    width={q.items ? 540 : q.details ? 520 : 420}
+    gap={14}
+    showClose={false}
+  >
+    {#snippet icon()}
+      {#if q.kind === 'update'}
+        <span class="accent"><CircleArrowDown size={17} /></span>
+      {:else}
+        <span class="warn"><TriangleAlert size={17} /></span>
+      {/if}
+    {/snippet}
     <p>{q.message}</p>
+    {#if q.details}<div class="details">{q.details}</div>{/if}
     {#if q.items?.length}
       <ul class="items">
         {#each q.items as item, i (i)}
@@ -28,7 +41,7 @@
       </ul>
     {/if}
     {#snippet footer()}
-      <button class="btn" onclick={() => finish(null)}>{t('common.cancel')}</button>
+      <button class="btn" onclick={() => finish(null)}>{q.cancel ?? t('common.cancel')}</button>
       {#if q.alt}<button class="btn" onclick={() => finish('alt')}>{q.alt}</button>{/if}
       <!-- svelte-ignore a11y_autofocus -->
       <button class="btn primary" onclick={() => finish('ok')} autofocus>{q.ok ?? t('common.ok')}</button>
@@ -41,9 +54,25 @@
     display: inline-flex;
     color: var(--warning);
   }
+  .accent {
+    display: inline-flex;
+    color: var(--accent);
+  }
   p {
     margin: 0;
     color: var(--text-dim);
+  }
+  /* Release notes and the like: as written, scrolling when long. */
+  .details {
+    max-height: 260px;
+    overflow-y: auto;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-m);
+    background: var(--bg-2);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    user-select: text;
   }
   .items {
     list-style: none;

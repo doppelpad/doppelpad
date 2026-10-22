@@ -571,6 +571,15 @@ export interface Battery {
 /** The drivers Doppelpad uses, by what they do (`Driver` in commands.rs). */
 export type Driver = 'virtual_pads' | 'device_hiding';
 
+/** A newer version than the running one (`UpdateInfo` in updates.rs). */
+export interface UpdateInfo {
+  version: string;
+  /** The running version. */
+  current: string;
+  /** The release notes, as plain text. */
+  notes: string | null;
+}
+
 /** Messages from before the window was ready (`Notice` in commands.rs; `notices.<name>` keys). */
 export type Notice = 'service-takeover';
 
@@ -718,6 +727,8 @@ export interface GuiSettings {
   stay_live: boolean;
   hook_buttons: boolean;
   rewasd_at_start: RewasdChoice;
+  /** Ask GitHub for a newer version at start-up. */
+  check_updates: boolean;
   osd: OsdSettings;
   pad_overlay: PadOverlaySettings;
   mappings_overlay: MappingsOverlaySettings;

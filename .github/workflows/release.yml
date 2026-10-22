@@ -1,0 +1,97 @@
+# Builds the Windows setup for a version tag and puts it on a draft GitHub release, with its
+# updater signature (.sig) and latest.json, which installed copies read to find updates
+# (plugins.updater in gui/src-tauri/tauri.conf.json). Publishing the draft ships the update.
+#
+# Release: set the version in Cargo.toml ([workspace.package]) and gui/package.json, commit,
+# then `git tag -a v<version>` with the release notes as the tag message (the update dialog
+# shows them) and push the tag. Tags with a hyphen (v1.2.0-beta.1) become prereleases, which
+# the updater does not offer.
+#
+# Secrets: TAURI_SIGNING_PRIVATE_KEY and TAURI_SIGNING_PRIVATE_KEY_PASSWORD, the updater key
+# that `tauri signer generate` made (see docs/GUI.md#updates).
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the tag, the version and the updater key
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          tag="$GITHUB_REF_NAME"
+          version=$(grep -m1 '^version = ' Cargo.toml | cut -d '"' -f 2)
+          npm_version=$(node -p "require('./gui/package.json').version")
+          if [ "$tag" != "v$version" ] || [ "$npm_version" != "$version" ]; then
+            echo "::error::Tag $tag, Cargo.toml ($version) and gui/package.json ($npm_version) must name the same version"
+            exit 1
+          fi
+          if grep -q 'REPLACE_WITH_THE_UPDATER_PUBLIC_KEY' gui/src-tauri/tauri.conf.json; then
+            echo "::error::plugins.updater.pubkey in gui/src-tauri/tauri.conf.json is still the placeholder"
+            exit 1
+          fi
+          if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            echo "::error::The secret TAURI_SIGNING_PRIVATE_KEY is missing"
+            exit 1
+          fi
+
+      # actions/checkout fetches an annotated tag as a plain one, without its message.
+      - name: Release notes from the tag message
+        id: notes
+        shell: bash
+        run: |
+          tag="$GITHUB_REF_NAME"
+          git fetch --force --depth=1 origin "+refs/tags/$tag:refs/tags/$tag"
+          if [ "$(git cat-file -t "$tag")" != tag ]; then
+            echo "::error::$tag is a lightweight tag: tag with 'git tag -a' and write the release notes as its message"
+            exit 1
+          fi
+          # The message as written: without the tag's header and without a signature.
+          {
+            echo 'notes<<DP_RELEASE_NOTES'
+            git cat-file tag "$tag" | sed '1,/^$/d; /^-----BEGIN .*SIGNATURE-----$/,$d'
+            echo 'DP_RELEASE_NOTES'
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: gui/package-lock.json
+      - name: Frontend dependencies
+        working-directory: gui
+        run: npm ci
+
+      # `tauri build`: the setup, its .sig (bundle.createUpdaterArtifacts) and latest.json,
+      # uploaded to a draft release for the tag.
+      - uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          projectPath: gui
+          tagName: ${{ github.ref_name }}
+          releaseName: Doppelpad ${{ github.ref_name }}
+          releaseBody: ${{ steps.notes.outputs.notes }}
+          releaseDraft: true
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          updaterJsonPreferNsis: true

@@ -472,7 +472,7 @@ reports a running reWASD.
 | `%APPDATA%\doppelpad\state.toml` | The four slots, active slot, remap on/off, autodetect |
 | `%APPDATA%\doppelpad\hotkeys.toml` | Controller hotkeys and their hold time (also read by `doppelpad daemon`) |
 | `%APPDATA%\doppelpad\calibration.toml` | Gyro calibration per controller (also used by `doppelpad daemon`) |
-| `%APPDATA%\doppelpad\gui.toml` | Language, focus pause, press-to-select, what to do about a running reWASD, notifications, the controller and mappings overlays, whether the welcome guide is done |
+| `%APPDATA%\doppelpad\gui.toml` | Language, focus pause, press-to-select, what to do about a running reWASD, update checks, notifications, the controller and mappings overlays, whether the welcome guide is done |
 | `%LOCALAPPDATA%\doppelpad\logs\doppelpad-gui.log` | Log of the current run; the logs of the five runs before are kept as `doppelpad-gui.log.1` (the newest) to `.5` |
 
 The app saves atomically (it writes a temporary file, then renames it). Before it
@@ -594,6 +594,113 @@ To move to another driver version, change its entry (URL, file name, SHA-256) in
 `scripts/fetch-drivers.mjs` and the table in `THIRD_PARTY_NOTICES.md`.
 
 The setup is not code-signed yet, so Windows SmartScreen warns when it is started.
+
+## Updates
+
+Doppelpad updates itself from the project's
+[GitHub releases](https://github.com/doppelpad/doppelpad/releases); there is no server of its
+own.
+
+- At start-up the app asks GitHub whether a newer version is out. *Settings → General →
+  Check for updates automatically* (on by default) turns this off. **Check now** next to the
+  version number asks right away and also says when Doppelpad is up to date.
+- When there is a newer version, a dialog shows its number and release notes. **Install and
+  restart** downloads the setup, checks its signature, stops remapping (hidden controllers
+  show again, virtual ones are unplugged), closes the app and runs the setup with only a
+  progress bar. Windows asks for administrator permission, because Doppelpad is installed
+  for all users. The setup replaces the files and starts Doppelpad again, with its window
+  open. **Later** leaves it until the next start or *Check now*. Unsaved changes in the
+  editor are asked about first.
+- An update keeps the configs, the settings and *Start with Windows*, and never installs
+  or changes the drivers. A running `doppelpad daemon` is asked to stop before its file is
+  replaced and is not started again: the app takes over remapping.
+- If the administrator prompt is declined or the setup cannot start, the app starts again
+  as it was. A download whose signature does not match is not installed; the app keeps
+  running and says why.
+
+**Privacy:** a check is one HTTPS request to github.com for
+`releases/latest/download/latest.json`; an update also downloads the setup from there. No
+data about you, your PC or your configs is sent, but GitHub sees your IP address and the
+time, as with any download, and the updater's user agent (`tauri-plugin-updater/<version>`).
+Switch off *Check for updates automatically* to stop the checks at start-up; then Doppelpad
+only contacts GitHub when you click **Check now**.
+
+### How updates work
+
+`plugins.updater` in `gui/src-tauri/tauri.conf.json` names the endpoints and the public key.
+The updater asks the endpoints in order and takes the first that answers, so an address on
+a project website can go first later, with GitHub as the fallback:
+
+```json
+"endpoints": [
+  "https://<project website>/latest.json",
+  "https://github.com/doppelpad/doppelpad/releases/latest/download/latest.json"
+]
+```
+
+`latest.json` names the newest version, its release notes, the setup's address and its
+signature. The signature is made with the updater key (Ed25519, in minisign's format),
+which is separate from Windows code signing. The app installs a setup only when the
+signature matches the public key in its config and covers the version that `latest.json`
+announces (`requireSignedVersion`), so a changed `latest.json` cannot slip in another or an
+older setup.
+
+`bundle.createUpdaterArtifacts` makes `tauri build` write the signature,
+`Doppelpad_<version>_x64-setup.exe.sig`, next to the setup. That needs the private key in
+`TAURI_SIGNING_PRIVATE_KEY` and its password in `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`;
+without them the setup is built but `tauri build` then fails. Local builds that do not need
+an update can leave the signature out:
+
+```bash
+npx tauri build --config '{"bundle":{"createUpdaterArtifacts":false}}'
+```
+
+The updater runs the setup with `/P /UPDATE /R`: progress bar only, no driver
+installation (see [Drivers](#drivers)), and start the app when done. Before it starts the
+setup, the app stops its remapping service, the same way **Quit** in the tray does.
+
+### Releasing
+
+1. Set the version in `Cargo.toml` (`[workspace.package]`) and `gui/package.json`, and commit.
+2. Tag with the release notes as the message and push the tag:
+
+   ```bash
+   git tag -a v0.4.0     # the editor opens for the release notes
+   git push origin v0.4.0
+   ```
+
+3. `.github/workflows/release.yml` builds and signs the setup and creates a draft release
+   with the setup, its `.sig` and `latest.json`. It stops when the tag and the two versions
+   differ, the tag has no message (`git tag` without `-a`), the key secret is missing, or
+   the public key in `tauri.conf.json` is still the placeholder.
+4. Check the draft on GitHub and publish it. Only a published release is
+   `releases/latest`, so installed copies see the update from then on. A tag with a hyphen
+   (`v0.4.0-beta.1`) becomes a prerelease, which the updater never offers.
+
+The release notes in `latest.json` come from the tag message when the workflow runs;
+editing the release on GitHub later does not change what the update dialog shows.
+
+### Updater key
+
+The maintainer makes the key once:
+
+```bash
+cd gui
+npx tauri signer generate -w "$HOME/.tauri/doppelpad-updater.key"
+```
+
+It asks for a password and writes the private key (`doppelpad-updater.key`) and the public
+key (`doppelpad-updater.key.pub`).
+
+- The public key (the content of the `.pub` file) replaces the placeholder in
+  `plugins.updater.pubkey` and is committed.
+- The private key and the password go into the repository's secrets (*Settings → Secrets
+  and variables → Actions*): `TAURI_SIGNING_PRIVATE_KEY` (the content of the key file) and
+  `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`. They never go into the repository.
+- Keep an offline backup of the key file and the password, for example in a password manager
+  and on a USB stick. **A lost key cannot be replaced:** installed copies accept only setups
+  signed with it, so they could never update again, and every user would have to download
+  and install a new version by hand.
 
 ## Languages
 

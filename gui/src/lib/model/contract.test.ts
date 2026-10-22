@@ -125,6 +125,7 @@ const guiSettings = {
   stay_live: true,
   hook_buttons: true,
   rewasd_at_start: true,
+  check_updates: true,
   osd: true,
   pad_overlay: true,
   mappings_overlay: true,
