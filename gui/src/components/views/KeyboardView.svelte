@@ -2,6 +2,7 @@
   // On-screen ANSI keyboard. Keys are controls `Key:<name>`; clicking or pressing a
   // physical key selects it for the binding panel.
   import { SvelteSet } from 'svelte/reactivity';
+  import { t } from '../../lib/i18n/index.svelte';
   import { keyFromEvent } from '../../lib/model/keymap';
   import { effectiveSummary } from '../../lib/model/labels';
   import { app } from '../../lib/state/app.svelte';
@@ -69,7 +70,6 @@
   const HEIGHT = 6.5;
 
   const LABELS: Record<string, string> = {
-    Escape: 'Esc',
     Grave: '`',
     Minus: '-',
     Equal: '=',
@@ -81,38 +81,49 @@
     Comma: ',',
     Period: '.',
     Slash: '/',
-    LeftShift: 'Shift',
-    RightShift: 'Shift',
-    LeftCtrl: 'Ctrl',
-    RightCtrl: 'Ctrl',
-    LeftAlt: 'Alt',
-    RightAlt: 'Alt',
-    LeftMeta: 'Win',
-    RightMeta: 'Win',
-    ContextMenu: 'Menu',
-    PrintScreen: 'PrtSc',
-    ScrollLock: 'ScrLk',
-    Insert: 'Ins',
-    Delete: 'Del',
-    PageUp: 'PgUp',
-    PageDown: 'PgDn',
     Up: '↑',
     Down: '↓',
     Left: '←',
     Right: '→',
-    NumLock: 'Num',
     NumpadDivide: '/',
     NumpadMultiply: '*',
     NumpadSubtract: '-',
     NumpadAdd: '+',
-    NumpadEnter: 'Enter',
     NumpadDecimal: '.',
-    CapsLock: 'Caps',
     Space: '',
-    Backspace: 'Backspace',
+  };
+
+  /** Keys whose caps carry a word, by catalog key (`keys.*`): German keyboards say Strg, Entf, … */
+  const WORDS: Record<string, string> = {
+    Escape: 'esc',
+    PrintScreen: 'print',
+    ScrollLock: 'scroll',
+    Pause: 'pause',
+    Backspace: 'backspace',
+    Insert: 'insert',
+    Home: 'home',
+    PageUp: 'page_up',
+    NumLock: 'num',
+    Tab: 'tab',
+    Delete: 'delete',
+    End: 'end',
+    PageDown: 'page_down',
+    CapsLock: 'caps',
+    Enter: 'enter',
+    NumpadEnter: 'enter',
+    LeftShift: 'shift',
+    RightShift: 'shift',
+    LeftCtrl: 'ctrl',
+    RightCtrl: 'ctrl',
+    LeftMeta: 'win',
+    RightMeta: 'win',
+    LeftAlt: 'alt',
+    RightAlt: 'alt_gr',
+    ContextMenu: 'menu',
   };
 
   function label(k: string): string {
+    if (k in WORDS) return t(`keys.${WORDS[k]}`);
     if (k in LABELS) return LABELS[k];
     if (k.startsWith('Digit')) return k.slice(5);
     if (k.startsWith('Numpad')) return k.slice(6);

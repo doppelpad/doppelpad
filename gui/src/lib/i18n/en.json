@@ -1314,6 +1314,29 @@
       "x2": "Forward button"
     }
   },
+  "keys": {
+    "esc": "Esc",
+    "print": "PrtSc",
+    "scroll": "ScrLk",
+    "pause": "Pause",
+    "backspace": "Backspace",
+    "insert": "Ins",
+    "home": "Home",
+    "page_up": "PgUp",
+    "num": "Num",
+    "tab": "Tab",
+    "delete": "Del",
+    "end": "End",
+    "page_down": "PgDn",
+    "caps": "Caps",
+    "enter": "Enter",
+    "shift": "Shift",
+    "ctrl": "Ctrl",
+    "win": "Win",
+    "alt": "Alt",
+    "alt_gr": "Alt",
+    "menu": "Menu"
+  },
   "diagnostics": {
     "errors": "{n} errors",
     "warnings": "{n} warnings",
