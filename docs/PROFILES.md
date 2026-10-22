@@ -298,7 +298,7 @@ Commands:
 | `mappings_overlay` | Show or hide the list of the active layer's mappings over the game |
 | `power_off` | Turn this controller off (wireless DualShock 4, DualSense, Switch controllers and Xbox controllers; wired ones stay on) |
 | `shutdown`, `restart`, `sleep`, `hibernate`, `log_off` | Power commands; applications may still ask to save their work (Linux: `systemctl`, `loginctl`) |
-| `{ launch = { path, args } }` | Start a program |
+| `{ launch = { path, args } }` | Start a program. Importing a game or a JSON profile in the app lists these commands first and leaves them out unless you keep them, since a shared config could start anything |
 
 **Break** cuts a sequence into segments. Each activation plays the next segment, and after
 the last one it starts over with the first (for example "1, break, 2, break, 3" cycles

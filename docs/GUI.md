@@ -330,7 +330,11 @@ the config menu as **New from template: …**.
 
 To share a game, choose **Export game …** in its menu in the game list: one `.dpgame` file holds
 its settings, every config and its picture. **Import game** (the arrow next to *+*) unpacks such
-a file into a new game; nothing existing is overwritten. **Save bindings sheet …** in a config's
+a file into a new game; nothing existing is overwritten. A config can start programs (the
+*launch* command), so a shared one could run something harmful: when a game or a JSON profile
+you import has launch commands, the app first lists each program with its arguments and where
+it sits. **Import without these** (the default) leaves them out, **Import with them** keeps
+them, *Cancel* imports nothing. **Save bindings sheet …** in a config's
 menu writes an HTML page listing every layer's mappings and routes, to print from a browser. A
 layer's menu can **Save as preset …** (its settings, mappings and routes); presets of all configs
 appear in every layer menu as **Insert preset: …**, which adds them as a new layer (layer

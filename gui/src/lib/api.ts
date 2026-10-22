@@ -14,6 +14,7 @@ import type {
   Hotkeys,
   HttpSettings,
   Imported,
+  Launch,
   LayerPreset,
   Library,
   LiveState,
@@ -40,7 +41,8 @@ export const api = {
     invoke<string>('config_from_template', { gameDir, name, template }),
   openDriverPage: (driver: Driver) => invoke<void>('open_driver_page', { driver }),
   gameExport: (dir: string, out: string) => invoke<void>('game_export', { dir, out }),
-  gameImport: (file: string) => invoke<Game>('game_import', { file }),
+  gameLaunches: (file: string) => invoke<Launch[]>('game_launches', { file }),
+  gameImport: (file: string, keepLaunches: boolean) => invoke<Game>('game_import', { file, keepLaunches }),
   presetList: () => invoke<PresetEntry[]>('preset_list'),
   presetSave: (preset: LayerPreset) => invoke<string>('preset_save', { preset }),
   presetLoad: (path: string) => invoke<LayerPreset>('preset_load', { path }),
@@ -51,7 +53,9 @@ export const api = {
   configCreate: (gameDir: string, name: string) => invoke<string>('config_create', { gameDir, name }),
   configDuplicate: (path: string) => invoke<string>('config_duplicate', { path }),
   configDelete: (path: string) => invoke<void>('config_delete', { path }),
-  configImport: (gameDir: string, source: string) => invoke<Imported>('config_import', { gameDir, source }),
+  configImportLaunches: (source: string) => invoke<Launch[]>('config_import_launches', { source }),
+  configImport: (gameDir: string, source: string, keepLaunches: boolean) =>
+    invoke<Imported>('config_import', { gameDir, source, keepLaunches }),
   reveal: (path: string) => invoke<void>('reveal', { path }),
 
   /** `device`: that controller's own slots instead of the shared ones. */

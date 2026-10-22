@@ -9,6 +9,7 @@ use std::sync::{Arc, Mutex};
 
 use dp_config::Diagnostic;
 use dp_config::bundle::{self, LayerPreset, PresetEntry};
+use dp_config::launches::Launch;
 use dp_config::library::{self, Game, GameMeta, Library};
 use dp_config::templates::{self, Template};
 use dp_core::control::Control;
@@ -252,11 +253,23 @@ pub fn game_export(dir: PathBuf, out: PathBuf) -> CmdResult<()> {
     bundle::export_game(&dir, &out).map_err(err)
 }
 
-/// Unpack a game bundle into a new game folder.
+/// The launch commands in a game bundle's configs, to ask about before importing it.
 #[tauri::command(async)]
-pub fn game_import(app: AppHandle, state: State<AppState>, file: PathBuf) -> CmdResult<Game> {
+pub fn game_launches(file: PathBuf) -> CmdResult<Vec<Launch>> {
+    bundle::launches(&file).map_err(err)
+}
+
+/// Unpack a game bundle into a new game folder, without its launch commands unless
+/// `keep_launches`.
+#[tauri::command(async)]
+pub fn game_import(
+    app: AppHandle,
+    state: State<AppState>,
+    file: PathBuf,
+    keep_launches: bool,
+) -> CmdResult<Game> {
     library_change(&app, || {
-        bundle::import_game(&state.profiles_dir, &file).map_err(err)
+        bundle::import_game(&state.profiles_dir, &file, keep_launches).map_err(err)
     })
 }
 
@@ -342,10 +355,22 @@ pub struct Imported {
     diagnostics: Vec<Diagnostic>,
 }
 
+/// The launch commands in a JSON profile, to ask about before importing it.
 #[tauri::command(async)]
-pub fn config_import(app: AppHandle, game_dir: PathBuf, source: PathBuf) -> CmdResult<Imported> {
+pub fn config_import_launches(source: PathBuf) -> CmdResult<Vec<Launch>> {
+    library::import_launches(&source).map_err(err)
+}
+
+/// Import a JSON profile as a new config, without its launch commands unless `keep_launches`.
+#[tauri::command(async)]
+pub fn config_import(
+    app: AppHandle,
+    game_dir: PathBuf,
+    source: PathBuf,
+    keep_launches: bool,
+) -> CmdResult<Imported> {
     let (path, diags) = library_change(&app, || {
-        library::import_into(&game_dir, &source).map_err(err)
+        library::import_into(&game_dir, &source, keep_launches).map_err(err)
     })?;
     Ok(Imported {
         path,
