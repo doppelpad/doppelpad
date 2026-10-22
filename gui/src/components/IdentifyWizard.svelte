@@ -9,6 +9,7 @@
   import { STEPS, buildLayout, detect, modelKey, settled, type Hit, type Step } from '../lib/model/identify';
   import { app } from '../lib/state/app.svelte';
   import type { RawInput } from '../lib/types';
+  import Dialog from './ui/Dialog.svelte';
 
   let { deviceId, onclose }: { deviceId: string; onclose: () => void } = $props();
 
@@ -92,77 +93,39 @@
   });
 </script>
 
-<svelte:window onkeydown={(e) => e.key === 'Escape' && onclose()} />
+<Dialog title={t('identify.title', { name: device?.name ?? deviceId })} {onclose}>
 
-<div class="backdrop" role="presentation" onclick={onclose}>
-  <div class="dialog" role="dialog" aria-modal="true" tabindex="-1" onclick={(e) => e.stopPropagation()} onkeydown={() => {}}>
-    <div class="head">
-      <h3>{t('identify.title', { name: device?.name ?? deviceId })}</h3>
-      <button class="icon-btn" onclick={onclose} title={t('common.close')}><X size={17} /></button>
+  {#if !device || !raw}
+    <p class="hint">{t('identify.gone')}</p>
+  {:else if phase === 'intro'}
+    <p>{t('identify.intro')}</p>
+    <div class="actions">
+      {#if known}
+        <button class="btn" onclick={() => finish(api.forgetLayout(key), t('identify.forgotten'))}>{t('identify.forget')}</button>
+      {/if}
+      <button class="btn primary" onclick={start}>{t('identify.start')}</button>
     </div>
-
-    {#if !device || !raw}
-      <p class="hint">{t('identify.gone')}</p>
-    {:else if phase === 'intro'}
-      <p>{t('identify.intro')}</p>
-      <div class="actions">
-        {#if known}
-          <button class="btn" onclick={() => finish(api.forgetLayout(key), t('identify.forgotten'))}>{t('identify.forget')}</button>
-        {/if}
-        <button class="btn primary" onclick={start}>{t('identify.start')}</button>
-      </div>
-    {:else if phase === 'step'}
-      <div class="section-title">{t('identify.step', { n: index + 1, of: STEPS.length })}</div>
-      <p class="prompt">{prompt(STEPS[index])}</p>
-      <p class="hint">{waiting ? t('identify.release') : t('identify.waiting')}</p>
-      <div class="actions">
-        <button class="btn" disabled={index === 0} onclick={back}>{t('identify.back')}</button>
-        <button class="btn" onclick={next}>{t('identify.skip')}</button>
-      </div>
-    {:else}
-      <p>{t('identify.done', { n: found, of: STEPS.length })}</p>
-      <div class="actions">
-        <button class="btn" onclick={start}>{t('identify.again')}</button>
-        <button class="btn primary" disabled={found === 0} onclick={() => finish(api.setLayout(buildLayout(key, hits)), t('identify.saved'))}>
-          {t('identify.save')}
-        </button>
-      </div>
-    {/if}
-    {#if raw}<p class="raw">{rawText}</p>{/if}
-  </div>
-</div>
+  {:else if phase === 'step'}
+    <div class="section-title">{t('identify.step', { n: index + 1, of: STEPS.length })}</div>
+    <p class="prompt">{prompt(STEPS[index])}</p>
+    <p class="hint">{waiting ? t('identify.release') : t('identify.waiting')}</p>
+    <div class="actions">
+      <button class="btn" disabled={index === 0} onclick={back}>{t('identify.back')}</button>
+      <button class="btn" onclick={next}>{t('identify.skip')}</button>
+    </div>
+  {:else}
+    <p>{t('identify.done', { n: found, of: STEPS.length })}</p>
+    <div class="actions">
+      <button class="btn" onclick={start}>{t('identify.again')}</button>
+      <button class="btn primary" disabled={found === 0} onclick={() => finish(api.setLayout(buildLayout(key, hits)), t('identify.saved'))}>
+        {t('identify.save')}
+      </button>
+    </div>
+  {/if}
+  {#if raw}<p class="raw">{rawText}</p>{/if}
+</Dialog>
 
 <style>
-  .backdrop {
-    position: fixed;
-    inset: 0;
-    background: var(--backdrop);
-    display: grid;
-    place-items: center;
-    z-index: var(--z-dialog);
-  }
-  .dialog {
-    width: 460px;
-    max-width: calc(100vw - 32px);
-    background: var(--bg-1);
-    border: 1px solid var(--line-strong);
-    border-radius: var(--radius-l);
-    box-shadow: var(--shadow);
-    padding: 18px 20px 22px;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-  }
-  .head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-  h3 {
-    margin: 0;
-    font-size: 16px;
-    font-weight: 600;
-  }
   p {
     margin: 0;
   }

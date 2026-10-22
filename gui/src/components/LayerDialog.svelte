@@ -1,6 +1,5 @@
 <script lang="ts">
   // Settings of one shift layer: its name and which of Main's mappings it takes over.
-  import { X } from '@lucide/svelte';
   import { t } from '../lib/i18n/index.svelte';
   import { comboLabel } from '../lib/model/labels';
   import {
@@ -17,6 +16,7 @@
   import { app } from '../lib/state/app.svelte';
   import type { Combo, Unlock } from '../lib/types';
   import Toggle from './ui/Toggle.svelte';
+  import Dialog from './ui/Dialog.svelte';
 
   let { layer, onclose }: { layer: number; onclose: () => void } = $props();
 
@@ -33,101 +33,62 @@
   }
 </script>
 
-<svelte:window onkeydown={(e) => e.key === 'Escape' && onclose()} />
+<Dialog title={t('layers.settings_title', { layer: app.layerLabel(layer) })} {onclose}>
 
-<div class="backdrop" role="presentation" onclick={onclose}>
-  <div class="dialog" role="dialog" aria-modal="true" tabindex="-1" onclick={(e) => e.stopPropagation()} onkeydown={() => {}}>
-    <div class="head">
-      <h3>{t('layers.settings_title', { layer: app.layerLabel(layer) })}</h3>
-      <button class="icon-btn" onclick={onclose} title={t('common.close')}><X size={17} /></button>
-    </div>
+  <label class="row">
+    <span>{t('layers.name_prompt')}</span>
+    <input value={app.layerLabel(layer)} disabled={app.readOnly} onchange={(e) => rename(e.currentTarget.value)} />
+  </label>
 
-    <label class="row">
-      <span>{t('layers.name_prompt')}</span>
-      <input value={app.layerLabel(layer)} disabled={app.readOnly} onchange={(e) => rename(e.currentTarget.value)} />
-    </label>
-
-    <label class="row">
-      <span>{t('layers.unlock')}</span>
-      <select
-        value={unlock ?? 'none'}
-        disabled={app.readOnly}
-        onchange={(e) => {
-          const v = e.currentTarget.value;
-          app.edit((p) => setLayerUnlock(p, layer, v === 'none' ? undefined : (v as Unlock)));
-        }}
-      >
-        {#each UNLOCKS as u (u)}<option value={u}>{t(`layers.unlock_options.${u}`)}</option>{/each}
-      </select>
-    </label>
-    {#if unlock}<p class="hint">{t('layers.unlock_hint')}</p>{/if}
-
-    <Toggle
-      checked={inheritance.inherit}
+  <label class="row">
+    <span>{t('layers.unlock')}</span>
+    <select
+      value={unlock ?? 'none'}
       disabled={app.readOnly}
-      label={t('layers.inherit')}
-      onchange={(v) => app.edit((p) => setLayerInherit(p, layer, v))}
-    />
-    <p class="hint">{t(inheritance.inherit ? 'layers.inherit_hint_on' : 'layers.inherit_hint_off')}</p>
+      onchange={(e) => {
+        const v = e.currentTarget.value;
+        app.edit((p) => setLayerUnlock(p, layer, v === 'none' ? undefined : (v as Unlock)));
+      }}
+    >
+      {#each UNLOCKS as u (u)}<option value={u}>{t(`layers.unlock_options.${u}`)}</option>{/each}
+    </select>
+  </label>
+  {#if unlock}<p class="hint">{t('layers.unlock_hint')}</p>{/if}
 
-    {#if inheritance.inherit}
-      <div class="section">
-        <div class="section-title">{t('layers.inherited_list')}</div>
-        {#if triggers.length === 0}
-          <p class="hint">{t('layers.inherit_none')}</p>
-        {:else}
-          <div class="list">
-            {#each triggers as c (comboKey(c))}
-              <label class="item">
-                <input
-                  type="checkbox"
-                  checked={inherited(c)}
-                  disabled={app.readOnly}
-                  onchange={(e) =>
-                    app.edit((p) => setTriggerInherited(p, layer, c, e.currentTarget.checked))}
-                />
-                <span>{label(c)}</span>
-              </label>
-            {/each}
-          </div>
-        {/if}
-      </div>
-    {/if}
-  </div>
-</div>
+  <Toggle
+    checked={inheritance.inherit}
+    disabled={app.readOnly}
+    label={t('layers.inherit')}
+    onchange={(v) => app.edit((p) => setLayerInherit(p, layer, v))}
+  />
+  <p class="hint">{t(inheritance.inherit ? 'layers.inherit_hint_on' : 'layers.inherit_hint_off')}</p>
+
+  {#if inheritance.inherit}
+    <div class="section">
+      <div class="section-title">{t('layers.inherited_list')}</div>
+      {#if triggers.length === 0}
+        <p class="hint">{t('layers.inherit_none')}</p>
+      {:else}
+        <div class="list">
+          {#each triggers as c (comboKey(c))}
+            <label class="item">
+              <input
+                type="checkbox"
+                checked={inherited(c)}
+                disabled={app.readOnly}
+                onchange={(e) =>
+                  app.edit((p) => setTriggerInherited(p, layer, c, e.currentTarget.checked))}
+              />
+              <span>{label(c)}</span>
+            </label>
+          {/each}
+        </div>
+      {/if}
+    </div>
+  {/if}
+</Dialog>
 
 <style>
-  .backdrop {
-    position: fixed;
-    inset: 0;
-    background: var(--backdrop);
-    display: grid;
-    place-items: center;
-    z-index: var(--z-dialog);
-  }
-  .dialog {
-    width: 460px;
-    max-width: calc(100vw - 32px);
-    max-height: calc(100vh - 64px);
-    background: var(--bg-1);
-    border: 1px solid var(--line-strong);
-    border-radius: var(--radius-l);
-    box-shadow: var(--shadow);
-    padding: 18px 20px 22px;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-  }
-  .head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-  h3 {
-    margin: 0;
-    font-size: 16px;
-    font-weight: 600;
-  }
   .row {
     display: flex;
     align-items: center;
