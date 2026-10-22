@@ -111,10 +111,7 @@ impl Grouping {
 fn combine(group: &DeviceGroup, members: &[&PadSnapshot]) -> PadSnapshot {
     let lead = &members[0].info;
     let states: Vec<PadState> = members.iter().map(|m| m.state).collect();
-    let battery = members
-        .iter()
-        .filter_map(|m| m.battery)
-        .min_by_key(|b: &Battery| b.level);
+    let battery = Battery::emptiest(members.iter().filter_map(|m| m.battery));
     PadSnapshot {
         info: std::sync::Arc::new(DeviceInfo {
             id: group.id(),

@@ -32,6 +32,21 @@ mod uinput;
 #[cfg(target_os = "linux")]
 mod x11;
 
+/// The distribution's name and the kernel version.
+#[cfg(target_os = "linux")]
+pub fn os_version() -> String {
+    let read = |p: &str| std::fs::read_to_string(p).unwrap_or_default();
+    let name = read("/etc/os-release")
+        .lines()
+        .find_map(|l| l.strip_prefix("PRETTY_NAME="))
+        .map(|v| v.trim_matches('"').to_string())
+        .unwrap_or_else(|| std::env::consts::OS.to_string());
+    match read("/proc/sys/kernel/osrelease").trim() {
+        "" => name,
+        kernel => format!("{name} (kernel {kernel})"),
+    }
+}
+
 #[cfg(target_os = "linux")]
 pub fn platform() -> crate::Platform {
     let gamepads = gamepad::EvdevBackend::new();

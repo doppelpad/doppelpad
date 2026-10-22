@@ -514,7 +514,7 @@ fn run_device(mut io: HidIo, base: &Base, decoder: Option<HidDecoder>, shared: &
                 {
                     *p = Some(pad);
                     *battery = driver.battery();
-                    *raw = driver.raw().map(Arc::new);
+                    *raw = driver.raw();
                 }
             }
             Ok(Wait::Woken | Wait::Timeout) => {}

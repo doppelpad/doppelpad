@@ -732,13 +732,10 @@ impl PadDriver for Switch1Driver {
         self.last_input = Some(now);
         self.last_keepalive = Some(now);
         Ok(Identity {
-            name: ty.name().to_owned(),
-            family: ty.family(),
             joycon: ty.joycon(),
             has_motion: ty.has_imu(),
-            has_touchpad: false,
             has_rumble: ty.has_rumble(),
-            notice: None,
+            ..Identity::new(ty.name(), ty.family())
         })
     }
 

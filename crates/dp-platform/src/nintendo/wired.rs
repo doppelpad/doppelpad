@@ -1,10 +1,9 @@
 //! Third-party wired Switch pads (HORI, PDP, PowerA, ZUIKI) that only send a plain input
 //! report: no handshake, no subcommands, no rumble or motion.
 
-use std::io;
 use std::time::Instant;
 
-use dp_core::pad::{Axis, PadButton, PadState, Rumble};
+use dp_core::pad::{Axis, PadButton, PadState};
 
 use super::{HORI_VID, PDP_VID, POWERA_VID, ZUIKI_VID};
 use crate::PadFamily;
@@ -57,23 +56,11 @@ impl WiredDriver {
 
 impl PadDriver for WiredDriver {
     fn init(&mut self, _io: &mut dyn ReportIo) -> Result<Identity, InitError> {
-        Ok(Identity {
-            name: name(self.vid).to_owned(),
-            family: PadFamily::SwitchPro,
-            joycon: None,
-            has_motion: false,
-            has_touchpad: false,
-            has_rumble: false,
-            notice: None,
-        })
+        Ok(Identity::new(name(self.vid), PadFamily::SwitchPro))
     }
 
     fn parse(&mut self, report: &[u8], _now: Instant) -> Option<PadState> {
         parse_report(report)
-    }
-
-    fn service(&mut self, _io: &mut dyn ReportIo, _rumble: Rumble) -> io::Result<()> {
-        Ok(())
     }
 
     fn next_deadline(&self) -> Option<Instant> {

@@ -169,6 +169,12 @@ impl Battery {
     pub fn draining(&self) -> bool {
         !self.charging && !self.wired
     }
+
+    /// The emptiest of `batteries` (the first on a tie): controllers used together run out
+    /// with their first member.
+    pub fn emptiest(batteries: impl IntoIterator<Item = Battery>) -> Option<Battery> {
+        batteries.into_iter().min_by_key(|b| b.level)
+    }
 }
 
 /// Source of physical gamepads.
@@ -491,18 +497,13 @@ pub fn os_version() -> String {
     {
         windows::os_version()
     }
-    #[cfg(not(windows))]
+    #[cfg(target_os = "linux")]
     {
-        let read = |p: &str| std::fs::read_to_string(p).unwrap_or_default();
-        let name = read("/etc/os-release")
-            .lines()
-            .find_map(|l| l.strip_prefix("PRETTY_NAME="))
-            .map(|v| v.trim_matches('"').to_string())
-            .unwrap_or_else(|| std::env::consts::OS.to_string());
-        match read("/proc/sys/kernel/osrelease").trim() {
-            "" => name,
-            kernel => format!("{name} (kernel {kernel})"),
-        }
+        linux::os_version()
+    }
+    #[cfg(not(any(windows, target_os = "linux")))]
+    {
+        std::env::consts::OS.to_string()
     }
 }
 

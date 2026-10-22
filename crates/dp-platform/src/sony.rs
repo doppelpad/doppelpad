@@ -625,17 +625,15 @@ impl PadDriver for SonyDriver {
         if let Err(e) = io.get_feature(&mut feature) {
             tracing::debug!("enabling full reports failed: {e}");
         }
+        let family = match self.model {
+            SonyModel::DualShock4 => PadFamily::DualShock4,
+            _ => PadFamily::DualSense,
+        };
         Ok(Identity {
-            name: self.model.name().to_owned(),
-            family: match self.model {
-                SonyModel::DualShock4 => PadFamily::DualShock4,
-                _ => PadFamily::DualSense,
-            },
-            joycon: None,
             has_motion: true,
             has_touchpad: true,
             has_rumble: true,
-            notice: None,
+            ..Identity::new(self.model.name(), family)
         })
     }
 

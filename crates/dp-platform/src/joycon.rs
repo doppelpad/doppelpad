@@ -151,26 +151,25 @@ impl<B: GamepadBackend> JoyConCombiner<B> {
         if joycond {
             return;
         }
-        let side_of = |id: &DeviceId| {
-            raw.iter()
-                .find(|s| &s.info.id == id)
-                .and_then(|s| s.info.joycon)
-        };
         let paired =
             |id: &DeviceId, pairs: &[Pair]| pairs.iter().any(|p| &p.left == id || &p.right == id);
         loop {
+            // The first unpaired half seen of this side, with its device.
             let free = |side| {
                 self.seen
                     .iter()
-                    .find(|id| side_of(id) == Some(side) && !paired(id, &self.pairs))
-                    .cloned()
+                    .filter(|id| !paired(id, &self.pairs))
+                    .find_map(|id| {
+                        let s = raw.iter().find(|s| &s.info.id == id)?;
+                        (s.info.joycon == Some(side)).then(|| (id.clone(), s.info.clone()))
+                    })
             };
-            let (Some(l), Some(r)) = (free(JoyConSide::Left), free(JoyConSide::Right)) else {
+            let (Some((l, left)), Some((r, right))) =
+                (free(JoyConSide::Left), free(JoyConSide::Right))
+            else {
                 break;
             };
-            let info_of =
-                |id: &DeviceId| raw.iter().find(|s| &s.info.id == id).unwrap().info.clone();
-            let info = pair_info(&info_of(&l), &info_of(&r));
+            let info = pair_info(&left, &right);
             tracing::info!(left = %l, right = %r, "Joy-Cons paired");
             self.pairs.push(Pair {
                 left: l,
@@ -178,14 +177,6 @@ impl<B: GamepadBackend> JoyConCombiner<B> {
                 info,
             });
         }
-    }
-}
-
-/// The emptier of two batteries: a pair runs out with its first half.
-fn lower(a: Option<Battery>, b: Option<Battery>) -> Option<Battery> {
-    match (a, b) {
-        (Some(a), Some(b)) => Some(if b.level < a.level { b } else { a }),
-        (a, b) => a.or(b),
     }
 }
 
@@ -214,7 +205,7 @@ impl<B: GamepadBackend> GamepadBackend for JoyConCombiner<B> {
                     out.push(PadSnapshot {
                         info: p.info.clone(),
                         state: combine(&s.state, &right.state),
-                        battery: lower(s.battery, right.battery),
+                        battery: Battery::emptiest(s.battery.into_iter().chain(right.battery)),
                         raw: None,
                     });
                 }
@@ -563,6 +554,7 @@ mod tests {
                 wired: false,
             })
         };
+        let lower = |l: Option<Battery>, r| Battery::emptiest(l.into_iter().chain(r));
         assert_eq!(lower(b(60), b(30)), b(30));
         assert_eq!(lower(None, b(60)), b(60));
         assert_eq!(lower(None, None), None);

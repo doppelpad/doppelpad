@@ -8,7 +8,7 @@
 use std::sync::Arc;
 use std::time::Instant;
 
-use dp_core::pad::{Axis, PadButton, PadState, Rumble, Trigger};
+use dp_core::pad::{Axis, PadButton, PadState, Trigger};
 use serde::{Deserialize, Serialize};
 
 use crate::PadFamily;
@@ -229,7 +229,7 @@ pub struct GenericDriver {
     layouts: Option<Arc<Vec<GenericLayout>>>,
     layout: Option<GenericLayout>,
     guess: Option<GenericLayout>,
-    raw: Option<RawInput>,
+    raw: Option<Arc<RawInput>>,
     /// Whether the user's layout was in use when the notice was last reported.
     noticed: bool,
 }
@@ -254,13 +254,8 @@ impl GenericDriver {
 impl PadDriver for GenericDriver {
     fn init(&mut self, _io: &mut dyn ReportIo) -> Result<Identity, InitError> {
         Ok(Identity {
-            name: self.name.clone(),
-            family: PadFamily::Generic,
-            joycon: None,
-            has_motion: false,
-            has_touchpad: false,
-            has_rumble: false,
             notice: Some(NOTICE.into()),
+            ..Identity::new(self.name.clone(), PadFamily::Generic)
         })
     }
 
@@ -273,11 +268,11 @@ impl PadDriver for GenericDriver {
                 .get_or_insert_with(|| GenericLayout::guess(&self.device, &raw))
                 .apply(&raw),
         };
-        self.raw = Some(raw);
+        self.raw = Some(Arc::new(raw));
         Some(state)
     }
 
-    fn raw(&self) -> Option<RawInput> {
+    fn raw(&self) -> Option<Arc<RawInput>> {
         self.raw.clone()
     }
 
@@ -291,10 +286,6 @@ impl PadDriver for GenericDriver {
         }
         self.layouts = Some(layouts.clone());
         self.layout = layouts.iter().find(|l| l.device == self.device).cloned();
-    }
-
-    fn service(&mut self, _io: &mut dyn ReportIo, _rumble: Rumble) -> std::io::Result<()> {
-        Ok(())
     }
 
     fn next_deadline(&self) -> Option<Instant> {
