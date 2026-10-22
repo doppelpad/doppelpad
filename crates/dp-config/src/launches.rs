@@ -2,6 +2,8 @@
 //! arguments when a button is pressed, so a shared config can work like malware: imports list
 //! these commands and leave them out unless the user keeps them.
 
+use std::fmt;
+
 use dp_core::profile::{Action, Combo, Command, Profile};
 use serde::Serialize;
 
@@ -36,6 +38,60 @@ pub struct Launch {
     pub place: LaunchPlace,
     pub path: String,
     pub args: String,
+}
+
+impl Launch {
+    /// The command line `path args`, the path quoted when it has spaces (or is empty).
+    pub fn command_line(&self) -> String {
+        let program = if self.path.is_empty() || self.path.contains(char::is_whitespace) {
+            format!("\"{}\"", self.path)
+        } else {
+            self.path.clone()
+        };
+        if self.args.is_empty() {
+            program
+        } else {
+            format!("{program} {}", self.args)
+        }
+    }
+}
+
+/// `main layer, A`, `layer 1 "Aim", LB+B` or `radial menu 1 "Tools", sector 2 "Notes"`.
+impl fmt::Display for LaunchPlace {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let named = |f: &mut fmt::Formatter<'_>, name: &str| {
+            if name.is_empty() {
+                Ok(())
+            } else {
+                write!(f, " \"{name}\"")
+            }
+        };
+        match self {
+            LaunchPlace::Mapping {
+                layer: 0, trigger, ..
+            } => write!(f, "main layer, {trigger}"),
+            LaunchPlace::Mapping {
+                layer,
+                layer_name,
+                trigger,
+            } => {
+                write!(f, "layer {layer}")?;
+                named(f, layer_name)?;
+                write!(f, ", {trigger}")
+            }
+            LaunchPlace::Radial {
+                menu,
+                name,
+                sector,
+                label,
+            } => {
+                write!(f, "radial menu {menu}")?;
+                named(f, name)?;
+                write!(f, ", sector {sector}")?;
+                named(f, label)
+            }
+        }
+    }
 }
 
 fn launch_of(a: &Action) -> Option<(&str, &str)> {
@@ -211,6 +267,29 @@ mod tests {
             }
         );
         assert!(find(&Profile::default()).is_empty());
+    }
+
+    #[test]
+    fn launches_read_as_place_and_command_line() {
+        let lines: Vec<String> = find(&profile())
+            .iter()
+            .map(|l| format!("{}: {}", l.place, l.command_line()))
+            .collect();
+        assert_eq!(
+            lines,
+            [
+                "main layer, A: powershell -enc ZQBjAGgAbwA=",
+                "layer 1 \"Aim\", B: calc.exe",
+                "main layer, X: cmd /c del x",
+                "radial menu 1 \"Tools\", sector 2 \"Notes\": notepad.exe C:\\notes.txt",
+            ]
+        );
+        let spaced = Launch {
+            path: r"C:\Program Files\x.exe".into(),
+            args: String::new(),
+            ..find(&profile()).remove(0)
+        };
+        assert_eq!(spaced.command_line(), r#""C:\Program Files\x.exe""#);
     }
 
     #[test]

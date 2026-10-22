@@ -11,6 +11,7 @@ use std::time::{Duration, Instant};
 use anyhow::{Context, Result, bail};
 use clap::{Parser, Subcommand, ValueEnum};
 use dp_core::pad::{Axis, PadButton};
+use dp_core::profile::Profile;
 use dp_ipc::{Request, Response};
 use dp_platform::Platform;
 
@@ -92,12 +93,16 @@ enum Cmd {
     AutoSwitch { state: Switch },
     /// Stop the daemon (the desktop app refuses: quit it from its tray icon).
     Shutdown,
-    /// Convert a JSON profile (schema 3.0) into a Doppelpad TOML profile.
+    /// Convert a JSON profile (schema 3.0) into a Doppelpad TOML profile. Launch commands,
+    /// which start programs, are listed and left out unless `--keep-launches`.
     Import {
         file: PathBuf,
         /// Output file (default: print to stdout).
         #[arg(short, long)]
         output: Option<PathBuf>,
+        /// Keep the profile's launch commands (only for a profile you trust).
+        #[arg(long)]
+        keep_launches: bool,
     },
     /// Validate a profile and print diagnostics.
     Check { profile: PathBuf },
@@ -207,7 +212,11 @@ fn run(cli: Cli) -> Result<()> {
             }
             Err(e) => Err(e.into()),
         },
-        Cmd::Import { file, output } => import(&file, output.as_deref()),
+        Cmd::Import {
+            file,
+            output,
+            keep_launches,
+        } => import(&file, output.as_deref(), keep_launches),
         Cmd::Check { profile } => check(&profile),
         Cmd::Doctor => doctor(),
         Cmd::Monitor => monitor(),
@@ -282,9 +291,36 @@ fn print_diagnostics(diags: &dp_config::Diagnostics) {
     }
 }
 
-fn import(file: &Path, output: Option<&Path>) -> Result<()> {
-    let (profile, diags) = dp_config::load(file)?;
+/// What `import` says about the profile's launch commands, after leaving them out unless
+/// `keep`: they start programs, so a profile from someone else could run anything.
+fn launch_notice(profile: &mut Profile, keep: bool) -> Vec<String> {
+    let found = dp_config::launches::find(profile);
+    if found.is_empty() {
+        return Vec::new();
+    }
+    let mut lines = vec!["warning: this profile starts programs:".to_owned()];
+    lines.extend(
+        found
+            .iter()
+            .map(|l| format!("  {}: {}", l.place, l.command_line())),
+    );
+    if keep {
+        lines.push("kept them (--keep-launches)".into());
+    } else {
+        dp_config::launches::strip(profile);
+        lines.push(
+            "left them out; --keep-launches keeps them (only for a profile you trust)".into(),
+        );
+    }
+    lines
+}
+
+fn import(file: &Path, output: Option<&Path>, keep_launches: bool) -> Result<()> {
+    let (mut profile, diags) = dp_config::load(file)?;
     print_diagnostics(&diags);
+    for line in launch_notice(&mut profile, keep_launches) {
+        eprintln!("{line}");
+    }
     let toml = dp_config::to_toml(&profile)?;
     match output {
         Some(out) => {
@@ -490,5 +526,38 @@ mod tests {
         assert!(!path.starts_with(r"\\?\"), "{path}");
         assert!(Path::new(&path).is_absolute(), "{path}");
         assert!(profile_path(&file).is_err(), "a missing file is an error");
+    }
+
+    #[test]
+    fn import_lists_launches_and_drops_them_unless_kept() {
+        let shared = || {
+            dp_config::parse_toml(
+                r#"
+[[mappings]]
+trigger = "A"
+actions = [{ command = { launch = { path = "C:\\Program Files\\x.exe", args = "-enc AB" } } }]
+
+[[mappings]]
+trigger = "B"
+actions = [{ key = "W" }]
+"#,
+            )
+            .unwrap()
+        };
+        let mut p = shared();
+        assert_eq!(
+            launch_notice(&mut p, false),
+            [
+                "warning: this profile starts programs:",
+                r#"  main layer, A: "C:\Program Files\x.exe" -enc AB"#,
+                "left them out; --keep-launches keeps them (only for a profile you trust)",
+            ]
+        );
+        assert_eq!(p.mappings.len(), 1, "B stays");
+        let mut p = shared();
+        let kept = launch_notice(&mut p, true);
+        assert_eq!(kept.last().unwrap(), "kept them (--keep-launches)");
+        assert_eq!(p, shared());
+        assert!(launch_notice(&mut Profile::default(), false).is_empty());
     }
 }
