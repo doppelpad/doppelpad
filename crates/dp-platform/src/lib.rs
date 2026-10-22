@@ -48,6 +48,7 @@ pub(crate) mod report;
 pub(crate) mod scan;
 pub mod sony;
 pub mod steam;
+pub mod timer;
 pub use null::NullPlatform;
 
 pub type Result<T, E = PlatformError> = std::result::Result<T, E>;
@@ -412,6 +413,11 @@ pub trait KbmCapture: Send {
 /// Hides physical devices from games so they only see the virtual pad.
 pub trait DeviceHider: Send {
     fn available(&self) -> Result<()>;
+    /// Add the instance paths to hide for `device` to `out`: its own, and whatever else the
+    /// platform must hide with it.
+    fn expand(&self, device: &DeviceInfo, out: &mut Vec<String>) {
+        out.extend(device.instance_paths.iter().cloned());
+    }
     /// Hide exactly these devices (replacing whatever this hider hid before).
     fn hide(&mut self, instance_paths: &[String]) -> Result<()>;
     /// Undo everything this hider changed.
