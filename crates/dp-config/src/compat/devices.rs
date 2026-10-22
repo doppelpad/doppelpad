@@ -200,30 +200,7 @@ impl<'a> Importer<'a> {
             } else if kind == DeviceKind::Mouse
                 && let Some(stick) = get(hw, "default").and_then(|d| get(d, "stick"))
             {
-                // A mouse with stick settings is used as a stick (mouse → stick).
-                let mut route = AnalogMapping {
-                    source: AnalogSource::Mouse,
-                    target: AnalogTarget::RightStick,
-                    ..Default::default()
-                };
-                if let Some(t) = int(stick, "returnTime") {
-                    route.decay_ms = t.clamp(0, 255) as u32;
-                }
-                if let Some(s) = int(stick, "smoothing") {
-                    route.smoothing_ms = (s.clamp(0, 100) * 4) as u32;
-                }
-                // Spring mode is the format's default; the noise filter defaults to 3.
-                route.spring = get(stick, "springMode")
-                    .and_then(Value::as_bool)
-                    .unwrap_or(true);
-                route.noise_filter = int(stick, "noiseFilter").unwrap_or(3).clamp(1, 20) as f32;
-                if let Some(z) = int(stick, "snapZone") {
-                    route.snap = (z as f32 / AXIS_MAX).clamp(0.0, 0.9);
-                }
-                self.diags.info(
-                    format!("{path}.default.stick"),
-                    "mouse-as-stick imported as a mouse → right stick route; tune its sensitivity",
-                );
+                let route = self.mouse_as_stick(stick, &path);
                 p.analog.push(route);
             }
         }
@@ -262,24 +239,7 @@ impl<'a> Importer<'a> {
                 "only the first virtual gamepad is used; gamepad outputs in this format do not say which one they mean. To drive a second virtual controller, give that physical controller slots of its own",
             );
         }
-        // Virtual mouse: button-driven speed starts at deflection · 125 · sensitivity / 4 px/s
-        // and grows by acceleration / 2 of itself per second; the wheel repeats every
-        // (17 − wheelDeflection) · 20 ms while held. Absent values are the format's defaults.
-        let mouse = virt
-            .and_then(|v| get(v, "mouse"))
-            .map_or(&NULL, |m| obj(m, "config"));
-        let in_range = |key: &str, max: i64| int(mouse, key).filter(|v| (1..=max).contains(v));
-        let sensitivity = in_range("sensitivity", 100).unwrap_or(4) as f32;
-        let deflection = in_range("deflection", 16).unwrap_or(8) as f32;
-        let acceleration = int(mouse, "acceleration")
-            .filter(|v| (0..=16).contains(v))
-            .unwrap_or(8);
-        self.mouse_speed = (
-            deflection * 125.0 * sensitivity / 4.0,
-            acceleration as f32 / 2.0,
-        );
-        let wheel = in_range("wheelDeflection", 16).unwrap_or(13);
-        p.virtual_devices.mouse.wheel_repeat_ms = ((17 - wheel) * 20) as u32;
+        self.virtual_mouse(virt, p);
         // Only the four combinations the editor offers mean something; others stay native.
         if let Some(cfg) = virt
             .and_then(|v| get(v, "keyboard"))
@@ -295,6 +255,55 @@ impl<'a> Importer<'a> {
                 _ => KeyRepeat::Native,
             };
         }
+    }
+
+    /// A mouse with stick settings is used as a stick: a mouse → right stick route.
+    fn mouse_as_stick(&mut self, stick: &Value, path: &str) -> AnalogMapping {
+        let mut route = AnalogMapping {
+            source: AnalogSource::Mouse,
+            target: AnalogTarget::RightStick,
+            ..Default::default()
+        };
+        if let Some(t) = int(stick, "returnTime") {
+            route.decay_ms = t.clamp(0, 255) as u32;
+        }
+        if let Some(s) = int(stick, "smoothing") {
+            route.smoothing_ms = (s.clamp(0, 100) * 4) as u32;
+        }
+        // Spring mode is the format's default; the noise filter defaults to 3.
+        route.spring = get(stick, "springMode")
+            .and_then(Value::as_bool)
+            .unwrap_or(true);
+        route.noise_filter = int(stick, "noiseFilter").unwrap_or(3).clamp(1, 20) as f32;
+        if let Some(z) = int(stick, "snapZone") {
+            route.snap = (z as f32 / AXIS_MAX).clamp(0.0, 0.9);
+        }
+        self.diags.info(
+            format!("{path}.default.stick"),
+            "mouse-as-stick imported as a mouse → right stick route; tune its sensitivity",
+        );
+        route
+    }
+
+    /// Virtual mouse: button-driven speed starts at deflection · 125 · sensitivity / 4 px/s
+    /// and grows by acceleration / 2 of itself per second; the wheel repeats every
+    /// (17 − wheelDeflection) · 20 ms while held. Absent values are the format's defaults.
+    fn virtual_mouse(&mut self, virt: Option<&Value>, p: &mut Profile) {
+        let mouse = virt
+            .and_then(|v| get(v, "mouse"))
+            .map_or(&NULL, |m| obj(m, "config"));
+        let in_range = |key: &str, max: i64| int(mouse, key).filter(|v| (1..=max).contains(v));
+        let sensitivity = in_range("sensitivity", 100).unwrap_or(4) as f32;
+        let deflection = in_range("deflection", 16).unwrap_or(8) as f32;
+        let acceleration = int(mouse, "acceleration")
+            .filter(|v| (0..=16).contains(v))
+            .unwrap_or(8);
+        self.mouse_speed = (
+            deflection * 125.0 * sensitivity / 4.0,
+            acceleration as f32 / 2.0,
+        );
+        let wheel = in_range("wheelDeflection", 16).unwrap_or(13);
+        p.virtual_devices.mouse.wheel_repeat_ms = ((17 - wheel) * 20) as u32;
     }
 
     /// How mappings push the virtual sticks (`devices.virtual.gamepads[0]`), on the base

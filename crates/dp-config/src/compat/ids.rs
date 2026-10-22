@@ -5,7 +5,7 @@ use dp_core::control::{
 };
 use dp_core::keys::{Key, MouseButton, WheelDir};
 use dp_core::pad::{PadButton, Stick, Trigger};
-use dp_core::profile::Press;
+use dp_core::profile::{Command, Press};
 use serde_json::Value;
 
 use super::json::{boolean, enum_str, int, text};
@@ -139,6 +139,36 @@ pub(super) fn gamepad_control(id: i64) -> Option<Control> {
         180 => StickDir(Stick::Right, Dir::UpRight),
         181 => StickDir(Stick::Right, Dir::DownLeft),
         182 => StickDir(Stick::Right, Dir::DownRight),
+        _ => return None,
+    })
+}
+
+/// A built-in command by the format's command `type` (crosshairs and launches aside).
+pub(super) fn command_of(ty: i64) -> Option<Command> {
+    Some(match ty {
+        1 => Command::RemapOff,
+        2 => Command::PowerOff,
+        4 => Command::SwitchGyroAxis,
+        5 => Command::ResetTilt,
+        6 => Command::ToggleGyro,
+        7 => Command::LogOff,
+        8 => Command::Shutdown,
+        9 => Command::Sleep,
+        11 => Command::Screenshot,
+        12 => Command::CloseWindow,
+        13 => Command::Hibernate,
+        15 => Command::GyroOn,
+        16 => Command::GyroOff,
+        17 => Command::Restart,
+        120 => Command::ToggleCrosshair,
+        130 => Command::RadialPrev,
+        131 => Command::RadialNext,
+        132 => Command::RadialApply,
+        133 => Command::RadialBack,
+        134 => Command::RadialUp,
+        135 => Command::RadialDown,
+        136 => Command::RadialRight,
+        137 => Command::RadialLeft,
         _ => return None,
     })
 }

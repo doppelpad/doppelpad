@@ -9,7 +9,7 @@ use dp_core::profile::{
 use serde_json::Value;
 
 use super::ids::{
-    dir_of, gamepad_control, in_zone, keyboard_key, mouse_button, press_of, wheel_of,
+    command_of, dir_of, gamepad_control, in_zone, keyboard_key, mouse_button, press_of, wheel_of,
 };
 use super::json::{array, boolean, enum_str, get, int, layer_id, obj, target_layer, text};
 use super::{DeviceKind, Importer, MACRO_STICK_MAX};
@@ -203,10 +203,37 @@ impl<'a> Importer<'a> {
         let act = obj(mask, "activator");
         let params = obj(act, "params");
 
-        let mut out = Mapping::new(combo.clone(), Vec::new());
+        let mut out = Mapping::new(combo, Vec::new());
         out.layer = layer;
         out.description = text(m, "description").unwrap_or_default();
-        out.activator = match enum_str(act, "type").as_deref() {
+        out.activator = self.activator(act, &mut out.trigger, path)?;
+        out.mode = self.activation_mode(act, path);
+        self.timings(&mut out, params);
+        self.macros(&mut out, m, path);
+        if out.mode == Mode::Once && !boolean(params, "macro") {
+            collapse_plain_remap(&mut out);
+        }
+        if let Some(j) = get(m, "jumpToLayer") {
+            out.jump = Some(jump(j));
+            if out.mode == Mode::Toggle && out.actions.is_empty() {
+                out.mode = Mode::Hold;
+            }
+        }
+        if out.actions.is_empty() && out.jump.is_none() {
+            // A mapping without outputs still consumes its trigger ("unmap").
+            out.description = if out.description.is_empty() {
+                "unmapped".into()
+            } else {
+                out.description
+            };
+        }
+        Some(out)
+    }
+
+    /// The mask's activator; a zone activator turns the mask's stick directions and triggers
+    /// into their zone controls (`RT` → `RTHigh`) and fires on a single press.
+    fn activator(&mut self, act: &Value, trigger: &mut Combo, path: &str) -> Option<Activator> {
+        Some(match enum_str(act, "type").as_deref() {
             None | Some("single") => Activator::Single,
             Some("double") => Activator::Double,
             Some("triple") => Activator::Triple,
@@ -214,28 +241,26 @@ impl<'a> Importer<'a> {
             Some("start") => Activator::Start,
             Some("release") => Activator::Release,
             Some(z @ ("zonelow" | "zonemed" | "zonehigh")) => {
-                // The zone applies to the mask's stick directions and triggers, which
-                // become their zone controls (`RT` → `RTHigh`).
                 let zone = match z {
                     "zonelow" => Zone::Low,
                     "zonemed" => Zone::Med,
                     _ => Zone::High,
                 };
+                let original = trigger.clone();
                 let mut zoned = false;
-                for c in &mut out.trigger.0 {
+                for c in &mut trigger.0 {
                     if let Some(zc) = in_zone(*c, zone) {
                         *c = zc;
                         zoned = true;
                     }
                 }
                 if zoned {
-                    self.zoned.push((combo, out.trigger.clone()));
+                    self.zoned.push((original, trigger.clone()));
                 } else {
                     self.diags.warn(
                         path,
                         format!(
-                            "zone activator `{z}` on {} is not supported; imported as an ordinary press",
-                            out.trigger
+                            "zone activator `{z}` on {trigger} is not supported; imported as an ordinary press"
                         ),
                     );
                 }
@@ -246,8 +271,11 @@ impl<'a> Importer<'a> {
                     .warn(path, format!("unknown activator `{other}`"));
                 return None;
             }
-        };
-        out.mode = match enum_str(act, "mode").as_deref() {
+        })
+    }
+
+    fn activation_mode(&mut self, act: &Value, path: &str) -> Mode {
+        match enum_str(act, "mode").as_deref() {
             None | Some("hold_until_release") => Mode::Hold,
             Some("turbo") => Mode::Turbo,
             Some("toggle") => Mode::Toggle,
@@ -258,7 +286,11 @@ impl<'a> Importer<'a> {
                     .warn(path, format!("unknown activation mode `{other}`"));
                 Mode::Hold
             }
-        };
+        }
+    }
+
+    /// Turbo period, repeat count and pause, key delay and the press-pattern windows.
+    fn timings(&self, out: &mut Mapping, params: &Value) {
         if let Some(t) = int(params, "pause") {
             match out.mode {
                 Mode::Turbo => out.turbo_ms = Some(self.time(t.min(60_000)).max(10)),
@@ -289,7 +321,11 @@ impl<'a> Importer<'a> {
         if let Some(t) = triple.filter(|t| double.is_none_or(|d| *t > d)) {
             out.triple_tap_ms = Some(t as u32);
         }
+    }
 
+    /// The macro items as actions: consecutive pauses merge, and break markers cut the sequence
+    /// into segments.
+    fn macros(&mut self, out: &mut Mapping, m: &Value, path: &str) {
         let mut break_seen = false;
         for (j, item) in array(m, "macros").iter().enumerate() {
             let ipath = format!("{path}.macros[{j}]");
@@ -322,84 +358,6 @@ impl<'a> Importer<'a> {
             out.repeat = None;
             out.repeat_pause_ms = None;
         }
-        // A one-shot "press K, maybe wait, release K" is a plain remap of K,
-        // and so is a single item without an explicit action.
-        if out.mode == Mode::Once && !boolean(params, "macro") {
-            let plain = match out.actions.as_slice() {
-                [
-                    Action::Key {
-                        key: a,
-                        action: Press::Down,
-                    },
-                    rest @ ..,
-                ] => match rest {
-                    [
-                        Action::Key {
-                            key: b,
-                            action: Press::Up,
-                        },
-                    ]
-                    | [
-                        Action::Pause { .. },
-                        Action::Key {
-                            key: b,
-                            action: Press::Up,
-                        },
-                    ] if a == b => Some(Action::Key {
-                        key: *a,
-                        action: Press::Auto,
-                    }),
-                    _ => None,
-                },
-                [single]
-                    if matches!(
-                        single,
-                        Action::Key {
-                            action: Press::Auto,
-                            ..
-                        } | Action::Pad {
-                            action: Press::Auto,
-                            ..
-                        } | Action::Mouse {
-                            action: Press::Auto,
-                            ..
-                        }
-                    ) =>
-                {
-                    Some(single.clone())
-                }
-                _ => None,
-            };
-            if let Some(a) = plain {
-                out.mode = Mode::Hold;
-                out.actions = vec![a];
-            }
-        }
-
-        if let Some(j) = get(m, "jumpToLayer") {
-            // Jumps in this format are absolute "go to layer N"; hold/toggle shifts are pairs of
-            // jumps, which `fold_jump_pairs` turns back into our hold/toggle form.
-            out.jump = Some(Jump {
-                layer: target_layer(j, "layer"),
-                mode: JumpMode::Switch,
-                delay_ms: int(j, "delay")
-                    .filter(|d| *d > 0)
-                    .map(|d| d.min(5000) as u32),
-                postpone: boolean(j, "postpone"),
-            });
-            if out.mode == Mode::Toggle && out.actions.is_empty() {
-                out.mode = Mode::Hold;
-            }
-        }
-        if out.actions.is_empty() && out.jump.is_none() {
-            // A mapping without outputs still consumes its trigger ("unmap").
-            out.description = if out.description.is_empty() {
-                "unmapped".into()
-            } else {
-                out.description
-            };
-        }
-        Some(out)
     }
 
     pub(super) fn macro_item(&mut self, item: &Value, path: &str) -> Option<Action> {
@@ -478,20 +436,6 @@ impl<'a> Importer<'a> {
             };
             let ty = int(cmd, "type").unwrap_or(0);
             let command = match ty {
-                1 => Command::RemapOff,
-                2 => Command::PowerOff,
-                4 => Command::SwitchGyroAxis,
-                5 => Command::ResetTilt,
-                6 => Command::ToggleGyro,
-                7 => Command::LogOff,
-                8 => Command::Shutdown,
-                9 => Command::Sleep,
-                11 => Command::Screenshot,
-                12 => Command::CloseWindow,
-                13 => Command::Hibernate,
-                15 => Command::GyroOn,
-                16 => Command::GyroOff,
-                17 => Command::Restart,
                 101..=110 => {
                     // By crosshair id; the position counts in the profile.
                     let id = ty - 100;
@@ -502,15 +446,6 @@ impl<'a> Importer<'a> {
                         .map_or(id, |i| i as i64 + 1);
                     Command::Crosshair(n as u8)
                 }
-                120 => Command::ToggleCrosshair,
-                130 => Command::RadialPrev,
-                131 => Command::RadialNext,
-                132 => Command::RadialApply,
-                133 => Command::RadialBack,
-                134 => Command::RadialUp,
-                135 => Command::RadialDown,
-                136 => Command::RadialRight,
-                137 => Command::RadialLeft,
                 1000..=1999 => {
                     let params = obj(cmd, "params");
                     Command::Launch {
@@ -518,12 +453,16 @@ impl<'a> Importer<'a> {
                         args: text(params, "arguments").unwrap_or_default(),
                     }
                 }
-                _ => {
-                    let name = text(cmd, "name").unwrap_or_else(|| format!("command type {ty}"));
-                    self.diags
-                        .warn(path, format!("command `{name}` is not supported"));
-                    Command::Unsupported(name)
-                }
+                _ => match command_of(ty) {
+                    Some(c) => c,
+                    None => {
+                        let name =
+                            text(cmd, "name").unwrap_or_else(|| format!("command type {ty}"));
+                        self.diags
+                            .warn(path, format!("command `{name}` is not supported"));
+                        Command::Unsupported(name)
+                    }
+                },
             };
             return Some(Action::Command { command });
         }
@@ -651,5 +590,72 @@ impl<'a> Importer<'a> {
         m.actions.push(action);
         m.description = "hardware remap".into();
         Some(m)
+    }
+}
+
+/// A one-shot "press K, maybe wait, release K" is a plain remap of K, and so is a single item
+/// without an explicit action.
+fn collapse_plain_remap(out: &mut Mapping) {
+    let plain = match out.actions.as_slice() {
+        [
+            Action::Key {
+                key: a,
+                action: Press::Down,
+            },
+            rest @ ..,
+        ] => match rest {
+            [
+                Action::Key {
+                    key: b,
+                    action: Press::Up,
+                },
+            ]
+            | [
+                Action::Pause { .. },
+                Action::Key {
+                    key: b,
+                    action: Press::Up,
+                },
+            ] if a == b => Some(Action::Key {
+                key: *a,
+                action: Press::Auto,
+            }),
+            _ => None,
+        },
+        [single]
+            if matches!(
+                single,
+                Action::Key {
+                    action: Press::Auto,
+                    ..
+                } | Action::Pad {
+                    action: Press::Auto,
+                    ..
+                } | Action::Mouse {
+                    action: Press::Auto,
+                    ..
+                }
+            ) =>
+        {
+            Some(single.clone())
+        }
+        _ => None,
+    };
+    if let Some(a) = plain {
+        out.mode = Mode::Hold;
+        out.actions = vec![a];
+    }
+}
+
+/// A jump: absolute "go to layer N". Hold and toggle shifts are pairs of these, which
+/// `fold_jump_pairs` turns back into our hold and toggle form.
+fn jump(j: &Value) -> Jump {
+    Jump {
+        layer: target_layer(j, "layer"),
+        mode: JumpMode::Switch,
+        delay_ms: int(j, "delay")
+            .filter(|d| *d > 0)
+            .map(|d| d.min(5000) as u32),
+        postpone: boolean(j, "postpone"),
     }
 }

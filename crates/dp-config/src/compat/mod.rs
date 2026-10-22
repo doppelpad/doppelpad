@@ -38,6 +38,11 @@ const AXIS_MAX: f32 = 32768.0;
 const MACRO_STICK_MAX: f32 = 32767.0;
 /// The name the format falls back to when a profile names no game.
 pub(crate) const DEFAULT_IMPORT_NAME: &str = "Game";
+/// Time values are in units of this many milliseconds unless `minTimeUnit` is 1.
+const TIME_UNIT_MS: u32 = 10;
+/// Speed (px/s) and acceleration of button-driven mouse motion when the profile sets no
+/// virtual mouse: the format's default deflection 8 and sensitivity 4, acceleration 8.
+const DEFAULT_MOUSE_SPEED: (f32, f32) = (1000.0, 4.0);
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 enum DeviceKind {
@@ -134,31 +139,35 @@ pub fn import(json: &str) -> Result<(Profile, Diagnostics), ImportError> {
         }
         None => return Err(ImportError::Format("missing schemaVersion".into())),
     }
-    let mut imp = Importer {
-        root: &root,
-        diags: Diagnostics::default(),
-        time_scale: 10,
-        devices: HashMap::new(),
-        masks: HashMap::new(),
-        commands: HashMap::new(),
-        zoned: Vec::new(),
-        layer_analog: HashMap::new(),
-        turn: None,
-        gyro_tilt: false,
-        split_touch: false,
-        touch_click_required: false,
-        mouse_speed: (1000.0, 4.0),
-        crosshair_ids: Vec::new(),
-        crosshair_guids: HashMap::new(),
-        radial_masks: HashMap::new(),
-        radial_sectors: HashMap::new(),
-        layer_lights: Vec::new(),
-    };
+    let mut imp = Importer::new(&root);
     let profile = imp.run();
     Ok((profile, imp.diags))
 }
 
 impl<'a> Importer<'a> {
+    fn new(root: &'a Value) -> Importer<'a> {
+        Importer {
+            root,
+            diags: Diagnostics::default(),
+            time_scale: TIME_UNIT_MS,
+            devices: HashMap::new(),
+            masks: HashMap::new(),
+            commands: HashMap::new(),
+            zoned: Vec::new(),
+            layer_analog: HashMap::new(),
+            turn: None,
+            gyro_tilt: false,
+            split_touch: false,
+            touch_click_required: false,
+            mouse_speed: DEFAULT_MOUSE_SPEED,
+            crosshair_ids: Vec::new(),
+            crosshair_guids: HashMap::new(),
+            radial_masks: HashMap::new(),
+            radial_sectors: HashMap::new(),
+            layer_lights: Vec::new(),
+        }
+    }
+
     fn run(&mut self) -> Profile {
         let mut p = Profile::default();
         // The format never mutes a mapped key implicitly; explicit "unmap" entries do.
