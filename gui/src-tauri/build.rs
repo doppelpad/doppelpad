@@ -75,6 +75,34 @@ fn main() {
         panic!("{e:#}");
     }
     shadow_gcc_default_manifest();
+    list_catalogs();
+}
+
+/// The frontend's catalogs (`src/lib/i18n/<language>.json`) as `(language, text)` pairs for the
+/// tray's texts (tray.rs): a new language there needs no change here.
+fn list_catalogs() {
+    let dir = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").unwrap()).join("../src/lib/i18n");
+    println!("cargo:rerun-if-changed={}", dir.display());
+    let mut catalogs: Vec<(String, PathBuf)> = fs::read_dir(&dir)
+        .unwrap()
+        .filter_map(|entry| {
+            let path = entry.unwrap().path();
+            let lang = path.file_stem()?.to_str()?.to_owned();
+            (path.extension()? == "json").then_some((lang, path))
+        })
+        .collect();
+    catalogs.sort();
+    let entries: String = catalogs
+        .iter()
+        .map(|(lang, path)| {
+            format!(
+                "    ({lang:?}, include_str!({:?})),\n",
+                path.display().to_string()
+            )
+        })
+        .collect();
+    let out = PathBuf::from(env::var_os("OUT_DIR").unwrap()).join("catalogs.rs");
+    fs::write(out, format!("&[\n{entries}]\n")).unwrap();
 }
 
 /// MinGW gcc links its `default-manifest.o` into every exe. ld drops it in favour of Tauri's

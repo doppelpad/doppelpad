@@ -94,6 +94,18 @@
     "restore": "Restore down",
     "close": "Close"
   },
+  "tray": {
+    "open": "Open Doppelpad",
+    "remap": "Remapping on",
+    "autodetect": "Autodetect games",
+    "slot": "Slot",
+    "empty": "empty",
+    "remap_off": "Remapping off",
+    "no_config": "No config active",
+    "no_controller": "No controller connected",
+    "charging": "charging",
+    "quit": "Quit"
+  },
   "header": {
     "from_template": "New from template: {template}",
     "new_config": "New config",
