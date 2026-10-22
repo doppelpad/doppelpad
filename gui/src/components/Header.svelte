@@ -122,7 +122,7 @@
       >
         <Save size={17} />
       </button>
-      <Menu items={optionItems} title={t('header.options')}>
+      <Menu items={optionItems} title={t('header.options')} iconOnly>
         {#snippet trigger()}<span class="icon-btn"><Ellipsis size={17} /></span>{/snippet}
       </Menu>
     {:else}

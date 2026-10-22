@@ -29,7 +29,7 @@
     <button class="btn primary" disabled={!canApply} onclick={() => app.apply()}>
       {t('remap.apply_to', { n: app.applySlot + 1 })}
     </button>
-    <Menu items={slotMenu} align="right" title={t('remap.pick_slot')}>
+    <Menu items={slotMenu} align="right" title={t('remap.pick_slot')} iconOnly>
       {#snippet trigger()}<span class="btn primary slot-pick"><ChevronDown size={14} /></span>{/snippet}
     </Menu>
   </div>

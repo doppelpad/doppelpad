@@ -181,7 +181,7 @@
       <button class="icon-btn" title={t('layers.add')} onclick={onAddLayer} disabled={!app.profile || app.readOnly}>
         <Plus size={16} />
       </button>
-      <Menu items={layerMenu} title={t('layers.options')}>
+      <Menu items={layerMenu} title={t('layers.options')} iconOnly>
         {#snippet trigger()}<span class="icon-btn"><Ellipsis size={16} /></span>{/snippet}
       </Menu>
     </div>
