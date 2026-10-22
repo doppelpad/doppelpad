@@ -3,7 +3,7 @@
   // shows and hides the window.
   import { onMount } from 'svelte';
   import { fly } from 'svelte/transition';
-  import { BatteryLow, BatteryWarning, Bell, Gamepad2, Hash, Layers, Power, PowerOff, Unplug } from '@lucide/svelte';
+  import { BatteryLow, BatteryWarning, Bell, Gamepad2, Hash, Info, Layers, Power, PowerOff, Unplug } from '@lucide/svelte';
   import { setLanguage, t } from '../../lib/i18n/index.svelte';
   import { overlayContent } from '../../lib/overlay';
   import { layerColor } from '../../lib/theme/layers';
@@ -41,6 +41,13 @@
         return { icon: BatteryLow, title: msg.name, detail: t('osd.battery_low', { level: msg.level }), color: 'var(--warning)' };
       case 'battery_critical':
         return { icon: BatteryWarning, title: msg.name, detail: t('osd.battery_critical', { level: msg.level }), color: 'var(--danger)' };
+      case 'steam_input':
+        return {
+          icon: Info,
+          title: t('osd.steam_input'),
+          detail: t('osd.steam_input_detail', { game: msg.game }),
+          color: 'var(--warning)',
+        };
       case 'test':
         return { icon: Bell, title: 'Doppelpad', detail: t('osd.test'), color: 'var(--accent)' };
     }

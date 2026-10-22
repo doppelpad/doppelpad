@@ -418,6 +418,21 @@ settings to map each pad on its own. The Steam Controller's right pad also works
 stick. When Steam runs, it adds a virtual Xbox controller of its own for these pads; ignore
 one of the two in *Settings → Controllers*.
 
+### Controllers that other programs hold
+
+Some programs take a controller for themselves, so that Doppelpad cannot even read it. The
+controller list then names the likely program when one of the known ones runs (DS4Windows,
+BetterJoy, Dolphin for the GameCube adapter, Steam), for example "Steam is using the
+DualSense"; close that program or turn off its controller support. Doppelpad tries again
+every 30 seconds; *Look for controllers* next to the warning tries at once.
+
+Steam Input can also take Doppelpad's virtual controller and remap it a second time, so
+buttons act twice or not as mapped. When a game of the library comes to the front, its config
+drives a virtual controller and Steam runs, Doppelpad points this out once per game and run:
+an on-screen note over the game and a hint in the window with the way to turn Steam Input
+off for that game (the game's *Properties → Controller* in Steam). *Don't show again* turns
+the hint off; *Settings → General* lists it with the questions turned off.
+
 GameCube controllers on the USB adapter (Nintendo's or a clone switched to Wii U mode) show
 up one per occupied port. The adapter works with Windows' own driver and with the WinUSB
 driver Dolphin needs; with the WinUSB driver Doppelpad cannot hide it from games. Rumble

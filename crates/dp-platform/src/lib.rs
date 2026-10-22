@@ -30,6 +30,7 @@ pub mod linux;
 
 pub mod generic;
 pub mod groups;
+pub mod holders;
 pub mod joycon;
 pub mod nintendo;
 mod null;
@@ -566,6 +567,19 @@ pub fn foreground_program() -> Option<String> {
     #[cfg(not(windows))]
     {
         None
+    }
+}
+
+/// Whether Steam runs: its Steam Input may take a virtual controller and remap it again
+/// (Windows only; `false` elsewhere for now).
+pub fn steam_running() -> bool {
+    #[cfg(windows)]
+    {
+        windows::program_running("steam.exe")
+    }
+    #[cfg(not(windows))]
+    {
+        false
     }
 }
 

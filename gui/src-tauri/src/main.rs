@@ -197,6 +197,7 @@ fn main() {
             commands::new_http_token,
             commands::set_preferred_device,
             commands::refresh_drivers,
+            commands::rescan_devices,
             commands::hotkeys_get,
             commands::hotkeys_set,
             commands::hotkeys_pause,

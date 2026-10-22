@@ -118,9 +118,8 @@ unsafe extern "system" fn collect_window(hwnd: HWND, lparam: LPARAM) -> BOOL {
     1
 }
 
-/// Whether a process with this executable file name runs (any case).
-pub(crate) fn running(exe: &str) -> bool {
-    list()
-        .iter()
-        .any(|(_, name)| name.eq_ignore_ascii_case(exe))
+/// The running program that most likely holds a controller (see [`crate::holders`]).
+pub(crate) fn likely_holder() -> Option<&'static str> {
+    let names = list();
+    crate::holders::likely_holder(|exe| names.iter().any(|(_, n)| n.eq_ignore_ascii_case(exe)))
 }

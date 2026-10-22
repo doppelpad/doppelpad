@@ -87,6 +87,8 @@ export const api = {
   setAutoSwitch: (on: boolean) => invoke<void>('set_auto_switch', { on }),
   setPreferredDevice: (id: string | null) => invoke<void>('set_preferred_device', { id }),
   refreshDrivers: () => invoke<void>('refresh_drivers'),
+  /** Look for controllers now, also those another program held until now. */
+  rescanDevices: () => invoke<void>('rescan_devices'),
   hotkeysGet: () => invoke<Hotkeys>('hotkeys_get'),
   hotkeysSet: (hotkeys: Hotkeys) => invoke<void>('hotkeys_set', { hotkeys }),
   /** Pause the hotkeys while recording a new one. */

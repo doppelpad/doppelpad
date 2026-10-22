@@ -12,11 +12,11 @@ use std::time::Duration;
 use nusb::descriptors::TransferType;
 use nusb::transfer::{Buffer, Bulk, In, Out};
 use nusb::{Endpoint, ErrorKind, Interface, MaybeFuture};
-use windows_sys::Win32::Foundation::ERROR_ACCESS_DENIED;
 
 use super::devnode::usb_device_of;
 use super::process;
-use super::usb::{endpoint_addrs, transfer_error};
+use super::usb::{endpoint_addrs, is_busy, transfer_error};
+use crate::holders::busy_message;
 use crate::nintendo::switch2::Switch2Driver;
 use crate::nintendo::{NINTENDO_VID, Switch2Model};
 use crate::padio::{self, BulkIo, BulkRetry, PadDriver};
@@ -177,9 +177,12 @@ fn open_vendor_bulk(hid_devinst: u32) -> Result<VendorBulk, OpenError> {
 
 /// A user-facing explanation of why the vendor interface cannot be used.
 fn open_error(e: &nusb::Error) -> OpenError {
-    if is_busy(e.kind(), e.os_error()) {
+    if is_busy(e) {
         return OpenError {
-            message: busy_message(process::running("steam.exe")),
+            message: busy_message(
+                "the controller's USB command interface",
+                process::likely_holder(),
+            ),
             busy: true,
         };
     }
@@ -191,33 +194,4 @@ fn open_error(e: &nusb::Error) -> OpenError {
         _ => format!("cannot open the controller's USB command interface: {e}"),
     }
     .into()
-}
-
-/// Whether another program holds the interface. nusb reports `Busy` only for claims within
-/// this process; another process's WinUSB handle makes opening fail with access denied.
-fn is_busy(kind: ErrorKind, os_error: Option<u32>) -> bool {
-    kind == ErrorKind::Busy || os_error == Some(ERROR_ACCESS_DENIED)
-}
-
-fn busy_message(steam: bool) -> String {
-    let holder = if steam { "Steam" } else { "another program" };
-    format!("{holder} is using the controller's USB command interface")
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn busy_interfaces() {
-        assert!(is_busy(ErrorKind::Busy, None));
-        assert!(is_busy(ErrorKind::Other, Some(ERROR_ACCESS_DENIED)));
-        assert!(!is_busy(ErrorKind::Other, Some(2)));
-        assert!(!is_busy(ErrorKind::Unsupported, None));
-        assert_eq!(
-            busy_message(true),
-            "Steam is using the controller's USB command interface"
-        );
-        assert!(busy_message(false).starts_with("another program "));
-    }
 }

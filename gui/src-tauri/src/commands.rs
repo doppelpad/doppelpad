@@ -646,6 +646,13 @@ pub fn refresh_drivers(state: State<AppState>) -> CmdResult<()> {
     state.call(ServiceCmd::RefreshDrivers)
 }
 
+/// Look for controllers now and retry those that could not be opened (another program may
+/// have let them go).
+#[tauri::command(async)]
+pub fn rescan_devices(state: State<AppState>) -> CmdResult<()> {
+    state.call(ServiceCmd::RescanDevices)
+}
+
 #[tauri::command(async)]
 pub fn hotkeys_get(state: State<AppState>) -> CmdResult<Hotkeys> {
     match state.service.call(ServiceCmd::GetHotkeys) {
