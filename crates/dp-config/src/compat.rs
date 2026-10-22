@@ -32,6 +32,11 @@ pub enum ImportError {
 
 /// Raw axis range used throughout the format.
 const AXIS_MAX: f32 = 32768.0;
+/// Stick deflections in macros run 0–32767 and count as `(value + 1) / 32767`, capped at full
+/// deflection; magnitudes in the settings are fractions of [`AXIS_MAX`] instead.
+const MACRO_STICK_MAX: f32 = 32767.0;
+/// The name the format falls back to when a profile names no game.
+pub(crate) const DEFAULT_IMPORT_NAME: &str = "Game";
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 enum DeviceKind {
@@ -40,17 +45,26 @@ enum DeviceKind {
     Mouse,
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-enum LayerKind {
-    Common,
-    Toggle,
-    Unlock,
-    RadialMenu,
-}
-
 /// `null` counts as absent everywhere.
 fn get<'a>(v: &'a Value, key: &str) -> Option<&'a Value> {
     v.get(key).filter(|x| !x.is_null())
+}
+
+static NULL: Value = Value::Null;
+
+/// `key`'s object, or `null` when it is absent (every lookup in it then finds nothing).
+fn obj<'a>(v: &'a Value, key: &str) -> &'a Value {
+    get(v, key).unwrap_or(&NULL)
+}
+
+/// A declared layer's id (1–255; 0 is the base layer).
+fn layer_id(v: &Value, key: &str) -> Option<i64> {
+    int(v, key).filter(|id| (1..=255).contains(id))
+}
+
+/// The layer a mapping is in or jumps to: the base layer when absent, clamped to 0–255.
+fn target_layer(v: &Value, key: &str) -> u8 {
+    int(v, key).unwrap_or(0).clamp(0, 255) as u8
 }
 
 fn int(v: &Value, key: &str) -> Option<i64> {
@@ -118,18 +132,7 @@ fn light(v: &Value) -> Light {
         Some("breath") => LightMode::Breath,
         _ => LightMode::Solid,
     };
-    let colors: Vec<String> = array(v, "colors")
-        .iter()
-        .filter_map(|c| {
-            let c: Vec<u8> = c
-                .as_array()?
-                .iter()
-                .filter_map(|x| x.as_u64().map(|n| n.min(255) as u8))
-                .collect();
-            (c.len() == 3).then(|| format!("#{:02x}{:02x}{:02x}", c[0], c[1], c[2]))
-        })
-        .take(10)
-        .collect();
+    let colors: Vec<String> = array(v, "colors").iter().filter_map(rgb).take(10).collect();
     Light {
         mode,
         colors: if colors.is_empty() {
@@ -143,8 +146,9 @@ fn light(v: &Value) -> Light {
 }
 
 /// An `[r, g, b]` colour as `#rrggbb`.
-fn rgb_hex(v: &Value, key: &str) -> Option<String> {
-    let c: Vec<u8> = array(v, key)
+fn rgb(v: &Value) -> Option<String> {
+    let c: Vec<u8> = v
+        .as_array()?
         .iter()
         .filter_map(|x| x.as_u64().map(|n| n.min(255) as u8))
         .collect();
@@ -158,8 +162,6 @@ fn array<'a>(v: &'a Value, key: &str) -> &'a [Value] {
         .unwrap_or(&[])
 }
 
-/// Zone order of the format's zone button ids.
-const ZONES: [Zone; 3] = [Zone::Low, Zone::Med, Zone::High];
 /// Trackpad direction ids in order: up, down, left, right, then the diagonals.
 const TRACKPAD_REGIONS: [TouchRegion; 8] = [
     TouchRegion::Up,
@@ -176,7 +178,8 @@ const TRACKPAD_REGIONS: [TouchRegion; 8] = [
 fn gamepad_control(id: i64) -> Option<Control> {
     use Control::*;
     use PadButton as P;
-    let zone = |first: i64| ZONES[(id - first) as usize];
+    // Zone ids run low, medium, high, like `Zone::ALL`.
+    let zone = |first: i64| Zone::ALL[(id - first) as usize];
     Some(match id {
         37..=39 => StickZone(Stick::Left, None, zone(37)),
         44..=46 => StickZone(Stick::Right, None, zone(44)),
@@ -186,7 +189,7 @@ fn gamepad_control(id: i64) -> Option<Control> {
         109..=132 => {
             let i = (id - 109) as usize;
             let stick = if i < 12 { Stick::Left } else { Stick::Right };
-            StickZone(stick, Some(Dir::CARDINALS[i % 4]), ZONES[i % 12 / 4])
+            StickZone(stick, Some(Dir::CARDINALS[i % 4]), Zone::ALL[i % 12 / 4])
         }
         1 => Button(P::A),
         2 => Button(P::B),
@@ -223,7 +226,7 @@ fn gamepad_control(id: i64) -> Option<Control> {
         // Mouse zone × direction: low up/down/left/right, then med, then high.
         133..=144 => {
             let i = (id - 133) as usize;
-            MouseZone(Some(Dir::CARDINALS[i % 4]), ZONES[i / 4])
+            MouseZone(Some(Dir::CARDINALS[i % 4]), Zone::ALL[i / 4])
         }
         64 => MouseMove(Dir::Up),
         65 => MouseMove(Dir::Down),
@@ -236,12 +239,12 @@ fn gamepad_control(id: i64) -> Option<Control> {
         74..=76 => GyroZone(None, zone(74)),
         145..=156 => {
             let i = (id - 145) as usize;
-            GyroZone(Some(GyroDir::ALL[i % 4]), ZONES[i / 4])
+            GyroZone(Some(GyroDir::ALL[i % 4]), Zone::ALL[i / 4])
         }
         157..=162 => {
             let i = (id - 157) as usize;
             let lean = [GyroDir::LeanLeft, GyroDir::LeanRight][i % 2];
-            GyroZone(Some(lean), ZONES[i / 2])
+            GyroZone(Some(lean), Zone::ALL[i / 2])
         }
         // Touchpad gestures: taps left/right/centre, multi-tap, zoom in/out, swipes with one
         // finger (up/down/left/right), then with two.
@@ -271,14 +274,7 @@ fn gamepad_control(id: i64) -> Option<Control> {
         ),
         108 => Trackpad(Half::Right, TrackpadPart::Click),
         164 => Trackpad(Half::Right, TrackpadPart::Tap),
-        91 => Touch(TouchRegion::Up),
-        92 => Touch(TouchRegion::Down),
-        93 => Touch(TouchRegion::Left),
-        94 => Touch(TouchRegion::Right),
-        95 => Touch(TouchRegion::UpLeft),
-        96 => Touch(TouchRegion::UpRight),
-        97 => Touch(TouchRegion::DownLeft),
-        98 => Touch(TouchRegion::DownRight),
+        91..=98 => Touch(TRACKPAD_REGIONS[(id - 91) as usize]),
         99 => Button(P::Touchpad),
         169 => TriggerFull(Trigger::Left),
         170 => TriggerFull(Trigger::Right),
@@ -526,7 +522,6 @@ struct Importer<'a> {
     time_scale: u32,
     devices: HashMap<i64, DeviceKind>,
     masks: HashMap<i64, Combo>,
-    layer_kinds: HashMap<i64, LayerKind>,
     commands: HashMap<i64, &'a Value>,
     /// Masks that zone activators turned into zone controls: (mask, zoned trigger).
     zoned: Vec<(Combo, Combo)>,
@@ -614,7 +609,6 @@ pub fn import(json: &str) -> Result<(Profile, Diagnostics), ImportError> {
         time_scale: 10,
         devices: HashMap::new(),
         masks: HashMap::new(),
-        layer_kinds: HashMap::new(),
         commands: HashMap::new(),
         zoned: Vec::new(),
         layer_analog: HashMap::new(),
@@ -638,31 +632,31 @@ impl<'a> Importer<'a> {
         let mut p = Profile::default();
         // The format never mutes a mapped key implicitly; explicit "unmap" entries do.
         p.output.mute_mapped_inputs = false;
-        let config = get(self.root, "config").cloned().unwrap_or(Value::Null);
-        if int(&config, "minTimeUnit") == Some(1) {
+        let config = obj(self.root, "config");
+        if int(config, "minTimeUnit") == Some(1) {
             self.time_scale = 1;
         }
-        p.name = text(&config, "appName")
+        p.name = text(config, "appName")
             .filter(|s| !s.is_empty())
             .unwrap_or_else(|| {
-                text(&config, "comment")
+                text(config, "comment")
                     .and_then(|c| {
                         c.strip_prefix("Custom configuration to play ")
                             .map(str::to_owned)
                     })
-                    .unwrap_or_else(|| "Game".into())
+                    .unwrap_or_else(|| DEFAULT_IMPORT_NAME.into())
             });
-        p.description = text(&config, "description").unwrap_or_default();
-        p.processes = array(&config, "processNames")
+        p.description = text(config, "description").unwrap_or_default();
+        p.processes = array(config, "processNames")
             .iter()
             .filter_map(Value::as_str)
             .filter(|s| !s.is_empty())
             .map(Into::into)
             .collect();
-        if let Some(led) = get(&config, "led") {
+        if let Some(led) = get(config, "led") {
             p.lightbar = get(led, "default").map(light);
             for s in array(led, "shifts") {
-                if let Some(id) = int(s, "shiftId").filter(|id| (1..=255).contains(id)) {
+                if let Some(id) = layer_id(s, "shiftId") {
                     self.layer_lights.push((id as u8, light(s)));
                 }
             }
@@ -861,13 +855,11 @@ impl<'a> Importer<'a> {
         // (17 − wheelDeflection) · 20 ms while held. Absent values are the format's defaults.
         let mouse = virt
             .and_then(|v| get(v, "mouse"))
-            .and_then(|m| get(m, "config"))
-            .cloned()
-            .unwrap_or(Value::Null);
-        let in_range = |key: &str, max: i64| int(&mouse, key).filter(|v| (1..=max).contains(v));
+            .map_or(&NULL, |m| obj(m, "config"));
+        let in_range = |key: &str, max: i64| int(mouse, key).filter(|v| (1..=max).contains(v));
         let sensitivity = in_range("sensitivity", 100).unwrap_or(4) as f32;
         let deflection = in_range("deflection", 16).unwrap_or(8) as f32;
-        let acceleration = int(&mouse, "acceleration")
+        let acceleration = int(mouse, "acceleration")
             .filter(|v| (0..=16).contains(v))
             .unwrap_or(8);
         self.mouse_speed = (
@@ -1094,7 +1086,6 @@ impl<'a> Importer<'a> {
         }
     }
 
-    /// Gamepad stick/trigger/touchpad settings.
     /// Motor strengths, a motor swap and the command gap from a device's `default` block.
     fn vibration(&mut self, v: &mut Vibration, d: &Value, path: &str) {
         let mut swapped = [false; 2];
@@ -1140,6 +1131,7 @@ impl<'a> Importer<'a> {
         }
     }
 
+    /// Gamepad stick/trigger/touchpad settings.
     fn analog_settings(
         &mut self,
         sticks: &mut Sticks,
@@ -1282,7 +1274,10 @@ impl<'a> Importer<'a> {
                 let gamepad = int(e, "deviceId")
                     .and_then(|d| self.devices.get(&d))
                     .is_some_and(|k| *k == DeviceKind::Gamepad);
-                gamepad && int(e, "buttonId").is_some_and(|id| matches!(id, 100..=108 | 164))
+                gamepad
+                    && int(e, "buttonId")
+                        .and_then(gamepad_control)
+                        .is_some_and(|c| matches!(c, Control::Trackpad(Half::Right, _)))
             })
     }
 
@@ -1292,10 +1287,12 @@ impl<'a> Importer<'a> {
         if !self.split_touch {
             return Some(c);
         }
-        Some(match (id, c) {
-            (91..=98, Control::Touch(r)) => Control::Trackpad(Half::Left, TrackpadPart::Region(r)),
-            (99, _) => Control::Trackpad(Half::Left, TrackpadPart::Click),
-            (163, _) => Control::Trackpad(Half::Left, TrackpadPart::Tap),
+        Some(match c {
+            Control::Touch(r) => Control::Trackpad(Half::Left, TrackpadPart::Region(r)),
+            Control::Button(PadButton::Touchpad) => {
+                Control::Trackpad(Half::Left, TrackpadPart::Click)
+            }
+            Control::Gesture(TouchGesture::Tap) => Control::Trackpad(Half::Left, TrackpadPart::Tap),
             _ => c,
         })
     }
@@ -1395,8 +1392,7 @@ impl<'a> Importer<'a> {
         let layer = array(self.root, "shifts")
             .iter()
             .find(|s| enum_str(s, "type").as_deref() == Some("radialmenu"))
-            .and_then(|s| int(s, "id"))
-            .filter(|id| (1..=255).contains(id));
+            .and_then(|s| layer_id(s, "id"));
         let index: HashMap<i64, usize> = circles
             .iter()
             .enumerate()
@@ -1427,7 +1423,7 @@ impl<'a> Importer<'a> {
                 self.radial_sectors.insert(sid, (i, menu.sectors.len()));
                 menu.sectors.push(RadialSector {
                     label: text(s, "description").unwrap_or_default(),
-                    color: rgb_hex(s, "color").unwrap_or_default(),
+                    color: get(s, "color").and_then(rgb).unwrap_or_default(),
                     submenu: int(s, "childCircleId")
                         .and_then(|c| index.get(&c))
                         .map(|&m| m as u8 + 1),
@@ -1511,7 +1507,6 @@ impl<'a> Importer<'a> {
     fn crosshairs(&mut self, p: &mut Profile) {
         let mut items: Vec<&Value> = array(self.root, "crosshairs").iter().collect();
         items.sort_by_key(|c| int(c, "id").unwrap_or(i64::MAX));
-        let rgb = rgb_hex;
         let num = |c: &Value, key: &str| get(c, key).and_then(Value::as_f64);
         let mut shapes = false;
         for (i, c) in items.into_iter().enumerate() {
@@ -1532,13 +1527,15 @@ impl<'a> Importer<'a> {
             p.crosshairs.push(Crosshair {
                 name: text(c, "name").unwrap_or_default(),
                 shape: CrosshairShape::Cross,
-                color: rgb(c, "color").unwrap_or(d.color),
+                color: get(c, "color").and_then(rgb).unwrap_or(d.color),
                 opacity: num(c, "opacity").map_or(1.0, |v| (v / 100.0).clamp(0.0, 1.0) as f32),
                 size: int(c, "size").map_or(d.size, |v| v.clamp(10, 200) as u16),
                 thickness: int(c, "thickness").map_or(d.thickness, |v| v.clamp(10, 100) as u8),
                 outline: num(c, "edgingThickness")
                     .map_or(0, |v| (v / 5.0).round().clamp(0.0, 10.0) as u8),
-                outline_color: rgb(c, "edgingColor").unwrap_or(d.outline_color),
+                outline_color: get(c, "edgingColor")
+                    .and_then(rgb)
+                    .unwrap_or(d.outline_color),
                 offset: [delta("horizontalDelta"), delta("verticalDelta")],
                 visible: get(c, "useCrosshair")
                     .and_then(Value::as_bool)
@@ -1562,7 +1559,7 @@ impl<'a> Importer<'a> {
     fn layers(&mut self, p: &mut Profile) {
         for (i, s) in array(self.root, "shifts").iter().enumerate() {
             let path = format!("shifts[{i}]");
-            let Some(id) = int(s, "id").filter(|id| (1..=255).contains(id)) else {
+            let Some(id) = layer_id(s, "id") else {
                 self.diags.warn(&path, "invalid layer id");
                 continue;
             };
@@ -1573,13 +1570,7 @@ impl<'a> Importer<'a> {
                 Some("unlockmouseonly") => Some(Unlock::Mouse),
                 _ => None,
             };
-            let kind = match ty.as_deref() {
-                Some("toggle") => LayerKind::Toggle,
-                _ if unlock.is_some() => LayerKind::Unlock,
-                Some("radialmenu") => LayerKind::RadialMenu,
-                _ => LayerKind::Common,
-            };
-            self.layer_kinds.insert(id, kind);
+            let toggle = ty.as_deref() == Some("toggle");
             let not_inherited = get(s, "unheritableMasks")
                 .and_then(Value::as_array)
                 .map(|ids| {
@@ -1616,7 +1607,7 @@ impl<'a> Importer<'a> {
                 let mut m = Mapping::new(Combo(controls), Vec::new());
                 m.jump = Some(Jump {
                     layer: id as u8,
-                    mode: if kind == LayerKind::Toggle {
+                    mode: if toggle {
                         JumpMode::Toggle
                     } else {
                         JumpMode::Hold
@@ -1644,7 +1635,7 @@ impl<'a> Importer<'a> {
 
     fn mapping(&mut self, m: &Value, path: &str) -> Option<Mapping> {
         let cond = get(m, "condition")?;
-        let layer = int(cond, "shiftId").unwrap_or(0).clamp(0, 255) as u8;
+        let layer = target_layer(cond, "shiftId");
 
         if let Some(hw) = get(cond, "hardware") {
             return self.hardware_mapping(hw, get(m, "hardware"), layer, path);
@@ -1655,13 +1646,13 @@ impl<'a> Importer<'a> {
             // The mask itself was already reported when it failed to resolve.
             return None;
         };
-        let act = get(mask, "activator").cloned().unwrap_or(Value::Null);
-        let params = get(&act, "params").cloned().unwrap_or(Value::Null);
+        let act = obj(mask, "activator");
+        let params = obj(act, "params");
 
         let mut out = Mapping::new(combo.clone(), Vec::new());
         out.layer = layer;
         out.description = text(m, "description").unwrap_or_default();
-        out.activator = match enum_str(&act, "type").as_deref() {
+        out.activator = match enum_str(act, "type").as_deref() {
             None | Some("single") => Activator::Single,
             Some("double") => Activator::Double,
             Some("triple") => Activator::Triple,
@@ -1702,7 +1693,7 @@ impl<'a> Importer<'a> {
                 return None;
             }
         };
-        out.mode = match enum_str(&act, "mode").as_deref() {
+        out.mode = match enum_str(act, "mode").as_deref() {
             None | Some("hold_until_release") => Mode::Hold,
             Some("turbo") => Mode::Turbo,
             Some("toggle") => Mode::Toggle,
@@ -1714,7 +1705,7 @@ impl<'a> Importer<'a> {
                 Mode::Hold
             }
         };
-        if let Some(t) = int(&params, "pause") {
+        if let Some(t) = int(params, "pause") {
             match out.mode {
                 Mode::Turbo => out.turbo_ms = Some(self.time(t.min(60_000)).max(10)),
                 Mode::Repeat => out.repeat_pause_ms = Some(self.time(t.min(2550))),
@@ -1722,10 +1713,10 @@ impl<'a> Importer<'a> {
             }
         }
         if out.mode == Mode::Repeat {
-            out.repeat = Some(int(&params, "times").unwrap_or(1).clamp(1, 9999) as u32);
+            out.repeat = Some(int(params, "times").unwrap_or(1).clamp(1, 9999) as u32);
         }
         // Key delay is in time units like pauses.
-        if let Some(d) = int(&params, "delay")
+        if let Some(d) = int(params, "delay")
             .map(|d| self.time(d))
             .filter(|d| *d <= 500)
         {
@@ -1733,11 +1724,11 @@ impl<'a> Importer<'a> {
         }
         // Wait times are plain milliseconds. `singlewaittime` is the double-press window
         // and `doublewaittime` the triple-press window.
-        if let Some(t) = int(&params, "longwaittime").filter(|t| (1..=2500).contains(t)) {
+        if let Some(t) = int(params, "longwaittime").filter(|t| (1..=2500).contains(t)) {
             out.long_press_ms = Some(t as u32);
         }
-        let double = int(&params, "singlewaittime").filter(|t| (1..=900).contains(t));
-        let triple = int(&params, "doublewaittime").filter(|t| (1..=1000).contains(t));
+        let double = int(params, "singlewaittime").filter(|t| (1..=900).contains(t));
+        let triple = int(params, "doublewaittime").filter(|t| (1..=1000).contains(t));
         if let Some(d) = double {
             out.double_tap_ms = Some(d as u32);
         }
@@ -1779,7 +1770,7 @@ impl<'a> Importer<'a> {
         }
         // A one-shot "press K, maybe wait, release K" is a plain remap of K,
         // and so is a single item without an explicit action.
-        if out.mode == Mode::Once && !boolean(&params, "macro") {
+        if out.mode == Mode::Once && !boolean(params, "macro") {
             let plain = match out.actions.as_slice() {
                 [
                     Action::Key {
@@ -1834,9 +1825,8 @@ impl<'a> Importer<'a> {
         if let Some(j) = get(m, "jumpToLayer") {
             // Jumps in this format are absolute "go to layer N"; hold/toggle shifts are pairs of
             // jumps, which `fold_jump_pairs` turns back into our hold/toggle form.
-            let target = int(j, "layer").unwrap_or(0).clamp(0, 255);
             out.jump = Some(Jump {
-                layer: target as u8,
+                layer: target_layer(j, "layer"),
                 mode: JumpMode::Switch,
                 delay_ms: int(j, "delay")
                     .filter(|d| *d > 0)
@@ -1968,10 +1958,10 @@ impl<'a> Importer<'a> {
                 136 => Command::RadialRight,
                 137 => Command::RadialLeft,
                 1000..=1999 => {
-                    let params = get(cmd, "params").cloned().unwrap_or(Value::Null);
+                    let params = obj(cmd, "params");
                     Command::Launch {
-                        path: text(&params, "path").unwrap_or_default(),
-                        args: text(&params, "arguments").unwrap_or_default(),
+                        path: text(params, "path").unwrap_or_default(),
+                        args: text(params, "arguments").unwrap_or_default(),
                     }
                 }
                 _ => {
@@ -1994,7 +1984,7 @@ impl<'a> Importer<'a> {
         let action = press_of(g);
         let value = int(g, "value");
         let deflection = |v: Option<i64>| {
-            v.map(|v| ((v + 1) as f32 / 32767.0).clamp(0.0, 1.0))
+            v.map(|v| ((v + 1) as f32 / MACRO_STICK_MAX).clamp(0.0, 1.0))
                 .unwrap_or(1.0)
         };
         let stick = |s: Stick, d: Dir| {

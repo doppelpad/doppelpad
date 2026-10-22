@@ -365,7 +365,7 @@ pub fn import_into(game_dir: &Path, source: &Path) -> Result<(PathBuf, Diagnosti
     let src = std::fs::read_to_string(source).map_err(io(source))?;
     let (mut profile, diags) =
         compat::import(&src).map_err(|e| LibraryError::Import(source.to_path_buf(), e))?;
-    if profile.name.is_empty() || profile.name == "Game" {
+    if profile.name.is_empty() || profile.name == compat::DEFAULT_IMPORT_NAME {
         profile.name = file_stem(source);
     }
     let target = unique_path(game_dir, &slugify(&profile.name), Some("toml"));
