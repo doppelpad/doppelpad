@@ -31,6 +31,14 @@ interprocess = "2"
 vigem-client = { version = "0.1.4", features = ["unstable_xtarget_notification"] }
 windows-sys = "0.61"
 nusb = "0.2"
+ctrlc = "3"
+trash = "5"
+tauri-winres = "0.3"
+tempfile = "3"
+# Linux backend
+evdev = "0.13"
+libc = "0.2"
+x11rb = "0.13"
 
 # Lints on top of the defaults, for every member crate (`[lints] workspace = true`).
 [workspace.lints.rust]
