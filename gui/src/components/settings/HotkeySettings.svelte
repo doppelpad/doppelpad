@@ -7,6 +7,7 @@
   import { t } from '../../lib/i18n/index.svelte';
   import { controlLabel } from '../../lib/model/controls';
   import { padButtonsDown } from '../../lib/model/devices';
+  import { clamp } from '../../lib/model/util';
   import { app } from '../../lib/state/app.svelte';
   import type { HotkeyField, Hotkeys, PadButtonName } from '../../lib/types';
   import SettingRow from './SettingRow.svelte';
@@ -14,6 +15,8 @@
 
   const FIELDS: HotkeyField[] = ['slot1', 'slot2', 'slot3', 'slot4', 'remap', 'stop_macros', 'emergency_stop', 'pad_overlay', 'mappings_overlay'];
   const MAX_BUTTONS = 4;
+  /** How long a hotkey must be held, in ms (dp-core's HOLD_MS_RANGE). */
+  const HOLD_MS = { min: 50, max: 2500, step: 50 };
 
   let hotkeys = $state<Hotkeys | null>(null);
   app.attempt(api.hotkeysGet().then((h) => (hotkeys = h)));
@@ -79,7 +82,7 @@
   function setHold(raw: string) {
     const n = parseInt(raw, 10);
     if (!hotkeys || !Number.isFinite(n)) return;
-    save({ ...hotkeys, hold_ms: Math.min(Math.max(n, 50), 2500) });
+    save({ ...hotkeys, hold_ms: clamp(n, HOLD_MS.min, HOLD_MS.max) });
   }
 
   onDestroy(() => {
@@ -93,9 +96,9 @@
       <span class="hold">
         <input
           type="number"
-          min="50"
-          max="2500"
-          step="50"
+          min={HOLD_MS.min}
+          max={HOLD_MS.max}
+          step={HOLD_MS.step}
           value={hotkeys.hold_ms}
           onchange={(e) => setHold(e.currentTarget.value)}
         />

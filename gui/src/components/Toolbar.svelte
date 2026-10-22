@@ -10,11 +10,18 @@
   import LayerDialog from './LayerDialog.svelte';
   import Menu from './ui/Menu.svelte';
 
-  const views: { id: View; icon: typeof Gamepad2; label: string }[] = $derived([
-    { id: 'front', icon: Gamepad2, label: t('views.front') },
-    { id: 'back', icon: RotateCcw, label: t('views.back') },
-    { id: 'keyboard', icon: Keyboard, label: t('views.keyboard') },
-    { id: 'mouse', icon: Mouse, label: t('views.mouse') },
+  type Tile = { id: View; icon: typeof Gamepad2; label: string; title?: string };
+  const views: Tile[] = $derived([
+    { id: 'front', icon: Gamepad2, label: t('views.front'), title: t('views.front') },
+    { id: 'back', icon: RotateCcw, label: t('views.back'), title: t('views.back') },
+    { id: 'keyboard', icon: Keyboard, label: t('views.keyboard'), title: t('views.keyboard') },
+    { id: 'mouse', icon: Mouse, label: t('views.mouse'), title: t('views.mouse') },
+  ]);
+  /** Tiles after the layers. */
+  const extras: Tile[] = $derived([
+    { id: 'analog', icon: Joystick, label: t('views.analog'), title: t('analog.hint') },
+    { id: 'shortcuts', icon: Combine, label: t('views.shortcuts') },
+    { id: 'output', icon: Cable, label: t('views.output') },
   ]);
 
   const layers = $derived(app.profile ? layerIds(app.profile) : [0]);
@@ -61,7 +68,7 @@
     app.select(null);
   }
 
-  async function onAddLayer() {
+  function onAddLayer() {
     if (!app.profile) return;
     const { profile, id } = addLayer(app.profile);
     app.update(profile);
@@ -139,14 +146,16 @@
   ]);
 </script>
 
+{#snippet tile(v: Tile)}
+  <button class="tile" class:active={app.view === v.id} title={v.title} onclick={() => setView(v.id)}>
+    <v.icon size={18} />
+    <span>{v.label}</span>
+  </button>
+{/snippet}
+
 <div class="toolbar" class:stacked bind:contentRect={barRect}>
   <div class="views" bind:offsetWidth={viewsWidth}>
-    {#each views as v (v.id)}
-      <button class="tile" class:active={app.view === v.id} title={v.label} onclick={() => setView(v.id)}>
-        <v.icon size={18} />
-        <span>{v.label}</span>
-      </button>
-    {/each}
+    {#each views as v (v.id)}{@render tile(v)}{/each}
   </div>
 
   <div class="layers" bind:clientWidth={stripWidth}>
@@ -188,15 +197,7 @@
   </div>
 
   <div class="extra" bind:offsetWidth={extraWidth}>
-    <button class="tile" class:active={app.view === 'analog'} title={t('analog.hint')} onclick={() => setView('analog')}>
-      <Joystick size={18} /><span>{t('views.analog')}</span>
-    </button>
-    <button class="tile" class:active={app.view === 'shortcuts'} onclick={() => setView('shortcuts')}>
-      <Combine size={18} /><span>{t('views.shortcuts')}</span>
-    </button>
-    <button class="tile" class:active={app.view === 'output'} onclick={() => setView('output')}>
-      <Cable size={18} /><span>{t('views.output')}</span>
-    </button>
+    {#each extras as v (v.id)}{@render tile(v)}{/each}
   </div>
 </div>
 

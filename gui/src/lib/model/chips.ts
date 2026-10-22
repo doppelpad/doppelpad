@@ -14,7 +14,7 @@ import {
   SIDE_NAMES,
   TOUCH_REGIONS,
   ZONES,
-  controlShort,
+  controlLabel,
   fullPullTag,
   gyroControls,
   withZone,
@@ -132,7 +132,7 @@ export function buildChips(controls: LayoutControl[], v: ChipView): Chip[] {
     return {
       lc,
       // The touchpad chip stands for its click and its regions.
-      label: c === 'Touchpad' ? t('views.groups.touchpad') : controlShort(c, v.family),
+      label: c === 'Touchpad' ? t('views.groups.touchpad') : controlLabel(c, v.family),
       summary,
       mapped,
       inherited: !!own?.inherited,
