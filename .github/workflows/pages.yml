@@ -1,6 +1,6 @@
 # Builds the website in site/ and publishes it on GitHub Pages. The site renders the handbook
-# from docs/ and the controller drawings and control names from the desktop app, so changes
-# there rebuild it too. Settings → Pages → Source must be "GitHub Actions".
+# from docs/ and takes the controller drawings, control names and version from the desktop
+# app, so changes there rebuild it too. Settings → Pages → Source must be "GitHub Actions".
 name: Pages
 
 on:
@@ -13,6 +13,7 @@ on:
       - 'gui/src/lib/svg.ts'
       - 'gui/src/lib/i18n/*.json'
       - 'gui/src-tauri/icons/source/**'
+      - 'gui/package.json'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 

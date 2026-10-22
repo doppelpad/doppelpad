@@ -24,10 +24,11 @@ hero:
 import { Aside, Card, CardGrid, LinkButton, Steps } from '@astrojs/starlight/components';
 import ControllerGallery from '../../components/ControllerGallery.svelte';
 import { controllers } from '../../lib/controllers';
+import { version } from '../../../../gui/package.json';
 
 <div class="landing">
 
-<Aside type="note" title="Early preview (0.3)">
+<Aside type="note" title={`Early preview (${version})`}>
 The remapping engine, the profile format, the importer and the Windows backends are implemented
 and unit-tested, and real DualSense input has been verified. The desktop app is new and still
 being polished, and several controllers and features have not run on real hardware yet. The
