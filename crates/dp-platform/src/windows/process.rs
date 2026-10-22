@@ -19,9 +19,10 @@ pub(crate) fn list() -> Vec<(u32, String)> {
     else {
         return out;
     };
-    // SAFETY: plain data; dwSize set as the API requires.
-    let mut entry: PROCESSENTRY32W = unsafe { std::mem::zeroed() };
-    entry.dwSize = size_of::<PROCESSENTRY32W>() as u32;
+    let mut entry = PROCESSENTRY32W {
+        dwSize: size_of::<PROCESSENTRY32W>() as u32,
+        ..Default::default()
+    };
     // SAFETY: valid snapshot handle and entry.
     let mut more = unsafe { Process32FirstW(snap.raw(), &mut entry) } != 0;
     while more {

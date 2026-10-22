@@ -78,18 +78,20 @@ impl Magnifier {
 }
 
 fn run(rx: Receiver<Msg>) {
-    // SAFETY: standard Win32 window setup on this thread; every handle stays on it.
-    unsafe {
-        if MagInitialize() == 0 {
-            tracing::warn!(
-                "the magnifier is unavailable: {}",
-                std::io::Error::last_os_error()
-            );
-            return;
-        }
-        let hinst = GetModuleHandleW(null());
-        let class = super::register_class("doppelpad-magnifier", DefWindowProcW);
-        let host = CreateWindowExW(
+    // SAFETY: plain call, balanced by MagUninitialize below.
+    if unsafe { MagInitialize() } == 0 {
+        tracing::warn!(
+            "the magnifier is unavailable: {}",
+            std::io::Error::last_os_error()
+        );
+        return;
+    }
+    // SAFETY: returns this program's module handle.
+    let hinst = unsafe { GetModuleHandleW(null()) };
+    let class = super::register_class("doppelpad-magnifier", DefWindowProcW);
+    // SAFETY: a registered class; the window lives on this thread.
+    let host = unsafe {
+        CreateWindowExW(
             WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE,
             class.as_ptr(),
             class.as_ptr(),
@@ -102,11 +104,15 @@ fn run(rx: Receiver<Msg>) {
             null_mut(),
             hinst,
             null(),
-        );
-        let mag = if host.is_null() {
-            null_mut()
-        } else {
-            SetLayeredWindowAttributes(host, 0, 255, LWA_ALPHA);
+        )
+    };
+    let mag = if host.is_null() {
+        null_mut()
+    } else {
+        // SAFETY: our layered window.
+        unsafe { SetLayeredWindowAttributes(host, 0, 255, LWA_ALPHA) };
+        // SAFETY: MagInitialize registered the magnifier class; `host` is its parent.
+        unsafe {
             CreateWindowExW(
                 0,
                 WC_MAGNIFIER,
@@ -121,20 +127,23 @@ fn run(rx: Receiver<Msg>) {
                 hinst,
                 null(),
             )
-        };
-        if mag.is_null() {
-            tracing::warn!(
-                "cannot create the magnifier window: {}",
-                std::io::Error::last_os_error()
-            );
-        } else {
-            serve(&rx, host, mag);
         }
-        if !host.is_null() {
-            DestroyWindow(host);
-        }
-        MagUninitialize();
+    };
+    if mag.is_null() {
+        tracing::warn!(
+            "cannot create the magnifier window: {}",
+            std::io::Error::last_os_error()
+        );
+    } else {
+        // SAFETY: both windows were made on this thread.
+        unsafe { serve(&rx, host, mag) };
     }
+    if !host.is_null() {
+        // SAFETY: our window (with its child), destroyed once.
+        unsafe { DestroyWindow(host) };
+    }
+    // SAFETY: balances MagInitialize.
+    unsafe { MagUninitialize() };
 }
 
 /// Follow the handle's requests until it is dropped.
@@ -158,14 +167,18 @@ unsafe fn serve(rx: &Receiver<Msg>, host: HWND, mag: HWND) {
             Err(RecvTimeoutError::Timeout) => {}
             Err(RecvTimeoutError::Disconnected) => return,
         }
-        // SAFETY: plain message pumping and magnifier calls on this thread's windows.
-        unsafe {
-            let mut msg: MSG = std::mem::zeroed();
-            while PeekMessageW(&mut msg, null_mut(), 0, 0, PM_REMOVE) != 0 {
+        let mut msg = MSG::default();
+        // SAFETY: pumps this thread's messages into a valid MSG.
+        while unsafe { PeekMessageW(&mut msg, null_mut(), 0, 0, PM_REMOVE) } != 0 {
+            // SAFETY: a message PeekMessageW filled in.
+            unsafe {
                 TranslateMessage(&msg);
                 DispatchMessageW(&msg);
             }
-            if let Some(v) = &shown {
+        }
+        if let Some(v) = &shown {
+            // SAFETY: as for this function.
+            unsafe {
                 MagSetWindowSource(mag, source(v));
                 InvalidateRect(mag, null(), 1);
             }
@@ -192,19 +205,19 @@ fn source(v: &MagnifierView) -> RECT {
 unsafe fn place(host: HWND, mag: HWND, v: &MagnifierView) {
     let side = v.size.max(2);
     let (x, y) = (v.centre.0 - side / 2, v.centre.1 - side / 2);
+    let after = v.below.map_or(HWND_TOPMOST, |h| h as HWND);
+    let z = v.zoom.clamp(1.0, 16.0);
+    let mut t = MAGTRANSFORM {
+        v: [z, 0.0, 0.0, 0.0, z, 0.0, 0.0, 0.0, 1.0],
+    };
+    // The magnifier leaves itself out on its own.
+    let mut list: Vec<HWND> = v.exclude.iter().map(|&h| h as HWND).collect();
     // SAFETY: as for this function; the region belongs to the window once set.
     unsafe {
-        let after = v.below.map_or(HWND_TOPMOST, |h| h as HWND);
         SetWindowPos(host, after, x, y, side, side, SWP_NOACTIVATE);
         SetWindowPos(mag, null_mut(), 0, 0, side, side, SWP_NOACTIVATE);
         SetWindowRgn(host, CreateEllipticRgn(0, 0, side + 1, side + 1), 1);
-        let z = v.zoom.clamp(1.0, 16.0);
-        let mut t = MAGTRANSFORM {
-            v: [z, 0.0, 0.0, 0.0, z, 0.0, 0.0, 0.0, 1.0],
-        };
         MagSetWindowTransform(mag, &mut t);
-        // The magnifier leaves itself out on its own.
-        let mut list: Vec<HWND> = v.exclude.iter().map(|&h| h as HWND).collect();
         if !list.is_empty() {
             MagSetWindowFilterList(
                 mag,

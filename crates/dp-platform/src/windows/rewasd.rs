@@ -148,8 +148,7 @@ fn open_service(access: u32) -> io::Result<ScHandle> {
 }
 
 fn status(svc: &ScHandle) -> io::Result<SERVICE_STATUS_PROCESS> {
-    // SAFETY: plain data; all-zero is valid.
-    let mut st: SERVICE_STATUS_PROCESS = unsafe { std::mem::zeroed() };
+    let mut st = SERVICE_STATUS_PROCESS::default();
     let mut needed = 0u32;
     // SAFETY: the buffer is a SERVICE_STATUS_PROCESS of the size passed.
     let ok = unsafe {
@@ -230,8 +229,7 @@ fn stop_service(parent: HWND) -> Result<(), StopError> {
     let failed = |e: io::Error| StopError::Failed(format!("cannot stop the reWASD service: {e}"));
     match open_service(SERVICE_STOP | SERVICE_QUERY_STATUS) {
         Ok(svc) => {
-            // SAFETY: plain data; all-zero is valid.
-            let mut st: SERVICE_STATUS = unsafe { std::mem::zeroed() };
+            let mut st = SERVICE_STATUS::default();
             // SAFETY: valid service handle and out-pointer.
             if unsafe { ControlService(svc.0, SERVICE_CONTROL_STOP, &mut st) } == 0 {
                 let e = io::Error::last_os_error();
@@ -267,15 +265,16 @@ fn stop_service_elevated(parent: HWND) -> Result<(), StopError> {
     let sc = wide(&Path::new(&root).join(r"System32\sc.exe").to_string_lossy());
     let verb = wide("runas");
     let params = wide(&format!("stop {SERVICE}"));
-    // SAFETY: plain data; all-zero is the documented starting point.
-    let mut info: SHELLEXECUTEINFOW = unsafe { std::mem::zeroed() };
-    info.cbSize = size_of::<SHELLEXECUTEINFOW>() as u32;
-    info.fMask = SEE_MASK_NOCLOSEPROCESS | SEE_MASK_NOASYNC;
-    info.hwnd = parent;
-    info.lpVerb = verb.as_ptr();
-    info.lpFile = sc.as_ptr();
-    info.lpParameters = params.as_ptr();
-    info.nShow = SW_HIDE;
+    let mut info = SHELLEXECUTEINFOW {
+        cbSize: size_of::<SHELLEXECUTEINFOW>() as u32,
+        fMask: SEE_MASK_NOCLOSEPROCESS | SEE_MASK_NOASYNC,
+        hwnd: parent,
+        lpVerb: verb.as_ptr(),
+        lpFile: sc.as_ptr(),
+        lpParameters: params.as_ptr(),
+        nShow: SW_HIDE,
+        ..Default::default()
+    };
     // The shell may hand the request to COM components, so COM must be initialised.
     // SAFETY: balanced with CoUninitialize below when it succeeded.
     let com = unsafe {
