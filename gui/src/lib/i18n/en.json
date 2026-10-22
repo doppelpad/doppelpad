@@ -1029,6 +1029,16 @@
   },
   "settings": {
     "title": "Settings",
+    "pages": {
+      "general": "General",
+      "controllers": "Controllers",
+      "hotkeys": "Hotkeys",
+      "display": "Display",
+      "remapping": "Remapping",
+      "connections": "Connections",
+      "drivers": "Drivers",
+      "files": "Files"
+    },
     "language": "Language",
     "stay_live": "Keep remapping active while this window is focused",
     "hook_buttons": "Select controls by pressing them on the controller",
