@@ -15,6 +15,7 @@
   import type { Action, ControlName, Mapping, Mode, Press } from '../../lib/types';
   import ActionParams from '../binding/ActionParams.svelte';
   import ActionPicker from '../binding/ActionPicker.svelte';
+  import Segmented from '../ui/Segmented.svelte';
 
   const target = $derived(app.macroTarget);
   const at = $derived<{ own?: Mapping; inherited?: Mapping }>(
@@ -154,13 +155,16 @@
       <span class="layer" style="--c: {layerColor(target.layer)}">{app.layerLabel(target.layer)}</span>
     </div>
 
-    <div class="modes">
-      {#each MODES as md (md.id)}
-        <button class:active={mode === md.id} disabled={app.readOnly} onclick={() => edit((x) => (x.mode = md.id))}>
-          {t(`macro.${md.key}`)}
-        </button>
-      {/each}
-    </div>
+    <Segmented
+      variant="fill"
+      size="l"
+      hover={false}
+      label={t('macro.mode_label')}
+      options={MODES.map((md) => ({ value: md.id, label: t(`macro.${md.key}`) }))}
+      value={mode}
+      disabled={app.readOnly}
+      onchange={(md) => edit((x) => (x.mode = md))}
+    />
 
     <div class="params">
       {#if mode === 'repeat'}
@@ -284,25 +288,6 @@
     border-radius: var(--radius-pill);
     border: 1px solid var(--c);
     color: var(--c);
-  }
-  .modes {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    border: 1px solid var(--line);
-    border-radius: var(--radius-m);
-    overflow: hidden;
-  }
-  .modes button {
-    padding: 9px 6px;
-    color: var(--text-dim);
-  }
-  .modes button + button {
-    border-left: 1px solid var(--line);
-  }
-  .modes button.active {
-    background: var(--accent-soft);
-    color: var(--accent);
-    font-weight: 600;
   }
   .params {
     display: flex;

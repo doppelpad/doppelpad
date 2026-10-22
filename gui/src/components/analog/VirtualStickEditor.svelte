@@ -6,6 +6,7 @@
   import { setVirtualStick, virtualRamp, virtualStickConfig, type CurvePoint, type Side } from '../../lib/model/analog';
   import { app } from '../../lib/state/app.svelte';
   import type { Jitter, VirtualStick } from '../../lib/types';
+  import Segmented from '../ui/Segmented.svelte';
   import Slider from '../ui/Slider.svelte';
   import Toggle from '../ui/Toggle.svelte';
   import CurveEditor from './CurveEditor.svelte';
@@ -61,12 +62,17 @@
     <LayerNote kind="virtual_sticks" sides={[side]} />
     <div class="grid">
       <div class="controls">
-        <div class="presets">
-          <button class="btn" class:on={instant} {disabled} onclick={() => set({ initial: 1, max: 1, speed: 0, acceleration: 0 })}>
-            {t('analog.virtual.preset_instant')}
-          </button>
-          <button class="btn" class:on={!instant} {disabled} onclick={() => set(RAMP)}>{t('analog.virtual.preset_ramp')}</button>
-        </div>
+        <Segmented
+          variant="chips"
+          label={t('analog.virtual.title')}
+          options={[
+            { value: 'instant', label: t('analog.virtual.preset_instant') },
+            { value: 'ramp', label: t('analog.virtual.preset_ramp') },
+          ]}
+          value={instant ? 'instant' : 'ramp'}
+          {disabled}
+          onchange={(v) => set(v === 'instant' ? { initial: 1, max: 1, speed: 0, acceleration: 0 } : RAMP)}
+        />
         <Slider
           label={t('analog.virtual.initial')}
           value={cfg.initial}
@@ -149,13 +155,14 @@
           <Toggle checked={jit.enabled} {disabled} label={t('analog.virtual.jitter')} onchange={(v) => setJitter({ enabled: v })} />
           <p class="hint">{t('analog.virtual.jitter_hint')}</p>
           {#if jit.enabled}
-            <div class="presets">
-              {#each PATTERNS as pt (pt)}
-                <button class="btn" class:on={jit.pattern === pt} {disabled} onclick={() => setJitter({ pattern: pt })}>
-                  {t(`analog.virtual.pattern.${pt}`)}
-                </button>
-              {/each}
-            </div>
+            <Segmented
+              variant="chips"
+              label={t('analog.virtual.jitter')}
+              options={PATTERNS.map((pt) => ({ value: pt, label: t(`analog.virtual.pattern.${pt}`) }))}
+              value={jit.pattern}
+              {disabled}
+              onchange={(pt) => setJitter({ pattern: pt })}
+            />
             <Slider
               label={t('analog.virtual.jitter_min')}
               value={jit.min}
@@ -265,20 +272,6 @@
     flex-direction: column;
     gap: 14px;
     padding-top: 4px;
-  }
-  .presets {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-  .presets .btn {
-    font-size: var(--fs-s);
-    padding: 4px 10px;
-  }
-  .presets .btn.on {
-    border-color: var(--accent);
-    color: var(--accent);
-    background: var(--accent-soft);
   }
   .previews {
     display: flex;

@@ -10,6 +10,7 @@
   import TouchpadEditor from '../analog/TouchpadEditor.svelte';
   import TriggerEditor from '../analog/TriggerEditor.svelte';
   import VirtualStickEditor from '../analog/VirtualStickEditor.svelte';
+  import Segmented from '../ui/Segmented.svelte';
 
   const TABS: AnalogTab[] = ['left', 'right', 'triggers', 'gyro', 'touchpad', 'routes'];
   const routeCount = $derived(app.profile ? layerRoutes(app.profile, app.layer).length : 0);
@@ -18,14 +19,12 @@
 <div class="analog">
   <div class="head">
     <h2>{t('analog.title')}</h2>
-    <div class="tabs" role="tablist">
-      {#each TABS as tab (tab)}
-        <button role="tab" aria-selected={app.analogTab === tab} class:active={app.analogTab === tab} onclick={() => (app.analogTab = tab)}>
-          {t(`analog.tabs.${tab}`)}
-          {#if tab === 'routes' && routeCount > 0}<span class="count">{routeCount}</span>{/if}
-        </button>
-      {/each}
-    </div>
+    <Segmented
+      label={t('analog.title')}
+      options={TABS.map((tab) => ({ value: tab, label: t(`analog.tabs.${tab}`), badge: tab === 'routes' ? routeCount : undefined }))}
+      value={app.analogTab}
+      onchange={(tab) => (app.analogTab = tab)}
+    />
   </div>
 
   {#if app.analogTab === 'routes'}
@@ -67,41 +66,6 @@
     margin: 0;
     font-size: 17px;
     font-weight: 600;
-  }
-  .tabs {
-    display: flex;
-    border: 1px solid var(--line);
-    border-radius: var(--radius-s);
-    overflow: hidden;
-  }
-  .tabs button {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 6px 12px;
-    font-size: var(--fs-s);
-    color: var(--text-dim);
-  }
-  .tabs button + button {
-    border-left: 1px solid var(--line);
-  }
-  .tabs button:hover {
-    color: var(--text);
-    background: var(--bg-2);
-  }
-  .tabs button.active {
-    background: var(--accent-soft);
-    color: var(--accent);
-  }
-  .count {
-    min-width: 16px;
-    padding: 0 5px;
-    border-radius: var(--radius-pill);
-    background: var(--bg-3);
-    color: var(--text-dim);
-    font-size: 10.5px;
-    line-height: 16px;
-    text-align: center;
   }
   .scope {
     margin: -6px 0 4px;

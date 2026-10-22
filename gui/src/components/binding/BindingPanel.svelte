@@ -33,6 +33,7 @@
   import { actionLabel, comboLabel, mappingSummary } from '../../lib/model/labels';
   import { app, type AnalogTab } from '../../lib/state/app.svelte';
   import type { Action, Activator, Combo, JumpMode, Mapping, Mode } from '../../lib/types';
+  import Segmented, { type SegmentedOption } from '../ui/Segmented.svelte';
   import Toggle from '../ui/Toggle.svelte';
   import ActionParams from './ActionParams.svelte';
   import ActionPicker from './ActionPicker.svelte';
@@ -90,6 +91,19 @@
     !!profile && !!zone && zone.source.kind === 'trigger' &&
       effectiveMappings(profile, app.layer, `${zone.base}Full`).mappings.length > 0,
   );
+  /** The zone tabs: the whole range (not for "any direction"), the zones and a trigger's full pull. */
+  const zoneOptions = $derived.by((): SegmentedOption<ZoneName | null | 'full'>[] => {
+    if (!zone) return [];
+    const zones = [
+      ...(isAnyDirection(zone.base) ? [] : [null]),
+      ...ZONES,
+      ...(zone.source.kind === 'trigger' ? (['full'] as const) : []),
+    ];
+    return zones.map((z) => {
+      const key = z === null ? 'whole' : z.toLowerCase();
+      return { value: z, label: t(`zones.${key}`), title: t(`zones.desc.${key}`), marked: z === 'full' ? usedFull : usedZones.has(z) };
+    });
+  });
 
   const defaults = $derived(app.catalog?.defaults.timing);
   const timing = $derived({ ...defaults, ...(profile?.timing ?? {}) });
@@ -226,36 +240,13 @@
 
     {#if zone}
       {@const zp = zone}
-      <div class="zones" role="tablist" aria-label={t('zones.title')}>
-        {#each [null, ...ZONES] as z (z ?? 'whole')}
-          {#if z !== null || !isAnyDirection(zp.base)}
-            <button
-              role="tab"
-              aria-selected={zp.zone === z && !fullPull}
-              class:active={zp.zone === z && !fullPull}
-              class:used={usedZones.has(z)}
-              title={t(`zones.desc.${z ? z.toLowerCase() : 'whole'}`)}
-              onclick={() => app.select(withZone(zp.base, z))}
-            >
-              {t(z ? `zones.${z.toLowerCase()}` : 'zones.whole')}
-              <span class="dot"></span>
-            </button>
-          {/if}
-        {/each}
-        {#if zp.source.kind === 'trigger'}
-          <button
-            role="tab"
-            aria-selected={!!fullPull}
-            class:active={!!fullPull}
-            class:used={usedFull}
-            title={t('zones.desc.full')}
-            onclick={() => app.select(`${zp.base}Full`)}
-          >
-            {t('zones.full')}
-            <span class="dot"></span>
-          </button>
-        {/if}
-      </div>
+      <Segmented
+        variant="fill"
+        label={t('zones.title')}
+        options={zoneOptions}
+        value={fullPull ? 'full' : zp.zone}
+        onchange={(z) => app.select(z === 'full' ? `${zp.base}Full` : withZone(zp.base, z))}
+      />
       <div class="act-desc">
         {t(`zones.desc.${fullPull ? 'full' : zp.zone ? zp.zone.toLowerCase() : 'whole'}`)}
       </div>
@@ -266,11 +257,11 @@
       {/if}
     {/if}
 
-    <div class="activators" role="tablist">
+    <div class="activators" role="radiogroup" aria-label={t('activators.title')}>
       {#each ACTIVATORS as a (a)}
         <button
-          role="tab"
-          aria-selected={app.activator === a}
+          role="radio"
+          aria-checked={app.activator === a}
           class="act"
           class:active={app.activator === a}
           class:used={usedActivators.has(a)}
@@ -403,17 +394,15 @@
         <option value="new">+ {t('layers.add')}</option>
       </select>
       {#if shown?.jump}
-        <div class="segmented">
-          {#each ['hold', 'toggle', 'switch'] as const as jm (jm)}
-            <button
-              class:active={(shown.jump.mode ?? 'hold') === jm}
-              disabled={readOnly}
-              onclick={() => setJumpMode(jm)}
-            >
-              {t(`binding.jump_${jm}`)}
-            </button>
-          {/each}
-        </div>
+        <Segmented
+          variant="fill"
+          hover={false}
+          label={t('binding.jump')}
+          options={(['hold', 'toggle', 'switch'] as const).map((jm) => ({ value: jm, label: t(`binding.jump_${jm}`) }))}
+          value={shown.jump.mode ?? 'hold'}
+          disabled={readOnly}
+          onchange={setJumpMode}
+        />
         {#if shown.jump.mode === 'switch' || shown.jump.delay_ms}
           <label class="inline">
             {t('binding.jump_delay')}
@@ -592,43 +581,6 @@
     font-size: 11.5px;
     color: var(--text-faint);
   }
-  .zones {
-    display: grid;
-    grid-auto-columns: 1fr;
-    grid-auto-flow: column;
-    border: 1px solid var(--line);
-    border-radius: var(--radius-s);
-    overflow: hidden;
-  }
-  .zones button {
-    position: relative;
-    padding: 6px 4px 8px;
-    font-size: var(--fs-s);
-    color: var(--text-dim);
-  }
-  .zones button + button {
-    border-left: 1px solid var(--line);
-  }
-  .zones button:hover {
-    color: var(--text);
-    background: var(--bg-2);
-  }
-  .zones button.active {
-    background: var(--accent-soft);
-    color: var(--accent);
-  }
-  .zones .dot {
-    position: absolute;
-    left: 50%;
-    bottom: 3px;
-    width: 4px;
-    height: 4px;
-    margin-left: -2px;
-    border-radius: 50%;
-  }
-  .zones .used .dot {
-    background: var(--accent);
-  }
   .activators {
     display: grid;
     grid-template-columns: repeat(6, 1fr);
@@ -796,25 +748,6 @@
   }
   .jump .inline {
     margin-left: 0;
-  }
-  .segmented {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    border: 1px solid var(--line);
-    border-radius: var(--radius-s);
-    overflow: hidden;
-  }
-  .segmented button {
-    padding: 6px 4px;
-    font-size: var(--fs-s);
-    color: var(--text-dim);
-  }
-  .segmented button + button {
-    border-left: 1px solid var(--line);
-  }
-  .segmented button.active {
-    background: var(--accent-soft);
-    color: var(--accent);
   }
   textarea {
     resize: vertical;
