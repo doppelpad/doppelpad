@@ -6,7 +6,7 @@ use std::sync::atomic::Ordering;
 use std::time::Duration;
 
 use anyhow::Result;
-use dp_service::{HostOptions, ServiceOptions};
+use dp_service::{HostOptions, Ipc, ServiceOptions};
 
 pub fn run(profiles_dir: PathBuf, initial: Option<PathBuf>, auto_switch: bool) -> Result<()> {
     let running = crate::stop_flag()?;
@@ -14,7 +14,10 @@ pub fn run(profiles_dir: PathBuf, initial: Option<PathBuf>, auto_switch: bool) -
     let mut service = ServiceOptions::with_user_files(profiles_dir);
     service.initial_profile = initial;
     service.auto_switch = Some(auto_switch);
-    let handle = dp_service::spawn(HostOptions { service, ipc: true })?;
+    let handle = dp_service::spawn(HostOptions {
+        service,
+        ipc: Ipc::On,
+    })?;
     tracing::info!("daemon running; control it with `doppelpad apply|select-slot|remap|status`");
 
     while running.load(Ordering::Relaxed) && handle.is_running() {

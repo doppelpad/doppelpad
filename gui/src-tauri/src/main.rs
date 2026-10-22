@@ -21,7 +21,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use dp_service::{HostOptions, ServiceOptions};
+use dp_service::{HostOptions, Ipc, ServiceOptions};
 use tauri::{Manager, WebviewWindow, WebviewWindowBuilder, WindowEvent};
 
 use crate::commands::{AppState, MAIN_WINDOW, Notice};
@@ -87,7 +87,11 @@ fn main() {
 
             let profiles_dir = dp_config::profiles_dir();
             let service = ServiceOptions::with_user_files(profiles_dir.clone());
-            let handle = dp_service::spawn(HostOptions { service, ipc: true })?;
+            // `doppelpad shutdown` is refused: the app stops its service when it quits.
+            let handle = dp_service::spawn(HostOptions {
+                service,
+                ipc: Ipc::NoShutdown,
+            })?;
 
             app.manage(AppState {
                 live: handle.live_shared(),

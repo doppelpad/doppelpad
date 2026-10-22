@@ -90,7 +90,7 @@ enum Cmd {
     Devices,
     /// Turn automatic profile switching on or off.
     AutoSwitch { state: Switch },
-    /// Stop the daemon.
+    /// Stop the daemon (the desktop app refuses: quit it from its tray icon).
     Shutdown,
     /// Convert a JSON profile (schema 3.0) into a Doppelpad TOML profile.
     Import {

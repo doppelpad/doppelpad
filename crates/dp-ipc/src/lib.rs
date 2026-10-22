@@ -173,7 +173,8 @@ fn call_on(socket: &str, req: &Request, timeout: Duration) -> Result<Response, I
     Ok(serde_json::from_str(reply.trim_end())?)
 }
 
-/// Serve requests forever, answering each with `handler`. Blocks the calling thread.
+/// Serve requests, answering each with `handler`, until a `shutdown` the handler accepts (one
+/// it answers with an error keeps the server running). Blocks the calling thread.
 pub fn serve(handler: impl FnMut(Request) -> Response) -> Result<(), IpcError> {
     serve_on(SOCKET_NAME, handler)
 }
@@ -217,7 +218,7 @@ fn serve_on(socket: &str, mut handler: impl FnMut(Request) -> Response) -> Resul
             Ok(req) => {
                 let shutdown = req == Request::Shutdown;
                 let r = handler(req);
-                if shutdown {
+                if shutdown && !matches!(r, Response::Error { .. }) {
                     let _ = write_line(&mut conn, &r);
                     // Wake the accept loop so that it sees the flag and closes the socket.
                     stop.store(true, Ordering::Relaxed);
@@ -362,6 +363,40 @@ mod tests {
         call_on(&socket, &Request::Shutdown, Duration::from_secs(3)).unwrap();
         server.join().unwrap().unwrap();
         drop(silent);
+    }
+
+    /// A host that refuses `shutdown` (the app) keeps answering afterwards.
+    #[test]
+    fn a_refused_shutdown_keeps_serving() {
+        let socket = format!("doppelpad-test-refuse-{}.sock", std::process::id());
+        let server = {
+            let socket = socket.clone();
+            let mut asked = 0;
+            std::thread::spawn(move || {
+                serve_on(&socket, |req| match req {
+                    Request::Shutdown if asked == 0 => {
+                        asked += 1;
+                        Response::error("no")
+                    }
+                    _ => Response::ok(format!("{req:?}")),
+                })
+            })
+        };
+        let start = std::time::Instant::now();
+        let refused = loop {
+            match call_on(&socket, &Request::Shutdown, Duration::from_secs(3)) {
+                Ok(r) => break r,
+                Err(_) if start.elapsed() < Duration::from_secs(5) => {
+                    std::thread::sleep(Duration::from_millis(10));
+                }
+                Err(e) => panic!("the server does not listen: {e}"),
+            }
+        };
+        assert_eq!(refused, Response::error("no"));
+        let r = call_on(&socket, &Request::Status, Duration::from_secs(3)).unwrap();
+        assert_eq!(r, Response::ok("Status"));
+        call_on(&socket, &Request::Shutdown, Duration::from_secs(3)).unwrap();
+        server.join().unwrap().unwrap();
     }
 
     #[test]
