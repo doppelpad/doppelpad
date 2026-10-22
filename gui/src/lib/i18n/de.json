@@ -1141,7 +1141,8 @@
       "sizes": { "50": "Klein", "70": "Mittel", "90": "Groß" },
       "hide_after": "Ausblenden nach",
       "hide_after_hint": "Sekunden ohne Eingabe; 0 lässt es stehen."
-    }
+    },
+    "zoom": "Größe des Fensterinhalts (Strg + Plus, Minus, 0)"
   },
   "rewasd": {
     "title": "reWASD läuft",
@@ -1437,7 +1438,10 @@
     "rename": "Config umbenennen",
     "duplicate": "Config duplizieren",
     "help": "Diese Liste",
-    "find": "Mappings suchen"
+    "find": "Mappings suchen",
+    "zoom_in": "Größer",
+    "zoom_out": "Kleiner",
+    "zoom_reset": "Normale Größe"
   },
   "questions": {
     "dont_ask": "Nicht mehr fragen",

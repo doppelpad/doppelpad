@@ -123,6 +123,10 @@ fn main() {
 
             // Started with Windows: only the tray icon shows.
             let window = create_main_window(app, !autostart::started_hidden())?;
+            commands::apply_zoom(
+                &window,
+                app.state::<AppState>().settings.lock().unwrap().zoom,
+            );
             let app_handle = app.handle().clone();
             window.on_window_event(move |event| {
                 let state = app_handle.state::<AppState>();

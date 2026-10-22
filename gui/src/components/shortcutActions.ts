@@ -3,7 +3,7 @@
 import { groupOf, type GroupId } from '../lib/model/clipboard';
 import { comboList, layerIds } from '../lib/model/profile';
 import { app } from '../lib/state/app.svelte';
-import type { ShortcutId } from '../lib/state/shortcuts';
+import { ZOOM_MAX, ZOOM_MIN, ZOOM_STEP, type ShortcutId } from '../lib/state/shortcuts';
 import type { Combo } from '../lib/types';
 import { clearAt, copyAt, copyGroupAt, drawnGroup, pasteAt, pasteGroupAt } from './binding/controlMenu';
 
@@ -67,6 +67,14 @@ export function runShortcut(id: ShortcutId, digit?: number): boolean {
       if (!app.profile) return false;
       app.find = { query: '' };
       return true;
+    case 'zoom_in':
+    case 'zoom_out':
+    case 'zoom_reset': {
+      const z = app.settings.zoom;
+      const next = id === 'zoom_reset' ? 100 : Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z + (id === 'zoom_in' ? ZOOM_STEP : -ZOOM_STEP)));
+      if (next !== z) app.setSettings({ zoom: next });
+      return true;
+    }
     case 'help':
       app.shortcutsOpen = true;
       return true;

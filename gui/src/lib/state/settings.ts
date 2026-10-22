@@ -30,4 +30,5 @@ export const SETTINGS_PLACEHOLDER: GuiSettings = {
   welcome_done: true,
   show_notes: false,
   silenced: [],
+  zoom: 100,
 };

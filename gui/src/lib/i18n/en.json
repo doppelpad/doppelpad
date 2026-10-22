@@ -1141,7 +1141,8 @@
       "sizes": { "50": "Small", "70": "Medium", "90": "Large" },
       "hide_after": "Hide after",
       "hide_after_hint": "Seconds without input; 0 keeps it up."
-    }
+    },
+    "zoom": "Size of the window’s contents (Ctrl + plus, minus, 0)"
   },
   "hotkeys": {
     "title": "Controller hotkeys",
@@ -1437,7 +1438,10 @@
     "rename": "Rename the config",
     "duplicate": "Duplicate the config",
     "help": "This list",
-    "find": "Find mappings"
+    "find": "Find mappings",
+    "zoom_in": "Larger",
+    "zoom_out": "Smaller",
+    "zoom_reset": "Normal size"
   },
   "questions": {
     "dont_ask": "Don't ask again",
