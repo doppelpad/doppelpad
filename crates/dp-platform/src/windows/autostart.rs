@@ -3,15 +3,13 @@
 //! under `StartupApproved\Run`, so both are read.
 
 use std::io;
-use std::ptr::null_mut;
 
 use windows_sys::Win32::Foundation::{ERROR_FILE_NOT_FOUND, ERROR_SUCCESS, WIN32_ERROR};
 use windows_sys::Win32::System::Registry::{
-    HKEY_CURRENT_USER, REG_SZ, RRF_RT_ANY, RRF_RT_REG_BINARY, RegDeleteKeyValueW, RegGetValueW,
-    RegSetKeyValueW,
+    HKEY_CURRENT_USER, REG_SZ, RegDeleteKeyValueW, RegSetKeyValueW,
 };
 
-use super::wide;
+use super::{registry, wide};
 
 const RUN: &str = r"Software\Microsoft\Windows\CurrentVersion\Run";
 const APPROVED: &str = r"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run";
@@ -32,7 +30,7 @@ pub fn disable(name: &str) -> io::Result<()> {
 }
 
 fn enabled_in(run: &str, approved: &str, name: &str) -> bool {
-    exists(run, name) && !disabled_in_task_manager(approved, name)
+    registry::exists(HKEY_CURRENT_USER, run, name) && !disabled_in_task_manager(approved, name)
 }
 
 fn enable_in(run: &str, approved: &str, name: &str, command: &str) -> io::Result<()> {
@@ -57,41 +55,11 @@ fn disable_in(run: &str, approved: &str, name: &str) -> io::Result<()> {
     delete(approved, name)
 }
 
-fn exists(key: &str, name: &str) -> bool {
-    let (key, name) = (wide(key), wide(name));
-    // SAFETY: NUL-terminated names; no data is read.
-    let r = unsafe {
-        RegGetValueW(
-            HKEY_CURRENT_USER,
-            key.as_ptr(),
-            name.as_ptr(),
-            RRF_RT_ANY,
-            null_mut(),
-            null_mut(),
-            null_mut(),
-        )
-    };
-    r == ERROR_SUCCESS
-}
-
 /// Task Manager stores a flag and a timestamp per entry; an odd first byte means disabled.
 fn disabled_in_task_manager(key: &str, name: &str) -> bool {
-    let (key, name) = (wide(key), wide(name));
     let mut data = [0u8; 64];
-    let mut size = data.len() as u32;
-    // SAFETY: NUL-terminated names; `data` holds `size` bytes.
-    let r = unsafe {
-        RegGetValueW(
-            HKEY_CURRENT_USER,
-            key.as_ptr(),
-            name.as_ptr(),
-            RRF_RT_REG_BINARY,
-            null_mut(),
-            data.as_mut_ptr().cast(),
-            &mut size,
-        )
-    };
-    r == ERROR_SUCCESS && size > 0 && data[0] & 1 == 1
+    registry::get_binary(HKEY_CURRENT_USER, key, name, &mut data)
+        .is_some_and(|n| n > 0 && data[0] & 1 == 1)
 }
 
 fn delete(key: &str, name: &str) -> io::Result<()> {

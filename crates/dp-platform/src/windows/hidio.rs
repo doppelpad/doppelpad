@@ -5,14 +5,16 @@
 //! `OVERLAPPED`, so they never queue behind the pending read the way they would on a
 //! synchronous handle.
 
+use std::ffi::c_void;
 use std::io;
 use std::ptr::{null, null_mut};
 use std::sync::Arc;
 use std::time::Duration;
 
 use windows_sys::Win32::Devices::HumanInterfaceDevice::{
-    HIDD_ATTRIBUTES, HIDP_CAPS, HidD_FreePreparsedData, HidD_GetAttributes, HidD_GetPreparsedData,
-    HidD_GetProductString, HidD_GetSerialNumberString, HidD_SetFeature, HidP_GetCaps,
+    HIDD_ATTRIBUTES, HIDP_CAPS, HIDP_STATUS_SUCCESS, HidD_FreePreparsedData, HidD_GetAttributes,
+    HidD_GetPreparsedData, HidD_GetProductString, HidD_GetSerialNumberString, HidD_SetFeature,
+    HidP_GetCaps,
 };
 use windows_sys::Win32::Foundation::{
     ERROR_IO_PENDING, GENERIC_READ, GENERIC_WRITE, GetLastError, HANDLE, WAIT_OBJECT_0,
@@ -29,10 +31,9 @@ use windows_sys::Win32::System::Threading::{
     CreateEventW, SetEvent, WaitForMultipleObjects, WaitForSingleObject,
 };
 
-use super::{OwnedHandle, wide};
+use super::{OwnedHandle, from_wide, wide};
 use crate::padio::ReportIo;
 
-const HIDP_STATUS_SUCCESS: i32 = 0x0011_0000;
 /// `CTL_CODE(FILE_DEVICE_KEYBOARD, 100, METHOD_OUT_DIRECT, FILE_ANY_ACCESS)`.
 const IOCTL_HID_GET_FEATURE: u32 = 0x000B_0192;
 /// Bluetooth writes can take a while; give up after this.
@@ -53,18 +54,13 @@ pub struct Waker(OwnedHandle);
 impl Waker {
     pub fn wake(&self) {
         // SAFETY: valid event handle.
-        unsafe { SetEvent(self.0.0) };
+        unsafe { SetEvent(self.0.raw()) };
     }
 }
 
 fn event(manual_reset: bool) -> io::Result<OwnedHandle> {
     // SAFETY: plain unnamed event.
-    let h = OwnedHandle(unsafe { CreateEventW(null(), i32::from(manual_reset), 0, null()) });
-    if h.valid() {
-        Ok(h)
-    } else {
-        Err(io::Error::last_os_error())
-    }
+    OwnedHandle::from_null_ret(unsafe { CreateEventW(null(), i32::from(manual_reset), 0, null()) })
 }
 
 /// The pending read: lives on the heap so its address stays fixed while the kernel
@@ -100,7 +96,7 @@ impl HidIo {
         let wpath = wide(path);
         let open = |access| {
             // SAFETY: standard CreateFileW call; ownership moves into OwnedHandle.
-            OwnedHandle(unsafe {
+            OwnedHandle::from_invalid_ret(unsafe {
                 CreateFileW(
                     wpath.as_ptr(),
                     access,
@@ -112,15 +108,12 @@ impl HidIo {
                 )
             })
         };
-        let mut handle = open(GENERIC_READ | GENERIC_WRITE);
-        if !handle.valid() {
+        let handle = match open(GENERIC_READ | GENERIC_WRITE) {
+            Ok(h) => h,
             // Some interfaces refuse write access; reading is still useful.
-            handle = open(GENERIC_READ);
-            if !handle.valid() {
-                return Err(io::Error::last_os_error());
-            }
-        }
-        let caps = read_caps(handle.0).unwrap_or_default();
+            Err(_) => open(GENERIC_READ)?,
+        };
+        let caps = read_caps(handle.raw()).unwrap_or_default();
         Ok(HidIo {
             read: Box::new(PendingRead {
                 // SAFETY: OVERLAPPED is plain data; all-zero is its initial state.
@@ -142,38 +135,37 @@ impl HidIo {
 
     /// The serial number string (over Bluetooth, Sony pads report their address here).
     pub fn serial(&self) -> Option<String> {
-        let mut buf = [0u16; 128];
-        // SAFETY: valid handle; the buffer length is given in bytes.
-        let ok = unsafe {
-            HidD_GetSerialNumberString(
-                self.handle.0,
-                buf.as_mut_ptr().cast(),
-                (buf.len() * 2) as u32,
-            )
-        };
-        let end = buf.iter().position(|&c| c == 0).unwrap_or(buf.len());
-        (ok && end > 0).then(|| String::from_utf16_lossy(&buf[..end]))
+        self.hid_string(HidD_GetSerialNumberString)
     }
 
     /// The product name the device reports.
     pub fn product(&self) -> Option<String> {
+        self.hid_string(HidD_GetProductString)
+            .map(|s| s.trim().to_owned())
+            .filter(|s| !s.is_empty())
+    }
+
+    /// A string the HID driver tells (up to 127 characters), unless it is empty.
+    fn hid_string(
+        &self,
+        query: unsafe extern "system" fn(HANDLE, *mut c_void, u32) -> bool,
+    ) -> Option<String> {
         let mut buf = [0u16; 128];
         // SAFETY: valid handle; the buffer length is given in bytes.
         let ok = unsafe {
-            HidD_GetProductString(
-                self.handle.0,
+            query(
+                self.handle.raw(),
                 buf.as_mut_ptr().cast(),
-                (buf.len() * 2) as u32,
+                size_of_val(&buf) as u32,
             )
         };
-        let end = buf.iter().position(|&c| c == 0).unwrap_or(buf.len());
-        let name = String::from_utf16_lossy(&buf[..end]).trim().to_owned();
-        (ok && !name.is_empty()).then_some(name)
+        let s = from_wide(&buf);
+        (ok && !s.is_empty()).then_some(s)
     }
 
     /// A decoder for the device's input reports (generic pads).
     pub fn decoder(&self) -> Option<super::hidparse::HidDecoder> {
-        super::hidparse::HidDecoder::new(self.handle.0)
+        super::hidparse::HidDecoder::new(self.handle.raw())
     }
 
     /// Vendor ID, product ID.
@@ -182,7 +174,7 @@ impl HidIo {
         let mut attrs: HIDD_ATTRIBUTES = unsafe { std::mem::zeroed() };
         attrs.Size = std::mem::size_of::<HIDD_ATTRIBUTES>() as u32;
         // SAFETY: valid handle and out-pointer.
-        unsafe { HidD_GetAttributes(self.handle.0, &mut attrs) }
+        unsafe { HidD_GetAttributes(self.handle.raw(), &mut attrs) }
             .then_some((attrs.VendorID, attrs.ProductID))
     }
 
@@ -204,9 +196,9 @@ impl HidIo {
         // in place (boxed) until the read completes or is cancelled in Drop.
         unsafe {
             r.ov = std::mem::zeroed();
-            r.ov.hEvent = r.event.0;
+            r.ov.hEvent = r.event.raw();
             if ReadFile(
-                self.handle.0,
+                self.handle.raw(),
                 r.buf.as_mut_ptr(),
                 r.buf.len() as u32,
                 null_mut(),
@@ -224,7 +216,7 @@ impl HidIo {
     /// Wait for the next report, a wake-up, or the timeout.
     pub fn wait(&mut self, timeout: Duration) -> io::Result<Wait> {
         self.start_read()?;
-        let handles: [HANDLE; 2] = [self.read.event.0, self.waker.0.0];
+        let handles: [HANDLE; 2] = [self.read.event.raw(), self.waker.0.raw()];
         let ms = timeout.as_millis().min(u128::from(u32::MAX) - 1) as u32;
         // SAFETY: two valid event handles.
         let rc = unsafe { WaitForMultipleObjects(2, handles.as_ptr(), 0, ms) };
@@ -233,7 +225,8 @@ impl HidIo {
                 let mut n = 0u32;
                 self.pending = false;
                 // SAFETY: the read signalled completion; OVERLAPPED is ours.
-                if unsafe { GetOverlappedResult(self.handle.0, &self.read.ov, &mut n, 0) } == 0 {
+                if unsafe { GetOverlappedResult(self.handle.raw(), &self.read.ov, &mut n, 0) } == 0
+                {
                     return Err(io::Error::last_os_error());
                 }
                 self.last_len = n as usize;
@@ -254,10 +247,10 @@ impl HidIo {
                 return Err(io::Error::last_os_error());
             }
             if WaitForSingleObject(ov.hEvent, WRITE_TIMEOUT_MS) == WAIT_TIMEOUT {
-                CancelIoEx(self.handle.0, ov);
+                CancelIoEx(self.handle.raw(), ov);
             }
             let mut n = 0u32;
-            if GetOverlappedResult(self.handle.0, ov, &mut n, 1) == 0 {
+            if GetOverlappedResult(self.handle.raw(), ov, &mut n, 1) == 0 {
                 return Err(io::Error::last_os_error());
             }
             Ok(n as usize)
@@ -278,7 +271,7 @@ impl HidIo {
         // write to finish.
         let started = unsafe {
             WriteFile(
-                self.handle.0,
+                self.handle.raw(),
                 buf.as_ptr(),
                 buf.len() as u32,
                 null_mut(),
@@ -297,7 +290,7 @@ impl HidIo {
         // SAFETY: as in `write_report`; `buf` and `ov` outlive the operation.
         let started = unsafe {
             DeviceIoControl(
-                self.handle.0,
+                self.handle.raw(),
                 IOCTL_HID_GET_FEATURE,
                 buf.as_ptr().cast(),
                 buf.len() as u32,
@@ -317,7 +310,8 @@ impl HidIo {
         let mut buf = report.to_vec();
         buf.resize(buf.len().max(self.caps().feature_len), 0);
         // SAFETY: `buf` is valid for its length during the call.
-        if unsafe { HidD_SetFeature(self.handle.0, buf.as_mut_ptr().cast(), buf.len() as u32) } {
+        if unsafe { HidD_SetFeature(self.handle.raw(), buf.as_mut_ptr().cast(), buf.len() as u32) }
+        {
             Ok(())
         } else {
             Err(io::Error::last_os_error())
@@ -363,8 +357,8 @@ impl Drop for HidIo {
             // SAFETY: cancel our own read and wait until the kernel is done with the
             // buffer before it is freed.
             unsafe {
-                CancelIoEx(self.handle.0, &self.read.ov);
-                GetOverlappedResult(self.handle.0, &self.read.ov, &mut n, 1);
+                CancelIoEx(self.handle.raw(), &self.read.ov);
+                GetOverlappedResult(self.handle.raw(), &self.read.ov, &mut n, 1);
             }
         }
     }

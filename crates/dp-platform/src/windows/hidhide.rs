@@ -17,7 +17,7 @@ use std::path::PathBuf;
 use std::ptr::null_mut;
 
 use windows_sys::Win32::Foundation::{
-    ERROR_ACCESS_DENIED, FILETIME, GENERIC_READ, GetLastError, HANDLE, STILL_ACTIVE,
+    ERROR_ACCESS_DENIED, FILETIME, GENERIC_READ, HANDLE, STILL_ACTIVE,
 };
 use windows_sys::Win32::Storage::FileSystem::{
     CreateFileW, FILE_SHARE_DELETE, FILE_SHARE_READ, FILE_SHARE_WRITE, OPEN_EXISTING,
@@ -58,7 +58,7 @@ pub struct HidHide {
 fn open() -> Result<OwnedHandle> {
     let name = wide(r"\\.\HidHide");
     // SAFETY: standard CreateFileW call.
-    let h = OwnedHandle(unsafe {
+    OwnedHandle::from_invalid_ret(unsafe {
         CreateFileW(
             name.as_ptr(),
             GENERIC_READ,
@@ -68,19 +68,13 @@ fn open() -> Result<OwnedHandle> {
             0,
             null_mut(),
         )
-    });
-    if h.valid() {
-        Ok(h)
-    } else {
-        Err(PlatformError::DriverMissing(
+    })
+    .map_err(|e| {
+        PlatformError::DriverMissing(
             "HidHide",
-            format!(
-                "{} (install it from {})",
-                std::io::Error::last_os_error(),
-                crate::HIDHIDE_RELEASES
-            ),
-        ))
-    }
+            format!("{e} (install it from {})", crate::HIDHIDE_RELEASES),
+        )
+    })
 }
 
 fn ioctl(h: &OwnedHandle, code: u32, input: &[u8], output: &mut [u8]) -> Result<usize> {
@@ -88,7 +82,7 @@ fn ioctl(h: &OwnedHandle, code: u32, input: &[u8], output: &mut [u8]) -> Result<
     // SAFETY: input/output buffers are valid for their lengths.
     let ok = unsafe {
         DeviceIoControl(
-            h.0,
+            h.raw(),
             code,
             if input.is_empty() {
                 std::ptr::null()
@@ -267,19 +261,19 @@ fn creation_time(process: HANDLE) -> Option<u64> {
 /// (e.g. another account's process), assume it does and leave its changes alone.
 fn still_running(pid: u32, started: u64) -> bool {
     // SAFETY: plain query; the handle is owned and closed on return.
-    let process = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid) };
-    if process.is_null() {
-        // SAFETY: reads the calling thread's last error.
-        return unsafe { GetLastError() } == ERROR_ACCESS_DENIED;
-    }
-    let process = OwnedHandle(process);
+    let process = match OwnedHandle::from_null_ret(unsafe {
+        OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid)
+    }) {
+        Ok(p) => p,
+        Err(e) => return e.raw_os_error() == Some(ERROR_ACCESS_DENIED as i32),
+    };
     let mut code = 0u32;
     // SAFETY: valid process handle and out-pointer.
-    if unsafe { GetExitCodeProcess(process.0, &mut code) } == 0 {
+    if unsafe { GetExitCodeProcess(process.raw(), &mut code) } == 0 {
         return true;
     }
     code == STILL_ACTIVE as u32
-        && creation_time(process.0).is_none_or(|t| started == 0 || t == started)
+        && creation_time(process.raw()).is_none_or(|t| started == 0 || t == started)
 }
 
 /// What one process added to the driver's lists, kept on disk until it is undone.

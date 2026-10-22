@@ -16,6 +16,7 @@ mod magnifier;
 mod osinfo;
 pub mod overlay;
 mod process;
+mod registry;
 pub mod rewasd;
 mod sendinput;
 mod switch2;
@@ -26,6 +27,15 @@ mod xinput;
 pub use devnode::physical_xusb_instances;
 pub use magnifier::{Magnifier, MagnifierView};
 pub use osinfo::os_version;
+
+use std::io;
+use std::ptr::null;
+
+use windows_sys::Win32::Foundation::{
+    CloseHandle, HANDLE, HWND, INVALID_HANDLE_VALUE, LPARAM, LRESULT, WPARAM,
+};
+use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
+use windows_sys::Win32::UI::WindowsAndMessaging::{RegisterClassW, WNDCLASSW};
 
 use crate::Platform;
 use crate::joycon::JoyConCombiner;
@@ -59,8 +69,46 @@ pub(crate) fn from_wide(buf: &[u16]) -> String {
     String::from_utf16_lossy(&buf[..end])
 }
 
+/// Read a NUL-terminated UTF-16 string (null reads as empty).
+///
+/// # Safety
+/// `p` is null or points to a NUL-terminated string.
+pub(crate) unsafe fn from_wide_ptr(p: *const u16) -> String {
+    if p.is_null() {
+        return String::new();
+    }
+    let mut len = 0;
+    // SAFETY: the caller guarantees a terminating NUL.
+    unsafe {
+        while *p.add(len) != 0 {
+            len += 1;
+        }
+        String::from_utf16_lossy(std::slice::from_raw_parts(p, len))
+    }
+}
+
+/// Register the window class `name` of this program with the window procedure `proc`;
+/// returns the class name to create windows with.
+pub(crate) fn register_class(
+    name: &str,
+    proc: unsafe extern "system" fn(HWND, u32, WPARAM, LPARAM) -> LRESULT,
+) -> Vec<u16> {
+    let class = wide(name);
+    let wc = WNDCLASSW {
+        lpfnWndProc: Some(proc),
+        // SAFETY: returns this program's module handle.
+        hInstance: unsafe { GetModuleHandleW(null()) },
+        lpszClassName: class.as_ptr(),
+        ..Default::default()
+    };
+    // SAFETY: `wc` points at the NUL-terminated name, which outlives the call. A class that
+    // is registered already stays as it is.
+    unsafe { RegisterClassW(&wc) };
+    class
+}
+
 /// Owned Win32 handle closed on drop.
-pub(crate) struct OwnedHandle(pub windows_sys::Win32::Foundation::HANDLE);
+pub(crate) struct OwnedHandle(HANDLE);
 
 // SAFETY: Win32 file/device handles may be used from any thread.
 unsafe impl Send for OwnedHandle {}
@@ -68,16 +116,41 @@ unsafe impl Send for OwnedHandle {}
 unsafe impl Sync for OwnedHandle {}
 
 impl OwnedHandle {
-    pub fn valid(&self) -> bool {
-        !self.0.is_null() && self.0 != windows_sys::Win32::Foundation::INVALID_HANDLE_VALUE
+    /// Take over an open handle.
+    pub(crate) fn new(h: HANDLE) -> Self {
+        OwnedHandle(h)
+    }
+
+    /// The handle a call returned that reports failure with null (`OpenProcess`,
+    /// `CreateEventW`); on failure, the error it left.
+    pub(crate) fn from_null_ret(h: HANDLE) -> io::Result<Self> {
+        if h.is_null() {
+            Err(io::Error::last_os_error())
+        } else {
+            Ok(OwnedHandle(h))
+        }
+    }
+
+    /// The handle a call returned that reports failure with `INVALID_HANDLE_VALUE`
+    /// (`CreateFileW`, `CreateToolhelp32Snapshot`); on failure, the error it left.
+    pub(crate) fn from_invalid_ret(h: HANDLE) -> io::Result<Self> {
+        if h == INVALID_HANDLE_VALUE {
+            Err(io::Error::last_os_error())
+        } else {
+            Ok(OwnedHandle(h))
+        }
+    }
+
+    pub(crate) fn raw(&self) -> HANDLE {
+        self.0
     }
 }
 
 impl Drop for OwnedHandle {
     fn drop(&mut self) {
-        if self.valid() {
+        if !self.0.is_null() && self.0 != INVALID_HANDLE_VALUE {
             // SAFETY: we own the handle.
-            unsafe { windows_sys::Win32::Foundation::CloseHandle(self.0) };
+            unsafe { CloseHandle(self.0) };
         }
     }
 }

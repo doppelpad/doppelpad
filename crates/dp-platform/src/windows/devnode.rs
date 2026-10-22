@@ -1,13 +1,12 @@
 //! SetupAPI / Configuration Manager helpers: enumerate device interfaces and
 //! tell physical devices apart from ViGEmBus-created virtual ones.
 
-use std::mem::size_of;
 use std::ptr::{null, null_mut};
 
 use windows_sys::Win32::Devices::DeviceAndDriverInstallation::{
-    CM_Get_DevNode_PropertyW, CM_Get_DevNode_Registry_PropertyW, CM_Get_Device_IDW, CM_Get_Parent,
-    CM_LOCATE_DEVNODE_NORMAL, CM_Locate_DevNodeW, DIGCF_DEVICEINTERFACE, DIGCF_PRESENT,
-    SP_DEVICE_INTERFACE_DATA, SP_DEVICE_INTERFACE_DETAIL_DATA_W, SP_DEVINFO_DATA,
+    CM_DRP_SERVICE, CM_Get_DevNode_PropertyW, CM_Get_DevNode_Registry_PropertyW, CM_Get_Device_IDW,
+    CM_Get_Parent, CM_LOCATE_DEVNODE_NORMAL, CM_Locate_DevNodeW, CR_SUCCESS, DIGCF_DEVICEINTERFACE,
+    DIGCF_PRESENT, SP_DEVICE_INTERFACE_DATA, SP_DEVICE_INTERFACE_DETAIL_DATA_W, SP_DEVINFO_DATA,
     SetupDiDestroyDeviceInfoList, SetupDiEnumDeviceInterfaces, SetupDiGetClassDevsW,
     SetupDiGetDeviceInstanceIdW, SetupDiGetDeviceInterfaceDetailW,
 };
@@ -20,9 +19,6 @@ use super::{from_wide, wide};
 
 /// Device interface class of XUSB (XInput) devices.
 const GUID_DEVINTERFACE_XUSB: GUID = GUID::from_u128(0xEC87F1E3_C13B_4100_B5F7_8B84D54260CB);
-
-const CM_DRP_SERVICE: u32 = 0x05;
-const CR_SUCCESS: u32 = 0;
 
 #[derive(Clone, Debug)]
 pub struct InterfaceEntry {

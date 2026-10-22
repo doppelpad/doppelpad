@@ -9,7 +9,6 @@
 //! reading raw input directly still see swallowed mouse motion. Per-device interception
 //! needs a filter driver (e.g. Interception) and is out of scope for this backend.
 
-use std::mem::size_of;
 use std::ptr::{null, null_mut};
 use std::sync::{Arc, RwLock};
 use std::thread::JoinHandle;
@@ -21,20 +20,20 @@ use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows_sys::Win32::System::Threading::GetCurrentThreadId;
 use windows_sys::Win32::UI::Input::KeyboardAndMouse::{VK_NUMLOCK, VK_PAUSE};
 use windows_sys::Win32::UI::Input::{
-    GetRawInputData, HRAWINPUT, RAWINPUT, RAWINPUTDEVICE, RAWINPUTHEADER, RID_INPUT,
-    RIDEV_INPUTSINK, RIM_TYPEMOUSE, RegisterRawInputDevices,
+    GetRawInputData, HRAWINPUT, MOUSE_MOVE_ABSOLUTE, RAWINPUT, RAWINPUTDEVICE, RAWINPUTHEADER,
+    RID_INPUT, RIDEV_INPUTSINK, RIM_TYPEMOUSE, RegisterRawInputDevices,
 };
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     CallNextHookEx, CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GetMessageW,
-    HC_ACTION, HWND_MESSAGE, KBDLLHOOKSTRUCT, MSG, MSLLHOOKSTRUCT, PostThreadMessageW,
-    RegisterClassW, SetWindowsHookExW, UnhookWindowsHookEx, WH_KEYBOARD_LL, WH_MOUSE_LL, WM_INPUT,
-    WM_KEYDOWN, WM_KEYUP, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MBUTTONDOWN, WM_MBUTTONUP,
-    WM_MOUSEHWHEEL, WM_MOUSEMOVE, WM_MOUSEWHEEL, WM_QUIT, WM_RBUTTONDOWN, WM_RBUTTONUP,
-    WM_SYSKEYDOWN, WM_SYSKEYUP, WM_XBUTTONDOWN, WM_XBUTTONUP, WNDCLASSW,
+    HC_ACTION, HWND_MESSAGE, KBDLLHOOKSTRUCT, LLKHF_EXTENDED, LLKHF_INJECTED, LLMHF_INJECTED, MSG,
+    MSLLHOOKSTRUCT, PostThreadMessageW, SetWindowsHookExW, UnhookWindowsHookEx, WH_KEYBOARD_LL,
+    WH_MOUSE_LL, WHEEL_DELTA, WM_INPUT, WM_KEYDOWN, WM_KEYUP, WM_LBUTTONDOWN, WM_LBUTTONUP,
+    WM_MBUTTONDOWN, WM_MBUTTONUP, WM_MOUSEHWHEEL, WM_MOUSEMOVE, WM_MOUSEWHEEL, WM_QUIT,
+    WM_RBUTTONDOWN, WM_RBUTTONUP, WM_SYSKEYDOWN, WM_SYSKEYUP, WM_XBUTTONDOWN, WM_XBUTTONUP,
 };
 
+use super::register_class;
 use super::sendinput::INJECTED_TAG;
-use super::wide;
 use crate::{CaptureFilter, KbmCapture, KbmEvent, PlatformError, Result};
 
 struct HookCtx {
@@ -45,11 +44,6 @@ struct HookCtx {
 /// Hook procedures are plain functions, so their context is global. Only one capture
 /// can be active per process.
 static CTX: RwLock<Option<HookCtx>> = RwLock::new(None);
-
-const LLKHF_EXTENDED: u32 = 0x01;
-const LLKHF_INJECTED: u32 = 0x10;
-const LLMHF_INJECTED: u32 = 0x01;
-const MOUSE_MOVE_ABSOLUTE: u16 = 0x01;
 
 #[derive(Default)]
 pub struct HookCapture {
@@ -145,7 +139,7 @@ unsafe extern "system" fn mouse_proc(code: i32, wparam: WPARAM, lparam: LPARAM) 
                     down: w == WM_XBUTTONDOWN,
                 }),
                 WM_MOUSEWHEEL => {
-                    let d = f32::from(hi as i16) / 120.0;
+                    let d = f32::from(hi as i16) / WHEEL_DELTA as f32;
                     Some(KbmEvent::Wheel {
                         dir: if d >= 0.0 {
                             WheelDir::Up
@@ -156,7 +150,7 @@ unsafe extern "system" fn mouse_proc(code: i32, wparam: WPARAM, lparam: LPARAM) 
                     })
                 }
                 WM_MOUSEHWHEEL => {
-                    let d = f32::from(hi as i16) / 120.0;
+                    let d = f32::from(hi as i16) / WHEEL_DELTA as f32;
                     Some(KbmEvent::Wheel {
                         dir: if d >= 0.0 {
                             WheelDir::Right
@@ -255,12 +249,7 @@ impl KbmCapture for HookCapture {
                     return;
                 }
 
-                let class = wide("doppelpad-rawinput");
-                let mut wc: WNDCLASSW = std::mem::zeroed();
-                wc.lpfnWndProc = Some(raw_wndproc);
-                wc.hInstance = hinst;
-                wc.lpszClassName = class.as_ptr();
-                RegisterClassW(&wc);
+                let class = register_class("doppelpad-rawinput", raw_wndproc);
                 let hwnd = CreateWindowExW(
                     0,
                     class.as_ptr(),

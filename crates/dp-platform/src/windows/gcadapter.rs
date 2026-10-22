@@ -14,8 +14,7 @@ use nusb::transfer::{
     Buffer, ControlOut, ControlType, Direction, In, Interrupt, Out, Recipient, TransferError,
 };
 use nusb::{Endpoint, Interface, MaybeFuture};
-use windows_sys::Win32::Devices::HumanInterfaceDevice::HidD_GetHidGuid;
-use windows_sys::core::GUID;
+use windows_sys::Win32::Devices::HumanInterfaceDevice::GUID_DEVINTERFACE_HID;
 
 use super::devnode::{enumerate_interfaces, usb_device_of};
 use super::hidio::{HidIo, Wait};
@@ -288,12 +287,8 @@ fn scan(adapters: &Adapters, problems: &Mutex<Vec<String>>) {
             .contains_key(&instance.to_ascii_uppercase())
     };
     // On the HID driver (Windows' default). Keyed by the USB device, as WinUSB ones are.
-    // SAFETY: GUID is plain data, for which all zeroes is a valid value.
-    let mut guid: GUID = unsafe { std::mem::zeroed() };
-    // SAFETY: valid out-pointer.
-    unsafe { HidD_GetHidGuid(&mut guid) };
     let pattern = format!("VID_{NINTENDO_VID:04X}&PID_{ADAPTER_PID:04X}");
-    for entry in enumerate_interfaces(&guid) {
+    for entry in enumerate_interfaces(&GUID_DEVINTERFACE_HID) {
         if !entry.instance_id.to_ascii_uppercase().contains(&pattern) {
             continue;
         }
