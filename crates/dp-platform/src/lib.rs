@@ -47,6 +47,7 @@ pub(crate) mod report;
 pub mod scan;
 pub mod sony;
 pub mod steam;
+pub mod stores;
 pub mod timer;
 pub use null::NullPlatform;
 
@@ -536,6 +537,19 @@ pub fn windowed_programs() -> Vec<WindowedProgram> {
     #[cfg(windows)]
     {
         windows::windowed_programs()
+    }
+    #[cfg(not(windows))]
+    {
+        Vec::new()
+    }
+}
+
+/// The games the local stores (Steam, Epic, GOG) have installed (Windows only; none elsewhere
+/// for now).
+pub fn installed_games() -> Vec<stores::InstalledGame> {
+    #[cfg(windows)]
+    {
+        windows::stores::installed_games()
     }
     #[cfg(not(windows))]
     {

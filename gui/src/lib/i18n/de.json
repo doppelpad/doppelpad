@@ -1510,5 +1510,18 @@
     "in_front_none": "Kein anderes Programm war im Vordergrund.",
     "save": "Speichern",
     "programs_hint": "Kommt eines davon nach vorn, wird die Standard-Config des Spiels aktiv (wenn Autodetect an ist)."
+  },
+  "stores": {
+    "title": "Spiele aus deinen Bibliotheken",
+    "hint": "Spiele, die Steam, Epic und GOG auf diesem PC installiert haben, gelesen aus deren eigenen Dateien. Hinzufügen legt ein Spiel mit Namen, dem Programm, das dorthin wechselt, und bei Steam mit seinem Cover an.",
+    "loading": "Suche installierte Spiele…",
+    "none": "Keine installierten Spiele gefunden.",
+    "program": "Das Programm, das zum Spiel wechselt",
+    "add": "Hinzufügen",
+    "added": "{name} hinzugefügt",
+    "in_list": "In der Liste",
+    "steam": "Steam",
+    "epic": "Epic",
+    "gog": "GOG"
   }
 }

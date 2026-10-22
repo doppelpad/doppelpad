@@ -1510,5 +1510,18 @@
     "in_front_none": "No other program was in front.",
     "save": "Save",
     "programs_hint": "When one of them comes to the front, the game's default config becomes active (with Autodetect on)."
+  },
+  "stores": {
+    "title": "Games from your libraries",
+    "hint": "Games that Steam, Epic and GOG have installed on this PC, read from their own files. Adding one creates a game with its name, the program that switches to it and, from Steam, its cover.",
+    "loading": "Looking for installed games…",
+    "none": "No installed games found.",
+    "program": "The program that switches to the game",
+    "add": "Add",
+    "added": "{name} added",
+    "in_list": "In the list",
+    "steam": "Steam",
+    "epic": "Epic",
+    "gog": "GOG"
   }
 }

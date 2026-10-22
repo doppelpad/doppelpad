@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Download, Ellipsis, FileText, Plus, Radar } from '@lucide/svelte';
+  import { Download, Ellipsis, FileText, Library, Plus, Radar } from '@lucide/svelte';
   import { open, save } from '@tauri-apps/plugin-dialog';
   import { api } from '../lib/api';
   import { t } from '../lib/i18n/index.svelte';
@@ -8,6 +8,7 @@
   import type { Game } from '../lib/types';
   import Menu from './ui/Menu.svelte';
   import GameDialog from './GameDialog.svelte';
+  import LibraryDialog from './LibraryDialog.svelte';
 
   /** Stable hue per game name for the avatar. */
   function hue(name: string): number {
@@ -30,6 +31,8 @@
 
   /** The game whose settings dialog is open. */
   let settingsOf = $state<Game | null>(null);
+  /** The dialog with the games of the local stores is open. */
+  let libraryOpen = $state(false);
 
   async function duplicateGame(g: Game) {
     const made = api.gameDuplicate(g.dir);
@@ -97,6 +100,7 @@
   <!-- Part of the title bar, beside the header; holds the macOS traffic lights. -->
   <div class="head" class:traffic-lights={platform === 'macos' && !win.fullscreen} data-tauri-drag-region="deep">
     <span class="title">{t('profiles.title')}</span>
+    <button class="icon-btn" title={t('stores.title') + '…'} onclick={() => (libraryOpen = true)}><Library size={17} /></button>
     <button class="icon-btn" title={t('profiles.import') + '…'} onclick={importGame}><Download size={17} /></button>
     <button class="icon-btn" title={t('profiles.add')} onclick={addGame}><Plus size={18} /></button>
   </div>
@@ -165,6 +169,7 @@
 </aside>
 
 {#if settingsOf}<GameDialog game={settingsOf} onclose={() => (settingsOf = null)} />{/if}
+{#if libraryOpen}<LibraryDialog onclose={() => (libraryOpen = false)} />{/if}
 
 <style>
   .panel {
