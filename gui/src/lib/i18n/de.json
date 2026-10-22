@@ -180,7 +180,17 @@
       "keyboard": "Nur Tastatur",
       "mouse": "Nur Maus"
     },
-    "unlock_hint": "Freigegebene Tastatur bzw. Maus erreicht andere Programme wieder unverändert, und die Tastatur- bzw. Maus-Belegungen der Haupt-Ebene gelten hier nicht. Gedacht für Ebenen, die man gedrückt hält, z. B. um kurz die echte Maus zurückzubekommen."
+    "unlock_hint": "Freigegebene Tastatur bzw. Maus erreicht andere Programme wieder unverändert, und die Tastatur- bzw. Maus-Belegungen der Haupt-Ebene gelten hier nicht. Gedacht für Ebenen, die man gedrückt hält, z. B. um kurz die echte Maus zurückzubekommen.",
+    "tip_from": "(auf {layer})",
+    "tip_unreached": "Noch kein Mapping wechselt auf diese Ebene.",
+    "tip_radial": "Öffnet das Radialmenü: {names}",
+    "tip_inherits": "Nicht belegte Tasten tun, was sie auf der Haupt-Ebene tun.",
+    "tip_no_inherit": "Übernimmt die Mappings der Haupt-Ebene nicht.",
+    "tip_unlock": {
+      "all": "Gibt Tastatur und Maus frei, solange sie aktiv ist.",
+      "keyboard": "Gibt die Tastatur frei, solange sie aktiv ist.",
+      "mouse": "Gibt die Maus frei, solange sie aktiv ist."
+    }
   },
   "output": {
     "title": "Ausgabegerät",
