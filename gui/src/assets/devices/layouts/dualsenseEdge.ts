@@ -7,6 +7,7 @@ export const dualsenseEdge: DeviceLayout = {
   id: 'dualsenseEdge',
   svg,
   viewBox: [0, 0, 1000, 700],
+  motion: true,
   controls: [
     { control: 'LB', anchor: [306.6, 241.3], side: 'left', labelAt: [200, 193.4] },
     { control: 'RB', anchor: [693.4, 241.3], side: 'right', labelAt: [800, 193.4] },

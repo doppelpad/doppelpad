@@ -7,6 +7,7 @@ export const switchpro: DeviceLayout = {
   id: 'switchpro',
   svg,
   viewBox: [0, 0, 1000, 700],
+  motion: true,
   controls: [
     { control: 'LB', anchor: [308.6, 247.7], side: 'left', labelAt: [200, 187.2] },
     { control: 'RB', anchor: [691.4, 247.7], side: 'right', labelAt: [800, 187.2] },

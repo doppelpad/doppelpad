@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { DEVICE_LAYOUTS } from '../../assets/devices/layouts';
 import type { LiveDevice, PadFamily } from '../types';
 import { batteryTone, controlsFromPad, drawingsFor, hasMotion, sideShowing } from './devices';
 
@@ -91,5 +92,15 @@ describe('battery tone', () => {
   it('warns below 40 % and alarms below 20 %, unless charging or wired', () => {
     expect([battery(40), battery(39), battery(20), battery(19)].map(batteryTone)).toEqual([undefined, 'warning', 'warning', 'danger']);
     expect([battery(5, true), battery(5, false, true), null].map(batteryTone)).toEqual([undefined, undefined, undefined]);
+  });
+});
+
+describe('device layouts', () => {
+  it('are listed under their own id, each control once', () => {
+    for (const [id, layout] of Object.entries(DEVICE_LAYOUTS)) {
+      expect(layout.id).toBe(id);
+      const names = layout.controls.map((c) => c.control);
+      expect(new Set(names).size, id).toBe(names.length);
+    }
   });
 });

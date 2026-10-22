@@ -19,6 +19,8 @@
 
   let name = $state('');
   let picked = $state<string[]>([]);
+  /** Devices seen now, then ignored ones that are not connected (by id). */
+  const listed = $derived([...seen, ...[...blocked].filter((id) => !seen.some((d) => d.id === id)).map((id) => ({ id, name: id }))]);
   const free = $derived(seen.filter((d) => !blocked.has(d.id) && !grouped.has(d.id)));
   const powerOffAfter = $derived(live?.power_off_after_min ?? 0);
   /** Idle timeouts offered, in minutes; 0 never turns controllers off. */
@@ -36,7 +38,7 @@
 </script>
 
 <SettingsSection title={t('devices.settings.title')} hint={t('devices.settings.hint')}>
-  {#each [...seen, ...[...blocked].filter((id) => !seen.some((d) => d.id === id)).map((id) => ({ id, name: id }))] as d (d.id)}
+  {#each listed as d (d.id)}
     <label class="dev">
       <input type="checkbox" checked={!blocked.has(d.id)} onchange={(e) => app.attempt(api.setBlocked(d.id, !e.currentTarget.checked))} />
       <span class="name">{d.name}</span>
@@ -126,8 +128,5 @@
   }
   .new .btn {
     align-self: flex-start;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
   }
 </style>

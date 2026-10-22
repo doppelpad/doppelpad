@@ -276,6 +276,7 @@
   }
   .chip {
     position: absolute;
+    /* The largest chip the layouts leave room for: generate.mjs' CHIP, 150 of 1000. */
     max-width: 15%;
     min-width: 0;
     display: flex;

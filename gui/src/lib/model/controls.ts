@@ -271,11 +271,6 @@ export function controlLabelMixed(c: ControlName, family: PadFamily | null): str
   return c.startsWith('Mouse:') ? `${t('picker.mouse')}: ${name}` : name;
 }
 
-/** Short name for compact labels (e.g. on the controller drawing). */
-export function controlShort(c: ControlName, family: PadFamily | null): string {
-  return controlLabel(c, family);
-}
-
 /** The analog settings page of a stick or trigger control, its zones included. */
 export function analogTabOf(c: ControlName): Side | 'triggers' | null {
   for (const side of SIDE_NAMES) if (c === SIDES[side].click || c.startsWith(SIDES[side].stick)) return side;
