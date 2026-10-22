@@ -194,7 +194,6 @@ impl ServiceReply {
 pub struct Service {
     rt: Runtime,
     opts: ServiceOptions,
-    profiles: Vec<(PathBuf, Profile)>,
     library: dp_config::library::Library,
     state: SlotState,
     /// Profile applied explicitly over IPC (`doppelpad apply`); takes precedence over slots.
@@ -284,7 +283,6 @@ impl Service {
         }
         let mut svc = Service {
             rt,
-            profiles: Vec::new(),
             library: Default::default(),
             state,
             oneoff: opts.initial_profile.clone(),
@@ -402,21 +400,30 @@ impl Service {
     }
 
     fn reload(&mut self) {
-        let (profiles, errors) = dp_config::list_profiles(&self.opts.profiles_dir);
-        for e in errors {
-            tracing::warn!("{e}");
-        }
         self.library = dp_config::library::scan(&self.opts.profiles_dir);
-        for e in &self.library.errors {
+        let loose_errors = self
+            .library
+            .unsorted
+            .iter()
+            .filter_map(|c| c.error.as_ref());
+        for e in self.library.errors.iter().chain(loose_errors) {
             tracing::warn!("{e}");
         }
         tracing::info!(
             games = self.library.games.len(),
-            loose = profiles.len(),
+            loose = self.loose_profiles(),
             dir = %self.opts.profiles_dir.display(),
             "profiles loaded"
         );
-        self.profiles = profiles;
+    }
+
+    /// Loose profiles (directly in the profiles directory) that load.
+    fn loose_profiles(&self) -> usize {
+        self.library
+            .unsorted
+            .iter()
+            .filter(|c| c.error.is_none())
+            .count()
     }
 
     /// Re-read the profiles directory (after the GUI changed games or configs).
@@ -427,9 +434,7 @@ impl Service {
     /// Config to activate for a foreground executable: a game's default config, else a
     /// loose profile listing the executable.
     fn auto_profile_for(&self, exe: &str) -> Option<PathBuf> {
-        dp_config::library::game_for_process(&self.library, exe)
-            .map(|(_, p)| p)
-            .or_else(|| dp_config::profile_for_process(&self.profiles, exe).map(|(p, _)| p.clone()))
+        self.library.config_for_process(exe)
     }
 
     fn save_state(&mut self) {
@@ -595,7 +600,7 @@ impl Service {
             }
             Request::Reload => {
                 self.reload();
-                Response::ok(format!("{} profiles", self.profiles.len()))
+                Response::ok(format!("{} profiles", self.loose_profiles()))
             }
             Request::Shutdown => Response::ok("shutting down"),
         }
@@ -1753,7 +1758,7 @@ Host: 127.0.0.1:{}
         let dir = tempfile::tempdir().unwrap();
         let profiles = dir.path().join("profiles");
         std::fs::create_dir_all(&profiles).unwrap();
-        write_profile(&profiles, "game.toml", "Game", &["game.exe"]);
+        write_profile(&profiles, "shooter.toml", "Game", &["game.exe"]);
         let base = write_profile(dir.path(), "base.toml", "Base", &[]);
         let (mut s, fg) = service(dir.path(), None);
         s.handle(ServiceCmd::ApplyToSlot {
@@ -1798,7 +1803,7 @@ Host: 127.0.0.1:{}
         let dir = tempfile::tempdir().unwrap();
         let profiles = dir.path().join("profiles");
         std::fs::create_dir_all(&profiles).unwrap();
-        write_profile(&profiles, "game.toml", "Game", &["game.exe"]);
+        write_profile(&profiles, "shooter.toml", "Game", &["game.exe"]);
         let (mut s, fg) = service(dir.path(), None);
         s.handle(ServiceCmd::SetRemap(false));
         *fg.lock().unwrap() = Some("game.exe".into());

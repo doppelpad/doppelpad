@@ -702,38 +702,6 @@ pub(crate) fn is_profile_file(path: &Path) -> bool {
     looks_like_json(&String::from_utf8_lossy(&head[..n]))
 }
 
-/// All loadable profiles in `dir` (TOML and importable JSON), with load errors reported
-/// separately.
-pub fn list_profiles(dir: &Path) -> (Vec<(PathBuf, Profile)>, Vec<LoadError>) {
-    let mut ok = Vec::new();
-    let mut errors = Vec::new();
-    let Ok(entries) = std::fs::read_dir(dir) else {
-        return (ok, errors);
-    };
-    let mut paths: Vec<PathBuf> = entries.filter_map(|e| e.ok().map(|e| e.path())).collect();
-    paths.sort();
-    for path in paths {
-        if !is_profile_file(&path) {
-            continue;
-        }
-        match load(&path) {
-            Ok((p, _)) => ok.push((path, p)),
-            Err(e) => errors.push(e),
-        }
-    }
-    (ok, errors)
-}
-
-/// The profile whose `processes` list contains `exe` (case-insensitive).
-pub fn profile_for_process<'a>(
-    profiles: &'a [(PathBuf, Profile)],
-    exe: &str,
-) -> Option<&'a (PathBuf, Profile)> {
-    profiles
-        .iter()
-        .find(|(_, p)| p.processes.iter().any(|n| n.eq_ignore_ascii_case(exe)))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -981,14 +949,5 @@ layer = 0
             Format::detect(Path::new("noext"), "name = \"x\""),
             Format::Toml
         );
-    }
-
-    #[test]
-    fn process_matching() {
-        let mut p = Profile::default();
-        p.processes.push("Game.exe".into());
-        let list = vec![(PathBuf::from("g.toml"), p)];
-        assert!(profile_for_process(&list, "game.EXE").is_some());
-        assert!(profile_for_process(&list, "other.exe").is_none());
     }
 }
