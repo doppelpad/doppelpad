@@ -7,7 +7,7 @@ use std::time::{Duration, Instant};
 
 use anyhow::{Result, anyhow};
 use crossbeam_channel::{Sender, bounded, unbounded};
-use dp_ipc::Request;
+use dp_ipc::{Request, Response};
 use dp_platform::Platform;
 
 use crate::client::{CallError, round_trip};
@@ -26,7 +26,11 @@ pub struct HostOptions {
     pub ipc: bool,
 }
 
-type Job = (ServiceCmd, Sender<ServiceReply>);
+/// What other threads ask the service thread.
+enum Job {
+    Cmd(ServiceCmd, Sender<ServiceReply>),
+    Ipc(Request, Sender<Response>),
+}
 
 /// Handle to a running service thread.
 pub struct ServiceHandle {
@@ -38,7 +42,7 @@ pub struct ServiceHandle {
 impl ServiceHandle {
     /// Send a command and wait for the answer.
     pub fn call(&self, cmd: ServiceCmd) -> ServiceReply {
-        match round_trip(&self.tx, |rtx| (cmd, rtx)) {
+        match round_trip(&self.tx, |rtx| Job::Cmd(cmd, rtx)) {
             Ok(reply) => reply,
             Err(CallError::Stopped) => {
                 ServiceReply::Err("the remapping service has stopped".into())
@@ -66,7 +70,7 @@ impl ServiceHandle {
     /// Stop the service (releasing outputs, unhiding devices) and wait for its thread.
     pub fn shutdown(&mut self) {
         if self.is_running() {
-            let _ = self.call(ServiceCmd::Ipc(Request::Shutdown));
+            let _ = self.call(ServiceCmd::Shutdown);
         }
         if let Some(t) = self.thread.take() {
             let _ = t.join();
@@ -113,13 +117,25 @@ pub fn spawn_with(
 
             let mut last_live = Instant::now();
             'run: loop {
-                for (cmd, reply) in rx.try_iter() {
-                    let shutdown = cmd == ServiceCmd::Ipc(Request::Shutdown);
-                    let answer = svc.handle(cmd);
+                for job in rx.try_iter() {
                     // Publish the effect before answering, so a caller reading `live()`
                     // right after `call()` sees it.
-                    *live_out.lock().unwrap() = svc.live();
-                    let _ = reply.send(answer);
+                    let shutdown = match job {
+                        Job::Cmd(cmd, reply) => {
+                            let shutdown = cmd == ServiceCmd::Shutdown;
+                            let answer = svc.handle(cmd);
+                            *live_out.lock().unwrap() = svc.live();
+                            let _ = reply.send(answer);
+                            shutdown
+                        }
+                        Job::Ipc(req, reply) => {
+                            let shutdown = req == Request::Shutdown;
+                            let answer = svc.handle_ipc(req);
+                            *live_out.lock().unwrap() = svc.live();
+                            let _ = reply.send(answer);
+                            shutdown
+                        }
+                    };
                     if shutdown {
                         break 'run;
                     }
@@ -154,12 +170,11 @@ pub fn spawn_with(
         std::thread::Builder::new()
             .name("dp-ipc".into())
             .spawn(move || {
-                let result = dp_ipc::serve(|req| {
-                    match round_trip(&ipc_tx, |rtx| (ServiceCmd::Ipc(req), rtx)) {
-                        Ok(reply) => reply.into(),
+                let result =
+                    dp_ipc::serve(|req| match round_trip(&ipc_tx, |rtx| Job::Ipc(req, rtx)) {
+                        Ok(reply) => reply,
                         Err(e) => e.into(),
-                    }
-                });
+                    });
                 if let Err(e) = result {
                     tracing::error!("IPC server stopped: {e}");
                 }

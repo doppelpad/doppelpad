@@ -19,7 +19,6 @@ use dp_core::profile::{
     RadialMenu, RadialSector, StickConfig, Timing, TouchpadSettings, TriggerConfig, Vibration,
     VirtualStick,
 };
-use dp_ipc::Request;
 use dp_platform::generic::GenericLayout;
 use dp_platform::groups::DeviceGroup;
 use dp_service::dsu::DsuSettings;
@@ -60,9 +59,7 @@ impl AppState {
 /// Games or configs changed on disk: the service re-reads them (process lists may have
 /// changed) and the tray relabels its slots.
 fn library_changed(app: &AppHandle) {
-    let _ = app
-        .state::<AppState>()
-        .call(ServiceCmd::Ipc(Request::Reload));
+    let _ = app.state::<AppState>().call(ServiceCmd::Reload);
     crate::tray::refresh(app);
 }
 
