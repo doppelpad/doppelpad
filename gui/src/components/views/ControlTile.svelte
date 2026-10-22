@@ -1,22 +1,28 @@
 <script lang="ts">
   // A control as a tile: its name and what it does here ("—" for nothing); marked when mapped,
   // selected or held down.
+  import { controlMenu } from '../binding/controlMenu';
+  import type { Combo } from '../../lib/types';
+
   let {
     name,
     summary,
+    control,
     selected = false,
     pressed = false,
     onclick,
   }: {
     name: string;
     summary: { text: string; inherited: boolean } | null | undefined;
+    /** The control the tile stands for: its context menu copies, pastes and clears it. */
+    control: Combo;
     selected?: boolean;
     pressed?: boolean;
     onclick: () => void;
   } = $props();
 </script>
 
-<button class="tile" class:selected class:pressed class:mapped={!!summary} {onclick}>
+<button class="tile" class:selected class:pressed class:mapped={!!summary} {onclick} use:controlMenu={control}>
   <span class="name">{name}</span>
   <span class="sum" class:inh={summary?.inherited}>{summary?.text ?? '—'}</span>
 </button>

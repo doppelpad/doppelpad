@@ -17,8 +17,11 @@
   import PanelHeader from './PanelHeader.svelte';
   import TimingFields from './TimingFields.svelte';
   import ZoneTabs from './ZoneTabs.svelte';
+  import { menuItems } from './controlMenu';
 
   const combo = $derived(app.selected);
+  /** Copy, paste and clear of the selected control (and its direction group). */
+  const panelMenu = $derived(combo ? menuItems(combo) : []);
   const readOnly = $derived(app.readOnly);
 
   const at = $derived<{ own?: Mapping; inherited?: Mapping }>(combo ? app.mappingAt(app.layer, combo, app.activator) : {});
@@ -41,7 +44,7 @@
   {#if !combo}
     <LayerOverview />
   {:else}
-    <PanelHeader {title} layer={app.layer} onclose={() => app.select(null)} />
+    <PanelHeader {title} layer={app.layer} menu={panelMenu} onclose={() => app.select(null)} />
 
     {#if analogTab}
       {@const stick = analogTab !== 'triggers'}

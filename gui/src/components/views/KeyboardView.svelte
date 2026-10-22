@@ -7,6 +7,7 @@
   import { effectiveSummary } from '../../lib/model/labels';
   import { app } from '../../lib/state/app.svelte';
   import { modalOpen } from '../ui/Dialog.svelte';
+  import { controlMenu } from '../binding/controlMenu';
 
   interface KeyBox {
     k: string;
@@ -173,6 +174,7 @@
         class:held={held.has(key.k)}
         style="--x: {key.x}; --y: {key.y}; --kw: {key.w}; --kh: {key.h}"
         title={s ? `${key.k}: ${s.text}` : key.k}
+        use:controlMenu={`Key:${key.k}`}
         onclick={() => app.select(`Key:${key.k}`)}
       >
         <span class="cap">{label(key.k)}</span>

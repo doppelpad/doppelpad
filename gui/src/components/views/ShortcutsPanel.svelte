@@ -10,6 +10,7 @@
   import { comboKey, comboList, sameCombo, shortcuts, toCombo } from '../../lib/model/profile';
   import { app } from '../../lib/state/app.svelte';
   import type { Combo, ControlName, Mapping } from '../../lib/types';
+  import { controlMenu } from '../binding/controlMenu';
 
   const MAX = 4;
   const STICKS = SIDE_NAMES.flatMap((s) => CARDINALS.map((d) => SIDES[s].stick + d));
@@ -108,7 +109,7 @@
     {#each rows as group (comboKey(group[0].trigger))}
       {@const trig = group[0].trigger}
       <div class="row" class:selected={!!app.selected && sameCombo(app.selected, trig)}>
-        <button class="main" onclick={() => app.select(trig)}>
+        <button class="main" onclick={() => app.select(trig)} use:controlMenu={trig}>
           <span class="combo">
             {#each comboList(trig) as c, i (c)}
               {#if i > 0}<span class="plus">+</span>{/if}

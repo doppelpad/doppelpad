@@ -25,6 +25,7 @@
   import PromptDialog from './components/ui/PromptDialog.svelte';
   import ConfirmDialog from './components/ui/ConfirmDialog.svelte';
   import { modalOpen } from './components/ui/Dialog.svelte';
+  import ContextMenu from './components/ui/ContextMenu.svelte';
   import RewasdDialog from './components/RewasdDialog.svelte';
   import WelcomeWizard from './components/WelcomeWizard.svelte';
   import Toasts from './components/ui/Toasts.svelte';
@@ -121,6 +122,7 @@
 <ConfirmDialog />
 <RewasdDialog />
 {#if !app.settings.welcome_done}<WelcomeWizard />{/if}
+<ContextMenu />
 <Toasts />
 
 <style>

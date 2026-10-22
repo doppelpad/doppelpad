@@ -1,10 +1,12 @@
 <script lang="ts">
-  // The head of a side panel: what is selected, the layer it is edited on, and a close button.
-  import { X } from '@lucide/svelte';
+  // The head of a side panel: what is selected, the layer it is edited on, an optional menu
+  // (copy, paste, clear) and a close button.
+  import { Ellipsis, X } from '@lucide/svelte';
   import { t } from '../../lib/i18n/index.svelte';
   import LayerBadge from '../ui/LayerBadge.svelte';
+  import Menu, { type MenuItem } from '../ui/Menu.svelte';
 
-  let { title, layer, onclose }: { title: string; layer: number; onclose: () => void } = $props();
+  let { title, layer, menu, onclose }: { title: string; layer: number; menu?: MenuItem[]; onclose: () => void } = $props();
 </script>
 
 <div class="head">
@@ -12,7 +14,14 @@
     <span class="name">{title}</span>
     <LayerBadge {layer} />
   </div>
-  <button class="icon-btn" title={t('common.close')} onclick={onclose}><X size={16} /></button>
+  <div class="actions">
+    {#if menu?.length}
+      <Menu items={menu} align="right" title={t('header.options')} iconOnly>
+        {#snippet trigger()}<span class="icon-btn"><Ellipsis size={16} /></span>{/snippet}
+      </Menu>
+    {/if}
+    <button class="icon-btn" title={t('common.close')} onclick={onclose}><X size={16} /></button>
+  </div>
 </div>
 
 <style>
@@ -32,5 +41,10 @@
   .name {
     font-size: 16px;
     font-weight: 600;
+  }
+  .actions {
+    display: flex;
+    align-items: center;
+    gap: 2px;
   }
 </style>

@@ -29,7 +29,7 @@
     <div class="grid">
       {#each g.controls as c (c)}
         {@const s = summary(c)}
-        <ControlTile name={controlLabel(c, null)} summary={s} selected={app.selectedKey === c} onclick={() => app.select(c)} />
+        <ControlTile name={controlLabel(c, null)} summary={s} control={c} selected={app.selectedKey === c} onclick={() => app.select(c)} />
       {/each}
     </div>
   {/each}

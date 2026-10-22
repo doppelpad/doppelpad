@@ -10,8 +10,11 @@ import { layerLabel } from '../model/labels';
 import { clone } from '../model/util';
 import { isStreamingField, pointer } from '../dom';
 import { History, type EditKey } from './history';
+import type { Copied } from '../model/clipboard';
+import type { MenuItem } from '../../components/ui/Menu.svelte';
 import { SETTINGS_PLACEHOLDER } from './settings';
 import type {
+  Action,
   Activator,
   Catalog,
   Combo,
@@ -50,6 +53,15 @@ interface QuestionRequest {
   resolve: (ok: boolean) => void;
 }
 
+export interface ContextMenuRequest {
+  items: MenuItem[];
+  /** Window coordinates of its top left corner (it moves to stay inside the window). */
+  x: number;
+  y: number;
+  /** Gets the focus back when the menu closes without a choice. */
+  from: HTMLElement | null;
+}
+
 class AppState {
   catalog = $state<Catalog | null>(null);
   library = $state<Library>({ games: [], unsorted: [], errors: [] });
@@ -85,6 +97,12 @@ class AppState {
   prompt = $state<PromptRequest | null>(null);
   question = $state<QuestionRequest | null>(null);
   copiedLayer = $state.raw<LayerCopy | null>(null);
+  /** A copied control or direction group (see `lib/model/clipboard.ts`); kept across configs. */
+  clipboard = $state.raw<Copied | null>(null);
+  /** Copied macro steps. */
+  copiedSteps = $state.raw<Action[] | null>(null);
+  /** The open context menu: its items, where it opens and where the focus goes back to. */
+  contextMenu = $state.raw<ContextMenuRequest | null>(null);
   canUndo = $state(false);
   canRedo = $state(false);
 
@@ -380,6 +398,14 @@ class AppState {
 
   endEditGroup() {
     this.group = null;
+  }
+
+  /** Open a context menu at a window point, or below `from` when the point is unknown (keyboard). */
+  openContextMenu(items: MenuItem[], at: { x: number; y: number } | null, from: HTMLElement | null) {
+    const r = from?.getBoundingClientRect();
+    const x = at?.x ?? r?.left ?? 0;
+    const y = at?.y ?? r?.bottom ?? 0;
+    this.contextMenu = { items, x, y, from };
   }
 
   undo() {
