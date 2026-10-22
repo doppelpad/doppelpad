@@ -11,7 +11,9 @@ use std::path::{Path, PathBuf};
 use dp_core::profile::Profile;
 use serde::{Deserialize, Serialize};
 
-use crate::{Diagnostics, LoadError, compat, is_profile_file, load, to_toml};
+use crate::{
+    Diagnostics, Format, LoadError, compat, is_profile_file, load, load_with_format, to_toml,
+};
 
 /// File holding a game's metadata inside its folder.
 pub const GAME_FILE: &str = "game.toml";
@@ -28,17 +30,22 @@ pub enum LibraryError {
     Serialize(PathBuf, #[source] toml::ser::Error),
     #[error(transparent)]
     Load(#[from] LoadError),
+    #[error("{0}: JSON profiles are read-only; import them first")]
+    ReadOnly(PathBuf),
+    /// A game bundle that cannot be written or read.
     #[error("{0}: {1}")]
-    Import(PathBuf, #[source] compat::ImportError),
+    Bundle(PathBuf, String),
+    #[error("{0}: {1}")]
+    Preset(PathBuf, #[source] toml::de::Error),
     #[error("cannot move {0} to the recycle bin: {1}")]
-    Trash(PathBuf, String),
+    Trash(PathBuf, #[source] trash::Error),
     #[error("{0} is not a game folder")]
     NotAGame(PathBuf),
 }
 
 pub type Result<T, E = LibraryError> = std::result::Result<T, E>;
 
-fn io(path: &Path) -> impl FnOnce(std::io::Error) -> LibraryError + '_ {
+pub(crate) fn io(path: &Path) -> impl FnOnce(std::io::Error) -> LibraryError + '_ {
     move |e| LibraryError::Io(path.to_path_buf(), e)
 }
 
@@ -141,10 +148,7 @@ fn is_config_file(path: &Path) -> bool {
 
 /// Read one game folder.
 pub fn read_game(dir: &Path) -> Result<Game> {
-    let meta_path = dir.join(GAME_FILE);
-    if !meta_path.is_file() {
-        return Err(LibraryError::NotAGame(dir.to_path_buf()));
-    }
+    let meta_path = game_file(dir)?;
     let src = std::fs::read_to_string(&meta_path).map_err(io(&meta_path))?;
     let mut meta: GameMeta =
         toml::from_str(&src).map_err(|e| LibraryError::Meta(meta_path.clone(), e))?;
@@ -237,16 +241,14 @@ pub(crate) fn unique_path(dir: &Path, base: &str, ext: Option<&str>) -> PathBuf 
 
 fn write_meta(dir: &Path, meta: &GameMeta) -> Result<()> {
     let path = dir.join(GAME_FILE);
-    let text = toml::to_string_pretty(meta)
-        .map_err(|e| LibraryError::Io(path.clone(), std::io::Error::other(e)))?;
+    let text =
+        toml::to_string_pretty(meta).map_err(|e| LibraryError::Serialize(path.clone(), e))?;
     write_atomic(&path, &text)
 }
 
 /// Create a new game folder with one empty config named "Default".
 pub fn create_game(root: &Path, name: &str) -> Result<Game> {
-    let dir = create_game_empty(root, name)?;
-    create_config(&dir, "Default")?;
-    read_game(&dir)
+    create_game_with(root, name, &named("Default"))
 }
 
 /// A new game folder with metadata only (for imports that bring their own configs).
@@ -266,33 +268,41 @@ pub fn create_game_empty(root: &Path, name: &str) -> Result<PathBuf> {
 
 /// Replace a game's metadata.
 pub fn update_game_meta(dir: &Path, meta: &GameMeta) -> Result<()> {
-    if !dir.join(GAME_FILE).is_file() {
-        return Err(LibraryError::NotAGame(dir.to_path_buf()));
-    }
+    game_file(dir)?;
     write_meta(dir, meta)
 }
 
+/// The metadata file of the game folder `dir`.
+fn game_file(dir: &Path) -> Result<PathBuf> {
+    let path = dir.join(GAME_FILE);
+    if path.is_file() {
+        Ok(path)
+    } else {
+        Err(LibraryError::NotAGame(dir.to_path_buf()))
+    }
+}
+
 fn trash(path: &Path) -> Result<()> {
-    trash::delete(path).map_err(|e| LibraryError::Trash(path.to_path_buf(), e.to_string()))
+    trash::delete(path).map_err(|e| LibraryError::Trash(path.to_path_buf(), e))
 }
 
 /// Move a game folder (with its configs) to the recycle bin.
 pub fn delete_game(dir: &Path) -> Result<()> {
-    if !dir.join(GAME_FILE).is_file() {
-        return Err(LibraryError::NotAGame(dir.to_path_buf()));
-    }
+    game_file(dir)?;
     trash(dir)
 }
 
 /// Create an empty config in a game folder and return its path.
 pub fn create_config(game_dir: &Path, name: &str) -> Result<PathBuf> {
-    let path = unique_path(game_dir, &slugify(name), Some("toml"));
-    let profile = Profile {
+    create_config_with(game_dir, &named(name))
+}
+
+/// An empty profile called `name`.
+fn named(name: &str) -> Profile {
+    Profile {
         name: name.to_owned(),
         ..Default::default()
-    };
-    save_profile_atomic(&path, &profile)?;
-    Ok(path)
+    }
 }
 
 /// A new config file holding `profile`, named after it.
@@ -322,7 +332,10 @@ pub fn duplicate_config(path: &Path) -> Result<PathBuf> {
 /// Rename a config. Only the profile's name changes, never the file name, so slots and
 /// other references to the path stay valid.
 pub fn rename_config(path: &Path, name: &str) -> Result<()> {
-    let (mut profile, _) = load(path)?;
+    let (mut profile, _, format) = load_with_format(path)?;
+    if format == Format::Json {
+        return Err(LibraryError::ReadOnly(path.to_path_buf()));
+    }
     profile.name = name.to_owned();
     save_profile_atomic(path, &profile)
 }
@@ -343,11 +356,8 @@ fn write_atomic(path: &Path, text: &str) -> Result<()> {
 pub fn save_profile_atomic(path: &Path, profile: &Profile) -> Result<()> {
     let text = to_toml(profile).map_err(|e| LibraryError::Serialize(path.to_path_buf(), e))?;
     if let Ok(existing) = std::fs::read_to_string(path) {
-        if crate::Format::detect(path, &existing) == crate::Format::Json {
-            return Err(LibraryError::Io(
-                path.to_path_buf(),
-                std::io::Error::other("JSON profiles are read-only; import them first"),
-            ));
+        if Format::detect(path, &existing) == Format::Json {
+            return Err(LibraryError::ReadOnly(path.to_path_buf()));
         }
         if !existing.starts_with(OUR_HEADER) {
             let bak = crate::store::with_suffix(path, "bak");
@@ -364,7 +374,7 @@ pub fn save_profile_atomic(path: &Path, profile: &Profile) -> Result<()> {
 pub fn import_into(game_dir: &Path, source: &Path) -> Result<(PathBuf, Diagnostics)> {
     let src = std::fs::read_to_string(source).map_err(io(source))?;
     let (mut profile, diags) =
-        compat::import(&src).map_err(|e| LibraryError::Import(source.to_path_buf(), e))?;
+        compat::import(&src).map_err(|e| LoadError::Import(source.to_path_buf(), e))?;
     if profile.name.is_empty() || profile.name == compat::DEFAULT_IMPORT_NAME {
         profile.name = file_stem(source);
     }
@@ -502,9 +512,13 @@ mod tests {
         std::fs::write(&path, JSON).unwrap();
         let (profile, _) = load(&path).unwrap();
         let err = save_profile_atomic(&path, &profile).unwrap_err();
-        assert!(err.to_string().contains("read-only"), "{err}");
+        let text = format!(
+            "{}: JSON profiles are read-only; import them first",
+            path.display()
+        );
+        assert_eq!(err.to_string(), text);
         assert_eq!(std::fs::read_to_string(&path).unwrap(), JSON);
-        assert!(rename_config(&path, "Other").is_err());
+        assert_eq!(rename_config(&path, "Other").unwrap_err().to_string(), text);
         assert_eq!(std::fs::read_to_string(&path).unwrap(), JSON);
         assert_eq!(
             std::fs::read_dir(root.path()).unwrap().count(),

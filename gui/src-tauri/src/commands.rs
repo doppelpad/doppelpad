@@ -253,13 +253,11 @@ pub struct LoadedConfig {
 
 #[tauri::command]
 pub fn config_load(path: PathBuf) -> CmdResult<LoadedConfig> {
-    let (profile, diags) = dp_config::load(&path).map_err(err)?;
-    let src = std::fs::read_to_string(&path).map_err(err)?;
-    let read_only = dp_config::Format::detect(&path, &src) == dp_config::Format::Json;
+    let (profile, diags, format) = dp_config::load_with_format(&path).map_err(err)?;
     Ok(LoadedConfig {
         profile,
         diagnostics: diags.0,
-        read_only,
+        read_only: format == dp_config::Format::Json,
     })
 }
 
