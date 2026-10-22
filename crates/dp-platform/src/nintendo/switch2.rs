@@ -11,9 +11,10 @@ use std::time::{Duration, Instant};
 
 use dp_core::pad::{Axis, Motion, PadButton, PadState, Rumble};
 
-use super::{StickCal, Switch2Model, apply_buttons, unpack12};
+use super::{StickCal, Switch2Model, apply_buttons, gc_trigger};
 use crate::nintendo::player_mask;
 use crate::padio::{BulkIo, Identity, InitError, LateBulk, PadDriver, ReportIo, RumblePacer};
+use crate::report::{le_f32, le_i16, le_u32, unpack12};
 use crate::{JoyConSide, Leds, PadFamily};
 
 /// Feature mask: buttons, sticks, IMU and rumble.
@@ -95,10 +96,6 @@ pub fn stick_cal(b: &[u8]) -> StickCal {
     StickCal::fixed(neutral, max, min)
 }
 
-fn f32le(b: &[u8], at: usize) -> f32 {
-    f32::from_le_bytes([b[at], b[at + 1], b[at + 2], b[at + 3]])
-}
-
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct Calibration {
     pub left: StickCal,
@@ -118,16 +115,6 @@ impl Default for Calibration {
             trigger_zero: [0; 2],
         }
     }
-}
-
-fn i16le(r: &[u8], at: usize) -> f32 {
-    f32::from(i16::from_le_bytes([r[at], r[at + 1]]))
-}
-
-/// GameCube triggers end at about 232.
-fn gc_trigger(v: u8, zero: u8) -> f32 {
-    let zero = f32::from(zero.min(200));
-    ((f32::from(v) - zero) / (232.0 - zero)).clamp(0.0, 1.0)
 }
 
 fn apply_gamecube(s: &mut PadState, r: &[u8], cal: &Calibration) {
@@ -153,7 +140,7 @@ fn apply_gamecube(s: &mut PadState, r: &[u8], cal: &Calibration) {
 
 /// IMU timestamp of an input report (0 while the IMU is off).
 pub fn imu_timestamp(r: &[u8]) -> u32 {
-    u32::from_le_bytes([r[0x2B], r[0x2C], r[0x2D], r[0x2E]])
+    le_u32(r, 0x2B)
 }
 
 /// Parse input report 0x05. `gyro_scale` is degrees per second per raw unit; motion is
@@ -188,9 +175,9 @@ pub fn parse_report(
     if let Some(scale) = gyro_scale
         && imu_timestamp(r) != 0
     {
-        let a = [i16le(r, 0x31), i16le(r, 0x33), i16le(r, 0x35)].map(|v| v / 4096.0);
-        let g: [f32; 3] =
-            std::array::from_fn(|i| i16le(r, 0x37 + 2 * i) * scale - cal.gyro_bias[i]);
+        let v = |at: usize| f32::from(le_i16(r, at));
+        let a = [v(0x31), v(0x33), v(0x35)].map(|v| v / 4096.0);
+        let g: [f32; 3] = std::array::from_fn(|i| v(0x37 + 2 * i) * scale - cal.gyro_bias[i]);
         // Device axes to ours: x stays, z is up (our y), y points backward (our -z).
         s.motion = Some(Motion {
             gyro: [g[0], g[2], -g[1]],
@@ -382,7 +369,7 @@ impl Switch2Driver {
             flash_block(&reply).map(<[u8]>::to_vec)
         };
         if let Some(b) = read(0x13040) {
-            self.cal.gyro_bias = [4, 8, 12].map(|at| f32le(&b, at).to_degrees());
+            self.cal.gyro_bias = [4, 8, 12].map(|at| le_f32(&b, at).to_degrees());
             if !self
                 .cal
                 .gyro_bias
@@ -564,16 +551,9 @@ mod tests {
 
     use super::*;
     use crate::padio::testing::{ScriptBulk, ScriptIo};
+    use crate::report::pack12;
 
     const MS: Duration = Duration::from_millis(1);
-
-    fn pack(a: u16, b: u16) -> [u8; 3] {
-        [
-            a as u8,
-            ((a >> 8) as u8 & 0x0F) | ((b as u8 & 0x0F) << 4),
-            (b >> 4) as u8,
-        ]
-    }
 
     /// Flash image as address -> 0x40-byte block.
     fn fake_bulk(blocks: Vec<(u32, Vec<u8>)>) -> (ScriptBulk, Arc<Mutex<Vec<Vec<u8>>>>) {
@@ -583,7 +563,7 @@ mod tests {
             reply[1] = 0x01;
             reply[3] = cmd[3];
             if cmd[0] == 0x02 {
-                let addr = u32::from_le_bytes([cmd[12], cmd[13], cmd[14], cmd[15]]);
+                let addr = le_u32(cmd, 12);
                 reply.resize(FLASH_REPLY_LEN, 0);
                 if let Some((_, b)) = blocks.iter().find(|(a, _)| *a == addr) {
                     reply[0x10..0x50].copy_from_slice(b);
@@ -598,8 +578,8 @@ mod tests {
     fn report() -> Vec<u8> {
         let mut r = vec![0u8; 64];
         r[0] = INPUT_REPORT;
-        r[11..14].copy_from_slice(&pack(2048, 2048));
-        r[14..17].copy_from_slice(&pack(2048, 2048));
+        r[11..14].copy_from_slice(&pack12(2048, 2048));
+        r[14..17].copy_from_slice(&pack12(2048, 2048));
         r
     }
 
@@ -634,14 +614,14 @@ mod tests {
     #[test]
     fn init_reads_calibration_then_starts() {
         let mut left = vec![0u8; 0x40];
-        left[0x28..0x2B].copy_from_slice(&pack(2000, 2100));
-        left[0x2B..0x2E].copy_from_slice(&pack(1500, 1500));
-        left[0x2E..0x31].copy_from_slice(&pack(1400, 1400));
+        left[0x28..0x2B].copy_from_slice(&pack12(2000, 2100));
+        left[0x2B..0x2E].copy_from_slice(&pack12(1500, 1500));
+        left[0x2E..0x31].copy_from_slice(&pack12(1400, 1400));
         let mut user = vec![0u8; 0x40];
         user[0x20..0x22].copy_from_slice(&CAL_MAGIC); // right stick at 0x1FC060
-        user[0x22..0x25].copy_from_slice(&pack(1900, 1950));
-        user[0x25..0x28].copy_from_slice(&pack(1200, 1200));
-        user[0x28..0x2B].copy_from_slice(&pack(1100, 1100));
+        user[0x22..0x25].copy_from_slice(&pack12(1900, 1950));
+        user[0x25..0x28].copy_from_slice(&pack12(1200, 1200));
+        user[0x28..0x2B].copy_from_slice(&pack12(1100, 1100));
         let (bulk, sent) = fake_bulk(vec![(0x13080, left), (0x1FC040, user)]);
         let mut d = Switch2Driver::new(Switch2Model::Pro, Ok(Box::new(bulk)));
         let id = d.init(&mut ScriptIo::silent()).unwrap();
@@ -712,9 +692,9 @@ mod tests {
         assert_eq!(d.take_notice_change(), None, "still busy");
 
         let mut left = vec![0u8; 0x40];
-        left[0x28..0x2B].copy_from_slice(&pack(2000, 2100));
-        left[0x2B..0x2E].copy_from_slice(&pack(1500, 1500));
-        left[0x2E..0x31].copy_from_slice(&pack(1400, 1400));
+        left[0x28..0x2B].copy_from_slice(&pack12(2000, 2100));
+        left[0x2B..0x2E].copy_from_slice(&pack12(1500, 1500));
+        left[0x2E..0x31].copy_from_slice(&pack12(1400, 1400));
         let (bulk, sent) = fake_bulk(vec![(0x13080, left)]);
         retry.hand_over(Box::new(bulk));
         d.service(&mut io, Rumble::default()).unwrap();
@@ -736,7 +716,7 @@ mod tests {
         r[5] = 0x08 | 0x80; // A + ZR
         r[6] = 0x40; // C
         r[8] = 0x03; // GR + GL
-        r[11..14].copy_from_slice(&pack(4095, 0)); // left stick right + down
+        r[11..14].copy_from_slice(&pack12(4095, 0)); // left stick right + down
         let s = parse_report(Switch2Model::Pro, &mut cal, None, &r).unwrap();
         assert!(s.pressed(PadButton::B) && s.pressed(PadButton::Misc2));
         assert!(s.pressed(PadButton::PaddleUL) && s.pressed(PadButton::PaddleUR));

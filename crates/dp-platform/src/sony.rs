@@ -6,12 +6,15 @@
 use std::time::Instant;
 
 use dp_core::pad::{
-    Axis, Motion, PadButton, PadState, Rgb, Rumble, Stick, TouchPoint, stick_from_hid_u8,
-    stick_to_hid_u8,
+    Axis, Motion, PadButton, PadState, Rgb, Rumble, Stick, TouchPoint, stick_to_hid_u8,
+    unit_from_u8, unit_to_u8_round,
 };
 use dp_core::profile::TriggerEffect;
 
 use crate::padio::{Identity, InitError, PadDriver, ReportIo};
+use crate::report::{
+    apply_hat, apply_u8_sticks, hat_from_dpad, le_i16, motor_u8, pack12, unpack12,
+};
 use crate::{Battery, Leds, PadFamily, TriggerEffects};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -55,8 +58,8 @@ impl SonyModel {
 
     fn touch_extent(self) -> (f32, f32) {
         match self {
-            SonyModel::DualShock4 => (1920.0, 943.0),
-            _ => (1920.0, 1080.0),
+            SonyModel::DualShock4 => DS4_TOUCH,
+            _ => DUALSENSE_TOUCH,
         }
     }
 }
@@ -64,26 +67,8 @@ impl SonyModel {
 const GYRO_DPS_PER_LSB: f32 = 1.0 / 16.0;
 const ACCEL_G_PER_LSB: f32 = 1.0 / 8192.0;
 
-fn hat(state: &mut PadState, v: u8) {
-    let (up, right, down, left) = match v & 0x0F {
-        0 => (true, false, false, false),
-        1 => (true, true, false, false),
-        2 => (false, true, false, false),
-        3 => (false, true, true, false),
-        4 => (false, false, true, false),
-        5 => (false, false, true, true),
-        6 => (false, false, false, true),
-        7 => (true, false, false, true),
-        _ => (false, false, false, false),
-    };
-    state.set(PadButton::DpadUp, up);
-    state.set(PadButton::DpadRight, right);
-    state.set(PadButton::DpadDown, down);
-    state.set(PadButton::DpadLeft, left);
-}
-
 fn face_buttons(state: &mut PadState, b0: u8, b1: u8) {
-    hat(state, b0);
+    apply_hat(state, b0);
     state.set(PadButton::X, b0 & 0x10 != 0); // Square
     state.set(PadButton::A, b0 & 0x20 != 0); // Cross
     state.set(PadButton::B, b0 & 0x40 != 0); // Circle
@@ -96,26 +81,18 @@ fn face_buttons(state: &mut PadState, b0: u8, b1: u8) {
     state.set(PadButton::RS, b1 & 0x80 != 0);
 }
 
-fn sticks(state: &mut PadState, r: &[u8]) {
-    state.set_stick(Stick::Left, stick_from_hid_u8(r[0], r[1]));
-    state.set_stick(Stick::Right, stick_from_hid_u8(r[2], r[3]));
-}
-
-fn i16le(r: &[u8], at: usize) -> f32 {
-    f32::from(i16::from_le_bytes([r[at], r[at + 1]]))
-}
-
 fn motion(r: &[u8], gyro_at: usize, accel_at: usize) -> Motion {
+    let v = |at: usize| f32::from(le_i16(r, at));
     Motion {
         gyro: [
-            i16le(r, gyro_at) * GYRO_DPS_PER_LSB,
-            i16le(r, gyro_at + 2) * GYRO_DPS_PER_LSB,
-            i16le(r, gyro_at + 4) * GYRO_DPS_PER_LSB,
+            v(gyro_at) * GYRO_DPS_PER_LSB,
+            v(gyro_at + 2) * GYRO_DPS_PER_LSB,
+            v(gyro_at + 4) * GYRO_DPS_PER_LSB,
         ],
         accel: [
-            i16le(r, accel_at) * ACCEL_G_PER_LSB,
-            i16le(r, accel_at + 2) * ACCEL_G_PER_LSB,
-            i16le(r, accel_at + 4) * ACCEL_G_PER_LSB,
+            v(accel_at) * ACCEL_G_PER_LSB,
+            v(accel_at + 2) * ACCEL_G_PER_LSB,
+            v(accel_at + 4) * ACCEL_G_PER_LSB,
         ],
     }
 }
@@ -125,8 +102,7 @@ fn touch(r: &[u8], at: usize, (w, h): (f32, f32)) -> Option<TouchPoint> {
     if r[at] & 0x80 != 0 {
         return None;
     }
-    let x = u16::from(r[at + 1]) | ((u16::from(r[at + 2]) & 0x0F) << 8);
-    let y = (u16::from(r[at + 2]) >> 4) | (u16::from(r[at + 3]) << 4);
+    let (x, y) = unpack12(&r[at + 1..at + 4]);
     Some(TouchPoint {
         x: (f32::from(x) / w).clamp(0.0, 1.0),
         y: (f32::from(y) / h).clamp(0.0, 1.0),
@@ -143,24 +119,24 @@ pub fn parse_report(model: SonyModel, r: &[u8]) -> Option<PadState> {
             if r.len() < 10 {
                 return None;
             }
-            sticks(&mut s, &r[1..5]);
+            apply_u8_sticks(&mut s, &r[1..5]);
             face_buttons(&mut s, r[5], r[6]);
             s.set(PadButton::Guide, r[7] & 0x01 != 0);
             s.set(PadButton::Touchpad, r[7] & 0x02 != 0);
-            s.set_axis(Axis::LeftTrigger, f32::from(r[8]) / 255.0);
-            s.set_axis(Axis::RightTrigger, f32::from(r[9]) / 255.0);
+            s.set_axis(Axis::LeftTrigger, unit_from_u8(r[8]));
+            s.set_axis(Axis::RightTrigger, unit_from_u8(r[9]));
         }
         (SonyModel::DualShock4, &id @ (0x01 | 0x11)) => {
             let c = if id == 0x11 { 3 } else { 1 };
             if r.len() < c + 42 {
                 return None;
             }
-            sticks(&mut s, &r[c..c + 4]);
+            apply_u8_sticks(&mut s, &r[c..c + 4]);
             face_buttons(&mut s, r[c + 4], r[c + 5]);
             s.set(PadButton::Guide, r[c + 6] & 0x01 != 0);
             s.set(PadButton::Touchpad, r[c + 6] & 0x02 != 0);
-            s.set_axis(Axis::LeftTrigger, f32::from(r[c + 7]) / 255.0);
-            s.set_axis(Axis::RightTrigger, f32::from(r[c + 8]) / 255.0);
+            s.set_axis(Axis::LeftTrigger, unit_from_u8(r[c + 7]));
+            s.set_axis(Axis::RightTrigger, unit_from_u8(r[c + 8]));
             s.motion = Some(motion(r, c + 12, c + 18));
             let ext = model.touch_extent();
             s.touch = [touch(r, c + 34, ext), touch(r, c + 38, ext)];
@@ -170,9 +146,9 @@ pub fn parse_report(model: SonyModel, r: &[u8]) -> Option<PadState> {
             if r.len() < c + 40 {
                 return None;
             }
-            sticks(&mut s, &r[c..c + 4]);
-            s.set_axis(Axis::LeftTrigger, f32::from(r[c + 4]) / 255.0);
-            s.set_axis(Axis::RightTrigger, f32::from(r[c + 5]) / 255.0);
+            apply_u8_sticks(&mut s, &r[c..c + 4]);
+            s.set_axis(Axis::LeftTrigger, unit_from_u8(r[c + 4]));
+            s.set_axis(Axis::RightTrigger, unit_from_u8(r[c + 5]));
             face_buttons(&mut s, r[c + 7], r[c + 8]);
             let b2 = r[c + 9];
             s.set(PadButton::Guide, b2 & 0x01 != 0);
@@ -193,6 +169,11 @@ pub fn parse_report(model: SonyModel, r: &[u8]) -> Option<PadState> {
     Some(s)
 }
 
+/// The battery level (percent) from a 0–10 nibble: the middle of its tenth, at most 100.
+fn level_from_nibble(n: u8) -> u8 {
+    (n * 10 + 5).min(100)
+}
+
 /// The battery from a full input report (including its report-ID byte).
 pub fn parse_battery(model: SonyModel, r: &[u8]) -> Option<Battery> {
     let status = match (model, r.first()?) {
@@ -202,7 +183,7 @@ pub fn parse_battery(model: SonyModel, r: &[u8]) -> Option<Battery> {
             let s = *r.get(if id == 0x11 { 32 } else { 30 })?;
             let (n, cable) = (s & 0x0F, s & 0x10 != 0);
             return Some(Battery {
-                level: (n * 10 + 5).min(100),
+                level: level_from_nibble(n),
                 charging: cable && n < 10,
                 wired: false,
             });
@@ -212,7 +193,7 @@ pub fn parse_battery(model: SonyModel, r: &[u8]) -> Option<Battery> {
     };
     // Low nibble 0–10; high nibble 0 discharging, 1 charging, 2 full, others errors.
     Some(Battery {
-        level: ((status & 0x0F) * 10 + 5).min(100),
+        level: level_from_nibble(status & 0x0F),
         charging: status >> 4 == 1,
         wired: false,
     })
@@ -312,8 +293,8 @@ const DUALSENSE_PLAYERS: [u8; 5] = [0x04, 0x0A, 0x15, 0x1B, 0x1F];
 /// The common part of a DualShock 4 output report (10 bytes from the first flag byte).
 fn ds4_common(c: &mut [u8], o: &SonyOutput) {
     c[0] = 0x01; // rumble valid
-    c[3] = (o.rumble.high.clamp(0.0, 1.0) * 255.0) as u8;
-    c[4] = (o.rumble.low.clamp(0.0, 1.0) * 255.0) as u8;
+    c[3] = motor_u8(o.rumble.high);
+    c[4] = motor_u8(o.rumble.low);
     if let Some(l) = o.lightbar {
         c[0] |= 0x02; // light bar valid
         c[5..8].copy_from_slice(&[l.r, l.g, l.b]);
@@ -323,8 +304,8 @@ fn ds4_common(c: &mut [u8], o: &SonyOutput) {
 /// The common part of a DualSense output report (47 bytes from the first flag byte).
 fn dualsense_common(c: &mut [u8], o: &SonyOutput) {
     c[0] = 0x03; // compatible vibration + haptics select
-    c[2] = (o.rumble.high.clamp(0.0, 1.0) * 255.0) as u8;
-    c[3] = (o.rumble.low.clamp(0.0, 1.0) * 255.0) as u8;
+    c[2] = motor_u8(o.rumble.high);
+    c[3] = motor_u8(o.rumble.low);
     if let Some(on) = o.leds.mic {
         c[1] |= 0x01; // microphone LED control
         c[8] = u8::from(on);
@@ -460,7 +441,7 @@ impl Ds4Calibration {
         if r.len() < 35 || r[0] != 0x02 {
             return None;
         }
-        let v = |at: usize| f32::from(i16::from_le_bytes([r[at], r[at + 1]]));
+        let v = |at: usize| f32::from(le_i16(r, at));
         let speed = v(19) + v(21);
         let mut c = Ds4Calibration::default();
         for i in 0..3 {
@@ -545,8 +526,8 @@ impl Ds4ReportBuilder {
             special |= 0x02;
         }
         r[6] = special;
-        r[7] = (s.axis(Axis::LeftTrigger).clamp(0.0, 1.0) * 255.0).round() as u8;
-        r[8] = (s.axis(Axis::RightTrigger).clamp(0.0, 1.0) * 255.0).round() as u8;
+        r[7] = unit_to_u8_round(s.axis(Axis::LeftTrigger));
+        r[8] = unit_to_u8_round(s.axis(Axis::RightTrigger));
         // Sensor timestamp in units of 16/3 µs.
         let stamp = (elapsed_us * 3 / 16) as u16;
         r[9..11].copy_from_slice(&stamp.to_le_bytes());
@@ -593,36 +574,20 @@ impl Ds4ReportBuilder {
         for (i, f) in self.fingers.iter().enumerate() {
             let p = &mut out[1 + 4 * i..5 + 4 * i];
             p[0] = f.id | if f.down { 0 } else { 0x80 };
-            p[1] = f.x as u8;
-            p[2] = ((f.x >> 8) as u8 & 0x0F) | ((f.y as u8 & 0x0F) << 4);
-            p[3] = (f.y >> 4) as u8;
+            p[1..4].copy_from_slice(&pack12(f.x, f.y));
         }
     }
 }
 
 /// Touchpad resolution of the DualShock 4.
+/// Touchpad resolutions.
 const DS4_TOUCH: (f32, f32) = (1920.0, 943.0);
+const DUALSENSE_TOUCH: (f32, f32) = (1920.0, 1080.0);
 
 /// Hat in the low nibble, then square, cross, circle, triangle, L1, R1, L2, R2, share,
 /// options, L3, R3.
 fn ds4_buttons(s: &PadState) -> u16 {
-    let hat = match (
-        s.pressed(PadButton::DpadUp),
-        s.pressed(PadButton::DpadRight),
-        s.pressed(PadButton::DpadDown),
-        s.pressed(PadButton::DpadLeft),
-    ) {
-        (true, false, _, false) => 0,
-        (true, true, _, _) => 1,
-        (false, true, false, _) => 2,
-        (_, true, true, _) => 3,
-        (false, false, true, false) => 4,
-        (_, false, true, true) => 5,
-        (false, false, false, true) => 6,
-        (true, false, _, true) => 7,
-        _ => 8,
-    };
-    let mut buttons = hat as u16;
+    let mut buttons = u16::from(hat_from_dpad(s));
     let bits = [
         (PadButton::X, 1 << 4),  // square
         (PadButton::A, 1 << 5),  // cross
@@ -734,6 +699,7 @@ impl PadDriver for SonyDriver {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::report::{le_u16, le_u32};
 
     #[test]
     fn driver_forwards_rumble_changes_only() {
@@ -784,8 +750,8 @@ mod tests {
             start: 3,
             strength: 5,
         });
-        let zones = u16::from_le_bytes([r[1], r[2]]);
-        let force = u32::from_le_bytes([r[3], r[4], r[5], r[6]]);
+        let zones = le_u16(&r, 1);
+        let force = le_u32(&r, 3);
         assert_eq!((r[0], zones), (0x21, 0b11_1111_1000));
         assert_eq!(force >> 9 & 7, 4, "strength 5 in zone 3");
         assert_eq!(force & 0x1FF, 0, "nothing below the start");
@@ -906,24 +872,14 @@ mod tests {
         let r1 = b.build(&s, 3000);
         assert_eq!((r0[6] >> 2, r1[6] >> 2), (0, 1), "report counter");
         assert_eq!(r0[4] & 0x0F, 8, "hat released");
-        assert_eq!(
-            u16::from_le_bytes([r1[9], r1[10]]),
-            562,
-            "3 ms in 16/3 µs units"
-        );
+        assert_eq!(le_u16(&r1, 9), 562, "3 ms in 16/3 µs units");
         assert_eq!((r0[34], r0[38]), (0x80, 0x80), "no finger down");
-        assert_eq!(
-            i16::from_le_bytes([r0[20], r0[21]]),
-            8192,
-            "resting pad feels 1 g up"
-        );
+        assert_eq!(le_i16(&r0, 20), 8192, "resting pad feels 1 g up");
 
         s.touch[0] = Some(TouchPoint { x: 1.0, y: 1.0 });
         let r = b.build(&s, 4000);
         assert_eq!(r[34], 0, "first contact gets id 0");
-        let x = u16::from(r[35]) | ((u16::from(r[36]) & 0x0F) << 8);
-        let y = (u16::from(r[36]) >> 4) | (u16::from(r[37]) << 4);
-        assert_eq!((x, y), (1919, 942));
+        assert_eq!(unpack12(&r[35..38]), (1919, 942));
         let counter = r[33];
         s.touch[0] = None;
         let r = b.build(&s, 5000);
@@ -960,7 +916,7 @@ mod tests {
             ..Default::default()
         };
         let r = b.build(&s, 0);
-        let raw = |at: usize| f32::from(i16::from_le_bytes([r[at], r[at + 1]]));
+        let raw = |at: usize| f32::from(le_i16(&r, at));
         // What a reader that applies this calibration gets back.
         let pitch = (raw(12) - 1.0) * 1080.0 / 17676.0;
         let z = (raw(22) - c.accel_bias[2]) / c.accel_scale[2];

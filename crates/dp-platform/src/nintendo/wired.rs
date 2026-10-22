@@ -4,11 +4,12 @@
 use std::io;
 use std::time::Instant;
 
-use dp_core::pad::{Axis, PadButton, PadState, Rumble, Stick, stick_from_hid_u8};
+use dp_core::pad::{Axis, PadButton, PadState, Rumble};
 
 use super::{HORI_VID, PDP_VID, POWERA_VID, ZUIKI_VID};
 use crate::PadFamily;
 use crate::padio::{Identity, InitError, PadDriver, ReportIo};
+use crate::report::{apply_hat, apply_u8_sticks};
 
 pub fn name(vid: u16) -> &'static str {
     match vid {
@@ -39,23 +40,8 @@ pub fn parse_report(r: &[u8]) -> Option<PadState> {
     s.set(PadButton::RS, p[1] & 0x08 != 0);
     s.set(PadButton::Guide, p[1] & 0x10 != 0);
     s.set(PadButton::Misc, p[1] & 0x20 != 0);
-    let (up, right, down, left) = match p[2] & 0x0F {
-        0 => (true, false, false, false),
-        1 => (true, true, false, false),
-        2 => (false, true, false, false),
-        3 => (false, true, true, false),
-        4 => (false, false, true, false),
-        5 => (false, false, true, true),
-        6 => (false, false, false, true),
-        7 => (true, false, false, true),
-        _ => (false, false, false, false),
-    };
-    s.set(PadButton::DpadUp, up);
-    s.set(PadButton::DpadRight, right);
-    s.set(PadButton::DpadDown, down);
-    s.set(PadButton::DpadLeft, left);
-    s.set_stick(Stick::Left, stick_from_hid_u8(p[3], p[4]));
-    s.set_stick(Stick::Right, stick_from_hid_u8(p[5], p[6]));
+    apply_hat(&mut s, p[2]);
+    apply_u8_sticks(&mut s, &p[3..7]);
     Some(s)
 }
 

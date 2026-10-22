@@ -19,7 +19,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use dp_core::pad::{Motion, PadButton, PadState, Rumble, TouchPoint};
+use dp_core::pad::{Motion, PadButton, PadState, Rumble, TouchPoint, unit_to_u16_trunc};
 use evdev::{
     AbsoluteAxisCode, Device, FFEffect, FFEffectCode, FFEffectData, FFEffectKind, FFReplay,
     FFTrigger, KeyCode, PropType,
@@ -213,8 +213,8 @@ impl Pad {
     }
 
     fn set_rumble(&mut self, rumble: Rumble) -> io::Result<()> {
-        let strong = (rumble.low.clamp(0.0, 1.0) * 65535.0) as u16;
-        let weak = (rumble.high.clamp(0.0, 1.0) * 65535.0) as u16;
+        let strong = unit_to_u16_trunc(rumble.low);
+        let weak = unit_to_u16_trunc(rumble.high);
         let data = FFEffectData {
             direction: 0,
             trigger: FFTrigger::default(),

@@ -34,6 +34,7 @@ pub mod joycon;
 pub mod nintendo;
 mod null;
 pub mod padio;
+pub(crate) mod report;
 pub mod sony;
 pub mod steam;
 pub use null::NullPlatform;

@@ -12,7 +12,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
-use dp_core::pad::{Axis, PadButton, PadState, Rgb, Rumble, axis_to_i16};
+use dp_core::pad::{Axis, PadButton, PadState, Rgb, Rumble, axis_to_i16, unit_to_u8_round};
 use vigem_client::{Client, TargetId, XButtons, XGamepad, Xbox360Wired};
 use windows_sys::Win32::Foundation::{
     ERROR_ACCESS_DENIED, ERROR_IO_PENDING, ERROR_OPERATION_ABORTED, GetLastError, HANDLE,
@@ -63,10 +63,8 @@ impl VirtualPadFactory for VigemFactory {
                     Ok(req) => {
                         let sink = rumble.clone();
                         req.spawn_thread(move |_, n| {
-                            *sink.lock().unwrap() = Some(Rumble {
-                                low: f32::from(n.large_motor) / 255.0,
-                                high: f32::from(n.small_motor) / 255.0,
-                            });
+                            *sink.lock().unwrap() =
+                                Some(Rumble::from_motors_u8(n.large_motor, n.small_motor));
                         });
                     }
                     Err(e) => tracing::warn!("no rumble feedback from virtual Xbox 360 pad: {e}"),
@@ -123,8 +121,8 @@ pub fn to_xgamepad(s: &PadState) -> XGamepad {
     }
     XGamepad {
         buttons: XButtons { raw },
-        left_trigger: (s.axis(Axis::LeftTrigger).clamp(0.0, 1.0) * 255.0).round() as u8,
-        right_trigger: (s.axis(Axis::RightTrigger).clamp(0.0, 1.0) * 255.0).round() as u8,
+        left_trigger: unit_to_u8_round(s.axis(Axis::LeftTrigger)),
+        right_trigger: unit_to_u8_round(s.axis(Axis::RightTrigger)),
         thumb_lx: axis_to_i16(s.axis(Axis::LeftX)),
         thumb_ly: axis_to_i16(s.axis(Axis::LeftY)),
         thumb_rx: axis_to_i16(s.axis(Axis::RightX)),
@@ -360,10 +358,7 @@ impl Ds4Pad {
                     {
                         Ok(()) => {
                             let mut f = sink.lock().unwrap();
-                            f.rumble = Some(Rumble {
-                                low: f32::from(n.large_motor) / 255.0,
-                                high: f32::from(n.small_motor) / 255.0,
-                            });
+                            f.rumble = Some(Rumble::from_motors_u8(n.large_motor, n.small_motor));
                             f.lightbar = Some(Rgb {
                                 r: n.red,
                                 g: n.green,

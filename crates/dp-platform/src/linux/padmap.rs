@@ -3,7 +3,9 @@
 //! pad, and the force-feedback mixer behind its rumble. No I/O, so it is unit-tested on
 //! every OS.
 
-use dp_core::pad::{Axis, Motion, PadButton, PadState, Rumble, TouchPoint, axis_to_i16};
+use dp_core::pad::{
+    Axis, Motion, PadButton, PadState, Rumble, TouchPoint, axis_to_i16, unit_to_u8_round,
+};
 
 use super::codes::*;
 pub use crate::nintendo::NINTENDO_VID;
@@ -484,7 +486,7 @@ pub const X360_EVENTS: usize = X360_KEYS.len() + X360_AXES.len();
 
 /// The `(type, code, value)` of every key and axis a real Xbox 360 pad would report in `s`.
 pub fn x360_events(s: &PadState) -> [(u16, u16, i32); X360_EVENTS] {
-    let trigger = |a| (s.axis(a).clamp(0.0, 1.0) * 255.0).round() as i32;
+    let trigger = |a| i32::from(unit_to_u8_round(s.axis(a)));
     let dpad = |neg, pos| i32::from(s.pressed(pos)) - i32::from(s.pressed(neg));
     let values = [
         i32::from(axis_to_i16(s.axis(Axis::LeftX))),
