@@ -76,7 +76,7 @@
 
   /** Power commands end the session or the PC's uptime: confirm before adding one. */
   async function pickPower(c: (typeof POWER_COMMANDS)[number]) {
-    if (await app.confirmAsk(t('picker.power_confirm', { command: t(`picker.${c}`) }))) onpick({ command: c });
+    if (await app.confirmAsk(t('picker.power_confirm', { command: t(`picker.${c}`) }), 'power_command')) onpick({ command: c });
   }
 
   async function pickPause() {

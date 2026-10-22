@@ -237,7 +237,8 @@
       "opacity": 90
     },
     "welcome_done": false,
-    "show_notes": false
+    "show_notes": false,
+    "silenced": []
   },
   "hotkeys": {
     "hold_ms": 500,

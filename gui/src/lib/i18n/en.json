@@ -1437,5 +1437,16 @@
     "rename": "Rename the config",
     "duplicate": "Duplicate the config",
     "help": "This list"
+  },
+  "questions": {
+    "dont_ask": "Don't ask again",
+    "title": "Questions you turned off",
+    "none": "None. Questions whose change can be undone offer \"Don't ask again\".",
+    "ask_again": "Ask again",
+    "ids": {
+      "power_command": "Adding a shut-down, restart, sleep or sign-out command to a mapping",
+      "clear_mappings": "Clearing all mappings of a config",
+      "whole_stick_replace": "Replacing a stick's directions and routes with a whole-stick choice"
+    }
   }
 }

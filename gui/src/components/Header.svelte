@@ -60,7 +60,7 @@
   }
 
   async function clearMappings() {
-    if (!app.profile || !(await app.confirmAsk(t('header.clear_confirm')))) return;
+    if (!app.profile || !(await app.confirmAsk(t('header.clear_confirm'), 'clear_mappings'))) return;
     app.edit((p) => ({ ...p, mappings: [] }));
   }
 

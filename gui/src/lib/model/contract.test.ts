@@ -128,6 +128,7 @@ const guiSettings = {
   mappings_overlay: true,
   welcome_done: true,
   show_notes: true,
+  silenced: true,
 } satisfies Keys<GuiSettings>;
 const osdSettings = {
   enabled: true,

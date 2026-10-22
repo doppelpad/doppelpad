@@ -50,8 +50,17 @@ interface PromptRequest {
 
 interface QuestionRequest {
   message: string;
+  /** A question that can be silenced ("Don't ask again"). */
+  id?: QuestionId;
   resolve: (ok: boolean) => void;
 }
+
+/**
+ * Questions that may be silenced: only ones whose change can be undone. Deleting games or
+ * configs and discarding unsaved changes always ask.
+ */
+export const QUESTION_IDS = ['power_command', 'clear_mappings', 'whole_stick_replace'] as const;
+export type QuestionId = (typeof QUESTION_IDS)[number];
 
 export interface ContextMenuRequest {
   items: MenuItem[];
@@ -307,9 +316,18 @@ class AppState {
    * Ask an OK/Cancel question in the app's own dialog (ConfirmDialog); `true` for OK. Not
    * `window.confirm`: in the webview it returns a promise without asking.
    */
-  confirmAsk(message: string): Promise<boolean> {
+  /** Ask OK/Cancel in the app's own dialog. With an `id` it offers "Don't ask again", and a silenced id answers OK at once. */
+  confirmAsk(message: string, id?: QuestionId): Promise<boolean> {
+    if (id && this.settings.silenced.includes(id)) return Promise.resolve(true);
     this.question?.resolve(false);
-    return new Promise((resolve) => (this.question = { message, resolve }));
+    return new Promise((resolve) => (this.question = { message, id, resolve }));
+  }
+
+  /** Stop asking a question (its answer is OK from now on), or (`false`) ask it again. */
+  silence(id: string, on = true) {
+    return this.setSettings((s) => ({
+      silenced: on ? [...s.silenced.filter((x) => x !== id), id] : s.silenced.filter((x) => x !== id),
+    }));
   }
 
   /** Ask before discarding unsaved changes. */
@@ -511,7 +529,7 @@ class AppState {
     if (!p || !def || this.readOnly) return;
     if (group && stickGroupOf(p, this.layer, s) === group) return this.selectStick(s);
     const n = stickGroupConflicts(p, this.layer, s);
-    if (n > 0 && !(await this.confirmAsk(t('binding.whole_stick_replace', { n })))) return;
+    if (n > 0 && !(await this.confirmAsk(t('binding.whole_stick_replace', { n }), 'whole_stick_replace'))) return;
     // The config may have changed while the question was open.
     if (this.profile !== p) return;
     this.update(setStickGroup(p, this.layer, s, group, def));
