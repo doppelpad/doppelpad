@@ -966,10 +966,9 @@ impl Runtime {
     }
 
     /// Hide the controllers of sessions whose profile hides the physical controller behind
-    /// a virtual one (with every physical XInput device if one of them is an XInput pad).
+    /// a virtual one (and what the hider must hide with them).
     fn sync_hiding(&mut self) {
         let mut want: Vec<String> = Vec::new();
-        let mut xinput = false;
         for s in self.sessions.iter().filter(|s| s.hide_wanted) {
             let Some(snap) = s
                 .device
@@ -978,15 +977,8 @@ impl Runtime {
             else {
                 continue;
             };
-            want.extend(snap.info.instance_paths.iter().cloned());
-            xinput |= snap.info.backend == "xinput";
+            self.platform.hider.expand(&snap.info, &mut want);
         }
-        #[cfg(windows)]
-        if xinput {
-            want.extend(dp_platform::windows::physical_xusb_instances());
-        }
-        #[cfg(not(windows))]
-        let _ = xinput;
         want.sort();
         want.dedup();
         if want == self.hidden {
@@ -1337,30 +1329,6 @@ impl Runtime {
 impl Drop for Runtime {
     fn drop(&mut self) {
         self.stop();
-    }
-}
-
-/// Raise the OS timer resolution for the lifetime of the guard so 1 ms sleeps are accurate.
-pub struct TimerResolution;
-
-impl TimerResolution {
-    pub fn high() -> Self {
-        #[cfg(windows)]
-        // SAFETY: plain winmm call, undone in Drop.
-        unsafe {
-            windows_sys::Win32::Media::timeBeginPeriod(1);
-        }
-        TimerResolution
-    }
-}
-
-impl Drop for TimerResolution {
-    fn drop(&mut self) {
-        #[cfg(windows)]
-        // SAFETY: matches timeBeginPeriod in `high`.
-        unsafe {
-            windows_sys::Win32::Media::timeEndPeriod(1);
-        }
     }
 }
 

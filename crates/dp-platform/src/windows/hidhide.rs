@@ -30,7 +30,7 @@ use windows_sys::Win32::System::Threading::{
 };
 
 use super::{OwnedHandle, devnode, from_wide, wide};
-use crate::{DeviceHider, PlatformError, Result};
+use crate::{DeviceHider, DeviceInfo, PlatformError, Result};
 
 const fn ctl_code(function: u32) -> u32 {
     const DEVICE_TYPE: u32 = 32769;
@@ -410,6 +410,15 @@ impl DeviceHider for HidHide {
     fn available(&self) -> Result<()> {
         let h = open()?;
         get_active(&h).map(drop)
+    }
+
+    /// XInput cannot tell which device a pad is, so hiding one hides every physical XUSB
+    /// device.
+    fn expand(&self, device: &DeviceInfo, out: &mut Vec<String>) {
+        out.extend(device.instance_paths.iter().cloned());
+        if device.backend == "xinput" {
+            out.extend(super::physical_xusb_instances());
+        }
     }
 
     fn hide(&mut self, instance_paths: &[String]) -> Result<()> {

@@ -14,7 +14,8 @@ use dp_core::pad::{Axis, PadButton};
 use dp_ipc::{Request, Response};
 use dp_platform::Platform;
 
-use dp_service::{Runtime, TimerResolution, on_off};
+use dp_platform::timer::TimerResolution;
+use dp_service::{Runtime, on_off};
 
 #[derive(Parser)]
 #[command(

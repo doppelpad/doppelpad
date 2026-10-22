@@ -12,7 +12,9 @@ use dp_platform::Platform;
 
 use crate::client::{CallError, round_trip};
 use crate::live::{LIVE_INTERVAL, LiveState, SharedLive};
-use crate::runtime::{Runtime, TimerResolution};
+use dp_platform::timer::TimerResolution;
+
+use crate::runtime::Runtime;
 use crate::service::{Service, ServiceCmd, ServiceOptions, ServiceReply};
 use crate::timing::TICK;
 
