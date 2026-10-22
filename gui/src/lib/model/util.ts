@@ -31,6 +31,12 @@ export function setOrDrop<T extends object, K extends keyof T>(o: T, k: K, v: T[
   return out;
 }
 
+/** A TCP/UDP port number typed by the user, or `null` when it is not one. */
+export function parsePort(raw: string): number | null {
+  const port = Number(raw);
+  return Number.isInteger(port) && port > 0 && port < 65536 ? port : null;
+}
+
 /** `v`, or `undefined` for an empty object or list (which profiles leave out, like Rust). */
 export function nonEmpty<T extends object>(v: T): T | undefined {
   return Object.keys(v).length > 0 ? v : undefined;

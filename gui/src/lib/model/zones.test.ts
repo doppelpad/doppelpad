@@ -14,11 +14,12 @@ import {
   triggerThresholds,
   triggerZoneAt,
   withZones,
+  zoneDefaults,
   zoneProblem,
-  type ZoneDefaults,
 } from './zones';
 
-const D: ZoneDefaults = { stickLow: 0.24, triggerLow: 0.03, fullPull: 0.99 };
+// Without a catalog: the engine's own values.
+const D = zoneDefaults(undefined);
 const near = (a: number, b: number) => Math.abs(a - b) < 1e-9;
 
 describe('zone controls', () => {

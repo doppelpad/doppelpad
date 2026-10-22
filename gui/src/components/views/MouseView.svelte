@@ -2,8 +2,8 @@
   // Mouse as an input device: buttons and wheel on the drawing, the remaining wheel and
   // movement directions as tiles.
   import { t } from '../../lib/i18n/index.svelte';
-  import { controlLabel } from '../../lib/model/controls';
-  import { effectiveMappings, mappingSummary } from '../../lib/model/profile';
+  import { DIRS8, controlLabel } from '../../lib/model/controls';
+  import { effectiveSummary } from '../../lib/model/labels';
   import { app } from '../../lib/state/app.svelte';
   import type { ControlName } from '../../lib/types';
   import ControllerView from './ControllerView.svelte';
@@ -14,18 +14,13 @@
       id: 'mouse_move',
       // Mapping a diagonal makes mouse motion tell eight directions apart.
       controls: [
-        ...['Up', 'Down', 'Left', 'Right', 'UpLeft', 'UpRight', 'DownLeft', 'DownRight'].map((d) => `MouseMove:${d}`),
+        ...DIRS8.map((d) => `MouseMove:${d}`),
         ...['Low', 'Med', 'High'].map((z) => `MouseMove:${z}`),
       ],
     },
   ];
 
-  function summary(c: ControlName): { text: string; inherited: boolean } | null {
-    if (!app.profile) return null;
-    const eff = effectiveMappings(app.profile, app.layer, c);
-    if (eff.mappings.length === 0) return null;
-    return { text: eff.mappings.map((m) => mappingSummary(m, app.layerLabel)).join(' · '), inherited: eff.inherited };
-  }
+  const summary = (c: ControlName) => app.profile && effectiveSummary(app.profile, app.layer, c, app.layerLabel);
 </script>
 
 <div class="mouse">

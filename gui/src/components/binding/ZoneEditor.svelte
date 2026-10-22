@@ -5,6 +5,7 @@
   import { untrack } from 'svelte';
   import { t } from '../../lib/i18n/index.svelte';
   import { layerOverrides, triggerConfig } from '../../lib/model/analog';
+  import { stickAxes, triggerAxis } from '../../lib/model/devices';
   import type { ZoneName, ZoneParts } from '../../lib/model/controls';
   import {
     LEVELS,
@@ -22,7 +23,7 @@
     zoneProblem,
     type Level,
     type Triple,
-    type ZoneDefaults,
+    zoneDefaults,
   } from '../../lib/model/zones';
   import { app } from '../../lib/state/app.svelte';
   import type { StickZones, TriggerZones } from '../../lib/types';
@@ -33,11 +34,7 @@
 
   const source = $derived(parts.source);
   const isStick = $derived(source.kind === 'stick');
-  const defaults = $derived<ZoneDefaults>({
-    stickLow: app.catalog?.defaults.stick.zones.low ?? 0.24,
-    triggerLow: app.catalog?.defaults.trigger.zones.low ?? 0.03,
-    fullPull: app.catalog?.defaults.trigger.full_pull ?? 0.99,
-  });
+  const defaults = $derived(zoneDefaults(app.catalog?.defaults));
   // Zones are per config; a layer may have its own (shown and edited on that layer).
   const zonesHere = $derived(app.profile ? storedZones(app.profile, source, app.layer) : undefined);
   const stickZones = $derived(isStick ? (zonesHere as StickZones | undefined) : undefined);
@@ -71,13 +68,13 @@
   const axes = $derived<('both' | 0 | 1)[]>(separate ? [0, 1] : ['both']);
 
   const live = $derived.by(() => {
-    const a = app.primary?.state.axes;
-    if (!a) return null;
+    const dev = app.primary;
+    if (!dev) return null;
     if (isStick) {
-      const [x, y] = source.side === 'left' ? [a[0], a[1]] : [a[2], a[3]];
+      const [x, y] = stickAxes(dev, source.side);
       return { x: Math.abs(x), y: Math.abs(y), mag: Math.hypot(x, y), zone: stickZoneAt(x, y, th) };
     }
-    const v = a[source.side === 'left' ? 4 : 5];
+    const v = triggerAxis(dev, source.side);
     return { x: v, y: v, mag: v, zone: triggerZoneAt(v, th.x) };
   });
 

@@ -443,7 +443,7 @@ export interface Profile {
 export interface PadState {
   /** Bitset; bit index = position in `Catalog.pad_buttons`. */
   buttons: number;
-  /** LeftX, LeftY, RightX, RightY (−1..1, up positive), LeftTrigger, RightTrigger (0..1). */
+  /** LeftX, LeftY, RightX, RightY (−1..1, up positive), LeftTrigger, RightTrigger (0..1); see `AXES` in model/devices.ts. */
   axes: number[];
   motion: { gyro: number[]; accel: number[] } | null;
   touch: ({ x: number; y: number } | null)[];

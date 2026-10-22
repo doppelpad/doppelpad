@@ -3,8 +3,8 @@
   // lib/overlay.ts): one row per trigger, in columns of up to 40 rows.
   import { onMount } from 'svelte';
   import { setLanguage, t } from '../../lib/i18n/index.svelte';
-  import { controlLabel } from '../../lib/model/controls';
-  import { comboKey, comboList, effectiveMappings, layerName, mappingSummary } from '../../lib/model/profile';
+  import { comboLabel, layerLabel } from '../../lib/model/labels';
+  import { comboKey, effectiveMappings, mappingSummary } from '../../lib/model/profile';
   import { overlayContent } from '../../lib/overlay';
   import type { Combo, Corner, PadFamily, Profile } from '../../lib/types';
 
@@ -25,7 +25,7 @@
   const rows = $derived.by((): Row[] => {
     if (!content) return [];
     const { profile, layer, family } = content;
-    const label = (id: number) => layerName(profile, id, t('layers.main'), (n) => t('layers.shift', { n }));
+    const label = (id: number) => layerLabel(profile, id);
     // Triggers of this layer first, then the base layer's that it takes over.
     const seen = new Set<string>();
     const triggers: Combo[] = [];
@@ -43,9 +43,7 @@
       if (eff.mappings.length === 0) return [];
       return [
         {
-          control: comboList(trigger)
-            .map((c) => controlLabel(c, family))
-            .join(' + '),
+          control: comboLabel(trigger, family),
           action: eff.mappings.map((m) => mappingSummary(m, label)).join(' · '),
           note: eff.mappings
             .map((m) => m.description ?? '')
@@ -70,7 +68,7 @@
     <div class="sheet">
       <div class="head">
         <span class="title">{content.profile.name}</span>
-        <span class="layer">{layerName(content.profile, content.layer, t('layers.main'), (n) => t('layers.shift', { n }))}</span>
+        <span class="layer">{layerLabel(content.profile, content.layer)}</span>
       </div>
       {#if rows.length === 0}
         <p class="empty">{t('overlays.no_mappings')}</p>

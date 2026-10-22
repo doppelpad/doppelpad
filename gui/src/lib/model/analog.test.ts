@@ -36,17 +36,13 @@ import {
   virtualRamp,
   virtualStickConfig,
 } from './analog';
-import { setStickLevel, setTriggerLevel, type ZoneDefaults } from './zones';
+import { setStickLevel, setTriggerLevel, zoneDefaults } from './zones';
 
 // Rust's defaults, as the catalog command sends them.
 // Through `unknown`: JSON imports type arrays as `number[]`, the model uses tuples.
 const def = defaultsJson as unknown as Catalog['defaults'];
 
-const zd: ZoneDefaults = {
-  stickLow: def.stick.zones.low ?? 0.24,
-  triggerLow: def.trigger.zones.low ?? 0.03,
-  fullPull: def.trigger.full_pull,
-};
+const zd = zoneDefaults(def);
 
 const empty = (): Profile => ({ name: 'Test', mappings: [] });
 const close = (a: number, b: number) => expect(Math.abs(a - b)).toBeLessThan(1e-6);

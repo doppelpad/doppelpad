@@ -4,6 +4,8 @@
 
 import { DEVICE_LAYOUTS, type DeviceId } from '../../assets/devices/layouts';
 import type { ControlName, LiveDevice } from '../types';
+import type { Side } from './analog';
+import { SIDES } from './controls';
 
 export interface Drawings {
   front: DeviceId;
@@ -72,22 +74,47 @@ export function sideShowing(drawings: Drawings, current: 'front' | 'back', c: Co
 const STICK_SELECT = 0.65;
 const TRIGGER_SELECT = 0.4;
 
+/** Where each side's stick (x, y) and trigger are in `PadState.axes`. */
+export const AXES = {
+  left: { x: 0, y: 1, trigger: 4 },
+  right: { x: 2, y: 3, trigger: 5 },
+} as const satisfies Record<Side, { x: number; y: number; trigger: number }>;
+
+const stickIn = (axes: number[], side: Side): [number, number] => [axes[AXES[side].x], axes[AXES[side].y]];
+
+/** A stick's deflection `[x, y]` (−1..1, up positive). */
+export const stickAxes = (dev: LiveDevice, side: Side) => stickIn(dev.state.axes, side);
+
+/** A trigger's pull (0..1). */
+export const triggerAxis = (dev: LiveDevice, side: Side): number => dev.state.axes[AXES[side].trigger];
+
+/** The pad buttons a controller holds, from the catalog's `names` (in bit order). */
+export function padButtonsDown<T extends string>(dev: LiveDevice, names: T[]): T[] {
+  return names.filter((_, i) => (dev.state.buttons >>> i) & 1);
+}
+
+/** Move a drawing's stick caps by the sticks' deflection in `axes` (as in `PadState`). */
+export function moveStickCaps(svg: Element, axes: number[]) {
+  for (const g of svg.querySelectorAll<SVGGElement>('[data-stick]')) {
+    const [x, y] = stickIn(axes, g.getAttribute('data-stick') === 'Left' ? 'left' : 'right');
+    g.querySelector('.stick-cap')?.setAttribute('transform', `translate(${(x * 14).toFixed(1)} ${(-y * 14).toFixed(1)})`);
+  }
+}
+
 /** The controls a controller's live state presses (`buttons`: the catalog's pad buttons). */
 export function controlsFromPad(dev: LiveDevice, buttons: string[]): Set<ControlName> {
-  const s = new Set<ControlName>();
-  buttons.forEach((b, i) => {
-    if ((dev.state.buttons >>> i) & 1) s.add(b);
-  });
-  const a = dev.state.axes;
-  const stick = (name: string, x: number, y: number) => {
+  const s = new Set<ControlName>(padButtonsDown(dev, buttons));
+  const stick = (side: Side) => {
+    const name = SIDES[side].stick;
+    const [x, y] = stickAxes(dev, side);
     if (y > STICK_SELECT) s.add(`${name}Up`);
     if (y < -STICK_SELECT) s.add(`${name}Down`);
     if (x < -STICK_SELECT) s.add(`${name}Left`);
     if (x > STICK_SELECT) s.add(`${name}Right`);
   };
-  stick('LeftStick', a[0], a[1]);
-  stick('RightStick', a[2], a[3]);
-  if (a[4] > TRIGGER_SELECT) s.add('LT');
-  if (a[5] > TRIGGER_SELECT) s.add('RT');
+  stick('left');
+  stick('right');
+  if (triggerAxis(dev, 'left') > TRIGGER_SELECT) s.add('LT');
+  if (triggerAxis(dev, 'right') > TRIGGER_SELECT) s.add('RT');
   return s;
 }

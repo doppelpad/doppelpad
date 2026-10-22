@@ -4,7 +4,8 @@
   // preview. The medium and high zones are edited in the binding panel's zone editor.
   import { t } from '../../lib/i18n/index.svelte';
   import { orient, setStick, stickConfig, type CurvePoint, type Side } from '../../lib/model/analog';
-  import { setStickLevel, stickThresholds, type ZoneDefaults } from '../../lib/model/zones';
+  import { stickAxes } from '../../lib/model/devices';
+  import { setStickLevel, stickThresholds, zoneDefaults as zoneDefaultsOf } from '../../lib/model/zones';
   import { app } from '../../lib/state/app.svelte';
   import type { StickConfig } from '../../lib/types';
   import Slider from '../ui/Slider.svelte';
@@ -23,22 +24,14 @@
   const resetLabel = $derived(app.layer === 0 ? undefined : t('analog.layer.reset_field'));
   const disabled = $derived(app.readOnly);
 
-  const zoneDefaults = $derived<ZoneDefaults>({
-    stickLow: def?.zones.low ?? 0.24,
-    triggerLow: app.catalog?.defaults.trigger.zones.low ?? 0.03,
-    fullPull: app.catalog?.defaults.trigger.full_pull ?? 0.99,
-  });
+  const zoneDefaults = $derived(zoneDefaultsOf(app.catalog?.defaults));
   /** Effective low, medium and high thresholds per axis. */
   const zones = $derived(stickThresholds(cfg?.zones, zoneDefaults));
   /** A low zone with separate horizontal and vertical radii is edited in the zone editor. */
   const ellipticLow = $derived(zones.x[0] !== zones.y[0]);
 
   /** The physical stick of the controller in use (y up). */
-  const raw = $derived.by<[number, number] | null>(() => {
-    const a = app.primary?.state.axes;
-    if (!a) return null;
-    return side === 'left' ? [a[0], a[1]] : [a[2], a[3]];
-  });
+  const raw = $derived(app.primary ? stickAxes(app.primary, side) : null);
   const live = $derived(raw && cfg ? Math.hypot(...orient(raw, cfg)) : null);
 
   function set(patch: Partial<StickConfig>) {

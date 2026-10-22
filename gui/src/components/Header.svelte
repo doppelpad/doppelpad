@@ -4,6 +4,7 @@
   import { api, confirmAsk } from '../lib/api';
   import { t } from '../lib/i18n/index.svelte';
   import { bindingsSheet } from '../lib/model/sheet';
+  import { TEMPLATES } from '../lib/model/labels';
   import { app } from '../lib/state/app.svelte';
   import { platform } from '../lib/state/window.svelte';
   import type { Profile, Template } from '../lib/types';
@@ -14,7 +15,6 @@
 
   const configName = $derived(app.profile?.name || '—');
 
-  const TEMPLATES: Template[] = ['virtual_xbox', 'virtual_ds4', 'desktop', 'keyboard_mouse'];
 
   function fromTemplate(tpl: Template) {
     if (app.gameDir) app.createConfig(api.configFromTemplate(app.gameDir, t(`welcome.templates.${tpl}`), tpl));

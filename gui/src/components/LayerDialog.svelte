@@ -2,10 +2,9 @@
   // Settings of one shift layer: its name and which of Main's mappings it takes over.
   import { X } from '@lucide/svelte';
   import { t } from '../lib/i18n/index.svelte';
-  import { controlLabel } from '../lib/model/controls';
+  import { comboLabel } from '../lib/model/labels';
   import {
     comboKey,
-    comboList,
     inheritableTriggers,
     layerInheritance,
     layerUnlock,
@@ -26,7 +25,7 @@
   const UNLOCKS = ['none', 'all', 'keyboard', 'mouse'] as const;
   const triggers = $derived(app.profile ? inheritableTriggers(app.profile) : []);
 
-  const label = (c: Combo) => comboList(c).map((x) => controlLabel(x, app.family)).join(' + ');
+  const label = (c: Combo) => comboLabel(c, app.family);
   const inherited = (c: Combo) => !inheritance.notInherited.some((x) => sameCombo(x, c));
 
   function rename(name: string) {

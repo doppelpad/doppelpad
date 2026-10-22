@@ -6,11 +6,11 @@
   import { t } from '../lib/i18n/index.svelte';
   import { app } from '../lib/state/app.svelte';
   import type { Template } from '../lib/types';
+  import { TEMPLATES } from '../lib/model/labels';
   import IdentifyWizard from './IdentifyWizard.svelte';
   import Toggle from './ui/Toggle.svelte';
 
   const STEPS = ['welcome', 'drivers', 'controller', 'output', 'finish'] as const;
-  const TEMPLATES: Template[] = ['virtual_xbox', 'virtual_ds4', 'desktop', 'keyboard_mouse'];
 
   let step = $state(0);
   let template = $state<Template>('virtual_xbox');

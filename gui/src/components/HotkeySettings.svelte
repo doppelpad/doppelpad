@@ -6,6 +6,7 @@
   import { api } from '../lib/api';
   import { t } from '../lib/i18n/index.svelte';
   import { controlLabel } from '../lib/model/controls';
+  import { padButtonsDown } from '../lib/model/devices';
   import { app } from '../lib/state/app.svelte';
   import type { HotkeyField, Hotkeys, PadButtonName } from '../lib/types';
 
@@ -20,11 +21,7 @@
   let seen = $state<PadButtonName[]>([]);
 
   /** Pad buttons held on the controller in use. */
-  const down = $derived.by(() => {
-    const names = app.catalog?.pad_buttons ?? [];
-    const bits = app.primary?.state.buttons ?? 0;
-    return names.filter((_, i) => (bits >>> i) & 1);
-  });
+  const down = $derived(app.primary ? padButtonsDown(app.primary, app.catalog?.pad_buttons ?? []) : []);
 
   $effect(() => {
     if (!recording) return;

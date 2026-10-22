@@ -4,7 +4,10 @@
   import { DEVICE_LAYOUTS, type DeviceId } from '../../assets/devices/layouts';
   import { t } from '../../lib/i18n/index.svelte';
   import {
+    CARDINALS,
     DIAGONALS,
+    SIDES,
+    SIDE_NAMES,
     controlLabel,
     gyroControls,
     touchControls,
@@ -14,14 +17,13 @@
     zoneTag,
   } from '../../lib/model/controls';
   import { hasMotion } from '../../lib/model/devices';
-  import { effectiveMappings, mappingSummary } from '../../lib/model/profile';
+  import { effectiveSummary } from '../../lib/model/labels';
   import { app } from '../../lib/state/app.svelte';
   import type { ControlName } from '../../lib/types';
 
   /** `device`: the drawing this list stands in for; it lists the buttons that drawing has. */
   let { back = false, device }: { back?: boolean; device: DeviceId } = $props();
 
-  const STICK_DIRS = ['Up', 'Down', 'Left', 'Right'];
 
   const groups = $derived.by(() => {
     const buttons = (app.catalog?.pad_buttons ?? []) as string[];
@@ -35,10 +37,10 @@
       {
         id: 'sticks',
         // Each direction, then the stick in any direction (which exists only per zone).
-        controls: ['LeftStick', 'RightStick'].flatMap((s) => {
-          const side = s === 'LeftStick' ? 'left' : 'right';
+        controls: SIDE_NAMES.flatMap((side) => {
+          const s = SIDES[side].stick;
           const diag = app.profile?.sticks?.[side]?.diagonals ? DIAGONALS : [];
-          return [...STICK_DIRS, ...diag].map((d) => s + d).concat(`${s}Low`);
+          return [...CARDINALS, ...diag].map((d) => s + d).concat(`${s}Low`);
         }),
       },
       { id: 'triggers', controls: ['LT', 'RT', 'LTFull', 'RTFull'] },
@@ -68,12 +70,7 @@
     return parts.length ? { text: parts.join(' · '), inherited } : null;
   }
 
-  function summary(c: ControlName): { text: string; inherited: boolean } | null {
-    if (!app.profile) return null;
-    const eff = effectiveMappings(app.profile, app.layer, c);
-    if (eff.mappings.length === 0) return null;
-    return { text: eff.mappings.map((m) => mappingSummary(m, app.layerLabel)).join(' · '), inherited: eff.inherited };
-  }
+  const summary = (c: ControlName) => app.profile && effectiveSummary(app.profile, app.layer, c, app.layerLabel);
 </script>
 
 <div class="list">

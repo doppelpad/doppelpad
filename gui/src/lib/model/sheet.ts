@@ -2,8 +2,8 @@
 import { t } from '../i18n/index.svelte';
 import type { PadFamily, Profile } from '../types';
 import { sourceOf, targetOf } from './analog';
-import { controlLabel } from './controls';
-import { comboKey, comboList, layerIds, layerName, mappingSummary } from './profile';
+import { comboLabel, layerLabel } from './labels';
+import { comboKey, layerIds, mappingSummary } from './profile';
 
 const escape = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
@@ -21,7 +21,7 @@ const STYLE = `
 
 /** The sheet for `p`, with control names for `family`. */
 export function bindingsSheet(p: Profile, family: PadFamily | null): string {
-  const label = (id: number) => layerName(p, id, t('layers.main'), (n) => t('layers.shift', { n }));
+  const label = (id: number) => layerLabel(p, id);
   const sections = layerIds(p).flatMap((id) => {
     const mappings = p.mappings.filter((m) => (m.layer ?? 0) === id);
     const routes = (p.analog ?? []).filter((r) => (r.layer ?? 0) === id);
@@ -31,9 +31,7 @@ export function bindingsSheet(p: Profile, family: PadFamily | null): string {
     for (const m of mappings) {
       const key = comboKey(m.trigger);
       const row = rows.get(key) ?? {
-        control: comboList(m.trigger)
-          .map((c) => controlLabel(c, family))
-          .join(' + '),
+        control: comboLabel(m.trigger, family),
         action: [],
         note: [],
       };
