@@ -4,7 +4,10 @@
   import { t } from './lib/i18n/index.svelte';
   import { drawingsFor } from './lib/model/devices';
   import { app } from './lib/state/app.svelte';
-  import { isTextEntry, menuOpen } from './lib/dom';
+  import { isTextEntry, menuOpen, popoverOpen } from './lib/dom';
+  import { matchShortcut } from './lib/state/shortcuts';
+  import { runShortcut } from './components/shortcutActions';
+  import ShortcutsDialog from './components/ShortcutsDialog.svelte';
   import { win } from './lib/state/window.svelte';
   import ProfilePanel from './components/ProfilePanel.svelte';
   import Header from './components/Header.svelte';
@@ -43,18 +46,13 @@
   });
 
   function onKeydown(e: KeyboardEvent) {
-    if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
-    const key = e.key.toLowerCase();
-    if (key === 's') {
-      e.preventDefault();
-      if (app.dirty) app.save();
-    } else if (key === 'z' || key === 'y') {
-      // A text field keeps its own undo; a dialog or menu owns the keyboard.
-      if (isTextEntry(e.target) || modalOpen() || menuOpen()) return;
-      e.preventDefault();
-      if (key === 'y' || e.shiftKey) app.redo();
-      else app.undo();
-    }
+    // A text field keeps its own keys (undo, copy, delete); a dialog or menu owns the keyboard.
+    const hit = matchShortcut(e, {
+      keyboardView: app.view === 'keyboard',
+      typing: isTextEntry(e.target),
+      overlay: modalOpen() || menuOpen() || popoverOpen(),
+    });
+    if (hit && runShortcut(hit.id, hit.digit)) e.preventDefault();
   }
 </script>
 
@@ -118,6 +116,7 @@
 </div>
 
 {#if settingsOpen}<SettingsDialog onclose={() => (settingsOpen = false)} />{/if}
+{#if app.shortcutsOpen}<ShortcutsDialog onclose={() => (app.shortcutsOpen = false)} />{/if}
 <PromptDialog />
 <ConfirmDialog />
 <RewasdDialog />

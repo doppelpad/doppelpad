@@ -105,6 +105,8 @@ class AppState {
   contextMenu = $state.raw<ContextMenuRequest | null>(null);
   canUndo = $state(false);
   canRedo = $state(false);
+  /** The list of keyboard shortcuts is open. */
+  shortcutsOpen = $state(false);
 
   /** Earlier states of the open config, for undo and redo. */
   private history = new History();
@@ -398,6 +400,19 @@ class AppState {
 
   endEditGroup() {
     this.group = null;
+  }
+
+  async renameConfig() {
+    if (!this.profile || this.readOnly) return;
+    const name = await this.ask(t('header.rename_config'), this.profile.name ?? '');
+    if (name) this.edit((p) => ({ ...p, name }));
+  }
+
+  /** Save, then copy the open config into a new one next to it and open that. */
+  async duplicateConfig() {
+    if (!this.configPath) return;
+    if (this.dirty && !(await this.save())) return;
+    await this.createConfig(api.configDuplicate(this.configPath));
   }
 
   /** Open a context menu at a window point, or below `from` when the point is unknown (keyboard). */
