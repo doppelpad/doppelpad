@@ -492,6 +492,8 @@ npx tauri dev                 # development build with hot reload
 npm test                      # frontend unit tests
 npm run check                 # type check
 npm run icons                 # re-render src-tauri/icons/ from icons/source/*.svg
+npm run drawings              # re-generate the controller drawings (src/assets/devices)
+npm run licenses              # re-generate THIRD_PARTY_LICENSES.md (see below)
 ```
 
 The GUI crate is not in the workspace's `default-members`, so `cargo build` and
@@ -534,7 +536,7 @@ compiler. The setup installs both through `bundle.resources`.
 dependencies, regenerate it in `gui/` and commit the result:
 
 ```bash
-node scripts/third-party-licenses.mjs
+npm run licenses
 ```
 
 This needs cargo-about 0.9.2 (`cargo install cargo-about --version 0.9.2 --locked --features cli`),

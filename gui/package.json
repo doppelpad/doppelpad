@@ -3,6 +3,9 @@
   "private": true,
   "version": "0.3.0",
   "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -10,6 +13,8 @@
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "test": "vitest run",
     "icons": "node scripts/icons.mjs",
+    "drawings": "node src/assets/devices/generate.mjs",
+    "licenses": "node scripts/third-party-licenses.mjs",
     "tauri": "tauri"
   },
   "dependencies": {
