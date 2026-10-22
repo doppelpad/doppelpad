@@ -556,5 +556,10 @@ icons, crosshair shapes (each imported crosshair is drawn as a cross), adaptive 
 LED settings and unsupported commands. Launch commands, which start programs, are listed
 and left out of the TOML unless you pass `--keep-launches` (only for a profile you trust).
 
+That format often lists an extra "unmap" entry for every remapped button. The importer leaves
+these out where another mapping on the same layer already has the button, since a mapped
+button never reaches the virtual pad anyway. An unmap of a keyboard key or mouse button stays:
+it keeps the original key from reaching the system.
+
 In that format a button that pushes a stick ramps up gradually by default, so imported
 profiles get `[virtual.sticks.*]` settings with that ramp for every stick that buttons push.

@@ -123,6 +123,38 @@ fn fold_jump_pairs(mappings: &mut Vec<Mapping>) {
     }
 }
 
+/// Drop "unmap" entries (no actions, no jump) whose trigger another mapping on the same layer
+/// and activator already has: that mapping consumes the trigger anyway. The format often lists
+/// both for every remapped button. An unmap of a single keyboard or mouse control stays beside
+/// a mapping, since it is what keeps the original key from reaching the system.
+fn drop_redundant_unmaps(mappings: &mut Vec<Mapping>) {
+    let is_unmap = |m: &Mapping| {
+        m.actions.is_empty()
+            && m.jump.is_none()
+            && m.long_press_ms.is_none()
+            && m.double_tap_ms.is_none()
+            && m.triple_tap_ms.is_none()
+    };
+    let redundant: Vec<bool> = mappings
+        .iter()
+        .enumerate()
+        .map(|(i, m)| {
+            let trigger = m.trigger.normalized();
+            let mutes_key = matches!(trigger.0.as_slice(), [c] if c.is_kbm());
+            is_unmap(m)
+                && mappings.iter().enumerate().any(|(k, o)| {
+                    k != i
+                        && o.layer == m.layer
+                        && o.activator == m.activator
+                        && o.trigger.normalized() == trigger
+                        && if is_unmap(o) { k < i } else { !mutes_key }
+                })
+        })
+        .collect();
+    let mut redundant = redundant.into_iter();
+    mappings.retain(|_| !redundant.next().unwrap_or(false));
+}
+
 /// Import a JSON profile document.
 pub fn import(json: &str) -> Result<(Profile, Diagnostics), ImportError> {
     if !crate::looks_like_json(json) {
@@ -233,6 +265,7 @@ impl<'a> Importer<'a> {
             }
         }
         fold_jump_pairs(&mut p.mappings);
+        drop_redundant_unmaps(&mut p.mappings);
         self.virtual_sticks(&mut p);
         if let Some(turn) = self.turn.take() {
             p.virtual_devices.mouse.counts_per_turn = turn.counts_per_turn;

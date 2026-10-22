@@ -247,6 +247,41 @@ fn jump_pairs_fold_into_hold_shift() {
 }
 
 #[test]
+fn unmaps_beside_a_mapping_are_dropped() {
+    let doc = r#"{ "schemaVersion": 3.0, "appVersion": "9.2.0", "config": { "appName": "x", "minTimeUnit": 1 },
+      "devices": { "hardware": [ { "id": 1, "name": "gamepad" }, { "id": 11, "name": "keyboard" } ] },
+      "masks": [ { "id": 1, "set": [ { "deviceId": 1, "buttonId": 1 } ] },
+                 { "id": 2, "set": [ { "deviceId": 11, "buttonId": 57, "description": "DIK_SPACE" } ] } ],
+      "mappings": [
+        { "condition": { "mask": { "id": 1, "activator": { "type": "single", "mode": "hold_until_release" } } },
+          "macros": [ { "keyboard": { "buttonId": 18, "description": "DIK_E" } } ] },
+        { "condition": { "mask": { "id": 2, "activator": { "type": "single", "mode": "hold_until_release" } } },
+          "macros": [ { "keyboard": { "buttonId": 17, "description": "DIK_W" } } ] },
+        { "condition": { "hardware": { "deviceId": 1, "buttonId": 1 } }, "hardware": { "unmap": true } },
+        { "condition": { "hardware": { "deviceId": 1, "buttonId": 2 } }, "hardware": { "unmap": true } },
+        { "condition": { "hardware": { "deviceId": 1, "buttonId": 2 } }, "hardware": { "unmap": true } },
+        { "condition": { "mask": { "id": 2, "activator": { "type": "single", "mode": "hold_until_release" } } } }
+      ] }"#;
+    let (p, _) = import(doc).unwrap();
+    let triggers: Vec<_> = p
+        .mappings
+        .iter()
+        .map(|m| (m.trigger.0[0], m.actions.is_empty()))
+        .collect();
+    // A's unmap and B's second unmap go; B's first unmap and Space's (which mutes the key)
+    // stay.
+    assert_eq!(
+        triggers,
+        [
+            (Control::Button(PadButton::A), false),
+            (Control::Key(Key::Space), false),
+            (Control::Button(PadButton::B), true),
+            (Control::Key(Key::Space), true),
+        ]
+    );
+}
+
+#[test]
 fn vibration_strengths_swap_and_gap() {
     let doc = r#"{ "schemaVersion": 3.0, "appVersion": "9.2.0", "config": { "appName": "x", "minTimeUnit": 1 },
       "devices": { "hardware": [ { "id": 1, "name": "gamepad", "default": {
