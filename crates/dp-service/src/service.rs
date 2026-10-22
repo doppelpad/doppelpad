@@ -91,11 +91,22 @@ const TEST_TURN_DELAY_MS: u64 = 3000;
 /// ... and takes this long.
 const TEST_TURN_MS: u64 = 1000;
 
-/// Commands beyond the IPC protocol, used by the GUI.
+/// What the service can be asked: everything the IPC protocol offers (`doppelpad
+/// apply|stop|status|...`, see [`Service::handle_ipc`]) and more for the GUI.
 #[derive(Clone, Debug, PartialEq)]
 pub enum ServiceCmd {
-    /// A request of the IPC protocol (`doppelpad apply|stop|status|...`).
-    Ipc(Request),
+    /// The status in IPC form ([`ServiceReply::Status`]).
+    GetStatus,
+    /// The connected controllers in IPC form ([`ServiceReply::Devices`]).
+    GetDevices,
+    /// Load and activate a config file outside the slots until something else is chosen.
+    Apply(PathBuf),
+    /// Stop remapping.
+    Stop,
+    /// Re-read the profiles directory (games or configs changed on disk).
+    Reload,
+    /// Acknowledge; the host then stops the service.
+    Shutdown,
     /// Put a config into a slot and make that slot active. `device`: the slots of that
     /// controller (which gets slots of its own if it has none yet), else the shared ones.
     ApplyToSlot {
@@ -181,7 +192,8 @@ pub enum ServiceCmd {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum ServiceReply {
-    Ipc(Response),
+    Status(Status),
+    Devices(Vec<Device>),
     Ok(String),
     Err(String),
     Hotkeys(Hotkeys),
@@ -191,7 +203,8 @@ pub enum ServiceReply {
 impl From<ServiceReply> for Response {
     fn from(reply: ServiceReply) -> Response {
         match reply {
-            ServiceReply::Ipc(r) => r,
+            ServiceReply::Status(s) => Response::Status(s),
+            ServiceReply::Devices(devices) => Response::Devices { devices },
             other => other.into_result().into(),
         }
     }
@@ -200,9 +213,10 @@ impl From<ServiceReply> for Response {
 impl ServiceReply {
     pub fn into_result(self) -> Result<String, String> {
         match self {
-            ServiceReply::Ok(m) | ServiceReply::Ipc(Response::Ok { message: m }) => Ok(m),
-            ServiceReply::Err(m) | ServiceReply::Ipc(Response::Error { message: m }) => Err(m),
-            ServiceReply::Ipc(other) => Ok(format!("{other:?}")),
+            ServiceReply::Ok(m) => Ok(m),
+            ServiceReply::Err(m) => Err(m),
+            ServiceReply::Status(s) => Ok(format!("{s:?}")),
+            ServiceReply::Devices(d) => Ok(format!("{d:?}")),
             ServiceReply::Hotkeys(h) => Ok(format!("{h:?}")),
         }
     }
@@ -531,19 +545,6 @@ impl Service {
         }
     }
 
-    /// The reply to a slot or remap command in IPC form; slots are 1–4 over IPC.
-    fn ipc_reply(&mut self, cmd: ServiceCmd) -> Response {
-        self.handle(cmd).into()
-    }
-
-    /// Run a slot command for a 1-based slot number from IPC.
-    fn ipc_slot(&mut self, slot: usize, cmd: impl FnOnce(usize) -> ServiceCmd) -> Response {
-        if !(1..=SLOTS).contains(&slot) {
-            return Response::error(format!("slot {slot} does not exist (1–{SLOTS})"));
-        }
-        self.ipc_reply(cmd(slot - 1))
-    }
-
     fn warnings(&self) -> Vec<String> {
         let mut w = self.rt.warnings();
         w.extend(self.hiding_problems.iter().cloned());
@@ -572,42 +573,38 @@ impl Service {
         }
     }
 
+    /// The command for a request; slots count 1–4 over IPC.
     fn answer_ipc(&mut self, req: Request) -> Response {
-        match req {
-            Request::Status => Response::Status(self.status()),
-            Request::Apply { path } => {
-                let path = PathBuf::from(path);
-                match self.apply_path(&path) {
-                    Ok(()) => {
-                        self.oneoff = Some(path.clone());
-                        self.auto_active = None;
-                        self.update_state(|s| s.remap_on = true);
-                        self.sync_devices();
-                        Response::ok(format!("applied {}", path.display()))
-                    }
-                    Err(e) => Response::error(format!("{e:#}")),
-                }
-            }
-            Request::Stop => {
-                self.rt.stop();
-                self.last_error = None;
-                self.turn_remap_off();
-                Response::ok("remapping stopped")
-            }
-            Request::ApplyToSlot { path, slot, device } => {
-                self.ipc_slot(slot, |slot| ServiceCmd::ApplyToSlot {
+        let slot = |n: usize| (1..=SLOTS).contains(&n).then(|| n - 1);
+        let no_slot = |n: usize| Response::error(format!("slot {n} does not exist (1–{SLOTS})"));
+        let cmd = match req {
+            Request::Status => ServiceCmd::GetStatus,
+            Request::Devices => ServiceCmd::GetDevices,
+            Request::Apply { path } => ServiceCmd::Apply(path.into()),
+            Request::Stop => ServiceCmd::Stop,
+            Request::ApplyToSlot {
+                path,
+                slot: n,
+                device,
+            } => match slot(n) {
+                Some(slot) => ServiceCmd::ApplyToSlot {
                     device,
                     slot,
-                    path: PathBuf::from(path),
-                })
-            }
-            Request::SelectSlot { slot, device } => {
-                self.ipc_slot(slot, |slot| ServiceCmd::SelectSlot { device, slot })
-            }
+                    path: path.into(),
+                },
+                None => return no_slot(n),
+            },
+            Request::SelectSlot { slot: n, device } => match slot(n) {
+                Some(slot) => ServiceCmd::SelectSlot { device, slot },
+                None => return no_slot(n),
+            },
             Request::ClearSlot {
-                slot: Some(slot),
+                slot: Some(n),
                 device,
-            } => self.ipc_slot(slot, |slot| ServiceCmd::ClearSlot { device, slot }),
+            } => match slot(n) {
+                Some(slot) => ServiceCmd::ClearSlot { device, slot },
+                None => return no_slot(n),
+            },
             Request::ClearSlot { slot: None, device } => {
                 for slot in 0..SLOTS {
                     self.run(ServiceCmd::ClearSlot {
@@ -615,22 +612,14 @@ impl Service {
                         slot,
                     });
                 }
-                Response::ok("all slots cleared")
+                return Response::ok("all slots cleared");
             }
-            Request::Remap { on } => self.ipc_reply(ServiceCmd::SetRemap(on)),
-            Request::Devices => Response::Devices {
-                devices: ipc_devices(&self.rt),
-            },
-            Request::AutoSwitch { enabled } => {
-                self.set_auto_switch(enabled);
-                Response::ok(format!("automatic profile switching {}", on_off(enabled)))
-            }
-            Request::Reload => {
-                self.reload();
-                Response::ok(format!("{} profiles", self.loose_profiles()))
-            }
-            Request::Shutdown => Response::ok("shutting down"),
-        }
+            Request::Remap { on } => ServiceCmd::SetRemap(on),
+            Request::AutoSwitch { enabled } => ServiceCmd::SetAutoSwitch(enabled),
+            Request::Reload => ServiceCmd::Reload,
+            Request::Shutdown => ServiceCmd::Shutdown,
+        };
+        self.run(cmd).into()
     }
 
     fn set_auto_switch(&mut self, enabled: bool) {
@@ -667,7 +656,29 @@ impl Service {
 
     fn run(&mut self, cmd: ServiceCmd) -> ServiceReply {
         match cmd {
-            ServiceCmd::Ipc(req) => ServiceReply::Ipc(self.handle_ipc(req)),
+            ServiceCmd::GetStatus => ServiceReply::Status(self.status()),
+            ServiceCmd::GetDevices => ServiceReply::Devices(ipc_devices(&self.rt)),
+            ServiceCmd::Apply(path) => match self.apply_path(&path) {
+                Ok(()) => {
+                    self.oneoff = Some(path.clone());
+                    self.auto_active = None;
+                    self.update_state(|s| s.remap_on = true);
+                    self.sync_devices();
+                    ServiceReply::Ok(format!("applied {}", path.display()))
+                }
+                Err(e) => ServiceReply::Err(format!("{e:#}")),
+            },
+            ServiceCmd::Stop => {
+                self.rt.stop();
+                self.last_error = None;
+                self.turn_remap_off();
+                ServiceReply::Ok("remapping stopped".into())
+            }
+            ServiceCmd::Reload => {
+                self.reload();
+                ServiceReply::Ok(format!("{} profiles", self.loose_profiles()))
+            }
+            ServiceCmd::Shutdown => ServiceReply::Ok("shutting down".into()),
             ServiceCmd::ApplyToSlot { device, slot, path } => {
                 if let Some(e) = Self::bad_slot(slot) {
                     return e;
@@ -773,7 +784,7 @@ impl Service {
             }
             ServiceCmd::SetAutoSwitch(on) => {
                 self.set_auto_switch(on);
-                ServiceReply::Ok(format!("auto-switch {}", on_off(on)))
+                ServiceReply::Ok(format!("automatic profile switching {}", on_off(on)))
             }
             ServiceCmd::SetBlocked { id, blocked } => {
                 self.state.blocked.retain(|b| *b != id);
