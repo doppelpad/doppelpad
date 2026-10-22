@@ -6,6 +6,7 @@ use std::collections::HashMap;
 use std::io;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
+use std::thread::JoinHandle;
 use std::time::Duration;
 
 use dp_core::pad::Rumble;
@@ -24,9 +25,9 @@ use crate::nintendo::gcadapter::{
     self, ADAPTER_PID, Adapter, PORTS, Port, PortKind, START, rumble_report,
 };
 use crate::padio::ReportIo;
+use crate::scan::{RESCAN, Rescanner};
 use crate::{DeviceId, DeviceInfo, GamepadBackend, PadFamily, PadSnapshot};
 
-const RESCAN: Duration = Duration::from_secs(2);
 const READ_WAIT: Duration = Duration::from_millis(50);
 /// The stronger motor at this level or more turns the plain GameCube motor on.
 const RUMBLE_ON: f32 = 0.2;
@@ -169,38 +170,30 @@ fn run(mut io: Box<dyn ReportIo + Send>, shared: &Shared) {
     }
 }
 
-type Adapters = Arc<Mutex<HashMap<String, Arc<Shared>>>>;
+/// An adapter's thread and what it shares.
+struct Running {
+    shared: Arc<Shared>,
+    thread: JoinHandle<()>,
+}
+
+type Adapters = Arc<Mutex<HashMap<String, Running>>>;
 
 pub struct GcAdapterBackend {
     adapters: Adapters,
     problems: Arc<Mutex<Vec<String>>>,
-    stop: Arc<AtomicBool>,
-    rescan: crossbeam_channel::Sender<()>,
+    scanner: Rescanner,
 }
 
 impl GcAdapterBackend {
     pub fn new() -> Self {
         let adapters: Adapters = Arc::default();
         let problems: Arc<Mutex<Vec<String>>> = Arc::default();
-        let stop = Arc::new(AtomicBool::new(false));
-        let (rescan, rescan_rx) = crossbeam_channel::bounded(1);
-        let (a, p, s) = (adapters.clone(), problems.clone(), stop.clone());
-        let spawned = std::thread::Builder::new()
-            .name("dp-gcadapter-scan".into())
-            .spawn(move || {
-                while !s.load(Ordering::Relaxed) {
-                    scan(&a, &p);
-                    let _ = rescan_rx.recv_timeout(RESCAN);
-                }
-            });
-        if let Err(e) = spawned {
-            tracing::warn!("cannot look for GameCube adapters: {e}");
-        }
+        let (a, p) = (adapters.clone(), problems.clone());
+        let scanner = Rescanner::spawn("dp-gcadapter-scan", RESCAN, move |_| scan(&a, &p));
         GcAdapterBackend {
             adapters,
             problems,
-            stop,
-            rescan,
+            scanner,
         }
     }
 }
@@ -222,11 +215,11 @@ fn start(adapters: &Adapters, instance: &str, hide: Option<String>, io: Box<dyn 
             thread_shared.done.store(true, Ordering::Relaxed);
         });
     match spawned {
-        Ok(_) => {
+        Ok(thread) => {
             adapters
                 .lock()
                 .unwrap()
-                .insert(instance.to_ascii_uppercase(), shared);
+                .insert(instance.to_ascii_uppercase(), Running { shared, thread });
         }
         Err(e) => tracing::warn!("cannot start the GameCube adapter thread: {e}"),
     }
@@ -236,7 +229,7 @@ fn scan(adapters: &Adapters, problems: &Mutex<Vec<String>>) {
     adapters
         .lock()
         .unwrap()
-        .retain(|_, a| !a.done.load(Ordering::Relaxed));
+        .retain(|_, a| !a.shared.done.load(Ordering::Relaxed));
     let open = |instance: &str| {
         adapters
             .lock()
@@ -294,9 +287,21 @@ fn scan(adapters: &Adapters, problems: &Mutex<Vec<String>>) {
 
 impl Drop for GcAdapterBackend {
     fn drop(&mut self) {
-        self.stop.store(true, Ordering::Relaxed);
-        for a in self.adapters.lock().unwrap().values() {
-            a.stop.store(true, Ordering::Relaxed);
+        // No new adapter may start once the list is drained.
+        self.scanner.stop();
+        let adapters: Vec<Running> = self
+            .adapters
+            .lock()
+            .unwrap()
+            .drain()
+            .map(|(_, a)| a)
+            .collect();
+        for a in &adapters {
+            a.shared.stop.store(true, Ordering::Relaxed);
+        }
+        // Each thread turns the motors off before it ends.
+        for a in adapters {
+            let _ = a.thread.join();
         }
     }
 }
@@ -308,6 +313,7 @@ impl GamepadBackend for GcAdapterBackend {
 
     fn poll(&mut self, out: &mut Vec<PadSnapshot>) {
         for a in self.adapters.lock().unwrap().values() {
+            let a = &a.shared;
             let ports = *a.ports.lock().unwrap();
             for (port, info) in ports.iter().zip(&a.infos) {
                 if let Some(p) = port {
@@ -324,6 +330,7 @@ impl GamepadBackend for GcAdapterBackend {
 
     fn set_rumble(&mut self, id: &DeviceId, rumble: Rumble) {
         for a in self.adapters.lock().unwrap().values() {
+            let a = &a.shared;
             if let Some(i) = a.infos.iter().position(|info| &info.id == id) {
                 a.rumble.lock().unwrap()[i] = rumble.low.max(rumble.high) >= RUMBLE_ON;
                 return;
@@ -336,6 +343,6 @@ impl GamepadBackend for GcAdapterBackend {
     }
 
     fn rescan(&mut self) {
-        let _ = self.rescan.try_send(());
+        self.scanner.wake();
     }
 }
