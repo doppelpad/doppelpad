@@ -1,8 +1,23 @@
 //! GUI preferences, stored in `config_dir/gui.toml`.
 
+use std::ops::RangeInclusive;
 use std::path::PathBuf;
+use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
+
+/// Size of a notification, in percent.
+const OSD_SCALE: RangeInclusive<u16> = 50..=200;
+/// How long a notification stays, in seconds.
+const OSD_SECONDS: RangeInclusive<u8> = 1..=30;
+/// Opacity of the overlays, in percent.
+const OPACITY: RangeInclusive<u8> = 20..=100;
+/// Size of the controller overlay, in percent.
+const PAD_SIZE: RangeInclusive<u8> = 30..=150;
+
+fn clamp<T: Ord + Copy>(value: T, range: &RangeInclusive<T>) -> T {
+    value.clamp(*range.start(), *range.end())
+}
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
@@ -74,12 +89,9 @@ impl Default for OsdSettings {
 }
 
 impl OsdSettings {
-    /// The settings with every number in its range.
-    pub fn clamped(mut self) -> OsdSettings {
-        self.scale = self.scale.clamp(50, 200);
-        self.opacity = self.opacity.clamp(20, 100);
-        self.seconds = self.seconds.clamp(1, 30);
-        self
+    /// How long a message stays.
+    pub fn duration(&self) -> Duration {
+        Duration::from_secs(u64::from(self.seconds))
     }
 }
 
@@ -98,7 +110,7 @@ pub enum Corner {
 #[serde(default)]
 pub struct PadOverlaySettings {
     pub corner: Corner,
-    /// Size in percent: 50, 70 or 90 of 600 logical pixels across.
+    /// Size in percent of 600 logical pixels across (the window offers 50, 70 and 90).
     pub size: u8,
     /// Opacity in percent, 20–100.
     pub opacity: u8,
@@ -168,11 +180,47 @@ fn path() -> PathBuf {
 
 impl GuiSettings {
     pub fn load() -> GuiSettings {
-        dp_config::load_toml_or_default(&path())
+        dp_config::load_toml_or_default::<GuiSettings>(&path()).clamped()
+    }
+
+    /// The settings with every number in its range: the window keeps to the ranges, a file
+    /// edited by hand may not.
+    pub fn clamped(mut self) -> GuiSettings {
+        let osd = &mut self.osd;
+        osd.scale = clamp(osd.scale, &OSD_SCALE);
+        osd.opacity = clamp(osd.opacity, &OPACITY);
+        osd.seconds = clamp(osd.seconds, &OSD_SECONDS);
+        let pad = &mut self.pad_overlay;
+        pad.size = clamp(pad.size, &PAD_SIZE);
+        pad.opacity = clamp(pad.opacity, &OPACITY);
+        let mappings = &mut self.mappings_overlay;
+        mappings.opacity = clamp(mappings.opacity, &OPACITY);
+        self
     }
 
     /// Write atomically (temporary file, then rename).
     pub fn save(&self) -> std::io::Result<()> {
         dp_config::save_toml(&path(), self)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn clamped_keeps_every_number_in_its_range() {
+        assert_eq!(GuiSettings::default().clamped(), GuiSettings::default());
+        let mut s = GuiSettings::default();
+        s.osd.scale = 500;
+        s.osd.seconds = 0;
+        s.osd.opacity = 5;
+        s.pad_overlay.size = 10;
+        s.pad_overlay.opacity = 200;
+        s.mappings_overlay.opacity = 0;
+        let s = s.clamped();
+        assert_eq!((s.osd.scale, s.osd.seconds, s.osd.opacity), (200, 1, 20));
+        assert_eq!((s.pad_overlay.size, s.pad_overlay.opacity), (30, 100));
+        assert_eq!(s.mappings_overlay.opacity, 20);
     }
 }

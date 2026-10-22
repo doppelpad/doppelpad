@@ -113,8 +113,15 @@ struct View {
     profile_path: Option<String>,
     layer: u8,
     layer_name: Option<String>,
-    /// Id, name and battery of each controller.
-    devices: Vec<(String, String, Option<Battery>)>,
+    devices: Vec<PadInfo>,
+}
+
+/// A controller as notifications see it.
+#[derive(Clone, Debug, PartialEq)]
+struct PadInfo {
+    id: String,
+    name: String,
+    battery: Option<Battery>,
 }
 
 impl View {
@@ -128,7 +135,11 @@ impl View {
             devices: live
                 .devices
                 .iter()
-                .map(|d| (d.id.clone(), d.name.clone(), d.battery))
+                .map(|d| PadInfo {
+                    id: d.id.clone(),
+                    name: d.name.clone(),
+                    battery: d.battery,
+                })
                 .collect(),
         }
     }
@@ -139,14 +150,18 @@ impl View {
 fn events(old: &View, new: &View, s: &OsdSettings) -> Vec<Event> {
     let mut out = Vec::new();
     if s.controller {
-        for (id, name, _) in &old.devices {
-            if !new.devices.iter().any(|(i, ..)| i == id) {
-                out.push(Event::Disconnected { name: name.clone() });
+        for d in &old.devices {
+            if !new.devices.iter().any(|n| n.id == d.id) {
+                out.push(Event::Disconnected {
+                    name: d.name.clone(),
+                });
             }
         }
-        for (id, name, _) in &new.devices {
-            if !old.devices.iter().any(|(i, ..)| i == id) {
-                out.push(Event::Connected { name: name.clone() });
+        for d in &new.devices {
+            if !old.devices.iter().any(|o| o.id == d.id) {
+                out.push(Event::Connected {
+                    name: d.name.clone(),
+                });
             }
         }
     }
@@ -179,32 +194,39 @@ fn events(old: &View, new: &View, s: &OsdSettings) -> Vec<Event> {
 /// Battery warnings below these levels (percent).
 const LOW: u8 = 40;
 const CRITICAL: u8 = 20;
+/// A battery charging or back at this level (percent) may warn again.
+const REARM_ABOVE: u8 = LOW + 10;
 
-/// Warnings for batteries that dropped below a threshold since `warned` (per controller: 0
-/// none, 1 low, 2 critical) was last updated. A warning repeats only after charging or
-/// climbing well above the low threshold again.
-fn battery_events(
-    devices: &[(String, String, Option<Battery>)],
-    warned: &mut HashMap<String, u8>,
-) -> Vec<Event> {
-    warned.retain(|id, _| devices.iter().any(|(i, ..)| i == id));
+/// The battery warning a controller got last.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
+enum Warned {
+    #[default]
+    None,
+    Low,
+    Critical,
+}
+
+/// Warnings for batteries that dropped below a threshold since `warned` was last updated.
+/// A warning repeats only after charging or climbing back to [`REARM_ABOVE`].
+fn battery_events(devices: &[PadInfo], warned: &mut HashMap<String, Warned>) -> Vec<Event> {
+    warned.retain(|id, _| devices.iter().any(|d| &d.id == id));
     let mut out = Vec::new();
-    for (id, name, battery) in devices {
-        let Some(b) = battery else { continue };
-        let w = warned.entry(id.clone()).or_insert(0);
-        if !b.draining() || b.level >= LOW + 10 {
-            *w = 0;
+    for d in devices {
+        let Some(b) = d.battery else { continue };
+        let w = warned.entry(d.id.clone()).or_default();
+        if !b.draining() || b.level >= REARM_ABOVE {
+            *w = Warned::None;
             continue;
         }
         let now = match b.level {
-            l if l < CRITICAL => 2,
-            l if l < LOW => 1,
-            _ => 0,
+            l if l < CRITICAL => Warned::Critical,
+            l if l < LOW => Warned::Low,
+            _ => Warned::None,
         };
         if now > *w {
             *w = now;
-            let (name, level) = (name.clone(), b.level);
-            out.push(if now == 2 {
+            let (name, level) = (d.name.clone(), b.level);
+            out.push(if now == Warned::Critical {
                 Event::BatteryCritical { name, level }
             } else {
                 Event::BatteryLow { name, level }
@@ -214,11 +236,11 @@ fn battery_events(
     out
 }
 
-/// Show `event` now; `keep` leaves it up until the next one.
-pub fn notify(app: &AppHandle, event: Event, keep: bool) {
+/// Show `event` now, for `keep` or, with `None`, until the next message.
+pub fn notify(app: &AppHandle, event: Event, keep: Option<Duration>) {
     let (lang, s) = {
         let settings = app.state::<AppState>().settings.lock().unwrap().clone();
-        (settings.language, settings.osd.clamped())
+        (settings.language, settings.osd)
     };
     let state = app.state::<OsdState>();
     let mut inner = state.inner.lock().unwrap();
@@ -231,7 +253,7 @@ pub fn notify(app: &AppHandle, event: Event, keep: bool) {
         scale: s.scale,
         corner: s.corner,
     };
-    inner.until = (!keep).then(|| Instant::now() + Duration::from_secs(u64::from(s.seconds)));
+    inner.until = keep.map(|d| Instant::now() + d);
     drop(inner);
     let k = f64::from(s.scale) / 100.0;
     let placement = Placement::Corner {
@@ -280,16 +302,16 @@ pub(crate) fn watch(app: AppHandle, live: SharedLive) {
                     {
                         *path = config_label(path);
                     }
-                    let keep =
+                    let stays =
                         s.keep_layer && matches!(e, Event::Layer { layer, .. } if layer != 0);
-                    notify(&app, e, keep);
+                    notify(&app, e, (!stays).then(|| s.duration()));
                 }
             }
             seen = view;
         }
         if !quiet && s.battery {
             for e in battery_events(&seen.devices, &mut warned) {
-                notify(&app, e, false);
+                notify(&app, e, Some(s.duration()));
             }
         }
         // Another message replaced a layer message that should stay: bring it back.
@@ -298,7 +320,7 @@ pub(crate) fn watch(app: AppHandle, live: SharedLive) {
                 layer: seen.layer,
                 name: seen.layer_name.clone(),
             };
-            notify(&app, e, true);
+            notify(&app, e, None);
         }
     }
 }
@@ -307,10 +329,17 @@ pub(crate) fn watch(app: AppHandle, live: SharedLive) {
 /// run on the main thread, where plain commands run.
 #[tauri::command(async)]
 pub fn osd_test(app: AppHandle) {
-    notify(&app, Event::Test, false);
+    let shown = app
+        .state::<AppState>()
+        .settings
+        .lock()
+        .unwrap()
+        .osd
+        .duration();
+    notify(&app, Event::Test, Some(shown));
 }
 
-/// Names of the monitors notifications can use, the primary one first.
+/// The monitors notifications can use, named by their size, the primary one first.
 #[tauri::command]
 pub fn osd_monitors(app: AppHandle) -> Vec<String> {
     overlay::monitors(&app)
@@ -333,7 +362,11 @@ mod tests {
             profile_path: Some("a.toml".into()),
             layer: 0,
             layer_name: None,
-            devices: vec![("pad1".into(), "DualSense".into(), None)],
+            devices: vec![PadInfo {
+                id: "pad1".into(),
+                name: "DualSense".into(),
+                battery: None,
+            }],
         }
     }
 
@@ -369,7 +402,11 @@ mod tests {
         let old = view();
         let mut new = view();
         new.remap_on = false;
-        new.devices = vec![("pad2".into(), "Pro Controller".into(), None)];
+        new.devices = vec![PadInfo {
+            id: "pad2".into(),
+            name: "Pro Controller".into(),
+            battery: None,
+        }];
         assert_eq!(
             events(&old, &new, &s),
             vec![
@@ -390,15 +427,15 @@ mod tests {
     #[test]
     fn batteries_warn_once_per_drop() {
         let pad = |level, charging| {
-            vec![(
-                "pad1".to_string(),
-                "DualSense".to_string(),
-                Some(Battery {
+            vec![PadInfo {
+                id: "pad1".into(),
+                name: "DualSense".into(),
+                battery: Some(Battery {
                     level,
                     charging,
                     wired: false,
                 }),
-            )]
+            }]
         };
         let mut warned = HashMap::new();
         assert!(battery_events(&pad(55, false), &mut warned).is_empty());

@@ -103,10 +103,10 @@ fn update_pad(app: &AppHandle, pad: &mut Pad, on: bool, device: Option<LiveDevic
         return;
     }
     if pad.shown.as_ref() != Some(&d) {
-        let k = f64::from(s.size.clamp(30, 150)) / 100.0;
+        let k = f64::from(s.size) / 100.0;
         let content = PadContent {
             device: d.clone(),
-            opacity: s.opacity.clamp(20, 100),
+            opacity: s.opacity,
             corner: s.corner,
         };
         let placement = in_corner(s.corner, (PAD_SIZE.0 * k, PAD_SIZE.1 * k));
@@ -144,7 +144,7 @@ fn update_mappings(
                 layer,
                 family,
                 lang,
-                opacity: s.opacity.clamp(20, 100),
+                opacity: s.opacity,
                 corner: s.corner,
             };
             let placement = in_corner(s.corner, MAPPINGS_SIZE);

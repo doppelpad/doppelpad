@@ -459,7 +459,7 @@ running reWASD.
 | `%APPDATA%\doppelpad\state.toml` | The four slots, active slot, remap on/off, autodetect |
 | `%APPDATA%\doppelpad\hotkeys.toml` | Controller hotkeys and their hold time (also read by `doppelpad daemon`) |
 | `%APPDATA%\doppelpad\calibration.toml` | Gyro calibration per controller (also used by `doppelpad daemon`) |
-| `%APPDATA%\doppelpad\gui.toml` | Language, focus pause, press-to-select |
+| `%APPDATA%\doppelpad\gui.toml` | Language, focus pause, press-to-select, what to do about a running reWASD, notifications, the controller and mappings overlays, whether the welcome guide is done |
 | `%LOCALAPPDATA%\doppelpad\logs\doppelpad-gui.log` | Log of the current run; the logs of the five runs before are kept as `doppelpad-gui.log.1` (the newest) to `.5` |
 
 The app saves atomically (it writes a temporary file, then renames it). Before it

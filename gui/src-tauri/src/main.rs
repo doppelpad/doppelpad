@@ -19,7 +19,7 @@ mod tray;
 
 use std::sync::atomic::{AtomicBool, AtomicU64};
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use dp_service::{HostOptions, ServiceOptions};
 use tauri::{Manager, WebviewWindow, WebviewWindowBuilder, WindowEvent};
@@ -27,12 +27,20 @@ use tauri::{Manager, WebviewWindow, WebviewWindowBuilder, WindowEvent};
 use crate::commands::{AppState, MAIN_WINDOW, Notice};
 use crate::settings::GuiSettings;
 
+/// How often, and at most how long, the app asks whether a service it stopped is gone.
+const TAKEOVER_POLL: Duration = Duration::from_millis(50);
+const TAKEOVER_WAIT: Duration = Duration::from_secs(3);
+
 /// If a `doppelpad daemon` (or another instance) already serves remapping, ask it to stop
-/// so this app can take over the devices.
+/// and wait until it no longer answers, so this app can take over the devices.
 fn take_over_running_service(notices: &mut Vec<Notice>) {
-    if dp_ipc::call(&dp_ipc::Request::Status).is_ok() {
+    let answers = || dp_ipc::call(&dp_ipc::Request::Status).is_ok();
+    if answers() {
         let _ = dp_ipc::call(&dp_ipc::Request::Shutdown);
-        std::thread::sleep(Duration::from_millis(400));
+        let deadline = Instant::now() + TAKEOVER_WAIT;
+        while answers() && Instant::now() < deadline {
+            std::thread::sleep(TAKEOVER_POLL);
+        }
         notices.push(Notice::ServiceTakeover);
     }
 }
