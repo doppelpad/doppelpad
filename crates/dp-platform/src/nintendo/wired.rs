@@ -4,7 +4,7 @@
 use std::io;
 use std::time::Instant;
 
-use dp_core::pad::{Axis, PadButton, PadState, Rumble, axis_from_u8};
+use dp_core::pad::{Axis, PadButton, PadState, Rumble, Stick, stick_from_hid_u8};
 
 use super::{HORI_VID, PDP_VID, POWERA_VID, ZUIKI_VID};
 use crate::PadFamily;
@@ -54,10 +54,8 @@ pub fn parse_report(r: &[u8]) -> Option<PadState> {
     s.set(PadButton::DpadRight, right);
     s.set(PadButton::DpadDown, down);
     s.set(PadButton::DpadLeft, left);
-    s.set_axis(Axis::LeftX, axis_from_u8(p[3], false));
-    s.set_axis(Axis::LeftY, axis_from_u8(p[4], true));
-    s.set_axis(Axis::RightX, axis_from_u8(p[5], false));
-    s.set_axis(Axis::RightY, axis_from_u8(p[6], true));
+    s.set_stick(Stick::Left, stick_from_hid_u8(p[3], p[4]));
+    s.set_stick(Stick::Right, stick_from_hid_u8(p[5], p[6]));
     Some(s)
 }
 

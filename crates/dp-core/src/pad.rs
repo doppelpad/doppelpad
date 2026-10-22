@@ -242,20 +242,26 @@ pub fn axis_to_i16(v: f32) -> i16 {
     }
 }
 
-/// Convert an unsigned 8-bit centered axis (HID convention, 0x80 = center,
-/// 0 = left/up) to `[-1, 1]`. `invert` flips the sign (use for HID Y axes,
-/// where 0 means *up*).
+/// A stick from unsigned 8-bit centred HID axes (0x80 = centre, 0 = left and up), y up.
 #[inline]
-pub fn axis_from_u8(v: u8, invert: bool) -> f32 {
-    let f = (f32::from(v) - 127.5) / 127.5;
-    if invert { -f } else { f }
+pub fn stick_from_hid_u8(x: u8, y: u8) -> (f32, f32) {
+    (from_hid_u8(x), -from_hid_u8(y))
 }
 
-/// Inverse of [`axis_from_u8`].
+/// Inverse of [`stick_from_hid_u8`].
 #[inline]
-pub fn axis_to_u8(v: f32, invert: bool) -> u8 {
-    let v = if invert { -v } else { v }.clamp(-1.0, 1.0);
-    (v * 127.5 + 127.5).round().clamp(0.0, 255.0) as u8
+pub fn stick_to_hid_u8((x, y): (f32, f32)) -> [u8; 2] {
+    [to_hid_u8(x), to_hid_u8(-y)]
+}
+
+fn from_hid_u8(v: u8) -> f32 {
+    (f32::from(v) - 127.5) / 127.5
+}
+
+fn to_hid_u8(v: f32) -> u8 {
+    (v.clamp(-1.0, 1.0) * 127.5 + 127.5)
+        .round()
+        .clamp(0.0, 255.0) as u8
 }
 
 #[cfg(test)]
@@ -270,11 +276,12 @@ mod tests {
     }
 
     #[test]
-    fn u8_center_and_invert() {
-        assert!(axis_from_u8(0, false) <= -0.99);
-        assert!(axis_from_u8(0, true) >= 0.99);
-        assert_eq!(axis_to_u8(1.0, true), 0);
-        assert_eq!(axis_to_u8(-1.0, false), 0);
+    fn hid_u8_sticks_have_y_up() {
+        let (x, y) = stick_from_hid_u8(0, 0);
+        assert!(x <= -0.99 && y >= 0.99, "0 is left and up");
+        assert_eq!(stick_to_hid_u8((-1.0, 1.0)), [0, 0]);
+        assert_eq!(stick_to_hid_u8((1.0, -1.0)), [255, 255]);
+        assert_eq!(stick_to_hid_u8(stick_from_hid_u8(0x12, 0xe0)), [0x12, 0xe0]);
     }
 
     #[test]
