@@ -17,7 +17,7 @@ use crate::httpapi::{HttpApi, HttpSettings, Job};
 use crate::live::{LiveDevice, LiveState};
 use crate::net::Listener;
 use crate::runtime::{DriverStatus, Runtime};
-use crate::slots::{PlayerLights, RuntimeOptions, SLOTS, SlotState};
+use crate::slots::{PlayerLights, RuntimeOptions, SLOTS, SlotSet, SlotState};
 use crate::timing::Every;
 
 /// How often the foreground application is checked by default.
@@ -394,6 +394,20 @@ impl Service {
         self.connected = connected;
     }
 
+    /// A controller's own slots if it has them, else the shared ones.
+    fn slot_set(&self, device: Option<&str>) -> &SlotSet {
+        device
+            .and_then(|d| self.state.devices.get(d))
+            .unwrap_or(&self.state.shared)
+    }
+
+    fn slot_set_mut(&mut self, device: Option<&str>) -> &mut SlotSet {
+        match device.and_then(|d| self.state.devices.get_mut(d)) {
+            Some(own) => own,
+            None => &mut self.state.shared,
+        }
+    }
+
     /// The slot set a command addresses: a controller's own, else the shared one.
     fn has_own_slots(&self, device: Option<&str>) -> Option<String> {
         device
@@ -484,7 +498,7 @@ impl Service {
         let target = self.oneoff.clone().or_else(|| {
             self.state
                 .remap_on
-                .then(|| self.state.active_profile().cloned())
+                .then(|| self.state.shared.active_profile().cloned())
                 .flatten()
         });
         match target {
@@ -511,13 +525,8 @@ impl Service {
             virtual_pad: self.rt.virtual_pad().map(|k| k.name().to_owned()),
             hidden_devices: self.rt.hidden_devices(),
             warnings: self.warnings(),
-            slots: self
-                .state
-                .slots
-                .iter()
-                .map(|s| s.as_ref().map(|p| p.display().to_string()))
-                .collect(),
-            active_slot: self.state.active + 1,
+            slots: self.state.shared.display_names(),
+            active_slot: self.state.shared.active + 1,
             remap_on: self.state.remap_on,
         }
     }
@@ -678,8 +687,8 @@ impl Service {
                 }
                 self.clear_overrides();
                 self.update_state(|s| {
-                    s.slots[slot] = Some(path.clone());
-                    s.active = slot;
+                    s.shared.slots[slot] = Some(path.clone());
+                    s.shared.active = slot;
                 });
                 self.sync_devices();
                 // Re-apply even if the same file is active: it may have been edited.
@@ -693,14 +702,13 @@ impl Service {
                     return e;
                 }
                 self.state.remap_on = true;
-                if let Some(device) = self.has_own_slots(device.as_deref()) {
-                    if let Some(own) = self.state.devices.get_mut(&device) {
-                        own.active = slot;
-                    }
+                let device = self.has_own_slots(device.as_deref());
+                self.slot_set_mut(device.as_deref()).active = slot;
+                if let Some(device) = device {
                     return self.device_reply(&device, format!("slot {} selected", slot + 1));
                 }
                 self.clear_overrides();
-                self.update_state(|s| s.active = slot);
+                self.save_state();
                 self.apply_base();
                 self.sync_devices();
                 match &self.last_error {
@@ -712,14 +720,13 @@ impl Service {
                 if let Some(e) = Self::bad_slot(slot) {
                     return e;
                 }
-                if let Some(device) = self.has_own_slots(device.as_deref()) {
-                    if let Some(own) = self.state.devices.get_mut(&device) {
-                        own.slots[slot] = None;
-                    }
+                let device = self.has_own_slots(device.as_deref());
+                self.slot_set_mut(device.as_deref()).slots[slot] = None;
+                if let Some(device) = device {
                     return self.device_reply(&device, format!("slot {} cleared", slot + 1));
                 }
-                self.update_state(|s| s.slots[slot] = None);
-                if slot == self.state.active && self.auto_active.is_none() {
+                self.save_state();
+                if slot == self.state.shared.active && self.auto_active.is_none() {
                     self.apply_base();
                 }
                 ServiceReply::Ok(format!("slot {} cleared", slot + 1))
@@ -926,10 +933,7 @@ impl Service {
             match action {
                 HotkeyAction::Slot(n) => {
                     let device = self.has_own_slots(Some(&id.0));
-                    let slots = match &device {
-                        Some(d) => &self.state.devices[d].slots,
-                        None => &self.state.slots,
-                    };
+                    let slots = &self.slot_set(device.as_deref()).slots;
                     if slots.get(n as usize).is_none_or(Option::is_none) {
                         tracing::info!("slot {} is empty", n + 1);
                         continue;
@@ -1040,7 +1044,7 @@ impl Service {
     fn show_lights(&mut self) {
         let state = &self.state;
         self.rt.set_indicators(|id| {
-            let slot = state.devices.get(&id.0).map_or(state.active, |d| d.active) as u8 + 1;
+            let slot = state.devices.get(&id.0).unwrap_or(&state.shared).active as u8 + 1;
             Leds {
                 player: match state.player_lights {
                     PlayerLights::Always => Some(slot),
@@ -1273,13 +1277,8 @@ impl Service {
                     .filter(|l| !l.name.is_empty())
                     .map(|l| l.name.clone())
             }),
-            slots: self
-                .state
-                .slots
-                .iter()
-                .map(|s| s.as_ref().map(|p| p.display().to_string()))
-                .collect(),
-            active_slot: self.state.active,
+            slots: self.state.shared.display_names(),
+            active_slot: self.state.shared.active,
             remap_on: self.state.remap_on,
             player_lights: self.state.player_lights,
             mic_led: self.state.mic_led,
@@ -1321,11 +1320,7 @@ impl Service {
                 .iter()
                 .map(|(id, d)| crate::live::LiveDeviceSlots {
                     id: id.clone(),
-                    slots: d
-                        .slots
-                        .iter()
-                        .map(|s| s.as_ref().map(|p| p.display().to_string()))
-                        .collect(),
+                    slots: d.display_names(),
                     active_slot: d.active,
                 })
                 .collect(),
@@ -1648,7 +1643,7 @@ Host: 127.0.0.1:{}
 
         s.handle(ServiceCmd::SetRemap(false));
         assert_eq!(active_name(&s), None, "remap off unloads but keeps slots");
-        assert_eq!(s.slots().slots[2], Some(b.clone()));
+        assert_eq!(s.slots().shared.slots[2], Some(b.clone()));
         s.handle(ServiceCmd::SetRemap(true));
         assert_eq!(active_name(&s).as_deref(), Some("A"));
 
@@ -1685,8 +1680,8 @@ Host: 127.0.0.1:{}
         // A new service picks the persisted state up again.
         drop(s);
         let (s2, _) = service(dir.path(), Some(state));
-        assert_eq!(s2.slots().slots[2], Some(b));
-        assert_eq!(s2.slots().active, 0);
+        assert_eq!(s2.slots().shared.slots[2], Some(b));
+        assert_eq!(s2.slots().shared.active, 0);
     }
 
     #[test]
@@ -1704,7 +1699,7 @@ Host: 127.0.0.1:{}
             .into_result()
             .is_err()
         );
-        assert_eq!(s.slots().slots[1], None, "slot untouched");
+        assert_eq!(s.slots().shared.slots[1], None, "slot untouched");
     }
 
     #[test]
@@ -2007,12 +2002,12 @@ Host: 127.0.0.1:{}
             slot: Some(3),
             device: None
         })));
-        assert_eq!(s.slots().slots[2], None);
+        assert_eq!(s.slots().shared.slots[2], None);
         assert!(ok(s.handle_ipc(Request::ClearSlot {
             slot: None,
             device: None
         })));
-        assert!(s.slots().slots.iter().all(Option::is_none));
+        assert!(s.slots().shared.slots.iter().all(Option::is_none));
         assert_eq!(active_name(&s), None);
     }
 
