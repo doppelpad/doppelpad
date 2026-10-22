@@ -8,9 +8,9 @@ use dp_core::profile::Crosshair;
 use dp_service::SharedLive;
 use tauri::{AppHandle, PhysicalPosition, PhysicalSize};
 
-use crate::overlay;
+use crate::overlay::{self, OverlayKind};
 
-const KIND: &str = "crosshair";
+const KIND: OverlayKind = OverlayKind::Crosshair;
 const WATCH_INTERVAL: Duration = Duration::from_millis(50);
 /// Room around the shape for anti-aliasing, in logical pixels.
 const PAD: f64 = 2.0;

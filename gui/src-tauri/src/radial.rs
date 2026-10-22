@@ -11,9 +11,9 @@ use dp_service::{LiveRadial, SharedLive};
 use serde::Serialize;
 use tauri::{AppHandle, Manager, PhysicalPosition, PhysicalSize};
 
-use crate::overlay;
+use crate::overlay::{self, OverlayKind};
 
-const KIND: &str = "radial";
+const KIND: OverlayKind = OverlayKind::Radial;
 /// Pointing must feel immediate.
 const WATCH_INTERVAL: Duration = dp_service::LIVE_INTERVAL;
 /// Larger image files are not shown.

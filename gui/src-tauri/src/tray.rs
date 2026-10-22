@@ -15,7 +15,7 @@ use tauri::menu::{CheckMenuItem, IsMenuItem, Menu, MenuItem, PredefinedMenuItem}
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Manager, Wry};
 
-use crate::commands::AppState;
+use crate::commands::{AppState, MAIN_WINDOW};
 
 const TRAY_ID: &str = "main";
 /// How often the watcher compares the live state with what the tray shows.
@@ -255,7 +255,7 @@ fn watch(app: AppHandle, live: SharedLive, mut shown: View) {
 }
 
 pub fn show_main(app: &AppHandle) {
-    if let Some(w) = app.get_webview_window("main") {
+    if let Some(w) = app.get_webview_window(MAIN_WINDOW) {
         let _ = w.unminimize();
         let _ = w.show();
         let _ = w.set_focus();

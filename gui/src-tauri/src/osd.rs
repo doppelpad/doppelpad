@@ -15,10 +15,10 @@ use serde::Serialize;
 use tauri::{AppHandle, Manager};
 
 use crate::commands::AppState;
-use crate::overlay;
+use crate::overlay::{self, OverlayKind};
 use crate::settings::{Corner, OsdSettings};
 
-const KIND: &str = "osd";
+const KIND: OverlayKind = OverlayKind::Osd;
 /// How often the watcher compares the live state with what it last saw.
 const WATCH_INTERVAL: Duration = Duration::from_millis(100);
 /// Controllers connecting while the app starts are not news.

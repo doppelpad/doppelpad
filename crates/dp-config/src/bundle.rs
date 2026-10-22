@@ -240,10 +240,6 @@ pub fn save_preset(profiles: &Path, preset: &LayerPreset) -> Result<PathBuf> {
     Ok(path)
 }
 
-pub fn delete_preset(path: &Path) -> Result<()> {
-    std::fs::remove_file(path).map_err(io(path))
-}
-
 #[cfg(test)]
 mod tests {
     use dp_core::control::Control;
@@ -332,7 +328,7 @@ mod tests {
             library::scan(dir.path()).errors.is_empty(),
             "not mistaken for a game"
         );
-        delete_preset(&path).unwrap();
+        std::fs::remove_file(&path).unwrap();
         assert!(list_presets(dir.path()).is_empty());
     }
 

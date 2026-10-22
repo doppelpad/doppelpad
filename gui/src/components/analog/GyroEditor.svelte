@@ -28,7 +28,7 @@
   const cal = $derived(dev?.gyro_calibration ?? null);
   const fmt = (v: number) => v.toFixed(2);
 
-  async function run(call: () => Promise<string>) {
+  async function run(call: () => Promise<void>) {
     try {
       await call();
     } catch (e) {

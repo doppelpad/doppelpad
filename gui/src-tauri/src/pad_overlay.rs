@@ -13,11 +13,11 @@ use serde::Serialize;
 use tauri::{AppHandle, Manager};
 
 use crate::commands::AppState;
-use crate::overlay;
+use crate::overlay::{self, OverlayKind};
 use crate::settings::Corner;
 
-const PAD: &str = "pad";
-const MAPPINGS: &str = "mappings";
+const PAD: OverlayKind = OverlayKind::Pad;
+const MAPPINGS: OverlayKind = OverlayKind::Mappings;
 const WATCH_INTERVAL: Duration = Duration::from_millis(50);
 /// Window sizes in logical pixels: the controller at 100 %, and three columns of mappings.
 const PAD_SIZE: (f64, f64) = (600.0, 440.0);
@@ -55,7 +55,7 @@ fn input_between(a: &LiveDevice, b: &LiveDevice) -> bool {
 
 fn present<T: Serialize>(
     app: &AppHandle,
-    kind: &str,
+    kind: OverlayKind,
     corner: Corner,
     size: (f64, f64),
     content: &T,

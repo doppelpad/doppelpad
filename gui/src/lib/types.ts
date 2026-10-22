@@ -559,6 +559,12 @@ export interface Battery {
   wired: boolean;
 }
 
+/** The drivers Doppelpad uses, by what they do (`Driver` in commands.rs). */
+export type Driver = 'virtual_pads' | 'device_hiding';
+
+/** Messages from before the window was ready (`Notice` in commands.rs; `notices.<name>` keys). */
+export type Notice = 'service-takeover';
+
 export interface DriverState {
   available: boolean;
   error: string | null;

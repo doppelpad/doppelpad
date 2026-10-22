@@ -959,7 +959,6 @@ dependencies = [
 name = "dp-gui"
 version = "0.3.0"
 dependencies = [
- "anyhow",
  "dp-config",
  "dp-core",
  "dp-ipc",
