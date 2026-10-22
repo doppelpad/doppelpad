@@ -462,14 +462,11 @@ impl FromStr for Control {
                 "wheel" => WheelDir::from_name(rest)
                     .map(Control::Wheel)
                     .ok_or_else(err),
-                "mousemove" | "mouse_move" => {
-                    match dir_or_zone(&rest.to_ascii_lowercase(), Dir::from_name) {
-                        Some(DirZone::Dir(d)) => Ok(Control::MouseMove(d)),
-                        Some(DirZone::Zone(d, z)) => Ok(Control::MouseZone(d, z)),
-                        None => Err(err()),
-                    }
-                }
-                "pad" => rest.parse(),
+                "mousemove" => match dir_or_zone(&rest.to_ascii_lowercase(), Dir::from_name) {
+                    Some(DirZone::Dir(d)) => Ok(Control::MouseMove(d)),
+                    Some(DirZone::Zone(d, z)) => Ok(Control::MouseZone(d, z)),
+                    None => Err(err()),
+                },
                 _ => Err(err()),
             };
         }
@@ -623,11 +620,10 @@ mod tests {
             Control::TriggerPress(Trigger::Right)
         );
         assert_eq!("key:w".parse::<Control>().unwrap(), Control::Key(Key::W));
-        assert_eq!(
-            "pad:LB".parse::<Control>().unwrap(),
-            Control::Button(PadButton::LB)
-        );
         assert!("Bogus".parse::<Control>().is_err());
+        // Only the documented prefixes: no `pad:` and no `mouse_move:`.
+        assert!("pad:LB".parse::<Control>().is_err());
+        assert!("mouse_move:Up".parse::<Control>().is_err());
     }
 
     #[test]

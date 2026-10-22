@@ -305,7 +305,6 @@ impl<'de> Deserialize<'de> for KeyRepeat {
 pub enum VirtualPadType {
     #[default]
     Xbox360,
-    #[serde(alias = "ds4")]
     DualShock4,
     /// No virtual pad: keyboard/mouse output only.
     None,
