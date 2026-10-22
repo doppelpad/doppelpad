@@ -11,6 +11,7 @@
   import Slider from '../ui/Slider.svelte';
   import Toggle from '../ui/Toggle.svelte';
   import CurveEditor from './CurveEditor.svelte';
+  import EditorColumns from './EditorColumns.svelte';
   import LayerNote from './LayerNote.svelte';
   import StickRing from './StickRing.svelte';
 
@@ -41,8 +42,8 @@
 
 {#if cfg && def && ref}
   <LayerNote kind="sticks" sides={[side]} />
-  <div class="stick">
-    <div class="controls">
+  <EditorColumns>
+    {#snippet controls()}
       <Slider
         label={t('analog.stick.deadzone')}
         value={cfg.deadzone}
@@ -143,15 +144,15 @@
         <Toggle checked={cfg.diagonals} {disabled} label={t('analog.stick.diagonals')} onchange={(v) => set({ diagonals: v })} />
       </div>
       <p class="hint">{t('analog.stick.diagonals_hint')}</p>
-    </div>
+    {/snippet}
 
-    <div class="previews">
+    {#snippet previews()}
       <StickRing {cfg} {raw} {zones} />
       <p class="live-hint">{raw ? t('analog.live_hint') : t('analog.no_controller')}</p>
       <div class="section-title">{t('analog.stick.curve')}</div>
       <CurveEditor {cfg} {live} {disabled} onchange={(curve: CurvePoint[]) => set({ curve })} />
-    </div>
-  </div>
+    {/snippet}
+  </EditorColumns>
 {/if}
 
 <style>
@@ -160,34 +161,11 @@
     color: var(--text-dim);
     font-size: var(--fs-s);
   }
-  .stick {
-    display: grid;
-    grid-template-columns: minmax(240px, 1fr) minmax(260px, 320px);
-    gap: 28px;
-    align-items: start;
-  }
-  @container analog (max-width: 620px) {
-    .stick {
-      grid-template-columns: minmax(0, 1fr);
-    }
-  }
-  .controls {
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-    min-width: 0;
-  }
   .toggles {
     display: flex;
     flex-wrap: wrap;
     gap: 10px 20px;
     padding-top: 4px;
-  }
-  .previews {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    min-width: 0;
   }
   .live-hint {
     margin: 0 0 6px;
