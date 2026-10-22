@@ -11,3 +11,4 @@ mod names;
 pub mod pad;
 pub mod profile;
 pub mod repeat;
+mod rng;

@@ -4,10 +4,10 @@
 //! | Syntax                      | Meaning                                        |
 //! |-----------------------------|------------------------------------------------|
 //! | `A`, `LB`, `DpadUp`, ...    | gamepad button ([`PadButton`] name)            |
-//! | `LeftStickUp`, ...          | stick pushed past its deadzone in a direction  |
+//! | `LeftStickUp`, ...          | stick pushed into its low zone in a direction  |
 //! | `LeftStickLow`, ...         | stick deflected into a zone, any direction     |
 //! | `LeftStickUpHigh`, ...      | stick deflected into a zone in a direction     |
-//! | `LT`, `RT`                  | trigger pulled past its deadzone               |
+//! | `LT`, `RT`                  | trigger pulled into its low zone               |
 //! | `LTLow`, `RTMed`, ...       | trigger pulled into a zone                     |
 //! | `LTFull`, `RTFull`          | trigger fully pulled                           |
 //! | `TouchUp`, `TouchCenter`... | finger resting in a touchpad region            |
@@ -58,6 +58,10 @@ impl Dir {
 
     /// The diagonal between a vertical and a horizontal cardinal.
     pub fn diagonal(vertical: Dir, horizontal: Dir) -> Dir {
+        debug_assert!(
+            matches!(vertical, Dir::Up | Dir::Down) && matches!(horizontal, Dir::Left | Dir::Right),
+            "{vertical:?} {horizontal:?}"
+        );
         match (vertical, horizontal) {
             (Dir::Up, Dir::Left) => Dir::UpLeft,
             (Dir::Up, _) => Dir::UpRight,
@@ -141,6 +145,7 @@ impl TouchGesture {
     /// The swipe in a cardinal direction with one or two fingers.
     pub fn swipe(dir: Dir, two: bool) -> TouchGesture {
         use TouchGesture::*;
+        debug_assert!(!dir.is_diagonal(), "{dir:?}");
         match (dir, two) {
             (Dir::Up, false) => SwipeUp,
             (Dir::Down, false) => SwipeDown,
@@ -373,6 +378,24 @@ fn parse_pad_button(s: &str) -> Option<PadButton> {
     alias.or_else(|| PadButton::from_name(s))
 }
 
+/// A direction alone (`Up`) or a zone in any or one direction (`Low`, `UpHigh`).
+enum DirZone<D> {
+    Dir(D),
+    Zone(Option<D>, Zone),
+}
+
+/// Lowercase `s` as a direction or a zone, `dir` reading the direction names.
+fn dir_or_zone<D>(s: &str, dir: impl Fn(&str) -> Option<D>) -> Option<DirZone<D>> {
+    if let Some(d) = dir(s) {
+        return Some(DirZone::Dir(d));
+    }
+    let (rest, z) = Zone::strip_suffix(s)?;
+    if rest.is_empty() {
+        return Some(DirZone::Zone(None, z));
+    }
+    dir(rest).map(|d| DirZone::Zone(Some(d), z))
+}
+
 fn trigger_name(t: Trigger) -> &'static str {
     match t {
         Trigger::Left => "LT",
@@ -440,20 +463,13 @@ impl FromStr for Control {
                     .map(Control::Wheel)
                     .ok_or_else(err),
                 "mousemove" | "mouse_move" => {
-                    if let Some(d) = Dir::from_name(rest) {
-                        return Ok(Control::MouseMove(d));
-                    }
-                    let lower = rest.to_ascii_lowercase();
-                    let (rest, z) = Zone::strip_suffix(&lower).ok_or_else(err)?;
-                    if rest.is_empty() {
-                        Ok(Control::MouseZone(None, z))
-                    } else {
-                        Dir::from_name(rest)
-                            .map(|d| Control::MouseZone(Some(d), z))
-                            .ok_or_else(err)
+                    match dir_or_zone(&rest.to_ascii_lowercase(), Dir::from_name) {
+                        Some(DirZone::Dir(d)) => Ok(Control::MouseMove(d)),
+                        Some(DirZone::Zone(d, z)) => Ok(Control::MouseZone(d, z)),
+                        None => Err(err()),
                     }
                 }
-                "pad" => s[4..].parse(),
+                "pad" => rest.parse(),
                 _ => Err(err()),
             };
         }
@@ -478,16 +494,10 @@ impl FromStr for Control {
             let Some(rest) = lower.strip_prefix(prefix) else {
                 continue;
             };
-            if let Some(d) = Dir::from_name(rest) {
-                return Ok(Control::StickDir(stick, d));
-            }
-            if let Some((rest, z)) = Zone::strip_suffix(rest) {
-                if rest.is_empty() {
-                    return Ok(Control::StickZone(stick, None, z));
-                }
-                if let Some(d) = Dir::from_name(rest) {
-                    return Ok(Control::StickZone(stick, Some(d), z));
-                }
+            match dir_or_zone(rest, Dir::from_name) {
+                Some(DirZone::Dir(d)) => return Ok(Control::StickDir(stick, d)),
+                Some(DirZone::Zone(d, z)) => return Ok(Control::StickZone(stick, d, z)),
+                None => {}
             }
         }
         if let Some(rest) = lower.strip_prefix("touch") {
@@ -514,16 +524,10 @@ impl FromStr for Control {
             }
         }
         if let Some(rest) = lower.strip_prefix("gyro") {
-            if let Some(d) = GyroDir::from_name(rest) {
-                return Ok(Control::Gyro(d));
-            }
-            if let Some((rest, z)) = Zone::strip_suffix(rest) {
-                if rest.is_empty() {
-                    return Ok(Control::GyroZone(None, z));
-                }
-                if let Some(d) = GyroDir::from_name(rest) {
-                    return Ok(Control::GyroZone(Some(d), z));
-                }
+            match dir_or_zone(rest, GyroDir::from_name) {
+                Some(DirZone::Dir(d)) => return Ok(Control::Gyro(d)),
+                Some(DirZone::Zone(d, z)) => return Ok(Control::GyroZone(d, z)),
+                None => {}
             }
         }
         parse_pad_button(s).map(Control::Button).ok_or_else(err)

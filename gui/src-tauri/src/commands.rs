@@ -15,8 +15,9 @@ use dp_core::hotkeys::Hotkeys;
 use dp_core::keys::{Key, MouseButton};
 use dp_core::pad::PadButton;
 use dp_core::profile::{
-    AnalogMapping, Crosshair, GyroSettings, Light, Magnifier, Mapping, Output, Profile, RadialMenu,
-    RadialSector, StickConfig, Timing, TouchpadSettings, TriggerConfig, Vibration, VirtualStick,
+    AnalogMapping, Crosshair, GyroSettings, Light, Magnifier, Mapping, OutputSettings, Profile,
+    RadialMenu, RadialSector, StickConfig, Timing, TouchpadSettings, TriggerConfig, Vibration,
+    VirtualStick,
 };
 use dp_ipc::Request;
 use dp_platform::generic::GenericLayout;
@@ -79,7 +80,7 @@ fn library_change<T, E: std::fmt::Display>(app: &AppHandle, result: Result<T, E>
 pub struct Defaults {
     profile: Profile,
     mapping: Mapping,
-    output: Output,
+    output: OutputSettings,
     timing: Timing,
     stick: StickConfig,
     trigger: TriggerConfig,
@@ -115,7 +116,7 @@ pub fn catalog() -> Catalog {
         defaults: Defaults {
             profile: Profile::default(),
             mapping: Mapping::new(Control::Button(PadButton::A), Vec::new()),
-            output: Output::default(),
+            output: OutputSettings::default(),
             timing: Timing::default(),
             stick: StickConfig::default(),
             trigger: TriggerConfig::default(),

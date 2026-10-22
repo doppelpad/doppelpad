@@ -26,7 +26,7 @@ pub struct Profile {
     #[serde(skip_serializing_if = "is_default")]
     pub kbm_source: KbmSource,
     #[serde(skip_serializing_if = "is_default")]
-    pub output: Output,
+    pub output: OutputSettings,
     #[serde(skip_serializing_if = "is_default")]
     pub timing: Timing,
     #[serde(skip_serializing_if = "is_default")]
@@ -41,7 +41,7 @@ pub struct Profile {
     pub touchpad: TouchpadSettings,
     /// The physical mouse as a source (`[mouse]`).
     #[serde(skip_serializing_if = "is_default")]
-    pub mouse: MouseInput,
+    pub mouse: MouseSettings,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub layers: Vec<Layer>,
     /// What held controls do when the layer changes (`[layer_change]`).
@@ -417,15 +417,15 @@ pub enum KbmSource {
 /// The physical mouse as a source of controls.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
-pub struct MouseInput {
+pub struct MouseSettings {
     /// Speeds (counts per second) where the low, medium and high `MouseMove:*` zones start;
     /// the low one is also where `MouseMove:Up` and the other directions start.
     pub zones: [f32; 3],
 }
 
-impl Default for MouseInput {
+impl Default for MouseSettings {
     fn default() -> Self {
-        MouseInput {
+        MouseSettings {
             zones: [200.0, 1000.0, 3000.0],
         }
     }
@@ -847,7 +847,7 @@ pub enum VirtualPadType {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
-pub struct Output {
+pub struct OutputSettings {
     pub virtual_pad: VirtualPadType,
     /// Hide the physical controller from games while the profile is active.
     pub hide_physical: bool,
@@ -858,9 +858,9 @@ pub struct Output {
     pub mute_mapped_inputs: bool,
 }
 
-impl Default for Output {
+impl Default for OutputSettings {
     fn default() -> Self {
-        Output {
+        OutputSettings {
             virtual_pad: VirtualPadType::Xbox360,
             hide_physical: true,
             passthrough: true,
@@ -1344,7 +1344,7 @@ impl Default for Layer {
 
 /// One or more controls that must be held together. Written as a single string
 /// (`"A"`) or a list (`["LB", "RB"]`).
-#[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Combo(pub Vec<Control>);
 
 impl Serialize for Combo {
@@ -1711,7 +1711,7 @@ pub struct Jump {
 
 /// One remapping rule: when `trigger` is activated (per `activator`) in `layer`,
 /// perform `actions` according to `mode`, and optionally switch layers.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Mapping {
     #[serde(default, skip_serializing_if = "is_default")]
@@ -1753,21 +1753,23 @@ pub struct Mapping {
 impl Mapping {
     pub fn new(trigger: impl Into<Combo>, actions: Vec<Action>) -> Self {
         Mapping {
-            layer: 0,
             trigger: trigger.into(),
-            activator: Activator::Single,
-            mode: Mode::Hold,
             actions,
-            jump: None,
-            turbo_ms: None,
-            repeat: None,
-            repeat_pause_ms: None,
-            random_ms: None,
-            long_press_ms: None,
-            double_tap_ms: None,
-            triple_tap_ms: None,
-            key_delay_ms: None,
-            description: String::new(),
+            ..Default::default()
+        }
+    }
+
+    /// The mode the engine plays. A sequence with break steps plays one segment per
+    /// activation, so it cannot pulse, latch or repeat: turbo and toggle are held instead,
+    /// repeat and while-held play once.
+    pub fn effective_mode(&self) -> Mode {
+        if !self.actions.iter().any(Action::is_break) {
+            return self.mode;
+        }
+        match self.mode {
+            Mode::Turbo | Mode::Toggle => Mode::Hold,
+            Mode::Repeat | Mode::WhileHeld => Mode::Once,
+            other => other,
         }
     }
 }
@@ -1842,9 +1844,11 @@ pub struct AnalogMapping {
     pub layer: u8,
     pub source: AnalogSource,
     pub target: AnalogTarget,
-    /// Gain. Units depend on the route: stick→mouse = pixels/s at full deflection ÷ 1000;
-    /// mouse→stick = full deflection per 1000 counts/s; gyro→mouse = pixels per degree;
-    /// gyro→stick = full deflection per 100 °/s; touchpad→mouse = pixels per pad width ÷ 1000.
+    /// Gain; `1.0` is the calibration in the engine's `routes::scale`: stick→mouse 1000 px/s
+    /// at full deflection; mouse→stick full deflection at 2000 counts/s (without spring, 500
+    /// counts from the centre); gyro→mouse 10 px per degree; gyro→stick full deflection at
+    /// 100 °/s; touchpad→mouse 1000 px per pad width. Higher values are proportionally more
+    /// sensitive.
     pub sensitivity: f32,
     /// Separate vertical gain multiplier.
     pub vertical_ratio: f32,

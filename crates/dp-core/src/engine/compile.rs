@@ -520,7 +520,7 @@ fn make_binding(
 ) -> Binding {
     let key_delay = m.key_delay_ms.unwrap_or(p.timing.key_delay_ms);
     let turbo_ms = m.turbo_ms.unwrap_or(p.timing.turbo_ms).max(MIN_TURBO_MS);
-    let mut mode = m.mode;
+    let mut mode = m.effective_mode();
     let mut activator = m.activator;
     // Release cannot hold/turbo/toggle; Start cannot toggle.
     if activator == Activator::Release
@@ -541,15 +541,7 @@ fn make_binding(
         ));
         activator = Activator::Single;
     }
-    // Segments play one per activation, so they cannot pulse, latch or repeat.
     let segs = segments(&m.actions);
-    if segs.len() > 1 || m.actions.iter().any(Action::is_break) {
-        mode = match mode {
-            Mode::Turbo | Mode::Toggle => Mode::Hold,
-            Mode::Repeat | Mode::WhileHeld => Mode::Once,
-            other => other,
-        };
-    }
     let holdable = is_holdable(&m.actions);
     let policy = policy_for(mode, holdable, m, turbo_ms);
     let programs = match policy {

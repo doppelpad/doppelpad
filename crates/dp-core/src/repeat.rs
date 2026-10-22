@@ -6,6 +6,7 @@
 
 use crate::keys::Key;
 use crate::profile::KeyRepeat;
+use crate::rng::Rng;
 
 /// Delay before the first repeat in native mode.
 const NATIVE_DELAY_MS: u64 = 500;
@@ -20,7 +21,7 @@ pub struct KeyRepeater {
     mode: KeyRepeat,
     /// The key that repeats and when its next key-down is due.
     current: Option<(Key, u64)>,
-    rng: u32,
+    rng: Rng,
 }
 
 impl KeyRepeater {
@@ -28,18 +29,13 @@ impl KeyRepeater {
         KeyRepeater {
             mode,
             current: None,
-            rng: 0x2545_F491,
+            rng: Rng::default(),
         }
     }
 
-    /// Pseudo-random native interval (xorshift; repeatable for tests).
+    /// Pseudo-random native interval (repeatable for tests).
     fn native_interval(&mut self) -> u64 {
-        let mut x = self.rng;
-        x ^= x << 13;
-        x ^= x >> 17;
-        x ^= x << 5;
-        self.rng = x;
-        let unit = (x as f32) / (u32::MAX as f32); // 0..1
+        let unit = self.rng.unit();
         (NATIVE_MS * (1.0 + NATIVE_JITTER * (2.0 * unit - 1.0))).round() as u64
     }
 

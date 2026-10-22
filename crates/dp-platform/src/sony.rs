@@ -6,7 +6,8 @@
 use std::time::Instant;
 
 use dp_core::pad::{
-    Axis, Motion, PadButton, PadState, Rgb, Rumble, TouchPoint, axis_from_u8, axis_to_u8,
+    Axis, Motion, PadButton, PadState, Rgb, Rumble, Stick, TouchPoint, stick_from_hid_u8,
+    stick_to_hid_u8,
 };
 use dp_core::profile::TriggerEffect;
 
@@ -96,10 +97,8 @@ fn face_buttons(state: &mut PadState, b0: u8, b1: u8) {
 }
 
 fn sticks(state: &mut PadState, r: &[u8]) {
-    state.set_axis(Axis::LeftX, axis_from_u8(r[0], false));
-    state.set_axis(Axis::LeftY, axis_from_u8(r[1], true));
-    state.set_axis(Axis::RightX, axis_from_u8(r[2], false));
-    state.set_axis(Axis::RightY, axis_from_u8(r[3], true));
+    state.set_stick(Stick::Left, stick_from_hid_u8(r[0], r[1]));
+    state.set_stick(Stick::Right, stick_from_hid_u8(r[2], r[3]));
 }
 
 fn i16le(r: &[u8], at: usize) -> f32 {
@@ -533,10 +532,8 @@ impl Ds4ReportBuilder {
     /// One report for `s`; `elapsed_us` is the time since the device was created.
     pub fn build(&mut self, s: &PadState, elapsed_us: u64) -> [u8; DS4_REPORT_LEN] {
         let mut r = [0u8; DS4_REPORT_LEN];
-        r[0] = axis_to_u8(s.axis(Axis::LeftX), false);
-        r[1] = axis_to_u8(s.axis(Axis::LeftY), true);
-        r[2] = axis_to_u8(s.axis(Axis::RightX), false);
-        r[3] = axis_to_u8(s.axis(Axis::RightY), true);
+        r[0..2].copy_from_slice(&stick_to_hid_u8(s.stick(Stick::Left)));
+        r[2..4].copy_from_slice(&stick_to_hid_u8(s.stick(Stick::Right)));
         let buttons = ds4_buttons(s);
         r[4..6].copy_from_slice(&buttons.to_le_bytes());
         let mut special = self.counter << 2;
