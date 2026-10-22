@@ -293,6 +293,44 @@ fn apply_to_slot_rejects_broken_files() {
 }
 
 #[test]
+fn a_moved_library_keeps_its_slots_and_the_running_config() {
+    let dir = tempfile::tempdir().unwrap();
+    let old = dir.path().join("profiles");
+    std::fs::create_dir_all(&old).unwrap();
+    let a = write_profile(&old, "a.toml", "A", &[]);
+    let state = dir.path().join("state.toml");
+    let (mut s, _) = service(dir.path(), Some(state.clone()));
+    s.handle(ServiceCmd::ApplyToSlot {
+        device: None,
+        slot: 1,
+        path: a,
+    })
+    .into_result()
+    .unwrap();
+
+    let new = dir.path().join("synced");
+    let copied = dp_config::relocate::copy_library(&old, &new).unwrap();
+    s.handle(ServiceCmd::UseLibrary {
+        dir: new.clone(),
+        moved_from: Some(old),
+    })
+    .into_result()
+    .unwrap();
+    assert_eq!(copied.remove_originals(), 0);
+
+    let moved = new.join("a.toml");
+    assert_eq!(s.slots().shared.slots[1], Some(moved.clone()));
+    assert_eq!(s.runtime().profile_path(), Some(&moved));
+    assert_eq!(active_name(&s).as_deref(), Some("A"));
+    assert_eq!(s.loose_profiles(), 1, "the new folder is scanned");
+    assert_eq!(
+        crate::slots::SlotState::load(&state).shared.slots[1],
+        Some(moved),
+        "saved"
+    );
+}
+
+#[test]
 fn suspend_is_reported_and_reversible() {
     let dir = tempfile::tempdir().unwrap();
     let a = write_profile(dir.path(), "a.toml", "A", &[]);

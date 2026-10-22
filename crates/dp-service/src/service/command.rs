@@ -25,6 +25,12 @@ pub enum ServiceCmd {
     Stop,
     /// Re-read the profiles directory (games or configs changed on disk).
     Reload,
+    /// Use another profiles directory. With `moved_from`, the library was moved from there:
+    /// slots and running configs holding its files now name them in `dir`.
+    UseLibrary {
+        dir: PathBuf,
+        moved_from: Option<PathBuf>,
+    },
     /// Acknowledge; the host then stops the service.
     Shutdown,
     /// Put a config into a slot and make that slot active. `device`: the slots of that

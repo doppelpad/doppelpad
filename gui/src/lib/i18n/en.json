@@ -1142,7 +1142,18 @@
       "hide_after": "Hide after",
       "hide_after_hint": "Seconds without input; 0 keeps it up."
     },
-    "zoom": "Size of the window’s contents (Ctrl + plus, minus, 0)"
+    "zoom": "Size of the window’s contents (Ctrl + plus, minus, 0)",
+    "library": {
+      "hint": "Games, configs and layer presets. Move them to a synced folder to have them on every computer.",
+      "change": "Change…",
+      "choose": "Folder for games and configs",
+      "move_confirm": "Move your games and configs to {dir}? Every file is copied and checked before it is removed from the old folder.",
+      "use_confirm": "{dir} already holds Doppelpad games and configs. Use them? Your current ones stay in {old}.",
+      "foreign": "{dir} holds other files. Choose an empty folder or one with Doppelpad games and configs.",
+      "moved": "Games and configs moved to {dir}.",
+      "used": "Using the games and configs in {dir}.",
+      "left_behind": "Moved, but {n} old files could not be removed from {dir}. Their copies are safe."
+    }
   },
   "hotkeys": {
     "title": "Controller hotkeys",

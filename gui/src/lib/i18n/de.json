@@ -1142,7 +1142,18 @@
       "hide_after": "Ausblenden nach",
       "hide_after_hint": "Sekunden ohne Eingabe; 0 lässt es stehen."
     },
-    "zoom": "Größe des Fensterinhalts (Strg + Plus, Minus, 0)"
+    "zoom": "Größe des Fensterinhalts (Strg + Plus, Minus, 0)",
+    "library": {
+      "hint": "Spiele, Configs und Ebenen-Vorlagen. In einem synchronisierten Ordner sind sie auf jedem Computer da.",
+      "change": "Ändern…",
+      "choose": "Ordner für Spiele und Configs",
+      "move_confirm": "Spiele und Configs nach {dir} verschieben? Jede Datei wird kopiert und geprüft, bevor sie aus dem alten Ordner entfernt wird.",
+      "use_confirm": "In {dir} liegen schon Doppelpad-Spiele und -Configs. Diese verwenden? Deine bisherigen bleiben in {old}.",
+      "foreign": "In {dir} liegen andere Dateien. Wähle einen leeren Ordner oder einen mit Doppelpad-Spielen und -Configs.",
+      "moved": "Spiele und Configs liegen jetzt in {dir}.",
+      "used": "Die Spiele und Configs aus {dir} werden verwendet.",
+      "left_behind": "Verschoben, aber {n} alte Dateien ließen sich nicht aus {dir} entfernen. Ihre Kopien sind sicher."
+    }
   },
   "rewasd": {
     "title": "reWASD läuft",

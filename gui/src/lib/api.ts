@@ -16,6 +16,9 @@ import type {
   Imported,
   LayerPreset,
   Library,
+  LibraryMoved,
+  LibraryPlace,
+  LibraryTarget,
   LiveState,
   LoadedConfig,
   Notice,
@@ -130,7 +133,12 @@ export const api = {
   autostartSet: (on: boolean) => invoke<void>('autostart_set', { on }),
   /** Show the window, e.g. when the app started hidden and needs to ask something. */
   showWindow: () => invoke<void>('window_show'),
-  profilesDir: () => invoke<string>('profiles_dir'),
+  /** Where the library is, and the default folder. */
+  libraryPlace: () => invoke<LibraryPlace>('library_place'),
+  /** What a folder offered for the library holds; rejects when the library cannot go there. */
+  libraryTarget: (dir: string) => invoke<LibraryTarget>('library_target', { dir }),
+  /** Move the library to `dir`, or use the library there; `null`: back to the default folder. */
+  libraryMove: (dir: string | null) => invoke<LibraryMoved>('library_move', { dir }),
   logFile: () => invoke<string>('log_file'),
   takeNotices: () => invoke<Notice[]>('take_notices'),
   /** Game bundles the app was started with (opened from Explorer). */

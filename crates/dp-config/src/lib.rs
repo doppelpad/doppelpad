@@ -6,6 +6,7 @@ mod compat;
 mod diag;
 pub mod history;
 pub mod library;
+pub mod relocate;
 pub mod store;
 pub mod templates;
 
@@ -829,8 +830,14 @@ fn user_dir(win_var: &str, xdg_var: &str, home_rel: &[&str]) -> PathBuf {
     base.join("doppelpad")
 }
 
-/// Default directory for profiles.
+/// Directory for profiles (the library): the folder the user chose (see [`relocate`]), else
+/// [`default_profiles_dir`].
 pub fn profiles_dir() -> PathBuf {
+    relocate::chosen_dir(&config_dir()).unwrap_or_else(default_profiles_dir)
+}
+
+/// The library's place unless the user chose another: `profiles` in [`config_dir`].
+pub fn default_profiles_dir() -> PathBuf {
     config_dir().join("profiles")
 }
 
