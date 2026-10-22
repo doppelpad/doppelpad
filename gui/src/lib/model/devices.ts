@@ -3,7 +3,7 @@
 // vendor and product IDs pick the variant.
 
 import { DEVICE_LAYOUTS, type DeviceId } from '../../assets/devices/layouts';
-import type { ControlName, LiveDevice } from '../types';
+import type { Battery, ControlName, LiveDevice } from '../types';
 import type { Side } from './analog';
 import { SIDES } from './controls';
 
@@ -117,4 +117,14 @@ export function controlsFromPad(dev: LiveDevice, buttons: string[]): Set<Control
   if (triggerAxis(dev, 'left') > TRIGGER_SELECT) s.add('LT');
   if (triggerAxis(dev, 'right') > TRIGGER_SELECT) s.add('RT');
   return s;
+}
+
+/** Battery levels (percent) below which a battery that is not charging counts as low, or critical. */
+export const BATTERY_LOW = 40;
+export const BATTERY_CRITICAL = 20;
+
+/** Low or critical, for a battery that is not charging. */
+export function batteryTone(b: Battery | null): 'warning' | 'danger' | undefined {
+  if (!b || b.wired || b.charging) return undefined;
+  return b.level < BATTERY_CRITICAL ? 'danger' : b.level < BATTERY_LOW ? 'warning' : undefined;
 }

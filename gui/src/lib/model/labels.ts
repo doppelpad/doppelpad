@@ -2,9 +2,19 @@
 // show them.
 
 import { has, t } from '../i18n/index.svelte';
-import type { Action, Combo, Mapping, PadFamily, Profile, Template } from '../types';
+import type { Action, Combo, Library, Mapping, PadFamily, Profile, Template } from '../types';
 import { controlLabel } from './controls';
 import { comboKey, comboList, effectiveMappings, isMacroMode, layerName, layerOf, modeOf } from './profile';
+
+/** *Game › Config* for a config in a game, a loose config's name, else the file name. */
+export function configName(lib: Library, path: string): string {
+  for (const g of lib.games) {
+    const c = g.configs.find((c) => c.path === path);
+    if (c) return `${g.meta.name} › ${c.name}`;
+  }
+  const loose = lib.unsorted.find((c) => c.path === path);
+  return loose?.name ?? path.split(/[\\/]/).pop() ?? path;
+}
 
 /** The config templates in the order the app offers them. */
 export const TEMPLATES: Template[] = ['virtual_xbox', 'virtual_ds4', 'desktop', 'keyboard_mouse'];
