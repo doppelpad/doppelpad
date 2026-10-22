@@ -1,6 +1,6 @@
 // Central application state (Svelte 5 runes). Components read and mutate `app`.
 
-import { api, confirmAsk, errorText } from '../api';
+import { api, errorText } from '../api';
 import { setLanguage, t } from '../i18n/index.svelte';
 import type { Side } from '../model/analog';
 import { controlsFromPad, drawingsFor, sideShowing } from '../model/devices';
@@ -43,6 +43,11 @@ interface PromptRequest {
   resolve: (v: string | null) => void;
 }
 
+interface QuestionRequest {
+  message: string;
+  resolve: (ok: boolean) => void;
+}
+
 class AppState {
   catalog = $state<Catalog | null>(null);
   library = $state<Library>({ games: [], unsorted: [], errors: [] });
@@ -76,6 +81,7 @@ class AppState {
   slotDevice = $state<string | null>(null);
   toasts = $state<Toast[]>([]);
   prompt = $state<PromptRequest | null>(null);
+  question = $state<QuestionRequest | null>(null);
   copiedLayer = $state.raw<LayerCopy | null>(null);
 
   /** Who gets the controller's presses instead of the editor (see `capturePresses`). */
@@ -258,9 +264,18 @@ class AppState {
     return new Promise((resolve) => (this.prompt = { title, value, multiline, resolve }));
   }
 
+  /**
+   * Ask an OK/Cancel question in the app's own dialog (ConfirmDialog); `true` for OK. Not
+   * `window.confirm`: in the webview it returns a promise without asking.
+   */
+  confirmAsk(message: string): Promise<boolean> {
+    this.question?.resolve(false);
+    return new Promise((resolve) => (this.question = { message, resolve }));
+  }
+
   /** Ask before discarding unsaved changes. */
   async confirmDiscard(): Promise<boolean> {
-    return !this.dirty || (await confirmAsk(t('header.discard_confirm')));
+    return !this.dirty || (await this.confirmAsk(t('header.discard_confirm')));
   }
 
   async selectGame(dir: string) {
@@ -373,7 +388,7 @@ class AppState {
     if (!p || !def || this.readOnly) return;
     if (group && stickGroupOf(p, this.layer, s) === group) return this.selectStick(s);
     const n = stickGroupConflicts(p, this.layer, s);
-    if (n > 0 && !(await confirmAsk(t('binding.whole_stick_replace', { n })))) return;
+    if (n > 0 && !(await this.confirmAsk(t('binding.whole_stick_replace', { n })))) return;
     // The config may have changed while the question was open.
     if (this.profile !== p) return;
     this.update(setStickGroup(p, this.layer, s, group, def));

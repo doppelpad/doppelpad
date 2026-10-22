@@ -1,7 +1,7 @@
 <script lang="ts">
   import { Download, Ellipsis, FileText, Plus, Radar } from '@lucide/svelte';
   import { open, save } from '@tauri-apps/plugin-dialog';
-  import { api, confirmAsk } from '../lib/api';
+  import { api } from '../lib/api';
   import { t } from '../lib/i18n/index.svelte';
   import { app } from '../lib/state/app.svelte';
   import { platform, win } from '../lib/state/window.svelte';
@@ -59,7 +59,7 @@
   }
 
   async function deleteGame(g: Game) {
-    if (!(await confirmAsk(t('profiles.delete_confirm', { name: g.meta.name })))) return;
+    if (!(await app.confirmAsk(t('profiles.delete_confirm', { name: g.meta.name })))) return;
     await app.attempt(
       api.gameDelete(g.dir).then(async () => {
         if (app.gameDir === g.dir) {

@@ -1,8 +1,6 @@
 // Typed wrappers around the Rust commands in gui/src-tauri/src/commands.rs.
 
 import { Channel, invoke } from '@tauri-apps/api/core';
-import { ask } from '@tauri-apps/plugin-dialog';
-import { t } from './i18n/index.svelte';
 import type {
   Catalog,
   DeviceGroup,
@@ -120,12 +118,4 @@ export const api = {
 /** Error text from a rejected command. */
 export function errorText(e: unknown): string {
   return typeof e === 'string' ? e : e instanceof Error ? e.message : JSON.stringify(e);
-}
-
-/**
- * Ask a question with OK and Cancel in the system's dialog; `true` for OK. The app cannot use
- * `window.confirm`: in the webview it returns a promise without asking.
- */
-export function confirmAsk(message: string): Promise<boolean> {
-  return ask(message, { kind: 'warning', okLabel: t('common.ok'), cancelLabel: t('common.cancel') });
 }

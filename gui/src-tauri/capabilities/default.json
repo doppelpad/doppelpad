@@ -12,8 +12,6 @@
     "core:window:allow-close",
     "dialog:allow-open",
     "dialog:allow-save",
-    "dialog:allow-message",
-    "dialog:allow-ask",
     "editor"
   ]
 }
