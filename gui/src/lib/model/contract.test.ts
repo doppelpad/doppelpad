@@ -161,6 +161,7 @@ const hotkeys = {
   emergency_stop: true,
   pad_overlay: true,
   mappings_overlay: true,
+  rumble: true,
 } satisfies Keys<Hotkeys>;
 const osdMessage = {
   kind: true,

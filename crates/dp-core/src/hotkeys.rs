@@ -64,6 +64,8 @@ pub struct Hotkeys {
     pub emergency_stop: Vec<PadButton>,
     pub pad_overlay: Vec<PadButton>,
     pub mappings_overlay: Vec<PadButton>,
+    /// Confirm each hotkey with a short rumble pattern on the controller.
+    pub rumble: bool,
 }
 
 impl Default for Hotkeys {
@@ -80,6 +82,7 @@ impl Default for Hotkeys {
             emergency_stop: vec![Back, Start, LB, RB],
             pad_overlay: Vec::new(),
             mappings_overlay: Vec::new(),
+            rumble: false,
         }
     }
 }

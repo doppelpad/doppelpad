@@ -296,7 +296,8 @@
       "RB"
     ],
     "pad_overlay": [],
-    "mappings_overlay": []
+    "mappings_overlay": [],
+    "rumble": false
   },
   "osd_message": {
     "kind": "battery_low",

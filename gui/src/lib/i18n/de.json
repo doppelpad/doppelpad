@@ -1174,7 +1174,9 @@
     "none": "Aus",
     "press": "Tasten halten, dann loslassen …",
     "record": "Aufnehmen",
-    "too_many": "Ein Hotkey hat höchstens {n} Tasten."
+    "too_many": "Ein Hotkey hat höchstens {n} Tasten.",
+    "rumble": "Mit einem Rumpeln am Controller bestätigen",
+    "rumble_hint": "Slot-Hotkeys rumpeln so oft wie die Slot-Nummer, Remapping an einmal lang und aus zweimal lang, die anderen einmal. Wirkt auch in Vollbild-Spielen, in denen keine Einblendung erscheint."
   },
   "notices": {
     "service-takeover": "Ein laufender Doppelpad-Hintergrunddienst wurde beendet – diese App übernimmt jetzt das Remapping.",

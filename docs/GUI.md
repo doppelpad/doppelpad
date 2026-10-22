@@ -493,6 +493,11 @@ down, the game no longer sees them (each stays hidden until it is released); a c
 need in a game must therefore not be a hotkey. A combo inside a larger one (LB + RB inside
 LB + RB + X) waits for the larger one.
 
+*Confirm with a rumble on the controller* makes the controller answer each hotkey: a slot
+hotkey rumbles as often as the slot's number, remapping on once long and off twice long, the
+emergency stop twice long, the others once. This also works in exclusive full-screen games,
+where the on-screen notifications cannot draw. The game's own rumble waits for the pattern.
+
 ## Overlays
 
 Two overlays show over games, switched on and off by a controller hotkey or a mapping's

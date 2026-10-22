@@ -156,6 +156,29 @@ impl Runtime {
         self.hotkeys.detectors.clear();
     }
 
+    /// Confirm a hotkey with a rumble pattern on the controller it was pressed on, if the
+    /// hotkey settings ask for it.
+    pub(crate) fn confirm_hotkey(&mut self, id: &DeviceId, c: super::confirm::Confirm) {
+        if self.hotkeys.set.rumble {
+            let now = self.now_ms();
+            self.pulses.start(id, c, now);
+        }
+    }
+
+    /// Play the confirmation patterns; a controller whose pattern ended gets its sessions'
+    /// rumble again.
+    pub(super) fn drive_pulses(&mut self, now: u64) {
+        for id in self.pulses.drive(&mut self.pads, now) {
+            for s in self
+                .sessions
+                .iter_mut()
+                .filter(|s| s.device.as_ref() == Some(&id))
+            {
+                s.sent_rumble = None;
+            }
+        }
+    }
+
     /// Ignore hotkeys for a while (the app is recording a new one).
     pub(crate) fn set_hotkeys_paused(&mut self, on: bool) {
         self.hotkeys.paused = on;

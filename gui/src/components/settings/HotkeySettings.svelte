@@ -12,6 +12,7 @@
   import type { HotkeyField, Hotkeys, PadButtonName } from '../../lib/types';
   import SettingRow from './SettingRow.svelte';
   import SettingsSection from './SettingsSection.svelte';
+  import Toggle from '../ui/Toggle.svelte';
 
   const FIELDS: HotkeyField[] = [
     'slot1',
@@ -119,6 +120,8 @@
         {t('common.ms')}
       </span>
     </SettingRow>
+    <Toggle checked={hotkeys.rumble} label={t('hotkeys.rumble')} onchange={(v) => hotkeys && save({ ...hotkeys, rumble: v })} />
+    <p class="hint">{t('hotkeys.rumble_hint')}</p>
     {#each FIELDS as f (f)}
       {@const rec = recording === f}
       <div class="hk">

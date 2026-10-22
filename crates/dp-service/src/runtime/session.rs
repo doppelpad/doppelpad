@@ -177,6 +177,8 @@ impl Session {
         &mut self,
         pads: &mut Grouping,
         mapping_rumble: Option<Rumble>,
+        // A hotkey confirmation plays on the controller: its rumble waits.
+        pulsing: bool,
         now: u64,
     ) {
         if let Some(r) = self.vpad.as_mut().and_then(|v| v.take_rumble()) {
@@ -194,7 +196,7 @@ impl Session {
         let sent = |sent: &Option<(DeviceId, Rumble)>| {
             sent.as_ref().is_some_and(|(d, r)| d == id && *r == rumble)
         };
-        if !sent(&self.sent_rumble) && self.rumble_gap.due(now) {
+        if !pulsing && !sent(&self.sent_rumble) && self.rumble_gap.due(now) {
             pads.set_rumble(id, rumble);
             self.sent_rumble = Some((id.clone(), rumble));
         }
