@@ -11,7 +11,7 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use anyhow::{Context, Result};
 use crossbeam_channel::Receiver;
@@ -22,7 +22,8 @@ use dp_core::hotkeys::{HotkeyAction, HotkeyDetector, Hotkeys};
 use dp_core::led;
 use dp_core::pad::{PadButton, PadState, Rgb, Rumble, Trigger};
 use dp_core::profile::{
-    AnalogSource, Command, Crosshair, KbmSource, Profile, RadialMenu, TriggerEffect, VirtualPadType,
+    AnalogSource, Command, Crosshair, KbmSource, Profile, RadialMenu, TriggerEffect, Vibration,
+    VirtualPadType,
 };
 use dp_core::repeat::KeyRepeater;
 use dp_platform::generic::GenericLayout;
@@ -34,6 +35,7 @@ use dp_platform::{
 use serde::Serialize;
 
 use crate::calibration::Calibrator;
+use crate::timing::{Clock, Every};
 
 /// Availability of one optional driver.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize)]
@@ -102,8 +104,8 @@ struct Session {
     needs_capture: bool,
     game_rumble: Rumble,
     sent_rumble: Option<(DeviceId, Rumble)>,
-    /// When the last rumble command went out.
-    rumble_at: Option<u64>,
+    /// At most one rumble command per the profile's gap.
+    rumble_gap: Every,
     /// Light bar colour the game set on a virtual DualShock 4.
     game_lightbar: Option<Rgb>,
     /// What the controller was last told to show, and which controller.
@@ -190,7 +192,7 @@ pub struct Runtime {
     filter: Arc<CaptureFilter>,
     kbm_rx: Option<Receiver<KbmEvent>>,
     kbm_buf: Vec<KbmEvent>,
-    epoch: Instant,
+    clock: Clock,
     snapshots: Vec<PadSnapshot>,
     /// The ids of `snapshots`, kept to notice a changed device list without allocating.
     device_ids: Vec<DeviceId>,
@@ -409,6 +411,19 @@ fn profile_light(s: &Session, now: u64) -> Option<Rgb> {
     Some(led::color_at(light, now - now % led::STEP_MS))
 }
 
+/// The shortest and longest gap between two rumble commands a profile may ask for.
+const RUMBLE_GAP_MIN_MS: u32 = 10;
+const RUMBLE_GAP_MAX_MS: u32 = 200;
+
+/// The gap between two rumble commands the profile asks for, within the limits.
+fn rumble_gap_ms(vibration: &Vibration) -> u64 {
+    u64::from(
+        vibration
+            .min_delay_ms
+            .clamp(RUMBLE_GAP_MIN_MS, RUMBLE_GAP_MAX_MS),
+    )
+}
+
 /// Rumble for the session's controller: mapping rumble overrides what the game asks the
 /// virtual pad for. Also sets the light bar: the profile's, else the colour the game set.
 fn feedback(s: &mut Session, platform: &mut Platform, mapping_rumble: Option<Rumble>, now: u64) {
@@ -419,20 +434,17 @@ fn feedback(s: &mut Session, platform: &mut Platform, mapping_rumble: Option<Rum
         s.game_lightbar = Some(c);
     }
     let Some(id) = s.device.as_ref() else { return };
-    let vibration = &s.engine.profile().vibration;
-    let game = vibration.apply(s.game_rumble);
-    let gap = u64::from(vibration.min_delay_ms.clamp(10, 200));
+    let game = s.engine.profile().vibration.apply(s.game_rumble);
     let rumble = mapping_rumble.unwrap_or(game);
     // At most one command per gap; a change held back goes out with a later tick.
     let sent = |sent: &Option<(DeviceId, Rumble)>| {
         sent.as_ref().is_some_and(|(d, r)| d == id && *r == rumble)
     };
-    if !sent(&s.sent_rumble) && s.rumble_at.is_none_or(|t| now >= t + gap) {
+    if !sent(&s.sent_rumble) && s.rumble_gap.due(now) {
         for b in &mut platform.gamepads {
             b.set_rumble(id, rumble);
         }
         s.sent_rumble = Some((id.clone(), rumble));
-        s.rumble_at = Some(now);
     }
     // A trigger whose effect ends is turned off rather than left playing.
     let want = s.engine.trigger_effects();
@@ -521,7 +533,7 @@ impl Runtime {
             filter: CaptureFilter::new(),
             kbm_rx: None,
             kbm_buf: Vec::new(),
-            epoch: Instant::now(),
+            clock: Clock::new(),
             snapshots: Vec::new(),
             device_ids: Vec::new(),
             pad_buf: Vec::new(),
@@ -613,7 +625,7 @@ impl Runtime {
     }
 
     pub(crate) fn now_ms(&self) -> u64 {
-        self.epoch.elapsed().as_millis() as u64
+        self.clock.now_ms()
     }
 
     fn session(&self, owner: Option<&DeviceId>) -> Option<&Session> {
@@ -857,6 +869,7 @@ impl Runtime {
         let key_repeat = KeyRepeater::new(profile.virtual_devices.keyboard.repeat);
         let capture = needs_capture(&profile);
         let engine = Engine::new(profile);
+        let rumble_gap = Every::new(rumble_gap_ms(&engine.profile().vibration));
         warnings.extend(engine.warnings().iter().cloned());
         let session = Session {
             owner,
@@ -869,7 +882,7 @@ impl Runtime {
             warnings,
             game_rumble: Rumble::default(),
             sent_rumble: None,
-            rumble_at: None,
+            rumble_gap,
             game_lightbar: None,
             sent_lightbar: None,
             sent_triggers: None,
@@ -1571,6 +1584,8 @@ pub(crate) mod testing {
 
 #[cfg(test)]
 mod tests {
+    use std::time::Instant;
+
     use dp_core::hotkeys::Hotkeys;
     use dp_core::profile::VirtualPadType;
     use dp_platform::PadFamily;

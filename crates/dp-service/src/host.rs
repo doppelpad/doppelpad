@@ -14,6 +14,7 @@ use crate::client::{CallError, round_trip};
 use crate::live::LiveState;
 use crate::runtime::{Runtime, TimerResolution};
 use crate::service::{Service, ServiceCmd, ServiceOptions, ServiceReply};
+use crate::timing::TICK;
 
 /// How often the live snapshot is refreshed.
 const LIVE_INTERVAL: Duration = Duration::from_millis(16);
@@ -128,7 +129,7 @@ pub fn spawn_with(
                     *live_out.lock().unwrap() = svc.live();
                     last_live = Instant::now();
                 }
-                std::thread::sleep(Duration::from_millis(1));
+                std::thread::sleep(TICK);
             }
             svc.shutdown();
             *live_out.lock().unwrap() = svc.live();

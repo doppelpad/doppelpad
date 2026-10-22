@@ -14,7 +14,7 @@ use dp_core::pad::{Axis, PadButton};
 use dp_ipc::{Request, Response};
 use dp_platform::Platform;
 
-use dp_service::{Runtime, TimerResolution};
+use dp_service::{Runtime, TimerResolution, on_off};
 
 #[derive(Parser)]
 #[command(
@@ -245,7 +245,7 @@ fn print_response(r: Response) -> Result<()> {
                 s.virtual_pad.as_deref().unwrap_or("(none)")
             );
             println!("hidden:       {} device(s)", s.hidden_devices);
-            println!("remapping:    {}", if s.remap_on { "on" } else { "off" });
+            println!("remapping:    {}", on_off(s.remap_on));
             for (i, slot) in s.slots.iter().enumerate() {
                 let mark = if i + 1 == s.active_slot { "*" } else { " " };
                 println!(
@@ -254,7 +254,7 @@ fn print_response(r: Response) -> Result<()> {
                     slot.as_deref().unwrap_or("(empty)")
                 );
             }
-            println!("auto-switch:  {}", if s.auto_switch { "on" } else { "off" });
+            println!("auto-switch:  {}", on_off(s.auto_switch));
             println!("foreground:   {}", s.foreground.as_deref().unwrap_or("?"));
             for w in s.warnings {
                 println!("warning:      {w}");
@@ -361,7 +361,7 @@ fn run_foreground(path: &Path, echo: bool) -> Result<()> {
             last_layer = rt.layer();
             eprintln!("layer {last_layer}");
         }
-        std::thread::sleep(Duration::from_millis(1));
+        std::thread::sleep(dp_service::TICK);
     }
     rt.stop();
     Ok(())

@@ -15,8 +15,10 @@ use dp_platform::groups::{DeviceGroup, DevicePolicy};
 use crate::dsu::{DsuServer, DsuSettings};
 use crate::httpapi::{HttpApi, HttpSettings, Job};
 use crate::live::{LiveDevice, LiveState};
+use crate::net::Listener;
 use crate::runtime::{DriverStatus, Runtime};
 use crate::slots::{PlayerLights, RuntimeOptions, SLOTS, SlotState};
+use crate::timing::Every;
 
 /// How often the foreground application is checked by default.
 const FOREGROUND_POLL_MS: u64 = 250;
@@ -27,6 +29,11 @@ const DRIVER_POLL_MS: u64 = 5000;
 /// How long the editor's focus report is trusted by default although another program is in
 /// front (the foreground check lags behind a focus change).
 const GUI_FOCUS_GRACE_MS: u64 = 1000;
+
+/// "on" or "off", as replies and the CLI say it.
+pub fn on_off(on: bool) -> &'static str {
+    if on { "on" } else { "off" }
+}
 
 #[derive(Clone, Debug)]
 pub struct ServiceOptions {
@@ -212,9 +219,10 @@ pub struct Service {
     auto_active: Option<PathBuf>,
     /// The application auto-switch last acted on (`None` while it is off).
     foreground: Option<String>,
-    last_fg_check: Option<u64>,
+    /// The foreground application is asked at most this often.
+    fg_poll: Every,
     drivers: DriverStatus,
-    drivers_checked: Option<u64>,
+    driver_poll: Every,
     /// [`Runtime::hiding_problems`], refreshed with the driver status.
     hiding_problems: Vec<String>,
     last_error: Option<String>,
@@ -224,12 +232,10 @@ pub struct Service {
     device_errors: std::collections::BTreeMap<String, String>,
     /// Connected controllers when their sessions were last brought in line.
     connected: Vec<String>,
-    /// The DSU motion server while it runs, and why it could not start.
-    dsu: Option<DsuServer>,
-    dsu_error: Option<String>,
-    /// The local HTTP API while it runs, and why it could not start.
-    http: Option<HttpApi>,
-    http_error: Option<String>,
+    /// The DSU motion server.
+    dsu: Listener<DsuServer>,
+    /// The local HTTP API.
+    http: Listener<HttpApi>,
     /// Why remapping is paused: the editor has focus, the desktop is locked or a secure
     /// desktop shows, the config's game is not in front.
     gui_suspended: bool,
@@ -237,15 +243,15 @@ pub struct Service {
     gui_since: u64,
     locked: bool,
     focus_paused: bool,
-    desktop_checked: Option<u64>,
+    desktop_poll: Every,
     /// The application in front, as last asked.
     fg_now: Option<String>,
     /// Its process id, where the platform can tell.
     fg_pid: Option<u32>,
     /// The editor reports focus while another program is in front (a missed focus change).
     gui_stale: bool,
-    /// When the gyro calibration was last saved.
-    calibration_saved: Option<u64>,
+    /// Automatic gyro calibration changes are saved at most this often.
+    calibration_save: Every,
 }
 
 fn load(path: &Path) -> Result<Profile> {
@@ -298,27 +304,25 @@ impl Service {
             oneoff: opts.initial_profile.clone(),
             auto_active: None,
             foreground: None,
-            last_fg_check: None,
+            fg_poll: Every::new(opts.foreground_poll_ms),
             drivers: DriverStatus::default(),
-            drivers_checked: None,
+            driver_poll: Every::new(DRIVER_POLL_MS),
             hiding_problems: Vec::new(),
             last_error: None,
             unsaved: None,
             device_errors: Default::default(),
             connected: Vec::new(),
-            dsu: None,
-            dsu_error: None,
-            http: None,
-            http_error: None,
+            dsu: Listener::default(),
+            http: Listener::default(),
             gui_suspended: false,
             gui_since: 0,
             locked: false,
             focus_paused: false,
-            desktop_checked: None,
+            desktop_poll: Every::new(DESKTOP_POLL_MS),
             fg_now: None,
             fg_pid: None,
             gui_stale: false,
-            calibration_saved: None,
+            calibration_save: Every::new(CALIBRATION_SAVE_MS),
             opts,
         };
         svc.apply_device_policy();
@@ -440,6 +444,24 @@ impl Service {
         self.library.config_for_process(exe)
     }
 
+    /// Change the state and save it.
+    fn update_state(&mut self, f: impl FnOnce(&mut SlotState)) {
+        f(&mut self.state);
+        self.save_state();
+    }
+
+    /// Forget the one-off profile and the one auto-switch applied.
+    fn clear_overrides(&mut self) {
+        self.oneoff = None;
+        self.auto_active = None;
+    }
+
+    /// Remapping off and saved, with nothing left to come back to.
+    fn turn_remap_off(&mut self) {
+        self.clear_overrides();
+        self.update_state(|s| s.remap_on = false);
+    }
+
     fn save_state(&mut self) {
         if let Some(path) = &self.opts.state_path
             && let Err(e) = self.state.save(path)
@@ -550,8 +572,7 @@ impl Service {
                     Ok(()) => {
                         self.oneoff = Some(path.clone());
                         self.auto_active = None;
-                        self.state.remap_on = true;
-                        self.save_state();
+                        self.update_state(|s| s.remap_on = true);
                         self.sync_devices();
                         Response::ok(format!("applied {}", path.display()))
                     }
@@ -561,10 +582,7 @@ impl Service {
             Request::Stop => {
                 self.rt.stop();
                 self.last_error = None;
-                self.oneoff = None;
-                self.auto_active = None;
-                self.state.remap_on = false;
-                self.save_state();
+                self.turn_remap_off();
                 Response::ok("remapping stopped")
             }
             Request::ApplyToSlot { path, slot, device } => {
@@ -596,10 +614,7 @@ impl Service {
             },
             Request::AutoSwitch { enabled } => {
                 self.set_auto_switch(enabled);
-                Response::ok(format!(
-                    "automatic profile switching {}",
-                    if enabled { "on" } else { "off" }
-                ))
+                Response::ok(format!("automatic profile switching {}", on_off(enabled)))
             }
             Request::Reload => {
                 self.reload();
@@ -661,11 +676,11 @@ impl Service {
                     self.rt.stop_device(&dp_platform::DeviceId(device.clone()));
                     return self.device_reply(&device, format!("applied to slot {}", slot + 1));
                 }
-                self.state.slots[slot] = Some(path.clone());
-                self.state.active = slot;
-                self.oneoff = None;
-                self.auto_active = None;
-                self.save_state();
+                self.clear_overrides();
+                self.update_state(|s| {
+                    s.slots[slot] = Some(path.clone());
+                    s.active = slot;
+                });
                 self.sync_devices();
                 // Re-apply even if the same file is active: it may have been edited.
                 match self.apply_path(&path) {
@@ -684,10 +699,8 @@ impl Service {
                     }
                     return self.device_reply(&device, format!("slot {} selected", slot + 1));
                 }
-                self.state.active = slot;
-                self.oneoff = None;
-                self.auto_active = None;
-                self.save_state();
+                self.clear_overrides();
+                self.update_state(|s| s.active = slot);
                 self.apply_base();
                 self.sync_devices();
                 match &self.last_error {
@@ -705,8 +718,7 @@ impl Service {
                     }
                     return self.device_reply(&device, format!("slot {} cleared", slot + 1));
                 }
-                self.state.slots[slot] = None;
-                self.save_state();
+                self.update_state(|s| s.slots[slot] = None);
                 if slot == self.state.active && self.auto_active.is_none() {
                     self.apply_base();
                 }
@@ -726,17 +738,15 @@ impl Service {
                 self.device_reply(&device, msg.into())
             }
             ServiceCmd::SetRemap(on) => {
-                self.state.remap_on = on;
                 if !on {
-                    self.oneoff = None;
-                    self.auto_active = None;
+                    self.clear_overrides();
                 }
-                self.save_state();
+                self.update_state(|s| s.remap_on = on);
                 self.apply_base();
                 self.sync_devices();
                 match (&self.last_error, on) {
                     (Some(e), true) => ServiceReply::Err(e.clone()),
-                    _ => ServiceReply::Ok(format!("remap {}", if on { "on" } else { "off" })),
+                    _ => ServiceReply::Ok(format!("remap {}", on_off(on))),
                 }
             }
             ServiceCmd::SetSuspended(on) => {
@@ -756,7 +766,7 @@ impl Service {
             }
             ServiceCmd::SetAutoSwitch(on) => {
                 self.set_auto_switch(on);
-                ServiceReply::Ok(format!("auto-switch {}", if on { "on" } else { "off" }))
+                ServiceReply::Ok(format!("auto-switch {}", on_off(on)))
             }
             ServiceCmd::SetBlocked { id, blocked } => {
                 self.state.blocked.retain(|b| *b != id);
@@ -803,9 +813,8 @@ impl Service {
                 }
             },
             ServiceCmd::SetRuntimeOptions(o) => {
-                self.state.runtime = o;
+                self.update_state(|s| s.runtime = o);
                 self.rt.set_prevent_sleep(o.prevent_sleep);
-                self.save_state();
                 self.sync_devices();
                 ServiceReply::Ok("runtime options set".into())
             }
@@ -816,7 +825,7 @@ impl Service {
                 };
                 self.apply_http();
                 self.save_state();
-                match &self.http_error {
+                match &self.http.error {
                     Some(e) => ServiceReply::Err(e.clone()),
                     None => ServiceReply::Ok("HTTP API set".into()),
                 }
@@ -831,7 +840,7 @@ impl Service {
                 self.state.dsu = settings;
                 self.apply_dsu();
                 self.save_state();
-                match &self.dsu_error {
+                match &self.dsu.error {
                     Some(e) => ServiceReply::Err(e.clone()),
                     None if settings.enabled => ServiceReply::Ok("motion server on".into()),
                     None => ServiceReply::Ok("motion server off".into()),
@@ -853,9 +862,10 @@ impl Service {
                 }
             }
             ServiceCmd::SetLights { player, mic } => {
-                self.state.player_lights = player;
-                self.state.mic_led = mic;
-                self.save_state();
+                self.update_state(|s| {
+                    s.player_lights = player;
+                    s.mic_led = mic;
+                });
                 ServiceReply::Ok("lights set".into())
             }
             ServiceCmd::RefreshDrivers => {
@@ -899,10 +909,7 @@ impl Service {
             }),
             ServiceCmd::SetGyroAuto { device, on } => self.with_gyro(device, |rt, id| {
                 rt.calibration_mut().set_auto(id, on);
-                format!(
-                    "automatic gyro calibration {}",
-                    if on { "on" } else { "off" }
-                )
+                format!("automatic gyro calibration {}", on_off(on))
             }),
             ServiceCmd::ResetGyro { device } => self.with_gyro(device, |rt, id| {
                 rt.calibration_mut().reset(id);
@@ -968,41 +975,30 @@ impl Service {
             return;
         };
         let now = self.rt.now_ms();
-        let periodic = self
-            .calibration_saved
-            .is_none_or(|t| now.saturating_sub(t) >= CALIBRATION_SAVE_MS);
+        let periodic = self.calibration_save.elapsed(now);
         if self.rt.calibration().needs_save(periodic) {
             if let Err(e) = self.rt.calibration_mut().save(path) {
                 tracing::warn!("cannot save {}: {e}", path.display());
             }
-            self.calibration_saved = Some(now);
+            self.calibration_save.done(now);
         }
     }
 
     /// Start, stop or move the HTTP API to match the settings.
     fn apply_http(&mut self) {
-        self.http = None;
-        self.http_error = None;
-        if !self.state.http.enabled {
-            return;
+        if self.state.http.enabled && self.state.http.token.is_empty() {
+            self.update_state(|s| s.http.token = crate::httpapi::new_token());
         }
-        if self.state.http.token.is_empty() {
-            self.state.http.token = crate::httpapi::new_token();
-            self.save_state();
-        }
-        match HttpApi::start(&self.state.http) {
-            Ok(api) => self.http = Some(api),
-            Err(e) => {
-                let e = format!("the HTTP API cannot use port {}: {e}", self.state.http.port);
-                tracing::warn!("{e}");
-                self.http_error = Some(e);
-            }
-        }
+        let settings = &self.state.http;
+        self.http
+            .restart(settings.enabled, "the HTTP API", settings.port, || {
+                HttpApi::start(settings)
+            });
     }
 
     /// Answer what the HTTP API's clients asked for since the last tick.
     fn serve_http(&mut self) {
-        let Some(api) = &self.http else {
+        let Some(api) = &self.http.running else {
             return;
         };
         let jobs: Vec<Job> = api.jobs().try_iter().collect();
@@ -1022,20 +1018,10 @@ impl Service {
     /// Start, stop or move the DSU server to match the settings.
     fn apply_dsu(&mut self) {
         let want = self.state.dsu;
-        // Free the port before binding it again.
-        self.dsu = None;
-        self.dsu_error = None;
-        if !want.enabled {
-            return;
-        }
-        match DsuServer::start(want) {
-            Ok(s) => self.dsu = Some(s),
-            Err(e) => {
-                let e = format!("the motion server cannot use port {}: {e}", want.port);
-                tracing::warn!("{e}");
-                self.dsu_error = Some(e);
-            }
-        }
+        self.dsu
+            .restart(want.enabled, "the motion server", want.port, || {
+                DsuServer::start(want)
+            });
     }
 
     fn apply_device_policy(&mut self) {
@@ -1069,7 +1055,7 @@ impl Service {
     /// One loop iteration: engine tick, remap-off handling, auto-switch, driver probing.
     pub fn tick(&mut self) {
         self.rt.tick();
-        if let Some(dsu) = &mut self.dsu {
+        if let Some(dsu) = &mut self.dsu.running {
             dsu.publish(self.rt.devices());
         }
         self.serve_http();
@@ -1077,10 +1063,7 @@ impl Service {
         self.show_lights();
         self.save_calibration();
         if self.rt.take_remap_off_request() {
-            self.state.remap_on = false;
-            self.oneoff = None;
-            self.auto_active = None;
-            self.save_state();
+            self.turn_remap_off();
         }
         // Controllers with slots of their own start or stop as they come and go.
         if self.rt.devices().len() != self.connected.len()
@@ -1100,17 +1083,14 @@ impl Service {
             self.apply_suspend();
         }
         self.auto_switch_tick();
-        if self
-            .drivers_checked
-            .is_none_or(|t| now >= t + DRIVER_POLL_MS)
-        {
+        if self.driver_poll.elapsed(now) {
             self.check_drivers(now);
         }
     }
 
     fn check_drivers(&mut self, now: u64) {
         let drivers = self.rt.drivers();
-        if self.drivers_checked.is_none() || drivers != self.drivers {
+        if !self.driver_poll.ever() || drivers != self.drivers {
             tracing::info!(
                 "drivers: virtual pads {}, device hiding {}",
                 drivers.virtual_pads,
@@ -1126,18 +1106,14 @@ impl Service {
         }
         self.drivers = drivers;
         self.hiding_problems = problems;
-        self.drivers_checked = Some(now);
+        self.driver_poll.done(now);
     }
 
     /// Ask which application is in front, at most every poll interval; `true` if it asked.
     fn poll_foreground(&mut self, now: u64) -> bool {
-        if self
-            .last_fg_check
-            .is_some_and(|t| now < t + self.opts.foreground_poll_ms)
-        {
+        if !self.fg_poll.due(now) {
             return false;
         }
-        self.last_fg_check = Some(now);
         let fg = &mut self.rt.platform_mut().foreground;
         self.fg_now = fg.foreground_process();
         self.fg_pid = fg.foreground_pid();
@@ -1147,13 +1123,9 @@ impl Service {
     /// Pause while the user's desktop does not take input (locked, Ctrl+Alt+Del, an
     /// elevation prompt): nothing stays pressed meanwhile.
     fn watch_desktop(&mut self, now: u64) {
-        if self
-            .desktop_checked
-            .is_some_and(|t| now < t + DESKTOP_POLL_MS)
-        {
+        if !self.desktop_poll.due(now) {
             return;
         }
-        self.desktop_checked = Some(now);
         let locked = !self.rt.platform_mut().system.desktop_active();
         if locked != self.locked {
             tracing::info!(locked, "the user's desktop changed");
@@ -1326,14 +1298,14 @@ impl Service {
                 .collect(),
             http: crate::live::LiveHttp {
                 settings: self.state.http.clone(),
-                address: self.http.as_ref().map(|h| h.addr.to_string()),
-                error: self.http_error.clone(),
+                address: self.http.running.as_ref().map(|h| h.addr.to_string()),
+                error: self.http.error.clone(),
             },
             dsu: crate::live::LiveDsu {
                 settings: self.state.dsu,
-                address: self.dsu.as_ref().map(|d| d.addr.to_string()),
-                clients: self.dsu.as_ref().map_or(0, DsuServer::clients),
-                error: self.dsu_error.clone(),
+                address: self.dsu.running.as_ref().map(|d| d.addr.to_string()),
+                clients: self.dsu.running.as_ref().map_or(0, DsuServer::clients),
+                error: self.dsu.error.clone(),
             },
             auto_switch: self.state.auto_switch,
             auto_active: self.auto_active.is_some(),
