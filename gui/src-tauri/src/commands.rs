@@ -2,7 +2,7 @@
 //! errors arrive in JavaScript as readable messages.
 
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
 use dp_config::Diagnostic;
@@ -23,7 +23,9 @@ use dp_platform::groups::DeviceGroup;
 use dp_service::dsu::DsuSettings;
 use dp_service::httpapi::HttpSettings;
 use dp_service::slots::RuntimeOptions;
-use dp_service::{LIVE_INTERVAL, LiveState, PlayerLights, ServiceCmd, ServiceHandle, ServiceReply};
+use dp_service::{
+    LIVE_INTERVAL, LiveState, PlayerLights, ServiceCmd, ServiceHandle, ServiceReply, SharedLive,
+};
 use serde::Serialize;
 use tauri::ipc::Channel;
 use tauri::{AppHandle, Manager, State};
@@ -32,6 +34,8 @@ use crate::settings::GuiSettings;
 
 pub struct AppState {
     pub service: ServiceHandle,
+    /// The service's live snapshot, for the threads that watch it.
+    pub live: SharedLive,
     pub settings: Mutex<GuiSettings>,
     pub profiles_dir: PathBuf,
     /// Messages for the UI collected before it was ready (e.g. a service takeover).
@@ -39,8 +43,8 @@ pub struct AppState {
     /// Incremented per live subscription; older streaming threads stop.
     pub live_generation: Arc<AtomicU64>,
     /// The main window has the focus (window events; the webview inside holds the keyboard
-    /// focus, so the window itself does not report it).
-    pub main_focused: std::sync::atomic::AtomicBool,
+    /// focus, so the window itself does not report it). See [`AppState::set_main_focused`].
+    pub main_focused: AtomicBool,
 }
 
 type CmdResult<T> = Result<T, String>;
@@ -52,6 +56,23 @@ fn err(e: impl std::fmt::Display) -> String {
 impl AppState {
     pub fn call(&self, cmd: ServiceCmd) -> CmdResult<String> {
         self.service.call(cmd).into_result()
+    }
+
+    pub fn main_focused(&self) -> bool {
+        self.main_focused.load(Ordering::Relaxed)
+    }
+
+    /// The main window got or lost the focus.
+    pub fn set_main_focused(&self, focused: bool) {
+        self.main_focused.store(focused, Ordering::Relaxed);
+        let _ = self.sync_suspend();
+    }
+
+    /// Remapping pauses while the editor has the focus, so mapped keys do not land in it,
+    /// unless "keep remapping active" is on.
+    pub fn sync_suspend(&self) -> CmdResult<String> {
+        let stay_live = self.settings.lock().unwrap().stay_live;
+        self.call(ServiceCmd::SetSuspended(self.main_focused() && !stay_live))
     }
 }
 
@@ -572,7 +593,7 @@ pub async fn rewasd_quit(
 /// Stream live snapshots (devices, slots, layer, ...) to the frontend while they change.
 #[tauri::command]
 pub fn live_subscribe(state: State<AppState>, on_event: Channel<LiveState>) {
-    let live = state.service.live_shared();
+    let live = state.live.clone();
     let generation = state.live_generation.fetch_add(1, Ordering::SeqCst) + 1;
     let current = state.live_generation.clone();
     std::thread::Builder::new()
@@ -607,13 +628,9 @@ pub fn settings_set(
 ) -> CmdResult<()> {
     settings.osd = settings.osd.clamped();
     settings.save().map_err(err)?;
-    let stay_live = settings.stay_live;
     *state.settings.lock().unwrap() = settings;
-    // "Keep remapping active" may have changed; the pause still needs the window in focus.
-    let focused = state
-        .main_focused
-        .load(std::sync::atomic::Ordering::Relaxed);
-    state.call(ServiceCmd::SetSuspended(focused && !stay_live))?;
+    // "Keep remapping active" may have changed.
+    state.sync_suspend()?;
     crate::tray::refresh(&app);
     Ok(())
 }

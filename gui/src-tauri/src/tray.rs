@@ -301,7 +301,7 @@ fn on_menu(app: &AppHandle, id: &str) {
 }
 
 pub fn create(app: &AppHandle) -> tauri::Result<()> {
-    let live = app.state::<AppState>().service.live_shared();
+    let live = app.state::<AppState>().live.clone();
     let check = |id: &str| CheckMenuItem::with_id(app, id, "", true, false, None::<&str>);
     // A 32 px glyph without the app icon's tile, drawn for tray sizes (icons/source/tray-icon.svg).
     let icon_on = tauri::include_image!("icons/tray.png");
@@ -316,7 +316,7 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
         quit: MenuItem::with_id(app, "quit", "", true, None::<&str>)?,
         icon_off: dimmed(&icon_on),
         icon_on,
-        live: live.clone(),
+        live,
     };
 
     let separators = [
@@ -362,11 +362,7 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
     let shown = tray.view();
     app.manage(tray);
     render(app);
-    let handle = app.clone();
-    std::thread::Builder::new()
-        .name("dp-tray".into())
-        .spawn(move || watch(handle, live, shown))?;
-    Ok(())
+    crate::overlay::spawn_watcher(app, "dp-tray", move |app, live| watch(app, live, shown))
 }
 
 #[cfg(test)]

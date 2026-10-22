@@ -7,6 +7,8 @@
 use std::collections::HashMap;
 use std::sync::Mutex;
 
+use dp_service::SharedLive;
+
 use serde::Serialize;
 use serde_json::Value;
 use tauri::{
@@ -18,6 +20,20 @@ use crate::settings::Corner;
 
 /// Gap between an overlay and the edge of the monitor's work area, in logical pixels.
 const MARGIN: f64 = 24.0;
+
+/// Run `watch` on a thread named `name` with the app and the service's live snapshot.
+pub fn spawn_watcher(
+    app: &AppHandle,
+    name: &str,
+    watch: impl FnOnce(AppHandle, SharedLive) + Send + 'static,
+) -> tauri::Result<()> {
+    let live = app.state::<crate::commands::AppState>().live.clone();
+    let handle = app.clone();
+    std::thread::Builder::new()
+        .name(name.into())
+        .spawn(move || watch(handle, live))?;
+    Ok(())
+}
 
 pub fn label(kind: &str) -> String {
     format!("overlay-{kind}")
