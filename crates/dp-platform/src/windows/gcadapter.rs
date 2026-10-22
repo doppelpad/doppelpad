@@ -11,17 +11,19 @@ use std::time::Duration;
 use dp_core::pad::Rumble;
 use nusb::descriptors::TransferType;
 use nusb::transfer::{
-    Buffer, ControlOut, ControlType, Direction, In, Interrupt, Out, Recipient, TransferError,
+    Buffer, ControlOut, ControlType, In, Interrupt, Out, Recipient, TransferError,
 };
 use nusb::{Endpoint, Interface, MaybeFuture};
 use windows_sys::Win32::Devices::HumanInterfaceDevice::GUID_DEVINTERFACE_HID;
 
 use super::devnode::{enumerate_interfaces, usb_device_of};
-use super::hidio::{HidIo, Wait};
+use super::hidio::HidIo;
+use super::usb::{endpoint_addrs, transfer_error};
 use crate::nintendo::NINTENDO_VID;
 use crate::nintendo::gcadapter::{
     self, ADAPTER_PID, Adapter, PORTS, Port, PortKind, START, rumble_report,
 };
+use crate::padio::ReportIo;
 use crate::{DeviceId, DeviceInfo, GamepadBackend, PadFamily, PadSnapshot};
 
 const RESCAN: Duration = Duration::from_secs(2);
@@ -29,28 +31,13 @@ const READ_WAIT: Duration = Duration::from_millis(50);
 /// The stronger motor at this level or more turns the plain GameCube motor on.
 const RUMBLE_ON: f32 = 0.2;
 
-/// Reports in, commands out.
-trait AdapterIo: Send {
-    fn write(&mut self, data: &[u8]) -> io::Result<()>;
-    /// The next input report, or `None` after `timeout`.
-    fn read(&mut self, buf: &mut [u8], timeout: Duration) -> io::Result<Option<usize>>;
-}
-
 struct WinUsb {
     out: Endpoint<Interrupt, Out>,
     input: Endpoint<Interrupt, In>,
     _interface: Interface,
 }
 
-fn transfer_error(e: TransferError) -> io::Error {
-    let kind = match e {
-        TransferError::Disconnected => io::ErrorKind::NotConnected,
-        _ => io::ErrorKind::Other,
-    };
-    io::Error::new(kind, e)
-}
-
-impl AdapterIo for WinUsb {
+impl ReportIo for WinUsb {
     fn write(&mut self, data: &[u8]) -> io::Result<()> {
         self.out
             .transfer_blocking(Buffer::from(data.to_vec()), Duration::from_secs(1))
@@ -91,42 +78,12 @@ fn open_winusb(info: &nusb::DeviceInfo) -> Result<WinUsb, nusb::Error> {
     {
         tracing::debug!("GameCube adapter: SET_PROTOCOL: {e}");
     }
-    let (mut out_addr, mut in_addr) = (0x02, 0x81);
-    if let Some(desc) = interface.descriptor() {
-        for ep in desc.endpoints() {
-            if ep.transfer_type() == TransferType::Interrupt {
-                match ep.direction() {
-                    Direction::Out => out_addr = ep.address(),
-                    Direction::In => in_addr = ep.address(),
-                }
-            }
-        }
-    }
+    let (out_addr, in_addr) = endpoint_addrs(&interface, TransferType::Interrupt, (0x02, 0x81));
     Ok(WinUsb {
         out: interface.endpoint::<Interrupt, Out>(out_addr)?,
         input: interface.endpoint::<Interrupt, In>(in_addr)?,
         _interface: interface,
     })
-}
-
-struct Hid(HidIo);
-
-impl AdapterIo for Hid {
-    fn write(&mut self, data: &[u8]) -> io::Result<()> {
-        self.0.write_report(data)
-    }
-
-    fn read(&mut self, buf: &mut [u8], timeout: Duration) -> io::Result<Option<usize>> {
-        match self.0.wait(timeout)? {
-            Wait::Report(_) => {
-                let r = self.0.report();
-                let n = r.len().min(buf.len());
-                buf[..n].copy_from_slice(&r[..n]);
-                Ok(Some(n))
-            }
-            Wait::Woken | Wait::Timeout => Ok(None),
-        }
-    }
 }
 
 /// One adapter and its four ports, shared with its thread.
@@ -172,7 +129,7 @@ impl Shared {
     }
 }
 
-fn run(mut io: Box<dyn AdapterIo>, shared: &Shared) {
+fn run(mut io: Box<dyn ReportIo + Send>, shared: &Shared) {
     if let Err(e) = io.write(&START) {
         tracing::warn!("GameCube adapter did not start: {e}");
         return;
@@ -254,7 +211,7 @@ impl Default for GcAdapterBackend {
     }
 }
 
-fn start(adapters: &Adapters, instance: &str, hide: Option<String>, io: Box<dyn AdapterIo>) {
+fn start(adapters: &Adapters, instance: &str, hide: Option<String>, io: Box<dyn ReportIo + Send>) {
     let shared = Arc::new(Shared::new(instance, hide));
     let thread_shared = shared.clone();
     let spawned = std::thread::Builder::new()
@@ -301,7 +258,7 @@ fn scan(adapters: &Adapters, problems: &Mutex<Vec<String>>) {
                 adapters,
                 &instance,
                 Some(entry.instance_id.clone()),
-                Box::new(Hid(io)),
+                Box::new(io),
             ),
             Ok(_) => {}
             Err(e) => tracing::debug!("GameCube adapter HID interface: {e}"),
