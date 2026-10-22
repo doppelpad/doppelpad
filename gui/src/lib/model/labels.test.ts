@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { setLanguage } from '../i18n/index.svelte';
 import type { Profile } from '../types';
-import { comboLabel, defaultLayerName, effectiveSummary, layerLabel, overlayRows } from './labels';
+import { comboLabel, configName, defaultLayerName, effectiveSummary, layerLabel, overlayRows } from './labels';
 
 setLanguage('en');
 
@@ -27,6 +27,17 @@ describe('labels', () => {
     expect(effectiveSummary(p, 1, 'A', (id) => layerLabel(p, id))).toEqual({ text: 'Space', inherited: true });
     expect(effectiveSummary(p, 1, 'B', (id) => layerLabel(p, id))).toEqual({ text: 'R', inherited: false });
     expect(effectiveSummary(p, 0, 'Y', (id) => layerLabel(p, id))).toBeNull();
+  });
+
+  it('names configs by game, else by their own name or file', () => {
+    const lib = {
+      games: [{ dir: 'C:/p/Halo', meta: { name: 'Halo', processes: [] }, configs: [{ path: 'C:/p/Halo/a.toml', name: 'Aim', error: null }] }],
+      unsorted: [{ path: 'C:/p/loose.toml', name: 'Loose', error: null }],
+      errors: [],
+    };
+    expect(configName(lib, 'C:/p/Halo/a.toml')).toBe('Halo › Aim');
+    expect(configName(lib, 'C:/p/loose.toml')).toBe('Loose');
+    expect(configName(lib, 'C:\\x\\other.toml')).toBe('other.toml');
   });
 
   it("lists a layer's triggers first, then Main's it takes over", () => {

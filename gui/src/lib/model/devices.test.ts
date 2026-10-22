@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { LiveDevice, PadFamily } from '../types';
-import { controlsFromPad, drawingsFor, hasMotion, sideShowing } from './devices';
+import { batteryTone, controlsFromPad, drawingsFor, hasMotion, sideShowing } from './devices';
 
 const dev = (family: PadFamily, vendor_id: number, product_id: number) => ({ family, vendor_id, product_id });
 
@@ -82,5 +82,13 @@ describe('controls pressed on a controller', () => {
 
   it('ignores small deflections and light pulls', () => {
     expect(controlsFromPad(pad(0, [0.6, -0.6, 0, 0, 0.4, 0.39]), ['A']).size).toBe(0);
+  });
+});
+
+describe('battery tone', () => {
+  const battery = (level: number, charging = false, wired = false) => ({ level, charging, wired });
+  it('warns below 40 % and alarms below 20 %, unless charging or wired', () => {
+    expect([battery(40), battery(39), battery(20), battery(19)].map(batteryTone)).toEqual([undefined, 'warning', 'warning', 'danger']);
+    expect([battery(5, true), battery(5, false, true), null].map(batteryTone)).toEqual([undefined, undefined, undefined]);
   });
 });
