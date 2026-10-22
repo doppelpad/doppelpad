@@ -25,6 +25,7 @@
   import type { Action, RadialApply, RadialMenu, RadialSelect } from '../../lib/types';
   import ActionPicker from '../binding/ActionPicker.svelte';
   import Chip from '../ui/Chip.svelte';
+  import ItemHeader from '../ui/ItemHeader.svelte';
   import Slider from '../ui/Slider.svelte';
 
   const menus = $derived(app.profile?.radial_menus ?? []);
@@ -63,20 +64,25 @@
 {#each menus as m, i (i)}
   {@const n = m.sectors.length}
   <section class="menu card">
-    <header>
-      <svg class="preview" viewBox="-104 -104 208 208" aria-hidden="true">
-        {#each m.sectors as s, k (k)}
-          <path d={sectorPath(k, n, 34, 100)} fill={s.color || 'var(--accent)'} fill-opacity="0.25" stroke="var(--line-strong)" stroke-width="3" />
-          {@const [cx, cy] = sectorCentre(k, n, 67)}
-          <text x={cx} y={cy + 6} text-anchor="middle" class="pnum">{k + 1}</text>
-        {/each}
-      </svg>
-      <span class="num">{i + 1}</span>
-      <input class="name" value={m.name ?? ''} placeholder={t('radial.name')} {disabled} onchange={(e) => setMenu(i, { name: e.currentTarget.value.trim() || undefined })} />
-      {#if !disabled}
-        <button class="icon-btn del danger" title={t('radial.remove')} onclick={() => app.edit((p) => removeMenu(p, i))}><Trash2 size={15} /></button>
-      {/if}
-    </header>
+    <ItemHeader
+      index={i}
+      name={m.name}
+      placeholder={t('radial.name')}
+      {disabled}
+      removeLabel={t('radial.remove')}
+      onrename={(name) => setMenu(i, { name })}
+      onremove={() => app.edit((p) => removeMenu(p, i))}
+    >
+      {#snippet preview()}
+        <svg class="preview" viewBox="-104 -104 208 208" aria-hidden="true">
+          {#each m.sectors as s, k (k)}
+            <path d={sectorPath(k, n, 34, 100)} fill={s.color || 'var(--accent)'} fill-opacity="0.25" stroke="var(--line-strong)" stroke-width="3" />
+            {@const [cx, cy] = sectorCentre(k, n, 67)}
+            <text x={cx} y={cy + 6} text-anchor="middle" class="pnum">{k + 1}</text>
+          {/each}
+        </svg>
+      {/snippet}
+    </ItemHeader>
 
     <div class="row">
       <label class="field">
@@ -199,11 +205,6 @@
     gap: 12px;
     padding: 12px 16px 16px;
   }
-  header {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
   .preview {
     width: 64px;
     height: 64px;
@@ -214,17 +215,9 @@
     font-size: 18px;
     font-weight: 600;
   }
-  .num,
   .snum {
     color: var(--text-faint);
     font-weight: 600;
-  }
-  .name {
-    flex: 1;
-    min-width: 0;
-  }
-  .del {
-    margin-left: auto;
   }
   .row {
     display: flex;

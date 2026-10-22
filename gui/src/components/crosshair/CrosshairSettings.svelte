@@ -1,7 +1,7 @@
 <script lang="ts">
   // The config's crosshairs: shape, colours, size, position, magnifier, and the layers that
   // show each one. Mappings show them with the "Show crosshair N" command.
-  import { Plus, Trash2 } from '@lucide/svelte';
+  import { Plus } from '@lucide/svelte';
   import { t } from '../../lib/i18n/index.svelte';
   import {
     CROSSHAIR_SHAPES,
@@ -14,6 +14,7 @@
   import { layerIds } from '../../lib/model/profile';
   import { app } from '../../lib/state/app.svelte';
   import type { Crosshair, CrosshairShape as Shape } from '../../lib/types';
+  import ItemHeader from '../ui/ItemHeader.svelte';
   import Slider from '../ui/Slider.svelte';
   import Toggle from '../ui/Toggle.svelte';
   import CrosshairShape from './CrosshairShape.svelte';
@@ -51,16 +52,17 @@
 {#each crosshairs as c, i (i)}
   {@const f = full(c)}
   <section class="xh card">
-    <header>
-      <span class="preview"><CrosshairShape crosshair={f} px={56} /></span>
-      <span class="num">{i + 1}</span>
-      <input class="name" value={c.name ?? ''} placeholder={t('crosshairs.name')} {disabled} onchange={(e) => set(i, { name: e.currentTarget.value.trim() || undefined })} />
-      {#if !disabled}
-        <button class="icon-btn del danger" title={t('crosshairs.remove')} onclick={() => app.edit((p) => removeCrosshair(p, i))}>
-          <Trash2 size={15} />
-        </button>
-      {/if}
-    </header>
+    <ItemHeader
+      index={i}
+      name={c.name}
+      placeholder={t('crosshairs.name')}
+      {disabled}
+      removeLabel={t('crosshairs.remove')}
+      onrename={(name) => set(i, { name })}
+      onremove={() => app.edit((p) => removeCrosshair(p, i))}
+    >
+      {#snippet preview()}<span class="preview"><CrosshairShape crosshair={f} px={56} /></span>{/snippet}
+    </ItemHeader>
 
     <div class="shapes">
       {#each CROSSHAIR_SHAPES as s (s)}
@@ -146,11 +148,6 @@
     gap: 12px;
     padding: 12px 16px 16px;
   }
-  header {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
   .preview {
     display: grid;
     place-items: center;
@@ -159,17 +156,6 @@
     border-radius: var(--radius-s);
     background: repeating-conic-gradient(var(--line-strong) 0% 25%, var(--bg-3) 0% 50%) 50% / 16px 16px;
     flex: none;
-  }
-  .num {
-    color: var(--text-faint);
-    font-weight: 600;
-  }
-  .name {
-    flex: 1;
-    min-width: 0;
-  }
-  .del {
-    margin-left: auto;
   }
   .shapes {
     display: flex;
