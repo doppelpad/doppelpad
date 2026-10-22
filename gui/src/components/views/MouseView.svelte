@@ -7,6 +7,7 @@
   import { app } from '../../lib/state/app.svelte';
   import type { ControlName } from '../../lib/types';
   import ControllerView from './ControllerView.svelte';
+  import ControlTile from './ControlTile.svelte';
 
   const groups = [
     { id: 'mouse_wheel', controls: ['Wheel:Left', 'Wheel:Right'] },
@@ -31,10 +32,7 @@
     <div class="grid">
       {#each g.controls as c (c)}
         {@const s = summary(c)}
-        <button class="tile" class:mapped={!!s} class:selected={app.selectedKey === c} onclick={() => app.select(c)}>
-          <span class="name">{controlLabel(c, null)}</span>
-          <span class="sum" class:inh={s?.inherited}>{s?.text ?? '—'}</span>
-        </button>
+        <ControlTile name={controlLabel(c, null)} summary={s} selected={app.selectedKey === c} onclick={() => app.select(c)} />
       {/each}
     </div>
   {/each}
@@ -56,40 +54,5 @@
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
     gap: 8px;
-  }
-  .tile {
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-    padding: 9px 12px;
-    text-align: left;
-    border-radius: var(--radius-m);
-    border: 1px solid var(--line);
-    background: var(--bg-1);
-    min-width: 0;
-  }
-  .tile:hover {
-    border-color: var(--line-strong);
-  }
-  .tile.mapped {
-    border-left: 3px solid var(--accent);
-  }
-  .tile.selected {
-    border-color: var(--accent);
-    background: var(--accent-soft);
-  }
-  .name {
-    font-weight: 600;
-  }
-  .sum {
-    color: var(--text-dim);
-    font-size: var(--fs-s);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .sum.inh {
-    color: var(--text-faint);
-    font-style: italic;
   }
 </style>

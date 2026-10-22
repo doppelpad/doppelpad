@@ -20,6 +20,7 @@
   import { effectiveSummary } from '../../lib/model/labels';
   import { app } from '../../lib/state/app.svelte';
   import type { ControlName } from '../../lib/types';
+  import ControlTile from './ControlTile.svelte';
 
   /** `device`: the drawing this list stands in for; it lists the buttons that drawing has. */
   let { back = false, device }: { back?: boolean; device: DeviceId } = $props();
@@ -80,16 +81,13 @@
       {#each g.controls as c (c)}
         {@const tl = tile(c)}
         {@const s = tileSummary(tl.members)}
-        <button
-          class="tile"
-          class:selected={tl.members.includes(app.selectedKey)}
-          class:pressed={tl.members.some((m) => app.pressed.has(m))}
-          class:mapped={!!s}
+        <ControlTile
+          name={tl.label}
+          summary={s}
+          selected={tl.members.includes(app.selectedKey)}
+          pressed={tl.members.some((m) => app.pressed.has(m))}
           onclick={() => app.select(c)}
-        >
-          <span class="name">{tl.label}</span>
-          <span class="sum" class:inh={s?.inherited}>{s?.text ?? '—'}</span>
-        </button>
+        />
       {/each}
     </div>
   {/each}
@@ -106,43 +104,5 @@
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
     gap: 8px;
-  }
-  .tile {
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-    padding: 9px 12px;
-    text-align: left;
-    border-radius: var(--radius-m);
-    border: 1px solid var(--line);
-    background: var(--bg-1);
-    min-width: 0;
-  }
-  .tile:hover {
-    border-color: var(--line-strong);
-  }
-  .tile.mapped {
-    border-left: 3px solid var(--accent);
-  }
-  .tile.selected {
-    border-color: var(--accent);
-    background: var(--accent-soft);
-  }
-  .tile.pressed {
-    box-shadow: 0 0 0 2px var(--accent);
-  }
-  .name {
-    font-weight: 600;
-  }
-  .sum {
-    color: var(--text-dim);
-    font-size: var(--fs-s);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .sum.inh {
-    color: var(--text-faint);
-    font-style: italic;
   }
 </style>
