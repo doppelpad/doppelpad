@@ -3,7 +3,6 @@
   // or a built-in command.
   import { Keyboard, Mouse, Gamepad2, Terminal, X } from '@lucide/svelte';
   import { open } from '@tauri-apps/plugin-dialog';
-  import { confirmAsk } from '../../lib/api';
   import { t } from '../../lib/i18n/index.svelte';
   import { keyFromEvent, keyGroups, keyLabel } from '../../lib/model/keymap';
   import { parseNonNegInt } from '../../lib/model/numbers';
@@ -77,7 +76,7 @@
 
   /** Power commands end the session or the PC's uptime: confirm before adding one. */
   async function pickPower(c: (typeof POWER_COMMANDS)[number]) {
-    if (await confirmAsk(t('picker.power_confirm', { command: t(`picker.${c}`) }))) onpick({ command: c });
+    if (await app.confirmAsk(t('picker.power_confirm', { command: t(`picker.${c}`) }))) onpick({ command: c });
   }
 
   async function pickPause() {

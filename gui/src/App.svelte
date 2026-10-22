@@ -22,6 +22,7 @@
   import AnalogView from './components/views/AnalogView.svelte';
   import SettingsDialog from './components/SettingsDialog.svelte';
   import PromptDialog from './components/ui/PromptDialog.svelte';
+  import ConfirmDialog from './components/ui/ConfirmDialog.svelte';
   import RewasdDialog from './components/RewasdDialog.svelte';
   import WelcomeWizard from './components/WelcomeWizard.svelte';
   import Toasts from './components/ui/Toasts.svelte';
@@ -107,6 +108,7 @@
 
 {#if settingsOpen}<SettingsDialog onclose={() => (settingsOpen = false)} />{/if}
 <PromptDialog />
+<ConfirmDialog />
 <RewasdDialog />
 {#if !app.settings.welcome_done}<WelcomeWizard />{/if}
 <Toasts />

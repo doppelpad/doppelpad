@@ -1,7 +1,7 @@
 <script lang="ts">
   import { ChevronDown, Ellipsis, Save, Settings, Lock } from '@lucide/svelte';
   import { open, save } from '@tauri-apps/plugin-dialog';
-  import { api, confirmAsk } from '../lib/api';
+  import { api } from '../lib/api';
   import { t } from '../lib/i18n/index.svelte';
   import { bindingsSheet } from '../lib/model/sheet';
   import { TEMPLATES } from '../lib/model/labels';
@@ -59,7 +59,7 @@
   }
 
   async function remove() {
-    if (!app.configPath || !(await confirmAsk(t('header.delete_confirm', { name: configName })))) return;
+    if (!app.configPath || !(await app.confirmAsk(t('header.delete_confirm', { name: configName })))) return;
     await app.attempt(
       api.configDelete(app.configPath).then(async () => {
         app.closeConfig();
@@ -70,7 +70,7 @@
   }
 
   async function clearMappings() {
-    if (!app.profile || !(await confirmAsk(t('header.clear_confirm')))) return;
+    if (!app.profile || !(await app.confirmAsk(t('header.clear_confirm')))) return;
     app.edit((p) => ({ ...p, mappings: [] }));
   }
 
