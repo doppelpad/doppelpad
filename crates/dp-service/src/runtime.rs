@@ -628,6 +628,12 @@ impl Runtime {
         self.clock.now_ms()
     }
 
+    /// Move the runtime's clock forward without waiting.
+    #[cfg(test)]
+    pub(crate) fn advance_ms(&mut self, ms: u64) {
+        self.clock.advance(ms);
+    }
+
     fn session(&self, owner: Option<&DeviceId>) -> Option<&Session> {
         self.sessions.iter().find(|s| s.owner.as_ref() == owner)
     }
@@ -1401,11 +1407,15 @@ pub(crate) mod testing {
 
     use std::sync::{Arc, Mutex};
 
-    use dp_core::pad::{PadState, Rgb, Rumble};
+    use dp_core::control::Control;
+    use dp_core::pad::{PadButton, PadState, Rgb, Rumble};
+    use dp_core::profile::{Action, Command, Mapping, Mode};
     use dp_platform::{
         DeviceId, DeviceInfo, GamepadBackend, Leds, NullPlatform, PadFamily, PadSnapshot, Platform,
         TriggerEffects, VirtualPad, VirtualPadFactory, VirtualPadKind,
     };
+
+    use super::Runtime;
 
     /// Everything the fakes saw, shared with the test.
     #[derive(Default)]
@@ -1580,17 +1590,39 @@ pub(crate) mod testing {
         p.system = Box::new(FakeSystem(world.clone()));
         (p, world)
     }
+
+    /// A runtime on the fake platform with these controllers connected.
+    pub fn runtime_with(pads: &[(&str, PadFamily)]) -> (Runtime, Shared) {
+        let (platform, world) = platform();
+        world
+            .lock()
+            .unwrap()
+            .pads
+            .extend(pads.iter().map(|&(id, family)| pad(id, family)));
+        (Runtime::with_platform(platform), world)
+    }
+
+    /// A mapping that runs `commands` once per press of `button`.
+    pub fn command_mapping(button: PadButton, commands: &[Command]) -> Mapping {
+        let actions = commands
+            .iter()
+            .map(|command| Action::Command {
+                command: command.clone(),
+            })
+            .collect();
+        let mut m = Mapping::new(Control::Button(button), actions);
+        m.mode = Mode::Once;
+        m
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::time::Instant;
-
     use dp_core::hotkeys::Hotkeys;
     use dp_core::profile::VirtualPadType;
     use dp_platform::PadFamily;
 
-    use super::testing::{self, pad};
+    use super::testing;
     use super::*;
 
     fn ds4_profile() -> Profile {
@@ -1602,13 +1634,7 @@ mod tests {
     #[test]
     fn hotkey_buttons_do_not_reach_the_game() {
         use dp_core::pad::PadButton::*;
-        let (platform, world) = testing::platform();
-        world
-            .lock()
-            .unwrap()
-            .pads
-            .push(pad("pad1", PadFamily::Xbox));
-        let mut rt = Runtime::with_platform(platform);
+        let (mut rt, world) = testing::runtime_with(&[("pad1", PadFamily::Xbox)]);
         rt.set_hotkeys(Hotkeys {
             hold_ms: 50,
             ..Default::default()
@@ -1629,12 +1655,8 @@ mod tests {
 
     #[test]
     fn picking_another_controller_moves_the_hiding() {
-        let (platform, world) = testing::platform();
-        world.lock().unwrap().pads.extend([
-            pad("pro", PadFamily::SwitchPro),
-            pad("ds", PadFamily::DualSense),
-        ]);
-        let mut rt = Runtime::with_platform(platform);
+        let (mut rt, world) =
+            testing::runtime_with(&[("pro", PadFamily::SwitchPro), ("ds", PadFamily::DualSense)]);
         rt.apply(Profile::default(), None).unwrap();
         rt.tick();
         assert_eq!(world.lock().unwrap().hidden, ["path-pro"]);
@@ -1652,12 +1674,8 @@ mod tests {
     #[test]
     fn default_session_returns_to_its_controller_after_a_drop() {
         use dp_core::pad::PadButton;
-        let (platform, world) = testing::platform();
-        world.lock().unwrap().pads.extend([
-            pad("pro", PadFamily::SwitchPro),
-            pad("ds", PadFamily::DualSense),
-        ]);
-        let mut rt = Runtime::with_platform(platform);
+        let (mut rt, world) =
+            testing::runtime_with(&[("pro", PadFamily::SwitchPro), ("ds", PadFamily::DualSense)]);
         rt.apply(Profile::default(), None).unwrap();
         rt.tick();
         let pro = world.lock().unwrap().pads.remove(0);
@@ -1693,13 +1711,7 @@ mod tests {
         use dp_core::keys::Key;
         use dp_core::pad::PadButton;
         use dp_core::profile::{Action, KeyRepeat, Mapping, Press};
-        let (platform, world) = testing::platform();
-        world
-            .lock()
-            .unwrap()
-            .pads
-            .push(pad("pad1", PadFamily::Xbox));
-        let mut rt = Runtime::with_platform(platform);
+        let (mut rt, world) = testing::runtime_with(&[("pad1", PadFamily::Xbox)]);
         let mut p = Profile::default();
         p.output.virtual_pad = VirtualPadType::None;
         p.virtual_devices.keyboard.repeat = KeyRepeat::Every(5);
@@ -1714,11 +1726,11 @@ mod tests {
         rt.tick();
         world.lock().unwrap().pads[0].state.set(PadButton::A, true);
         rt.tick();
-        std::thread::sleep(std::time::Duration::from_millis(30));
+        rt.advance_ms(30);
         rt.tick();
         world.lock().unwrap().pads[0].state.set(PadButton::A, false);
         rt.tick();
-        std::thread::sleep(std::time::Duration::from_millis(30));
+        rt.advance_ms(30);
         rt.tick();
         let keys = world.lock().unwrap().keys.clone();
         assert_eq!(keys.first(), Some(&(Key::Space, true)));
@@ -1731,32 +1743,20 @@ mod tests {
 
     #[test]
     fn system_commands_reach_the_platform() {
-        use dp_core::control::Control;
         use dp_core::pad::PadButton;
-        use dp_core::profile::{Action, Mapping, Mode};
-        let (platform, world) = testing::platform();
-        world
-            .lock()
-            .unwrap()
-            .pads
-            .push(pad("pad1", PadFamily::Xbox));
-        let mut rt = Runtime::with_platform(platform);
+
+        let (mut rt, world) = testing::runtime_with(&[("pad1", PadFamily::Xbox)]);
         let mut p = Profile::default();
-        let mut m = Mapping::new(
-            Control::Button(PadButton::A),
-            [Command::Screenshot, Command::CloseWindow, Command::Sleep]
-                .into_iter()
-                .map(|command| Action::Command { command })
-                .collect(),
-        );
-        m.mode = Mode::Once;
-        p.mappings.push(m);
+        p.mappings.push(testing::command_mapping(
+            PadButton::A,
+            &[Command::Screenshot, Command::CloseWindow, Command::Sleep],
+        ));
         rt.apply(p, None).unwrap();
         rt.tick();
         world.lock().unwrap().pads[0].state.set(PadButton::A, true);
         for _ in 0..3 {
             rt.tick();
-            std::thread::sleep(std::time::Duration::from_millis(15));
+            rt.advance_ms(15);
         }
         assert_eq!(
             world.lock().unwrap().system,
@@ -1766,37 +1766,21 @@ mod tests {
 
     #[test]
     fn overlay_commands_toggle_the_overlays() {
-        use dp_core::control::Control;
         use dp_core::pad::PadButton;
-        use dp_core::profile::{Action, Mapping, Mode};
-        let (platform, world) = testing::platform();
-        world
-            .lock()
-            .unwrap()
-            .pads
-            .push(pad("pad1", PadFamily::Xbox));
-        let mut rt = Runtime::with_platform(platform);
+
+        let (mut rt, world) = testing::runtime_with(&[("pad1", PadFamily::Xbox)]);
         let mut p = Profile::default();
-        let mut m = Mapping::new(
-            Control::Button(PadButton::A),
-            vec![
-                Action::Command {
-                    command: Command::PadOverlay,
-                },
-                Action::Command {
-                    command: Command::MappingsOverlay,
-                },
-            ],
-        );
-        m.mode = Mode::Once;
-        p.mappings.push(m);
+        p.mappings.push(testing::command_mapping(
+            PadButton::A,
+            &[Command::PadOverlay, Command::MappingsOverlay],
+        ));
         rt.apply(p, None).unwrap();
         rt.tick();
         assert_eq!(rt.overlays(), (false, false));
         world.lock().unwrap().pads[0].state.set(PadButton::A, true);
         for _ in 0..3 {
             rt.tick();
-            std::thread::sleep(std::time::Duration::from_millis(15));
+            rt.advance_ms(15);
         }
         assert_eq!(rt.overlays(), (true, true));
     }
@@ -1806,13 +1790,7 @@ mod tests {
         use dp_core::control::Control;
         use dp_core::pad::PadButton;
         use dp_core::profile::{Action, Mapping};
-        let (platform, world) = testing::platform();
-        world
-            .lock()
-            .unwrap()
-            .pads
-            .push(pad("pad1", PadFamily::Xbox));
-        let mut rt = Runtime::with_platform(platform);
+        let (mut rt, world) = testing::runtime_with(&[("pad1", PadFamily::Xbox)]);
         let m = Mapping::new(
             Control::Button(PadButton::A),
             vec![Action::Key {
@@ -1829,7 +1807,7 @@ mod tests {
             world.lock().unwrap().pads[0].state.set(PadButton::A, on);
             for _ in 0..3 {
                 rt.tick();
-                std::thread::sleep(Duration::from_millis(15));
+                rt.advance_ms(15);
             }
         };
         press(true);
@@ -1849,31 +1827,18 @@ mod tests {
 
     #[test]
     fn power_off_command_and_idle_timeout() {
-        use dp_core::control::Control;
         use dp_core::pad::PadButton;
-        use dp_core::profile::{Action, Mapping, Mode};
-        let (platform, world) = testing::platform();
-        world
-            .lock()
-            .unwrap()
-            .pads
-            .push(pad("pad1", PadFamily::DualSense));
-        let mut rt = Runtime::with_platform(platform);
+
+        let (mut rt, world) = testing::runtime_with(&[("pad1", PadFamily::DualSense)]);
         let mut p = Profile::default();
-        let mut m = Mapping::new(
-            Control::Button(PadButton::A),
-            vec![Action::Command {
-                command: Command::PowerOff,
-            }],
-        );
-        m.mode = Mode::Once;
-        p.mappings.push(m);
+        p.mappings
+            .push(testing::command_mapping(PadButton::A, &[Command::PowerOff]));
         rt.apply(p, None).unwrap();
         rt.tick();
         world.lock().unwrap().pads[0].state.set(PadButton::A, true);
         for _ in 0..3 {
             rt.tick();
-            std::thread::sleep(Duration::from_millis(15));
+            rt.advance_ms(15);
         }
         let off = std::mem::take(&mut world.lock().unwrap().powered_off);
         assert_eq!(
@@ -1885,13 +1850,12 @@ mod tests {
         rt.set_power_off_after(Some(Duration::from_millis(60)));
         // `wiggle` swings the stick every tick; otherwise it rests with a little drift.
         let mut run_for = |ms: u64, wiggle: bool| {
-            let start = Instant::now();
             let mut flip = 1.0;
-            while start.elapsed() < Duration::from_millis(ms) {
+            for _ in 0..ms / 5 {
                 flip = -flip;
                 world.lock().unwrap().pads[0].state.axes[0] = if wiggle { 0.9 * flip } else { 0.1 };
                 rt.tick();
-                std::thread::sleep(Duration::from_millis(5));
+                rt.advance_ms(5);
             }
             std::mem::take(&mut world.lock().unwrap().powered_off).len()
         };
@@ -1904,16 +1868,9 @@ mod tests {
 
     #[test]
     fn crosshair_commands_choose_and_hide() {
-        use dp_core::control::Control;
         use dp_core::pad::PadButton;
-        use dp_core::profile::{Action, Mapping, Mode};
-        let (platform, world) = testing::platform();
-        world
-            .lock()
-            .unwrap()
-            .pads
-            .push(pad("pad1", PadFamily::Xbox));
-        let mut rt = Runtime::with_platform(platform);
+
+        let (mut rt, world) = testing::runtime_with(&[("pad1", PadFamily::Xbox)]);
         let mut p = Profile::default();
         for name in ["dot", "scope"] {
             p.crosshairs.push(Crosshair {
@@ -1926,9 +1883,7 @@ mod tests {
             (PadButton::A, Command::Crosshair(2)),
             (PadButton::B, Command::ToggleCrosshair),
         ] {
-            let mut m = Mapping::new(Control::Button(b), vec![Action::Command { command }]);
-            m.mode = Mode::Once;
-            p.mappings.push(m);
+            p.mappings.push(testing::command_mapping(b, &[command]));
         }
         rt.apply(p, None).unwrap();
         rt.tick();
@@ -1939,7 +1894,7 @@ mod tests {
                 world.lock().unwrap().pads[0].state.set(b, down);
                 for _ in 0..3 {
                     rt.tick();
-                    std::thread::sleep(std::time::Duration::from_millis(15));
+                    rt.advance_ms(15);
                 }
             }
         };
@@ -1958,13 +1913,7 @@ mod tests {
         use dp_core::control::Control;
         use dp_core::pad::PadButton;
         use dp_core::profile::{Jump, JumpMode, Layer, Light, LightMode, Mapping};
-        let (platform, world) = testing::platform();
-        world
-            .lock()
-            .unwrap()
-            .pads
-            .push(pad("pad1", PadFamily::DualSense));
-        let mut rt = Runtime::with_platform(platform);
+        let (mut rt, world) = testing::runtime_with(&[("pad1", PadFamily::DualSense)]);
         let mut p = ds4_profile();
         let solid = |c: &str| Light {
             mode: LightMode::Solid,
@@ -2012,13 +1961,7 @@ mod tests {
 
     #[test]
     fn trigger_effects_follow_the_profile_and_end_with_it() {
-        let (platform, world) = testing::platform();
-        world
-            .lock()
-            .unwrap()
-            .pads
-            .push(pad("pad1", PadFamily::DualSense));
-        let mut rt = Runtime::with_platform(platform);
+        let (mut rt, world) = testing::runtime_with(&[("pad1", PadFamily::DualSense)]);
         let mut p = ds4_profile();
         let rigid = TriggerEffect::Resistance {
             start: 2,
@@ -2043,13 +1986,7 @@ mod tests {
 
     #[test]
     fn game_feedback_reaches_the_controller() {
-        let (platform, world) = testing::platform();
-        world
-            .lock()
-            .unwrap()
-            .pads
-            .push(pad("pad1", PadFamily::DualSense));
-        let mut rt = Runtime::with_platform(platform);
+        let (mut rt, world) = testing::runtime_with(&[("pad1", PadFamily::DualSense)]);
         rt.apply(ds4_profile(), None).unwrap();
         rt.tick();
 
@@ -2065,7 +2002,7 @@ mod tests {
         }
         rt.tick();
         // Rumble commands keep the profile's gap (20 ms by default).
-        std::thread::sleep(std::time::Duration::from_millis(25));
+        rt.advance_ms(25);
         rt.tick();
         {
             let w = world.lock().unwrap();
@@ -2089,5 +2026,31 @@ mod tests {
         let id = DeviceId("pad1".into());
         assert_eq!(w.rumble.last(), Some(&(id.clone(), Rumble::default())));
         assert_eq!(w.lightbar.last(), Some(&(id, None)), "light bar released");
+    }
+
+    #[test]
+    fn echo_reports_changes_once() {
+        use dp_core::keys::Key;
+        let mut e = Echo::default();
+        let mut p = PadState::default();
+        p.set(PadButton::A, true);
+        p.set_axis(Trigger::Right.axis(), 0.5);
+        let out = Output {
+            keys: vec![(Key::Space, true)],
+            mouse_move: (3.0, 0.0),
+            ..Default::default()
+        };
+        e.record(Some(&p), &out, 0);
+        e.record(Some(&p), &Output::default(), 10);
+        e.record(None, &Output::default(), ECHO_MOUSE_MS);
+        assert_eq!(
+            e.events,
+            [
+                format!("controller  {:<9} pressed", PadButton::A.name()),
+                "controller  RT        pressed".into(),
+                format!("  -> key           {} down", Key::Space),
+                "  -> mouse moved   +3, +0 px".into(),
+            ]
+        );
     }
 }
