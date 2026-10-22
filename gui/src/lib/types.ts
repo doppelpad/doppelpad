@@ -854,4 +854,13 @@ export interface LiveSession {
   profile_path: string | null;
   layer: number;
   virtual_pad: VirtualPadKind | null;
+  /** What the session sends right now. */
+  output: SessionOutput;
+}
+
+/** A session's output right now: its virtual pad's state, and the keys and mouse buttons it holds. */
+export interface SessionOutput {
+  pad: PadState | null;
+  keys: string[];
+  mouse_buttons: string[];
 }

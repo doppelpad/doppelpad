@@ -1523,5 +1523,13 @@
     "steam": "Steam",
     "epic": "Epic",
     "gog": "GOG"
+  },
+  "live_output": {
+    "title": "Was Doppelpad gerade sendet",
+    "remap_off": "Remapping ist aus.",
+    "paused": "Remapping pausiert, solange dieses Fenster den Fokus hat.",
+    "no_session": "Auf diesem Controller läuft keine Config.",
+    "no_pad": "Diese Config hat keinen virtuellen Controller.",
+    "no_keys": "Keine Tasten oder Maustasten gehalten."
   }
 }

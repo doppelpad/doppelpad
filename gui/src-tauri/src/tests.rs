@@ -17,7 +17,7 @@ use std::path::PathBuf;
 use dp_core::control::{Control, Zone};
 use dp_core::engine::{apply_curve, shape_stick, shape_trigger, stick_zone, trigger_zone};
 use dp_core::hotkeys::Hotkeys;
-use dp_core::keys::Key;
+use dp_core::keys::{Key, MouseButton};
 use dp_core::pad::{Motion, PadButton, PadState, Stick, TouchPoint, Trigger};
 use dp_core::profile::{
     Crosshair, Profile, RadialMenu, StickConfig, StickZones, TriggerConfig, TriggerZones,
@@ -27,7 +27,7 @@ use dp_platform::generic::RawInput;
 use dp_platform::groups::{DeviceGroup, SeenDevice};
 use dp_platform::{Battery, PadFamily, VirtualPadKind};
 use dp_service::calibration::CalibrationStatus;
-use dp_service::{LiveDevice, LiveDeviceSlots, LiveRadial, LiveState, SessionInfo};
+use dp_service::{LiveDevice, LiveDeviceSlots, LiveRadial, LiveState, SessionInfo, SessionOutput};
 use serde::Serialize;
 use serde_json::Value;
 
@@ -206,6 +206,11 @@ fn contract_fixture_is_current() {
             profile_path: Some(r"C:\p\racing.toml".into()),
             layer: 1,
             virtual_pad: Some(VirtualPadKind::Xbox360),
+            output: SessionOutput {
+                pad: Some(PadState::default()),
+                keys: vec![Key::W],
+                mouse_buttons: vec![MouseButton::Left],
+            },
         }],
         crosshair: Some(Crosshair::default()),
         radial: Some(LiveRadial {

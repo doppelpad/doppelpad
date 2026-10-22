@@ -19,7 +19,7 @@ mod timing;
 
 pub use host::{HostOptions, Ipc, ServiceHandle, spawn, spawn_with};
 pub use live::{LIVE_INTERVAL, LiveDevice, LiveDeviceSlots, LiveRadial, LiveState, SharedLive};
-pub use runtime::{DriverState, DriverStatus, Runtime, SessionInfo};
+pub use runtime::{DriverState, DriverStatus, Runtime, SessionInfo, SessionOutput};
 pub use service::{ServiceCmd, ServiceOptions, ServiceReply, ipc_devices, on_off};
 pub use slots::{PlayerLights, SLOTS, SlotSet, SlotState};
 pub use timing::TICK;

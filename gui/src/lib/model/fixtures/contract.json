@@ -170,7 +170,31 @@
         "profile": "Racing",
         "profile_path": "C:\\p\\racing.toml",
         "layer": 1,
-        "virtual_pad": "xbox360"
+        "virtual_pad": "xbox360",
+        "output": {
+          "pad": {
+            "buttons": 0,
+            "axes": [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "motion": null,
+            "touch": [
+              null,
+              null
+            ]
+          },
+          "keys": [
+            "W"
+          ],
+          "mouse_buttons": [
+            "left"
+          ]
+        }
       }
     ],
     "crosshair": {
