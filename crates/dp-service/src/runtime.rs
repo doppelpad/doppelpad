@@ -10,7 +10,6 @@
 
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -555,11 +554,9 @@ impl Runtime {
                 emit(s, &mut self.platform, &out, now);
                 quiet(s, &mut self.platform);
             }
-            self.filter.enabled.store(false, Ordering::Relaxed);
+            self.filter.set_enabled(false);
         } else {
-            self.filter
-                .enabled
-                .store(!self.sessions.is_empty(), Ordering::Relaxed);
+            self.filter.set_enabled(!self.sessions.is_empty());
         }
     }
 
@@ -938,10 +935,8 @@ impl Runtime {
             self.kbm_rx = None;
         }
         self.update_filter();
-        self.filter.enabled.store(
-            !self.sessions.is_empty() && !self.suspended,
-            Ordering::Relaxed,
-        );
+        self.filter
+            .set_enabled(!self.sessions.is_empty() && !self.suspended);
         self.bind_sessions();
         self.sync_hiding();
     }
@@ -967,9 +962,7 @@ impl Runtime {
         for w in m.wheel {
             self.filter.set_wheel(w, true);
         }
-        self.filter
-            .mouse_move
-            .store(m.mouse_move, Ordering::Relaxed);
+        self.filter.set_mouse_move(m.mouse_move);
     }
 
     /// Hide the controllers of sessions whose profile hides the physical controller behind

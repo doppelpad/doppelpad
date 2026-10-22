@@ -85,8 +85,9 @@ unsafe extern "system" fn keyboard_proc(code: i32, wparam: WPARAM, lparam: LPARA
                 && let Some(ctx) = guard.as_ref()
                 && ctx.filter.accepts(injected)
             {
-                let _ = ctx.tx.try_send(KbmEvent::Key { key, down });
-                if ctx.filter.key(key) {
+                let event = KbmEvent::Key { key, down };
+                let _ = ctx.tx.try_send(event);
+                if ctx.filter.suppresses(&event) {
                     return 1;
                 }
             }
@@ -174,12 +175,7 @@ unsafe extern "system" fn mouse_proc(code: i32, wparam: WPARAM, lparam: LPARAM) 
             };
             if let Some(ev) = event {
                 let _ = ctx.tx.try_send(ev);
-                let block = match ev {
-                    KbmEvent::MouseButton { button, .. } => ctx.filter.mouse_button(button),
-                    KbmEvent::Wheel { dir, .. } => ctx.filter.wheel(dir),
-                    _ => false,
-                };
-                if block {
+                if ctx.filter.suppresses(&ev) {
                     return 1;
                 }
             }
