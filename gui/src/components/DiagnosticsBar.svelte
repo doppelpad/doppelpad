@@ -1,14 +1,28 @@
 <script lang="ts">
-  // Problems the validator found in the open config (from loading or saving).
+  // Problems in the open config: the validator's findings (from loading, saving and after each
+  // change) and mappings that clash with a controller hotkey. A finding about a mapping or a
+  // layer leads there when clicked.
   import { CircleAlert, TriangleAlert, ChevronDown } from '@lucide/svelte';
   import { t } from '../lib/i18n/index.svelte';
+  import { diagTarget } from '../lib/model/lints';
   import { app } from '../lib/state/app.svelte';
+  import type { DiagMsg } from '../lib/types';
 
   let open = $state(false);
 
-  const shown = $derived(app.diagnostics.filter((d) => d.severity !== 'info'));
+  const shown = $derived(app.problems.filter((d) => d.severity !== 'info'));
   const errors = $derived(shown.filter((d) => d.severity === 'error').length);
   const warnings = $derived(shown.length - errors);
+
+  const targetOf = (d: DiagMsg) => (app.profile ? diagTarget(app.profile, d) : null);
+
+  function go(d: DiagMsg) {
+    const target = targetOf(d);
+    if (!target) return;
+    if (app.view === 'macro' || app.view === 'output' || app.view === 'analog') app.view = 'front';
+    app.layer = target.layer;
+    if (target.kind === 'mapping') app.select(target.trigger);
+  }
 </script>
 
 {#if shown.length}
@@ -24,8 +38,15 @@
       <ul>
         {#each shown as d, i (i)}
           <li class={d.severity}>
-            {#if d.path}<code>{d.path}</code>{/if}
-            {d.message}
+            {#if targetOf(d)}
+              <button class="go" onclick={() => go(d)} title={t('diagnostics.go')}>
+                {#if d.path}<code>{d.path}</code>{/if}
+                {d.message}
+              </button>
+            {:else}
+              {#if d.path}<code>{d.path}</code>{/if}
+              {d.message}
+            {/if}
           </li>
         {/each}
       </ul>
@@ -68,6 +89,13 @@
   }
   li.error {
     color: var(--danger);
+  }
+  .go {
+    text-align: left;
+    color: inherit;
+  }
+  .go:hover {
+    text-decoration: underline;
   }
   code {
     font-family: var(--mono);

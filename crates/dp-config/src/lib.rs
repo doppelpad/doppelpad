@@ -12,11 +12,12 @@ use std::path::{Path, PathBuf};
 
 pub use compat::ImportError;
 pub use diag::{Diagnostic, Diagnostics, Severity};
+use dp_core::control::Control;
 use dp_core::pad::Rgb;
 use dp_core::profile::{
-    Action, AnalogTarget, Command, Crosshair, JumpMode, Light, Magnifier, Mode, Profile,
-    RadialMenu, StickConfig, Sticks, TriggerEffect, Triggers, Vibration, VirtualMotion,
-    VirtualSticks,
+    Action, AnalogTarget, Combo, Command, Crosshair, JumpMode, Light, Magnifier, Mapping, Mode,
+    Profile, RadialMenu, StickConfig, Sticks, TriggerEffect, Triggers, Vibration, VirtualMotion,
+    VirtualPadType, VirtualSticks,
 };
 pub use store::{load_toml_or_default, save_toml, write_atomic};
 
@@ -123,7 +124,146 @@ pub fn validate(p: &Profile) -> Diagnostics {
     check_radial(&mut d, p, &declared);
     check_feedback(&mut d, p);
     check_layers(&mut d, p);
+    check_reach(&mut d, p);
+    check_outputs(&mut d, p);
     d
+}
+
+/// The diagnostic path of a mapping: its index and trigger.
+fn mapping_path(i: usize, m: &Mapping) -> String {
+    format!("mappings[{i}] ({})", m.trigger)
+}
+
+/// A combo's controls as the engine matches them: sorted, each once.
+fn combo_key(c: &Combo) -> Vec<Control> {
+    let mut key = c.0.clone();
+    key.sort();
+    key.dedup();
+    key
+}
+
+/// Whether a mapping works on layer `l`: its own, or one of the base layer's that `l` takes
+/// over (it inherits, does not leave the trigger out or give its controls back, and does not
+/// map the trigger itself).
+fn applies_on(p: &Profile, m: &Mapping, l: u8) -> bool {
+    if m.layer == l {
+        return true;
+    }
+    if m.layer != 0 {
+        return false;
+    }
+    let decl = p.layer(l);
+    let key = combo_key(&m.trigger);
+    if decl.is_some_and(|x| !x.inherit || x.not_inherited.iter().any(|c| combo_key(c) == key)) {
+        return false;
+    }
+    if decl
+        .and_then(|x| x.unlock)
+        .is_some_and(|u| m.trigger.0.iter().any(|&c| u.covers(c)))
+    {
+        return false;
+    }
+    !p.mappings
+        .iter()
+        .any(|o| o.layer == l && combo_key(&o.trigger) == key)
+}
+
+/// Layers nothing changes to, and switches into layers that nothing leaves again.
+fn check_reach(d: &mut Diagnostics, p: &Profile) {
+    let mut used: Vec<u8> = p
+        .layers
+        .iter()
+        .map(|l| l.id)
+        .chain(p.mappings.iter().map(|m| m.layer))
+        .filter(|&l| l != 0)
+        .collect();
+    used.sort_unstable();
+    used.dedup();
+    for l in used {
+        let reached = p
+            .mappings
+            .iter()
+            .any(|m| m.layer != l && m.jump.as_ref().is_some_and(|j| j.layer == l));
+        if reached {
+            continue;
+        }
+        let path = match p.layers.iter().position(|x| x.id == l) {
+            Some(i) => format!("layers[{i}]"),
+            None => p
+                .mappings
+                .iter()
+                .enumerate()
+                .find(|(_, m)| m.layer == l)
+                .map(|(i, m)| mapping_path(i, m))
+                .unwrap_or_default(),
+        };
+        d.warn(
+            path,
+            format!("nothing changes to layer {l}, so its mappings never apply"),
+        );
+    }
+    for (i, m) in p.mappings.iter().enumerate() {
+        let Some(j) = &m.jump else { continue };
+        // A hold or toggle jump comes back by itself; a switch to the base layer is the way back.
+        if j.mode != JumpMode::Switch || j.layer == 0 || j.layer == m.layer {
+            continue;
+        }
+        let target = j.layer;
+        let leaves = p.mappings.iter().any(|o| {
+            applies_on(p, o, target)
+                && o.jump.as_ref().is_some_and(|oj| {
+                    oj.layer != target && matches!(oj.mode, JumpMode::Switch | JumpMode::Toggle)
+                })
+        });
+        if !leaves {
+            d.warn(
+                mapping_path(i, m),
+                format!("after this switch to layer {target}, no mapping there leaves it again"),
+            );
+        }
+    }
+}
+
+/// Controller output that the config's virtual controller cannot send.
+fn check_outputs(d: &mut Diagnostics, p: &Profile) {
+    let pad = p.output.virtual_pad;
+    for (i, m) in p.mappings.iter().enumerate() {
+        let to_pad = m.actions.iter().any(|a| {
+            matches!(
+                a,
+                Action::Pad { .. }
+                    | Action::Stick { .. }
+                    | Action::Trigger { .. }
+                    | Action::Touch { .. }
+                    | Action::Shake { .. }
+            )
+        });
+        let ds4_only = m
+            .actions
+            .iter()
+            .any(|a| matches!(a, Action::Touch { .. } | Action::Shake { .. }));
+        if pad == VirtualPadType::None && to_pad {
+            d.warn(
+                mapping_path(i, m),
+                "the config has no virtual controller, so this mapping's controller output goes nowhere",
+            );
+        } else if pad == VirtualPadType::Xbox360 && ds4_only {
+            d.warn(
+                mapping_path(i, m),
+                "touchpad gestures and shakes need a virtual DualShock 4; an Xbox 360 controller has neither",
+            );
+        }
+    }
+    if pad == VirtualPadType::None {
+        for (i, r) in p.analog.iter().enumerate() {
+            if matches!(r.target, AnalogTarget::LeftStick | AnalogTarget::RightStick) {
+                d.warn(
+                    format!("analog[{i}]"),
+                    "the config has no virtual controller, so this route's stick output goes nowhere",
+                );
+            }
+        }
+    }
 }
 
 /// Layer 0 is the base layer; every other one is declared once.
@@ -146,7 +286,19 @@ fn check_layer_ids(d: &mut Diagnostics, p: &Profile) {
 
 fn check_mappings(d: &mut Diagnostics, p: &Profile, declared: &[u8]) {
     for (i, m) in p.mappings.iter().enumerate() {
-        let path = format!("mappings[{i}] ({})", m.trigger);
+        let path = mapping_path(i, m);
+        let key = combo_key(&m.trigger);
+        if key.len() < m.trigger.0.len() {
+            d.info(&path, "a control is listed twice; it counts once");
+        }
+        if let Some(j) = p.mappings[..i].iter().position(|o| {
+            o.layer == m.layer && o.activator == m.activator && combo_key(&o.trigger) == key
+        }) {
+            d.warn(
+                &path,
+                format!("mappings[{j}] has the same trigger and activator on this layer; both run"),
+            );
+        }
         if m.trigger.0.len() > 4 {
             d.warn(
                 &path,
@@ -833,9 +985,158 @@ layer = 0
                 "crosshairs[0]",
                 "radial_menus[0]",
                 "vibration",
-                "layers[1].lightbar"
+                "layers[1].lightbar",
+                "layers[1]"
             ]
         );
+    }
+
+    /// The warnings of a profile, as `path: message`.
+    fn warnings(src: &str) -> Vec<String> {
+        validate(&parse_toml(src).unwrap())
+            .iter()
+            .filter(|d| d.severity == Severity::Warning)
+            .map(|d| format!("{}: {}", d.path, d.message))
+            .collect()
+    }
+
+    #[test]
+    fn validation_flags_mappings_that_run_twice() {
+        let w = warnings(
+            r#"
+[[mappings]]
+trigger = ["LB", "RB"]
+actions = [{ key = "A" }]
+[[mappings]]
+trigger = ["RB", "LB"]
+actions = [{ key = "B" }]
+[[mappings]]
+trigger = ["RB", "LB"]
+activator = "long"
+actions = [{ key = "C" }]
+[[mappings]]
+layer = 1
+trigger = ["LB", "RB"]
+actions = [{ key = "D" }]
+[[mappings]]
+trigger = "X"
+jump = { layer = 1 }
+"#,
+        );
+        assert_eq!(
+            w,
+            [
+                "mappings[1] (RB+LB): mappings[0] has the same trigger and activator on this layer; both run"
+            ]
+        );
+        let d = validate(
+            &parse_toml("[[mappings]]\ntrigger = [\"A\", \"A\"]\nactions = [{ key = \"A\" }]\n")
+                .unwrap(),
+        );
+        assert!(
+            d.iter().any(|d| d.message.contains("listed twice")),
+            "{d:?}"
+        );
+    }
+
+    #[test]
+    fn validation_flags_layers_nothing_reaches() {
+        let w = warnings(
+            r#"
+[[layers]]
+id = 2
+[[mappings]]
+layer = 1
+trigger = "A"
+actions = [{ key = "A" }]
+[[mappings]]
+layer = 3
+trigger = "B"
+actions = [{ key = "B" }]
+[[mappings]]
+layer = 1
+trigger = "X"
+jump = { layer = 3, mode = "toggle" }
+"#,
+        );
+        assert_eq!(
+            w,
+            [
+                "mappings[0] (A): nothing changes to layer 1, so its mappings never apply",
+                "layers[0]: nothing changes to layer 2, so its mappings never apply",
+            ]
+        );
+    }
+
+    #[test]
+    fn validation_flags_switches_without_a_way_out() {
+        let stuck = r#"
+[[mappings]]
+trigger = "LB"
+jump = { layer = 1, mode = "switch" }
+[[mappings]]
+layer = 1
+trigger = "A"
+actions = [{ key = "A" }]
+"#;
+        assert_eq!(
+            warnings(stuck),
+            ["mappings[0] (LB): after this switch to layer 1, no mapping there leaves it again"]
+        );
+        // A switch back on the layer, or one of the base layer's the layer takes over, is a way out.
+        let back = format!(
+            "{stuck}[[mappings]]\nlayer = 1\ntrigger = \"B\"\njump = {{ layer = 0, mode = \"switch\" }}\n"
+        );
+        assert!(warnings(&back).is_empty(), "{:?}", warnings(&back));
+        let inherited = format!(
+            "{stuck}[[mappings]]\ntrigger = \"Start\"\njump = {{ layer = 0, mode = \"switch\" }}\n"
+        );
+        assert!(
+            warnings(&inherited).is_empty(),
+            "{:?}",
+            warnings(&inherited)
+        );
+        // ... unless the layer does not inherit, or maps that trigger itself.
+        let blocked = format!("{inherited}[[layers]]\nid = 1\ninherit = false\n");
+        assert_eq!(warnings(&blocked).len(), 1, "{:?}", warnings(&blocked));
+        let shadowed = format!(
+            "{inherited}[[mappings]]\nlayer = 1\ntrigger = \"Start\"\nactions = [{{ key = \"S\" }}]\n"
+        );
+        assert_eq!(warnings(&shadowed).len(), 1, "{:?}", warnings(&shadowed));
+        // Hold and toggle jumps come back by themselves.
+        let hold = stuck.replace("mode = \"switch\"", "mode = \"toggle\"");
+        assert!(warnings(&hold).is_empty(), "{:?}", warnings(&hold));
+    }
+
+    #[test]
+    fn validation_flags_output_the_virtual_pad_cannot_send() {
+        let none = r#"
+[output]
+virtual_pad = "none"
+[[mappings]]
+trigger = "A"
+actions = [{ pad = "A" }]
+[[mappings]]
+trigger = "B"
+actions = [{ key = "B" }]
+[[analog]]
+source = "mouse"
+target = "right_stick"
+[[analog]]
+source = "right_stick"
+target = "mouse"
+"#;
+        assert_eq!(
+            warnings(none),
+            [
+                "mappings[0] (A): the config has no virtual controller, so this mapping's controller output goes nowhere",
+                "analog[0]: the config has no virtual controller, so this route's stick output goes nowhere",
+            ]
+        );
+        let swipe = "[[mappings]]\ntrigger = \"A\"\nactions = [{ touch = \"swipe_up\" }]\n";
+        assert_eq!(warnings(swipe).len(), 1, "{:?}", warnings(swipe));
+        let ds4 = format!("[output]\nvirtual_pad = \"dual_shock4\"\n{swipe}");
+        assert!(warnings(&ds4).is_empty(), "{:?}", warnings(&ds4));
     }
 
     #[test]

@@ -55,7 +55,11 @@
     buttons.length ? buttons.map((b) => controlLabel(b, app.family)).join(' + ') : t('hotkeys.none');
 
   async function save(next: Hotkeys) {
-    if (await app.attempt(api.hotkeysSet(next))) hotkeys = next;
+    if (await app.attempt(api.hotkeysSet(next))) {
+      hotkeys = next;
+      // The editor marks mappings that clash with a hotkey.
+      app.hotkeys = next;
+    }
   }
 
   /** Gives the presses back to the editor. */

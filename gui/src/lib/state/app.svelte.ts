@@ -10,6 +10,7 @@ import { layerLabel } from '../model/labels';
 import { clone } from '../model/util';
 import { isStreamingField, pointer } from '../dom';
 import { History, type EditKey } from './history';
+import { flagsOf, hotkeyClashes, type Flags } from '../model/lints';
 import type { Copied } from '../model/clipboard';
 import type { MenuItem } from '../../components/ui/Menu.svelte';
 import { SETTINGS_PLACEHOLDER } from './settings';
@@ -22,6 +23,7 @@ import type {
   DiagMsg,
   Game,
   GuiSettings,
+  Hotkeys,
   Library,
   LiveDevice,
   LiveState,
@@ -88,7 +90,10 @@ class AppState {
   profile = $state<Profile | null>(null);
   savedJson = $state('');
   readOnly = $state(false);
+  /** The validator's findings for the open config: from loading or saving, then after each change. */
   diagnostics = $state<DiagMsg[]>([]);
+  /** The controller hotkeys, for the mappings they clash with. */
+  hotkeys = $state<Hotkeys | null>(null);
 
   layer = $state(0);
   view = $state<View>('front');
@@ -130,6 +135,10 @@ class AppState {
   private settingsWrite: Promise<void> = Promise.resolve();
 
   dirty = $derived(this.profile !== null && JSON.stringify(this.profile) !== this.savedJson);
+  /** Everything the diagnostics bar lists: the validator's findings and the hotkey clashes. */
+  problems = $derived<DiagMsg[]>(this.profile ? [...this.diagnostics, ...hotkeyClashes(this.profile, this.hotkeys)] : []);
+  /** The controls and layers with a warning mark. */
+  flags = $derived<Flags>(flagsOf(this.profile, this.problems));
   game = $derived<Game | null>(this.library.games.find((g) => g.dir === this.gameDir) ?? null);
   primary = $derived<LiveDevice | null>(this.live?.devices.find((d) => d.id === this.live?.primary) ?? this.live?.devices[0] ?? null);
   family = $derived<PadFamily | null>(this.primary?.family ?? null);
@@ -153,6 +162,7 @@ class AppState {
       this.settings = await api.settingsGet();
       setLanguage(this.settings.language);
       this.catalog = await api.catalog();
+      this.hotkeys = await api.hotkeysGet();
       await this.refreshLibrary();
       await api.liveSubscribe((s) => this.onLive(s));
       for (const n of await api.takeNotices()) this.toast(t(`notices.${n}`), 'info');
@@ -399,8 +409,26 @@ class AppState {
     if (JSON.stringify(next) !== before) {
       this.history.record(before, this.editKey(), performance.now());
       this.syncHistory();
+      this.checkSoon();
     }
     this.profile = next;
+  }
+
+  private checkTimer: ReturnType<typeof setTimeout> | undefined;
+
+  /** Validate the draft again shortly after the last change (the diagnostics bar and the marks follow). */
+  private checkSoon() {
+    clearTimeout(this.checkTimer);
+    this.checkTimer = setTimeout(async () => {
+      const path = this.configPath;
+      if (!this.profile) return;
+      try {
+        const found = await api.configCheck($state.snapshot(this.profile) as Profile);
+        if (this.configPath === path) this.diagnostics = found ?? [];
+      } catch {
+        // The last findings stay; saving validates again anyway.
+      }
+    }, 300);
   }
 
   /** What the change being made belongs to (see `EditKey`). */
@@ -456,6 +484,7 @@ class AppState {
     if (target === null) return;
     this.profile = JSON.parse(target) as Profile;
     if (!layerIds(this.profile).includes(this.layer)) this.layer = 0;
+    this.checkSoon();
   }
 
   private clearHistory() {

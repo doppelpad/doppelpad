@@ -18,6 +18,7 @@
   } from '../../lib/model/controls';
   import { hasMotion } from '../../lib/model/devices';
   import { shownSummary } from '../../lib/model/labels';
+  import { isFlagged } from '../../lib/model/lints';
   import { app } from '../../lib/state/app.svelte';
   import type { ControlName } from '../../lib/types';
   import ControlTile from './ControlTile.svelte';
@@ -86,6 +87,7 @@
           name={tl.label}
           summary={s}
           control={c}
+          flagged={tl.members.some((m) => isFlagged(app.flags, app.profile, app.layer, m))}
           selected={tl.members.includes(app.selectedKey)}
           pressed={tl.members.some((m) => app.pressed.has(m))}
           onclick={() => app.select(c)}

@@ -1379,7 +1379,8 @@
   "diagnostics": {
     "errors": "{n} errors",
     "warnings": "{n} warnings",
-    "service": "Warnings from the remapping service"
+    "service": "Warnings from the remapping service",
+    "go": "Show it"
   },
   "osd": {
     "remap_on": "Remapping on",
@@ -1448,5 +1449,8 @@
       "clear_mappings": "Clearing all mappings of a config",
       "whole_stick_replace": "Replacing a stick's directions and routes with a whole-stick choice"
     }
+  },
+  "lints": {
+    "hotkey": "holds every button of the controller hotkey {hotkey} ({keys}); the hotkey takes them, so this mapping never fires while hotkeys are on"
   }
 }

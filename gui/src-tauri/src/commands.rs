@@ -306,6 +306,12 @@ pub fn config_load(path: PathBuf) -> CmdResult<LoadedConfig> {
     })
 }
 
+/// The validation diagnostics of a profile being edited; nothing is written.
+#[tauri::command(async)]
+pub fn config_check(profile: Profile) -> Vec<Diagnostic> {
+    dp_config::validate(&profile).0
+}
+
 /// Validate and save; returns the validation diagnostics (errors block saving).
 #[tauri::command(async)]
 pub fn config_save(app: AppHandle, path: PathBuf, profile: Profile) -> CmdResult<Vec<Diagnostic>> {

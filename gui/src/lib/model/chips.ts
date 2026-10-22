@@ -53,6 +53,8 @@ export interface ChipView {
   layerLabel: (id: number) => string;
   /** Show the mappings' notes instead of their actions (where they have one). */
   notes: boolean;
+  /** Whether a control has a warning on this layer (see `lib/model/lints.ts`). */
+  flagged?: (c: ControlName) => boolean;
 }
 
 export interface Chip {
@@ -65,6 +67,8 @@ export interface Chip {
   combo: boolean;
   /** A mapping behind the chip has a note that the chip does not show (actions view). */
   hiddenNote: boolean;
+  /** A mapping behind the chip has a warning. */
+  flagged: boolean;
 }
 
 /** Zone tag of a control ("H"), or "" for a control without a zone. */
@@ -118,6 +122,7 @@ export function buildChips(controls: LayoutControl[], v: ChipView): Chip[] {
     let mapped = !!own;
     let selected = v.selectedKey === c;
     let hiddenNote = !!own?.hiddenNote;
+    let flagged = !!v.flagged?.(c);
     // Stick chips also show the directions and zones, trigger chips the zones.
     const parts: string[] = [];
     // A whole-stick route comes first: it is what the stick mostly does.
@@ -129,6 +134,7 @@ export function buildChips(controls: LayoutControl[], v: ChipView): Chip[] {
       const s = summaryOf(r.c);
       if (s) parts.push(`${r.tag} ${s.text}`);
       if (s?.hiddenNote) hiddenNote = true;
+      if (v.flagged?.(r.c)) flagged = true;
       if (v.selectedKey === r.c) selected = true;
     }
     if (parts.length) {
@@ -145,6 +151,7 @@ export function buildChips(controls: LayoutControl[], v: ChipView): Chip[] {
       selected,
       combo: combos.has(c),
       hiddenNote,
+      flagged,
     };
   });
 }

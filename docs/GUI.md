@@ -35,6 +35,24 @@ choice) offer *Don't ask again*; ticked and answered with OK, they are not asked
 *Settings → General → Questions you turned off* lists them, each with *Ask again*. Deleting
 games or configs and discarding unsaved changes always ask.
 
+## Problems in a config
+
+A bar below the toolbar counts the problems of the open config; click it for the list. The
+config is checked again a moment after each change, not only when it is saved. Besides values
+out of range it finds:
+
+- two mappings with the same trigger and activator on one layer (both run);
+- a layer that no mapping changes to, so its mappings never apply;
+- a *switch* to a layer that no mapping there leaves again;
+- controller output while the config has no virtual controller, and touchpad gestures or
+  shakes for a virtual Xbox 360 controller;
+- a shortcut or mapping that holds every button of a controller hotkey: the hotkey takes the
+  buttons, so the mapping never fires while hotkeys are on.
+
+A problem about a mapping or a layer leads there when clicked. The controls, shortcut rows and
+layer chips concerned carry a small orange mark. Errors keep the config from being saved;
+warnings do not.
+
 ## Copy and paste
 
 Right-click a control (on the drawing, in the list, on the keyboard and mouse views, or a
