@@ -20,6 +20,7 @@ const COMMANDS: &[&str] = &[
     "sheet_save",
     "config_load",
     "config_save",
+    "config_check",
     "config_create",
     "config_duplicate",
     "config_delete",

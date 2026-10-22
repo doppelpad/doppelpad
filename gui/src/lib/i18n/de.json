@@ -1379,7 +1379,8 @@
   "diagnostics": {
     "errors": "{n} Fehler",
     "warnings": "{n} Warnungen",
-    "service": "Warnungen des Remapping-Dienstes"
+    "service": "Warnungen des Remapping-Dienstes",
+    "go": "Hinzeigen"
   },
   "osd": {
     "remap_on": "Remapping an",
@@ -1448,5 +1449,8 @@
       "clear_mappings": "Alle Mappings einer Config löschen",
       "whole_stick_replace": "Richtungen und Routen eines Sticks durch eine Auswahl für den ganzen Stick ersetzen"
     }
+  },
+  "lints": {
+    "hotkey": "enthält alle Tasten des Controller-Hotkeys {hotkey} ({keys}); der Hotkey nimmt sie, deshalb löst dieses Mapping nie aus, solange Hotkeys an sind"
   }
 }

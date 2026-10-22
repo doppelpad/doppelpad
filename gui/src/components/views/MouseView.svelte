@@ -4,6 +4,7 @@
   import { t } from '../../lib/i18n/index.svelte';
   import { DIRS8, controlLabel } from '../../lib/model/controls';
   import { shownSummary } from '../../lib/model/labels';
+  import { isFlagged } from '../../lib/model/lints';
   import { app } from '../../lib/state/app.svelte';
   import type { ControlName } from '../../lib/types';
   import ControllerView from './ControllerView.svelte';
@@ -29,7 +30,14 @@
     <div class="grid">
       {#each g.controls as c (c)}
         {@const s = summary(c)}
-        <ControlTile name={controlLabel(c, null)} summary={s} control={c} selected={app.selectedKey === c} onclick={() => app.select(c)} />
+        <ControlTile
+          name={controlLabel(c, null)}
+          summary={s}
+          control={c}
+          flagged={isFlagged(app.flags, app.profile, app.layer, c)}
+          selected={app.selectedKey === c}
+          onclick={() => app.select(c)}
+        />
       {/each}
     </div>
   {/each}

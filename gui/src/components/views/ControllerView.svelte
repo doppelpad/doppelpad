@@ -12,6 +12,7 @@
   import type { ControlName } from '../../lib/types';
   import PartMenu, { type PartMenuAt } from './PartMenu.svelte';
   import { controlMenu, groupItems, menuItems } from '../binding/controlMenu';
+  import { isFlagged } from '../../lib/model/lints';
 
   let { device }: { device: DeviceId } = $props();
 
@@ -45,6 +46,7 @@
     stick: app.stick,
     layerLabel: app.layerLabel,
     notes: app.settings.show_notes,
+    flagged: (c) => isFlagged(app.flags, app.profile, app.layer, c),
   });
   const chips = $derived(buildChips(layout.controls, chipView));
   /** Drawn controls held right now; apart from the chips, which do not change with every press. */
@@ -156,6 +158,7 @@
         class:inherited={ch.inherited}
         class:selected={ch.selected}
         class:noted={ch.hiddenNote}
+        class:flagged={ch.flagged}
         class:pressed={pressed.has(ch.lc.control)}
         style={chipStyle(ch.lc)}
         title={ch.summary ? `${ch.label}: ${ch.summary}` : ch.label}
@@ -339,6 +342,17 @@
   }
   .chip.pressed {
     box-shadow: 0 0 0 2px var(--accent);
+  }
+  /* A warning about a mapping behind the chip (the diagnostics bar says which). */
+  .chip.flagged::before {
+    content: '';
+    position: absolute;
+    top: -3px;
+    left: -3px;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--warning);
   }
   /* A note the chip does not show: a small corner mark (Show notes shows it). */
   .chip.noted::after {

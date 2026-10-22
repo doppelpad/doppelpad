@@ -22,6 +22,7 @@ permissions = [
   "allow-sheet-save",
   "allow-config-load",
   "allow-config-save",
+  "allow-config-check",
   "allow-config-create",
   "allow-config-duplicate",
   "allow-config-delete",

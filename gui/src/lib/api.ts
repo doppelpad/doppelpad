@@ -48,6 +48,8 @@ export const api = {
 
   configLoad: (path: string) => invoke<LoadedConfig>('config_load', { path }),
   configSave: (path: string, profile: Profile) => invoke<DiagMsg[]>('config_save', { path, profile }),
+  /** Validate a profile being edited, without saving it. */
+  configCheck: (profile: Profile) => invoke<DiagMsg[]>('config_check', { profile }),
   configCreate: (gameDir: string, name: string) => invoke<string>('config_create', { gameDir, name }),
   configDuplicate: (path: string) => invoke<string>('config_duplicate', { path }),
   configDelete: (path: string) => invoke<void>('config_delete', { path }),

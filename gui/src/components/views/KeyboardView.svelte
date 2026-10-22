@@ -8,6 +8,7 @@
   import { app } from '../../lib/state/app.svelte';
   import { modalOpen } from '../ui/Dialog.svelte';
   import { controlMenu } from '../binding/controlMenu';
+  import { isFlagged } from '../../lib/model/lints';
 
   interface KeyBox {
     k: string;
@@ -171,6 +172,7 @@
         class:mapped={!!s}
         class:inh={s?.inherited}
         class:noted={s?.hiddenNote}
+        class:flagged={isFlagged(app.flags, app.profile, app.layer, `Key:${key.k}`)}
         class:selected={app.selectedKey === `Key:${key.k}`}
         class:held={held.has(key.k)}
         style="--x: {key.x}; --y: {key.y}; --kw: {key.w}; --kh: {key.h}"
@@ -248,6 +250,17 @@
   }
   .key.held {
     box-shadow: 0 0 0 2px var(--accent);
+  }
+  /* A warning about the key's mapping (the diagnostics bar says which). */
+  .key.flagged::before {
+    content: '';
+    position: absolute;
+    top: 4px;
+    left: 4px;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--warning);
   }
   /* A note the summary does not show: a small corner mark (Show notes shows it). */
   .key.noted::after {

@@ -8,6 +8,7 @@
     name,
     summary,
     control,
+    flagged = false,
     selected = false,
     pressed = false,
     onclick,
@@ -17,6 +18,8 @@
     summary: { text: string; inherited: boolean; hiddenNote?: boolean } | null | undefined;
     /** The control the tile stands for: its context menu copies, pastes and clears it. */
     control: Combo;
+    /** A mapping behind the tile has a warning. */
+    flagged?: boolean;
     selected?: boolean;
     pressed?: boolean;
     onclick: () => void;
@@ -29,6 +32,7 @@
   class:pressed
   class:mapped={!!summary}
   class:noted={!!summary?.hiddenNote}
+  class:flagged
   {onclick}
   use:controlMenu={control}
 >
@@ -75,6 +79,17 @@
   .sum.inh {
     color: var(--text-faint);
     font-style: italic;
+  }
+  /* A warning about a mapping behind the tile (the diagnostics bar says which). */
+  .tile.flagged::before {
+    content: '';
+    position: absolute;
+    top: 4px;
+    left: 4px;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--warning);
   }
   /* A note the summary does not show: a small corner mark (Show notes shows it). */
   .tile.noted::after {
