@@ -131,7 +131,16 @@ export function menuItems(c: Combo): MenuItem[] {
   const member = single ? (groupOf(single)?.group ?? null) : null;
   const group = stands ?? member;
   const own = controlItems(c, !!stands);
-  return group ? [...own, { label: '', separator: true }, ...groupItems(group)] : own;
+  const items = group ? [...own, { label: '', separator: true }, ...groupItems(group)] : own;
+  // A key of the keyboard view: which mappings press it.
+  if (single?.startsWith('Key:')) {
+    const key = single.slice(4);
+    items.push(
+      { label: '', separator: true },
+      { label: t('find.who_presses'), onclick: () => (app.find = { query: '', key }), disabled: !app.profile },
+    );
+  }
+  return items;
 }
 
 /** A key press that asks for the context menu: the menu key or Shift+F10. */
