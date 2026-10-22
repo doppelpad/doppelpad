@@ -3,7 +3,7 @@
   // Steps can be picked or recorded from the keyboard or the controller (presses and
   // releases with the pauses between), and break steps cut the sequence into segments.
   import { ArrowLeft, ArrowUp, ArrowDown, X, Circle, Square, Plus, Timer, Vibrate, Gamepad2, SeparatorHorizontal } from '@lucide/svelte';
-  import { onDestroy } from 'svelte';
+  import { onDestroy, untrack } from 'svelte';
   import { t } from '../../lib/i18n/index.svelte';
   import { actionLabel, comboLabel } from '../../lib/model/labels';
   import { keyFromEvent } from '../../lib/model/keymap';
@@ -121,12 +121,14 @@
   $effect(() => {
     const now = app.pressed;
     if (!padRecording) return;
-    const at = performance.now();
-    const add = recordedSteps(padBefore, now, lastEventAt > 0 ? at - lastEventAt : null, keyDelay);
-    padBefore = new Set(now);
-    if (add.length === 0) return;
-    lastEventAt = at;
-    setSteps([...steps, ...add]);
+    untrack(() => {
+      const at = performance.now();
+      const add = recordedSteps(padBefore, now, lastEventAt > 0 ? at - lastEventAt : null, keyDelay);
+      padBefore = new Set(now);
+      if (add.length === 0) return;
+      lastEventAt = at;
+      setSteps([...steps, ...add]);
+    });
   });
 
   function replace(i: number, a: Action) {

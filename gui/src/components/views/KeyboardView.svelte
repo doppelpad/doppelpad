@@ -1,6 +1,7 @@
 <script lang="ts">
   // On-screen ANSI keyboard. Keys are controls `Key:<name>`; clicking or pressing a
   // physical key selects it for the binding panel.
+  import { SvelteSet } from 'svelte/reactivity';
   import { keyFromEvent } from '../../lib/model/keymap';
   import { effectiveSummary } from '../../lib/model/labels';
   import { app } from '../../lib/state/app.svelte';
@@ -86,7 +87,7 @@
 
   const summary = (k: string) => app.profile && effectiveSummary(app.profile, app.layer, `Key:${k}`, app.layerLabel);
 
-  let held = $state(new Set<string>());
+  const held = new SvelteSet<string>();
 
   function typing(e: KeyboardEvent): boolean {
     const el = e.target as HTMLElement | null;
@@ -103,21 +104,17 @@
     const k = keyFromEvent(e);
     if (!k) return;
     e.preventDefault();
-    held = new Set(held).add(k);
+    held.add(k);
     if (!e.repeat) app.select(`Key:${k}`);
   }
 
   function onKeyup(e: KeyboardEvent) {
     const k = keyFromEvent(e);
-    if (k && held.has(k)) {
-      const next = new Set(held);
-      next.delete(k);
-      held = next;
-    }
+    if (k) held.delete(k);
   }
 </script>
 
-<svelte:window onkeydown={onKeydown} onkeyup={onKeyup} onblur={() => (held = new Set())} />
+<svelte:window onkeydown={onKeydown} onkeyup={onKeyup} onblur={() => held.clear()} />
 
 <div class="wrap">
   <div class="board" style="--w: {WIDTH}; --h: {HEIGHT}">
