@@ -4,7 +4,7 @@
 //! merges each group into one snapshot (`group:<name>`); output sent to a group goes to all
 //! of its members.
 
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use dp_core::pad::{Axis, PadState, Rgb, Rumble};
 use serde::{Deserialize, Serialize};
@@ -46,7 +46,7 @@ pub struct SeenDevice {
 
 /// Several controllers' states as one: buttons of any, each axis from the member that pushes
 /// it furthest, motion and touch from the first member that has them.
-fn merge(states: &[PadState]) -> PadState {
+fn merge<'a>(states: impl IntoIterator<Item = &'a PadState>) -> PadState {
     let mut out = PadState::default();
     for s in states {
         out.buttons |= s.buttons;
@@ -70,38 +70,48 @@ fn merge(states: &[PadState]) -> PadState {
 
 pub struct Grouping {
     inner: Vec<Box<dyn GamepadBackend>>,
-    policy: Arc<Mutex<DevicePolicy>>,
-    seen: Arc<Mutex<Vec<SeenDevice>>>,
+    policy: DevicePolicy,
+    /// What the backends reported at the last poll.
+    seen: Vec<SeenDevice>,
     raw: Vec<PadSnapshot>,
 }
 
 impl Grouping {
-    pub fn new(
-        inner: Vec<Box<dyn GamepadBackend>>,
-        policy: Arc<Mutex<DevicePolicy>>,
-        seen: Arc<Mutex<Vec<SeenDevice>>>,
-    ) -> Grouping {
+    pub fn new(inner: Vec<Box<dyn GamepadBackend>>) -> Grouping {
         Grouping {
             inner,
-            policy,
-            seen,
+            policy: DevicePolicy::default(),
+            seen: Vec::new(),
             raw: Vec::new(),
         }
     }
 
-    /// The member ids output for `id` goes to: a group's members, else `id` itself.
-    fn targets(&self, id: &DeviceId) -> Vec<DeviceId> {
-        let policy = self.policy.lock().unwrap();
-        match policy.groups.iter().find(|g| &g.id() == id) {
-            Some(g) => g.members.iter().cloned().map(DeviceId).collect(),
-            None => vec![id.clone()],
-        }
+    /// Ignore the blocked devices and play each group as one controller.
+    pub fn set_policy(&mut self, policy: DevicePolicy) {
+        self.policy = policy;
     }
 
+    /// Every device the backends reported at the last poll, blocked and grouped ones
+    /// included.
+    pub fn seen(&self) -> &[SeenDevice] {
+        &self.seen
+    }
+
+    /// Run `f` for every backend with each member of the group `id` names, else with `id`.
     fn each(&mut self, id: &DeviceId, mut f: impl FnMut(&mut dyn GamepadBackend, &DeviceId)) {
-        for target in self.targets(id) {
+        let group =
+            id.0.strip_prefix("group:")
+                .and_then(|name| self.policy.groups.iter().find(|g| g.name == name));
+        let Some(group) = group else {
             for b in &mut self.inner {
-                f(b.as_mut(), &target);
+                f(b.as_mut(), id);
+            }
+            return;
+        };
+        for member in &group.members {
+            let member = DeviceId(member.clone());
+            for b in &mut self.inner {
+                f(b.as_mut(), &member);
             }
         }
     }
@@ -110,7 +120,6 @@ impl Grouping {
 /// The group's combined snapshot from the members that are present.
 fn combine(group: &DeviceGroup, members: &[&PadSnapshot]) -> PadSnapshot {
     let lead = &members[0].info;
-    let states: Vec<PadState> = members.iter().map(|m| m.state).collect();
     let battery = Battery::emptiest(members.iter().filter_map(|m| m.battery));
     PadSnapshot {
         info: std::sync::Arc::new(DeviceInfo {
@@ -127,7 +136,7 @@ fn combine(group: &DeviceGroup, members: &[&PadSnapshot]) -> PadSnapshot {
             has_rumble: members.iter().any(|m| m.info.has_rumble),
             ..(**lead).clone()
         }),
-        state: merge(&states),
+        state: merge(members.iter().map(|m| &m.state)),
         battery,
         raw: None,
     }
@@ -167,16 +176,22 @@ impl GamepadBackend for Grouping {
         for b in &mut self.inner {
             b.poll(&mut self.raw);
         }
-        *self.seen.lock().unwrap() = self
+        let same = self
             .raw
             .iter()
-            .map(|s| SeenDevice {
-                id: s.info.id.0.clone(),
-                name: s.info.name.clone(),
-            })
-            .collect();
-        let policy = self.policy.lock().unwrap().clone();
-        arrange(&self.raw, &policy, out);
+            .map(|s| &s.info.id.0)
+            .eq(self.seen.iter().map(|d| &d.id));
+        if !same {
+            self.seen = self
+                .raw
+                .iter()
+                .map(|s| SeenDevice {
+                    id: s.info.id.0.clone(),
+                    name: s.info.name.clone(),
+                })
+                .collect();
+        }
+        arrange(&self.raw, &self.policy, out);
     }
 
     fn set_rumble(&mut self, id: &DeviceId, rumble: Rumble) {
