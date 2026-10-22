@@ -30,7 +30,16 @@
       {#each PAD_SIZES as s (s)}<option value={s}>{t(`settings.overlays.sizes.${s}`)}</option>{/each}
     </select>
   </SettingRow>
-  <Slider label={t('settings.osd.opacity')} value={pad.opacity} def={90} min={20} max={100} step={5} unit="%" onchange={(v) => setPad({ opacity: v })} />
+  <Slider
+    label={t('settings.osd.opacity')}
+    value={pad.opacity}
+    def={90}
+    min={20}
+    max={100}
+    step={5}
+    unit="%"
+    onchange={(v) => setPad({ opacity: v })}
+  />
   <Slider
     label={t('settings.overlays.hide_after')}
     value={pad.hide_after}
@@ -44,7 +53,16 @@
   />
   <div class="sub">{t('settings.overlays.mappings')}</div>
   <CornerSelect value={mappings.corner} onchange={(corner) => setMappings({ corner })} />
-  <Slider label={t('settings.osd.opacity')} value={mappings.opacity} def={90} min={20} max={100} step={5} unit="%" onchange={(v) => setMappings({ opacity: v })} />
+  <Slider
+    label={t('settings.osd.opacity')}
+    value={mappings.opacity}
+    def={90}
+    min={20}
+    max={100}
+    step={5}
+    unit="%"
+    onchange={(v) => setMappings({ opacity: v })}
+  />
 </SettingsSection>
 
 <style>

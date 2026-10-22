@@ -6,7 +6,16 @@
   let { activator, size = 22 }: { activator: Activator; size?: number } = $props();
 </script>
 
-<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+<svg
+  width={size}
+  height={size}
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="2"
+  stroke-linecap="round"
+  aria-hidden="true"
+>
   {#if activator === 'single'}
     <circle cx="12" cy="12" r="3.2" fill="currentColor" stroke="none" />
   {:else if activator === 'double'}

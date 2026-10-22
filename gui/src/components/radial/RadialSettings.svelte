@@ -49,7 +49,10 @@
   }
 
   async function pickImage(i: number, k: number) {
-    const file = await open({ multiple: false, filters: [{ name: t('radial.image_filter'), extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'ico'] }] });
+    const file = await open({
+      multiple: false,
+      filters: [{ name: t('radial.image_filter'), extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'ico'] }],
+    });
     if (typeof file === 'string') app.edit((p) => updateSector(p, i, k, { icon: file }));
   }
 
@@ -76,7 +79,13 @@
       {#snippet preview()}
         <svg class="preview" viewBox="-104 -104 208 208" aria-hidden="true">
           {#each m.sectors as s, k (k)}
-            <path d={sectorPath(k, n, 34, 100)} fill={s.color || 'var(--accent)'} fill-opacity="0.25" stroke="var(--line-strong)" stroke-width="3" />
+            <path
+              d={sectorPath(k, n, 34, 100)}
+              fill={s.color || 'var(--accent)'}
+              fill-opacity="0.25"
+              stroke="var(--line-strong)"
+              stroke-width="3"
+            />
             {@const [cx, cy] = sectorCentre(k, n, 67)}
             <text x={cx} y={cy + 6} text-anchor="middle" class="pnum">{k + 1}</text>
           {/each}
@@ -108,9 +117,43 @@
     {#if layers.length === 0}<p class="warn">{t('radial.no_layers')}</p>{/if}
 
     <div class="fields">
-      <Slider label={t('radial.delay')} value={m.delay_ms ?? 0} def={def?.delay_ms} min={0} max={1000} step={50} unit={t('common.ms')} hint={t('radial.delay_hint')} {disabled} onchange={(v) => setMenu(i, { delay_ms: v || undefined })} />
-      <Slider label={t('radial.tint')} value={m.tint ?? 0} def={def?.tint} min={0} max={0.9} step={0.05} scale={100} unit="%" {disabled} onchange={(v) => setMenu(i, { tint: v || undefined })} />
-      <Slider label={t('radial.scale')} value={m.scale ?? 1} def={def?.scale} min={0.5} max={2} step={0.1} scale={100} unit="%" hint={t('radial.scale_hint', { px: Math.round(RING * 2 * (m.scale ?? 1)) })} {disabled} onchange={(v) => setMenu(i, { scale: v === 1 ? undefined : v })} />
+      <Slider
+        label={t('radial.delay')}
+        value={m.delay_ms ?? 0}
+        def={def?.delay_ms}
+        min={0}
+        max={1000}
+        step={50}
+        unit={t('common.ms')}
+        hint={t('radial.delay_hint')}
+        {disabled}
+        onchange={(v) => setMenu(i, { delay_ms: v || undefined })}
+      />
+      <Slider
+        label={t('radial.tint')}
+        value={m.tint ?? 0}
+        def={def?.tint}
+        min={0}
+        max={0.9}
+        step={0.05}
+        scale={100}
+        unit="%"
+        {disabled}
+        onchange={(v) => setMenu(i, { tint: v || undefined })}
+      />
+      <Slider
+        label={t('radial.scale')}
+        value={m.scale ?? 1}
+        def={def?.scale}
+        min={0.5}
+        max={2}
+        step={0.1}
+        scale={100}
+        unit="%"
+        hint={t('radial.scale_hint', { px: Math.round(RING * 2 * (m.scale ?? 1)) })}
+        {disabled}
+        onchange={(v) => setMenu(i, { scale: v === 1 ? undefined : v })}
+      />
     </div>
 
     <div class="sectors">
@@ -119,8 +162,17 @@
         {@const Icon = s.icon ? RADIAL_ICONS[s.icon] : undefined}
         <div class="sector">
           <span class="snum">{k + 1}</span>
-          <input class="slabel" value={s.label ?? ''} placeholder={t('radial.label')} aria-label={t('radial.label')} {disabled} onchange={(e) => app.edit((p) => updateSector(p, i, k, { label: e.currentTarget.value.trim() || undefined }))} />
-          <span class="icon">{#if Icon}<Icon size={16} />{/if}</span>
+          <input
+            class="slabel"
+            value={s.label ?? ''}
+            placeholder={t('radial.label')}
+            aria-label={t('radial.label')}
+            {disabled}
+            onchange={(e) => app.edit((p) => updateSector(p, i, k, { label: e.currentTarget.value.trim() || undefined }))}
+          />
+          <span class="icon"
+            >{#if Icon}<Icon size={16} />{/if}</span
+          >
           <select
             value={isImageIcon(s.icon) ? '__image' : (s.icon ?? '')}
             aria-label={t('radial.icon')}
@@ -137,7 +189,13 @@
             {#each ICONS as name (name)}<option value={name}>{t(`radial.icons.${name}`)}</option>{/each}
             <option value="__file">{t('radial.pick_image')}</option>
           </select>
-          <input type="color" value={s.color || DEFAULT_SECTOR_COLOR} aria-label={t('radial.color')} {disabled} onchange={(e) => app.edit((p) => updateSector(p, i, k, { color: e.currentTarget.value }))} />
+          <input
+            type="color"
+            value={s.color || DEFAULT_SECTOR_COLOR}
+            aria-label={t('radial.color')}
+            {disabled}
+            onchange={(e) => app.edit((p) => updateSector(p, i, k, { color: e.currentTarget.value }))}
+          />
           <select
             value={s.submenu ?? 0}
             {disabled}
@@ -153,20 +211,26 @@
             {/each}
           </select>
           {#if !disabled && n > 1}
-            <button class="icon-btn" title={t('radial.remove_sector')} onclick={() => app.edit((p) => removeSector(p, i, k))}><Trash2 size={14} /></button>
+            <button class="icon-btn" title={t('radial.remove_sector')} onclick={() => app.edit((p) => removeSector(p, i, k))}
+              ><Trash2 size={14} /></button
+            >
           {/if}
           {#if !s.submenu}
             <div class="acts">
               {#each s.actions ?? [] as a, ai (ai)}
                 <Chip
                   size="s"
-                  onremove={disabled ? undefined : () => app.edit((p) => updateSector(p, i, k, { actions: (s.actions ?? []).filter((_, x) => x !== ai) }))}
+                  onremove={disabled
+                    ? undefined
+                    : () => app.edit((p) => updateSector(p, i, k, { actions: (s.actions ?? []).filter((_, x) => x !== ai) }))}
                 >
                   {actionLabel(a)}
                 </Chip>
               {/each}
               {#if !disabled}
-                <button class="add-act" onclick={() => (picking = picking === key ? null : key)}><Plus size={12} /> {t('radial.add_action')}</button>
+                <button class="add-act" onclick={() => (picking = picking === key ? null : key)}
+                  ><Plus size={12} /> {t('radial.add_action')}</button
+                >
               {/if}
             </div>
             {#if picking === key}

@@ -41,14 +41,19 @@
           class:filled={!!slotNames[i]}
           class:target={app.applySlot === i}
           class:active={set.active === i && live?.remap_on && !!slotNames[i]}
-          class:failed={set.active === i && live?.remap_on && !!slotNames[i] && !set.session && (set.device === null || !!live?.devices.some((d) => d.id === set.device))}
+          class:failed={set.active === i &&
+            live?.remap_on &&
+            !!slotNames[i] &&
+            !set.session &&
+            (set.device === null || !!live?.devices.some((d) => d.id === set.device))}
           title={slotNames[i] ?? t('slots.empty')}
           onclick={() => app.attempt(api.selectSlot(i, set.device))}
         >
           {i + 1}
         </button>
         {#if slotNames[i]}
-          <button class="unload" title={t('slots.unload')} onclick={() => app.attempt(api.clearSlot(i, set.device))}><X size={10} /></button>
+          <button class="unload" title={t('slots.unload')} onclick={() => app.attempt(api.clearSlot(i, set.device))}><X size={10} /></button
+          >
         {/if}
       </div>
     {/each}
@@ -87,7 +92,10 @@
     border: 1px dashed var(--line-strong);
     color: var(--text-faint);
     font-weight: 600;
-    transition: background 0.12s, border-color 0.12s, box-shadow 0.12s;
+    transition:
+      background 0.12s,
+      border-color 0.12s,
+      box-shadow 0.12s;
   }
   .slot:hover {
     border-color: var(--text-faint);

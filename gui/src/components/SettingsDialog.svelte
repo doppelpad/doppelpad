@@ -41,7 +41,6 @@
 </script>
 
 <Dialog title={t('settings.title')} {onclose} width={520} gap={14} scroll>
-
   <SettingRow label={t('settings.language')}>
     <select value={app.settings.language} onchange={(e) => app.setSettings({ language: e.currentTarget.value })}>
       {#each Object.entries(LANGUAGES) as [code, name] (code)}
@@ -50,16 +49,8 @@
     </select>
   </SettingRow>
 
-  <Toggle
-    checked={app.settings.stay_live}
-    label={t('settings.stay_live')}
-    onchange={(v) => app.setSettings({ stay_live: v })}
-  />
-  <Toggle
-    checked={app.settings.hook_buttons}
-    label={t('settings.hook_buttons')}
-    onchange={(v) => app.setSettings({ hook_buttons: v })}
-  />
+  <Toggle checked={app.settings.stay_live} label={t('settings.stay_live')} onchange={(v) => app.setSettings({ stay_live: v })} />
+  <Toggle checked={app.settings.hook_buttons} label={t('settings.hook_buttons')} onchange={(v) => app.setSettings({ hook_buttons: v })} />
   {#if autostart !== null}
     <Toggle checked={autostart} label={t('settings.autostart')} onchange={setAutostart} />
   {/if}

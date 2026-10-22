@@ -16,6 +16,11 @@ describe('typed numbers', () => {
   });
 
   it('write polyline points', () => {
-    expect(polylinePoints([[0, 1], [2.5, 3]])).toBe('0,1 2.5,3');
+    expect(
+      polylinePoints([
+        [0, 1],
+        [2.5, 3],
+      ]),
+    ).toBe('0,1 2.5,3');
   });
 });

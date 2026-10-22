@@ -10,7 +10,8 @@
 
 <SettingsSection title={t('settings.drivers')}>
   {#snippet actions()}
-    <button class="icon-btn" title={t('settings.recheck')} onclick={() => app.attempt(api.refreshDrivers())}><RefreshCw size={15} /></button>
+    <button class="icon-btn" title={t('settings.recheck')} onclick={() => app.attempt(api.refreshDrivers())}><RefreshCw size={15} /></button
+    >
   {/snippet}
   <DriverList tone="icon" />
 </SettingsSection>

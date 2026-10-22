@@ -6,9 +6,7 @@
 <!-- macOS keeps its native traffic lights (see main.rs); Windows and Linux draw their own. -->
 {#if platform === 'windows'}
   <div class="controls win" class:inactive={!win.focused}>
-    <button tabindex="-1" title={t('window.minimize')} aria-label={t('window.minimize')} onclick={() => win.minimize()}>
-      &#xE921;
-    </button>
+    <button tabindex="-1" title={t('window.minimize')} aria-label={t('window.minimize')} onclick={() => win.minimize()}> &#xE921; </button>
     <button
       tabindex="-1"
       title={win.maximized ? t('window.restore') : t('window.maximize')}

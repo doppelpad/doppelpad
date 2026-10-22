@@ -38,7 +38,12 @@ export function lineWidth(c: CrosshairFull): number {
 export function crosshairParts(shape: CrosshairShape, size: number, w: number): Part[] {
   const r = size / 2;
   const gap = r * 0.35;
-  const line = (x1: number, y1: number, x2: number, y2: number): Part => ({ points: [[x1, y1], [x2, y2]] });
+  const line = (x1: number, y1: number, x2: number, y2: number): Part => ({
+    points: [
+      [x1, y1],
+      [x2, y2],
+    ],
+  });
   const dot: Part = { r: Math.max(w, size / 12), fill: true };
   const ring: Part = { r: r - w / 2, fill: false };
   const arms = (from: number, top = true): Part[] => [
@@ -67,19 +72,61 @@ export function crosshairParts(shape: CrosshairShape, size: number, w: number): 
     case 't':
       return arms(gap, false);
     case 'chevron':
-      return [{ points: [[-r * 0.7, r * 0.5], [0, 0], [r * 0.7, r * 0.5]] }];
+      return [
+        {
+          points: [
+            [-r * 0.7, r * 0.5],
+            [0, 0],
+            [r * 0.7, r * 0.5],
+          ],
+        },
+      ];
     case 'square': {
       const s = r * 0.6;
-      return [{ points: [[-s, -s], [s, -s], [s, s], [-s, s], [-s, -s]] }];
+      return [
+        {
+          points: [
+            [-s, -s],
+            [s, -s],
+            [s, s],
+            [-s, s],
+            [-s, -s],
+          ],
+        },
+      ];
     }
     case 'brackets': {
       const s = r * 0.7;
       const l = r * 0.35;
       return [
-        { points: [[-s, -s + l], [-s, -s], [-s + l, -s]] },
-        { points: [[s - l, -s], [s, -s], [s, -s + l]] },
-        { points: [[s, s - l], [s, s], [s - l, s]] },
-        { points: [[-s + l, s], [-s, s], [-s, s - l]] },
+        {
+          points: [
+            [-s, -s + l],
+            [-s, -s],
+            [-s + l, -s],
+          ],
+        },
+        {
+          points: [
+            [s - l, -s],
+            [s, -s],
+            [s, -s + l],
+          ],
+        },
+        {
+          points: [
+            [s, s - l],
+            [s, s],
+            [s - l, s],
+          ],
+        },
+        {
+          points: [
+            [-s + l, s],
+            [-s, s],
+            [-s, s - l],
+          ],
+        },
       ];
     }
   }

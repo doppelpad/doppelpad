@@ -60,7 +60,9 @@ input[type='checkbox'] {
   border-radius: 4px;
   background: var(--bg-2) center / 12px 12px no-repeat;
   cursor: pointer;
-  transition: background-color 0.12s, border-color 0.12s;
+  transition:
+    background-color 0.12s,
+    border-color 0.12s;
 }
 input[type='checkbox']:focus {
   border-color: var(--line-strong);

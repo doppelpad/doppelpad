@@ -15,7 +15,6 @@
 
   const configName = $derived(app.profile?.name || '—');
 
-
   function fromTemplate(tpl: Template) {
     if (app.gameDir) app.createConfig(api.configFromTemplate(app.gameDir, t(`welcome.templates.${tpl}`), tpl));
   }

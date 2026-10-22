@@ -21,10 +21,6 @@ export function patchLayer(p: Profile, id: number, patch: (l: Layer) => Layer): 
 }
 
 /** Set (or with `undefined` remove) one virtual device's settings, keeping the others. */
-export function setVirtualDevice<K extends keyof VirtualDevices>(
-  p: Profile,
-  key: K,
-  value: VirtualDevices[K] | undefined,
-): Profile {
+export function setVirtualDevice<K extends keyof VirtualDevices>(p: Profile, key: K, value: VirtualDevices[K] | undefined): Profile {
   return setOrDrop(p, 'virtual', nonEmpty(setOrDrop({ ...p.virtual }, key, value)));
 }

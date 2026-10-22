@@ -46,7 +46,12 @@
 {/if}
 
 <div class="options">
-  <Toggle checked={out.hide_physical} disabled={app.readOnly} label={t('output.hide_physical')} onchange={(v) => set({ hide_physical: v })} />
+  <Toggle
+    checked={out.hide_physical}
+    disabled={app.readOnly}
+    label={t('output.hide_physical')}
+    onchange={(v) => set({ hide_physical: v })}
+  />
   {#if out.hide_physical && drivers && !drivers.device_hiding.available}
     <div class="warn">
       <TriangleAlert size={15} />

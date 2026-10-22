@@ -109,9 +109,8 @@ export const MOUSE_PRESETS: Record<MousePreset, PresetFields> = {
 export function mousePresetOf(r: Required<AnalogMapping>): MousePreset | null {
   const ids = Object.keys(MOUSE_PRESETS) as MousePreset[];
   return (
-    ids.find((id) =>
-      (Object.entries(MOUSE_PRESETS[id]) as [keyof PresetFields, number][]).every(([f, v]) => Math.abs(r[f] - v) < 1e-3),
-    ) ?? null
+    ids.find((id) => (Object.entries(MOUSE_PRESETS[id]) as [keyof PresetFields, number][]).every(([f, v]) => Math.abs(r[f] - v) < 1e-3)) ??
+    null
   );
 }
 
@@ -137,11 +136,17 @@ export function addRoute(p: Profile, r: AnalogMapping): Profile {
 }
 
 export function updateRoute(p: Profile, index: number, patch: Partial<AnalogMapping>): Profile {
-  return withRoutes(p, (p.analog ?? []).map((r, i) => (i === index ? { ...r, ...patch } : r)));
+  return withRoutes(
+    p,
+    (p.analog ?? []).map((r, i) => (i === index ? { ...r, ...patch } : r)),
+  );
 }
 
 export function removeRoute(p: Profile, index: number): Profile {
-  return withRoutes(p, (p.analog ?? []).filter((_, i) => i !== index));
+  return withRoutes(
+    p,
+    (p.analog ?? []).filter((_, i) => i !== index),
+  );
 }
 
 /** Copy a route (usually one inherited from Main) onto a layer, where it replaces Main's. */

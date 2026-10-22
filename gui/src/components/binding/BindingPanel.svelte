@@ -79,14 +79,14 @@
       placeholder={t('binding.description_placeholder')}
       value={shown?.description ?? ''}
       disabled={readOnly}
-      onchange={(e) => edit((m) => (m.description = e.currentTarget.value.trim() || undefined))}
-    ></textarea>
+      onchange={(e) => edit((m) => (m.description = e.currentTarget.value.trim() || undefined))}></textarea>
 
     <TimingFields mapping={shown} {readOnly} {edit} />
 
     {#if at.own && !readOnly}
       <button class="btn danger" onclick={() => app.edit((p) => removeMapping(p, app.layer, combo, app.activator))}>
-        <Trash2 size={14} /> {t('binding.delete')}
+        <Trash2 size={14} />
+        {t('binding.delete')}
       </button>
     {/if}
   {/if}

@@ -1,13 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Profile } from '../types';
-import {
-  CROSSHAIR_SHAPES,
-  addCrosshair,
-  crosshairConfig,
-  crosshairParts,
-  removeCrosshair,
-  updateCrosshair,
-} from './crosshair';
+import { CROSSHAIR_SHAPES, addCrosshair, crosshairConfig, crosshairParts, removeCrosshair, updateCrosshair } from './crosshair';
 import { defaults } from './fixtures';
 
 describe('crosshairs', () => {
@@ -25,9 +18,7 @@ describe('crosshairs', () => {
   it('removing one keeps commands on the crosshairs that stay', () => {
     let p: Profile = { name: 't', mappings: [] };
     p = addCrosshair(addCrosshair(addCrosshair(p)));
-    p.mappings = [
-      { trigger: 'A', actions: [{ command: { crosshair: 1 } }, { command: { crosshair: 2 } }, { command: { crosshair: 3 } }] },
-    ];
+    p.mappings = [{ trigger: 'A', actions: [{ command: { crosshair: 1 } }, { command: { crosshair: 2 } }, { command: { crosshair: 3 } }] }];
     p = removeCrosshair(p, 1);
     expect(p.crosshairs?.map((c) => c.name)).toEqual(['Crosshair 1', 'Crosshair 3']);
     expect(p.mappings[0].actions).toEqual([{ command: { crosshair: 1 } }, { command: { crosshair: 2 } }]);

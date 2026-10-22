@@ -6,8 +6,7 @@
   import { stickAmount, withStickAmount } from '../../lib/model/actions';
   import type { Action } from '../../lib/types';
 
-  let { action, disabled = false, onchange }: { action: Action; disabled?: boolean; onchange: (a: Action) => void } =
-    $props();
+  let { action, disabled = false, onchange }: { action: Action; disabled?: boolean; onchange: (a: Action) => void } = $props();
 
   const pct = (v: number) => Math.round(v * 100);
 
@@ -108,12 +107,24 @@
     })}
   {:else if 'command' in action && typeof action.command === 'object' && 'launch' in action.command}
     {@const launch = action.command.launch}
-    {@render field(t('params.path'), launch.path, '', (raw) => {
-      if (raw.trim()) onchange({ command: { launch: { ...launch, path: raw.trim() } } });
-    }, true)}
-    {@render field(t('params.args'), launch.args ?? '', '', (raw) => {
-      onchange({ command: { launch: { ...launch, args: raw } } });
-    }, true)}
+    {@render field(
+      t('params.path'),
+      launch.path,
+      '',
+      (raw) => {
+        if (raw.trim()) onchange({ command: { launch: { ...launch, path: raw.trim() } } });
+      },
+      true,
+    )}
+    {@render field(
+      t('params.args'),
+      launch.args ?? '',
+      '',
+      (raw) => {
+        onchange({ command: { launch: { ...launch, args: raw } } });
+      },
+      true,
+    )}
   {/if}
 </span>
 

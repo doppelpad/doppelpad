@@ -13,7 +13,17 @@
   import SettingRow from './SettingRow.svelte';
   import SettingsSection from './SettingsSection.svelte';
 
-  const FIELDS: HotkeyField[] = ['slot1', 'slot2', 'slot3', 'slot4', 'remap', 'stop_macros', 'emergency_stop', 'pad_overlay', 'mappings_overlay'];
+  const FIELDS: HotkeyField[] = [
+    'slot1',
+    'slot2',
+    'slot3',
+    'slot4',
+    'remap',
+    'stop_macros',
+    'emergency_stop',
+    'pad_overlay',
+    'mappings_overlay',
+  ];
   const MAX_BUTTONS = 4;
   /** How long a hotkey must be held, in ms (dp-core's HOLD_MS_RANGE). */
   const HOLD_MS = { min: 50, max: 2500, step: 50 };

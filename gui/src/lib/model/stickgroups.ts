@@ -58,8 +58,7 @@ export function stickGroupOf(p: Profile, layer: number, s: Side): StickGroup | n
 export function stickGroupConflicts(p: Profile, layer: number, s: Side): number {
   const dirs = directionControls(s);
   return (
-    p.mappings.filter((m) => isDirectionMapping(m, layer, dirs)).length +
-    (p.analog ?? []).filter((r) => isStickRoute(r, layer, s)).length
+    p.mappings.filter((m) => isDirectionMapping(m, layer, dirs)).length + (p.analog ?? []).filter((r) => isStickRoute(r, layer, s)).length
   );
 }
 
@@ -67,13 +66,7 @@ export function stickGroupConflicts(p: Profile, layer: number, s: Side): number 
  * The profile with the whole stick doing one thing on a layer (`null`: nothing). The stick's
  * direction mappings and routes on that layer go; a mouse route starts with the standard preset.
  */
-export function setStickGroup(
-  p: Profile,
-  layer: number,
-  s: Side,
-  group: StickGroup | null,
-  def: Required<AnalogMapping>,
-): Profile {
+export function setStickGroup(p: Profile, layer: number, s: Side, group: StickGroup | null, def: Required<AnalogMapping>): Profile {
   const dirs = directionControls(s);
   const analog = (p.analog ?? []).filter((r) => !isStickRoute(r, layer, s));
   let out: Profile = setOrDrop(

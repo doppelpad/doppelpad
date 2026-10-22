@@ -42,11 +42,7 @@
   const marks = $derived(options.some((o) => o.marked !== undefined));
 </script>
 
-<div
-  class={['seg', variant, size, cls, { joined: variant !== 'chips', hover, marks }]}
-  role="radiogroup"
-  aria-label={label}
->
+<div class={['seg', variant, size, cls, { joined: variant !== 'chips', hover, marks }]} role="radiogroup" aria-label={label}>
   {#each options as o (o.value)}
     <button
       role="radio"

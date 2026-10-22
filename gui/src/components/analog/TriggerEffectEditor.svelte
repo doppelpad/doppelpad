@@ -21,8 +21,12 @@
     onlayer,
     disabled = false,
     onchange,
-  }: { effect: TriggerEffect | undefined; onlayer: boolean; disabled?: boolean; onchange: (e: TriggerEffect | undefined) => void } =
-    $props();
+  }: {
+    effect: TriggerEffect | undefined;
+    onlayer: boolean;
+    disabled?: boolean;
+    onchange: (e: TriggerEffect | undefined) => void;
+  } = $props();
 
   function pick(v: string) {
     onchange(v === '' ? undefined : freshEffect(v as EffectKind));
@@ -85,12 +89,37 @@
   {/if}
   {#if effect?.kind === 'resistance' || effect?.kind === 'weapon'}
     {@const e = effect}
-    <Slider label={t('analog.trigger.effect_strength')} value={e.strength} min={1} max={8} step={1} {disabled} onchange={(v) => set(e, { strength: v })} />
+    <Slider
+      label={t('analog.trigger.effect_strength')}
+      value={e.strength}
+      min={1}
+      max={8}
+      step={1}
+      {disabled}
+      onchange={(v) => set(e, { strength: v })}
+    />
   {/if}
   {#if effect?.kind === 'vibration'}
     {@const e = effect}
-    <Slider label={t('analog.trigger.effect_amplitude')} value={e.amplitude} min={1} max={8} step={1} {disabled} onchange={(v) => set(e, { amplitude: v })} />
-    <Slider label={t('analog.trigger.effect_frequency')} value={e.frequency} min={1} max={255} step={1} unit="Hz" {disabled} onchange={(v) => set(e, { frequency: v })} />
+    <Slider
+      label={t('analog.trigger.effect_amplitude')}
+      value={e.amplitude}
+      min={1}
+      max={8}
+      step={1}
+      {disabled}
+      onchange={(v) => set(e, { amplitude: v })}
+    />
+    <Slider
+      label={t('analog.trigger.effect_frequency')}
+      value={e.frequency}
+      min={1}
+      max={255}
+      step={1}
+      unit="Hz"
+      {disabled}
+      onchange={(v) => set(e, { frequency: v })}
+    />
   {/if}
   {#if effect?.kind === 'raw'}
     <label class="row">

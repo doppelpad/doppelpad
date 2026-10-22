@@ -42,7 +42,8 @@
 
     {#if live && !live.drivers.virtual_pads.available}
       <span class="warn" title={live.drivers.virtual_pads.error ?? ''}>
-        <TriangleAlert size={13} /> {t('drivers.missing_named', { driver: 'ViGEmBus' })}
+        <TriangleAlert size={13} />
+        {t('drivers.missing_named', { driver: 'ViGEmBus' })}
       </span>
     {/if}
   </div>
@@ -80,7 +81,10 @@
     border-radius: 50%;
     border: 1px solid var(--line-strong);
     color: var(--text-faint);
-    transition: background 0.12s, border-color 0.12s, color 0.12s;
+    transition:
+      background 0.12s,
+      border-color 0.12s,
+      color 0.12s;
   }
   .power:hover {
     border-color: var(--text-faint);

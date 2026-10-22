@@ -14,51 +14,51 @@
 // icon.ico lists its largest entry first: tauri-codegen 2.6 takes the first entry as the
 // window icon, later versions take the largest.
 
-import { createRequire } from "node:module";
-import { copyFile, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { createRequire } from 'node:module';
+import { copyFile, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const require = createRequire(import.meta.url);
-const tauri = require("@tauri-apps/cli/main.js");
+const tauri = require('@tauri-apps/cli/main.js');
 
-const SOURCE = fileURLToPath(new URL("../src-tauri/icons/source/", import.meta.url));
-const ICONS = fileURLToPath(new URL("../src-tauri/icons/", import.meta.url));
+const SOURCE = fileURLToPath(new URL('../src-tauri/icons/source/', import.meta.url));
+const ICONS = fileURLToPath(new URL('../src-tauri/icons/', import.meta.url));
 
-const tmp = await mkdtemp(join(tmpdir(), "doppelpad-icons-"));
+const tmp = await mkdtemp(join(tmpdir(), 'doppelpad-icons-'));
 try {
   // Render `source` at `sizes` (or the full default set) into a folder of its own.
   const render = async (source, sizes) => {
-    const out = join(tmp, `${source}-${sizes ? sizes.join("-") : "all"}`);
-    const args = ["icon", join(SOURCE, `${source}.svg`), "-o", out];
-    if (sizes) args.push("-p", sizes.join(","));
-    await tauri.run(args, "tauri");
+    const out = join(tmp, `${source}-${sizes ? sizes.join('-') : 'all'}`);
+    const args = ['icon', join(SOURCE, `${source}.svg`), '-o', out];
+    if (sizes) args.push('-p', sizes.join(','));
+    await tauri.run(args, 'tauri');
     return (name) => join(out, name);
   };
 
-  const all = await render("app-icon");
-  for (const name of ["icon.icns", "icon.png", "64x64.png", "128x128.png", "128x128@2x.png"]) {
+  const all = await render('app-icon');
+  for (const name of ['icon.icns', 'icon.png', '64x64.png', '128x128.png', '128x128@2x.png']) {
     await copyFile(all(name), join(ICONS, name));
   }
 
-  const large = await render("app-icon", [48, 64, 256]);
-  const small = await render("app-icon-small", [24, 32]);
-  const tiny = await render("app-icon-tiny", [16]);
-  const tray = await render("tray-icon", [32]);
-  await copyFile(small("32x32.png"), join(ICONS, "32x32.png"));
-  await copyFile(tray("32x32.png"), join(ICONS, "tray.png"));
+  const large = await render('app-icon', [48, 64, 256]);
+  const small = await render('app-icon-small', [24, 32]);
+  const tiny = await render('app-icon-tiny', [16]);
+  const tray = await render('tray-icon', [32]);
+  await copyFile(small('32x32.png'), join(ICONS, '32x32.png'));
+  await copyFile(tray('32x32.png'), join(ICONS, 'tray.png'));
 
   const entries = [
-    [256, large("256x256.png")],
-    [64, large("64x64.png")],
-    [48, large("48x48.png")],
-    [32, small("32x32.png")],
-    [24, small("24x24.png")],
-    [16, tiny("16x16.png")],
+    [256, large('256x256.png')],
+    [64, large('64x64.png')],
+    [48, large('48x48.png')],
+    [32, small('32x32.png')],
+    [24, small('24x24.png')],
+    [16, tiny('16x16.png')],
   ];
   const pngs = await Promise.all(entries.map(([, path]) => readFile(path)));
-  await writeFile(join(ICONS, "icon.ico"), packIco(entries.map(([size], i) => [size, pngs[i]])));
+  await writeFile(join(ICONS, 'icon.ico'), packIco(entries.map(([size], i) => [size, pngs[i]])));
   console.log(`icons: wrote ${ICONS}`);
 } finally {
   await rm(tmp, { recursive: true, force: true });

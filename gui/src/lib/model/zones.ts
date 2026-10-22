@@ -41,8 +41,7 @@ export function thresholds(low: number, med: number | undefined, high: number | 
 
 /** Effective stick thresholds per axis. */
 export function stickThresholds(z: StickZones | undefined, d: ZoneDefaults): { x: Triple; y: Triple } {
-  const along = (axis: 0 | 1): Triple =>
-    thresholds(axisOf(z?.low ?? d.stickLow, axis)!, axisOf(z?.med, axis), axisOf(z?.high, axis), 1);
+  const along = (axis: 0 | 1): Triple => thresholds(axisOf(z?.low ?? d.stickLow, axis)!, axisOf(z?.med, axis), axisOf(z?.high, axis), 1);
   return { x: along(0), y: along(1) };
 }
 
@@ -121,11 +120,7 @@ export function setTriggerLevel(z: TriggerZones | undefined, level: Level, value
 }
 
 /** The zones stored for one stick or trigger as they are on `layer`: its own, else Main's. */
-export function storedZones(
-  p: Profile,
-  source: PairSource,
-  layer = 0,
-): StickZones | TriggerZones | undefined {
+export function storedZones(p: Profile, source: PairSource, layer = 0): StickZones | TriggerZones | undefined {
   const key = source.kind === 'stick' ? 'sticks' : 'triggers';
   const own = layer === 0 ? undefined : declaredLayer(p, layer)?.[key]?.[source.side]?.zones;
   return own ?? p[key]?.[source.side]?.zones;
@@ -135,12 +130,7 @@ export function storedZones(
  * The profile with new zones for one stick or trigger (empty zones are dropped). On a layer
  * other than Main only that layer changes; zones equal to Main's are dropped from it.
  */
-export function withZones(
-  p: Profile,
-  source: PairSource,
-  zones: StickZones | TriggerZones,
-  layer = 0,
-): Profile {
+export function withZones(p: Profile, source: PairSource, zones: StickZones | TriggerZones, layer = 0): Profile {
   const key = source.kind === 'stick' ? 'sticks' : 'triggers';
   if (layer !== 0) {
     const main = storedZones(p, source) ?? {};

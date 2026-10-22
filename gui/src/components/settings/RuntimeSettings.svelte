@@ -23,7 +23,11 @@
     <Toggle checked={options.prevent_sleep} label={t('settings.runtime.prevent_sleep')} onchange={(v) => set({ prevent_sleep: v })} />
     <Toggle checked={options.pause_unfocused} label={t('settings.runtime.pause_unfocused')} onchange={(v) => set({ pause_unfocused: v })} />
     <p class="hint">{t('settings.runtime.pause_unfocused_hint')}</p>
-    <Toggle checked={options.keep_offline_pads} label={t('settings.runtime.keep_offline_pads')} onchange={(v) => set({ keep_offline_pads: v })} />
+    <Toggle
+      checked={options.keep_offline_pads}
+      label={t('settings.runtime.keep_offline_pads')}
+      onchange={(v) => set({ keep_offline_pads: v })}
+    />
     <p class="hint">{t('settings.runtime.locked_hint')}</p>
   </SettingsSection>
 {/if}

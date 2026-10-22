@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import { emptyProfile as empty } from './fixtures';
 import { MOUSE_ZONE_DEFAULTS, pruneDefaults, vibrationConfig, withMouseZone, withShake, withTurn } from './output';
 
-
 describe('output settings from typed text', () => {
   it('leave values at their defaults out', () => {
     expect(pruneDefaults({ a: 1, b: 2 }, { a: 1, b: 2 })).toBeUndefined();

@@ -32,7 +32,10 @@
 <div class="ring">
   <svg viewBox="-1.12 -1.12 2.24 2.24" role="img" aria-label={t('analog.legend_stick')}>
     <circle class="bound" r="1" />
-    <path class="saturation" d="M -1 0 A 1 1 0 1 0 1 0 A 1 1 0 1 0 -1 0 Z M {-outer} 0 A {outer} {outer} 0 1 1 {outer} 0 A {outer} {outer} 0 1 1 {-outer} 0 Z" />
+    <path
+      class="saturation"
+      d="M -1 0 A 1 1 0 1 0 1 0 A 1 1 0 1 0 -1 0 Z M {-outer} 0 A {outer} {outer} 0 1 1 {outer} 0 A {outer} {outer} 0 1 1 {-outer} 0 Z"
+    />
     <circle class="outer" r={outer} />
     <line class="axis" x1="-1" y1="0" x2="1" y2="0" />
     <line class="axis" x1="0" y1="-1" x2="0" y2="1" />

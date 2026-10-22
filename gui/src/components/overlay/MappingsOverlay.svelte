@@ -43,7 +43,9 @@
                 {#each col as r, ri (ri)}
                   <tr>
                     <td class="ctl">{r.control}</td>
-                    <td class="act">{r.action}{#if r.note}<span class="note"> — {r.note}</span>{/if}</td>
+                    <td class="act"
+                      >{r.action}{#if r.note}<span class="note"> — {r.note}</span>{/if}</td
+                    >
                   </tr>
                 {/each}
               </tbody>

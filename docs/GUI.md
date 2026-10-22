@@ -491,6 +491,7 @@ npx tauri build               # the same, plus the Windows setup (see Installer)
 npx tauri dev                 # development build with hot reload
 npm test                      # frontend unit tests
 npm run check                 # type check
+npm run format                # Prettier (format:check only reports)
 npm run icons                 # re-render src-tauri/icons/ from icons/source/*.svg
 npm run drawings              # re-generate the controller drawings (src/assets/devices)
 npm run licenses              # re-generate THIRD_PARTY_LICENSES.md (see below)

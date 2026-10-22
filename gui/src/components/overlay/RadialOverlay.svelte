@@ -50,7 +50,7 @@
             <g transform="translate(-14, -22)" color={active ? 'var(--bg-0)' : tone}><Icon size={28} /></g>
           {/if}
           {#if s.label}
-            <text y={image || Icon ? 24 : 5} text-anchor="middle" class="label">{s.label}{s.submenu ? " ›" : ""}</text>
+            <text y={image || Icon ? 24 : 5} text-anchor="middle" class="label">{s.label}{s.submenu ? ' ›' : ''}</text>
           {/if}
         </g>
       {/each}

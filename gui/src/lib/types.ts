@@ -16,9 +16,28 @@ export type Dir = 'up' | 'down' | 'left' | 'right';
 export type MouseButtonName = 'left' | 'right' | 'middle' | 'x1' | 'x2';
 export type WheelDir = 'up' | 'down' | 'left' | 'right';
 export type PadButtonName =
-  | 'A' | 'B' | 'X' | 'Y' | 'LB' | 'RB' | 'Back' | 'Start' | 'LS' | 'RS'
-  | 'DpadUp' | 'DpadDown' | 'DpadLeft' | 'DpadRight' | 'Guide' | 'Touchpad' | 'Misc'
-  | 'PaddleUL' | 'PaddleUR' | 'PaddleLL' | 'PaddleLR' | 'Misc2';
+  | 'A'
+  | 'B'
+  | 'X'
+  | 'Y'
+  | 'LB'
+  | 'RB'
+  | 'Back'
+  | 'Start'
+  | 'LS'
+  | 'RS'
+  | 'DpadUp'
+  | 'DpadDown'
+  | 'DpadLeft'
+  | 'DpadRight'
+  | 'Guide'
+  | 'Touchpad'
+  | 'Misc'
+  | 'PaddleUL'
+  | 'PaddleUR'
+  | 'PaddleLL'
+  | 'PaddleLR'
+  | 'Misc2';
 export type VirtualPadType = 'xbox360' | 'dual_shock4' | 'none';
 /** A virtual controller that exists (sessions report the one they play on). */
 export type VirtualPadKind = Exclude<VirtualPadType, 'none'>;
@@ -171,17 +190,7 @@ export interface DeviceGroup {
 }
 
 export type CrosshairShape =
-  | 'cross'
-  | 'cross_gap'
-  | 'dot'
-  | 'circle'
-  | 'circle_dot'
-  | 'circle_cross'
-  | 'x'
-  | 't'
-  | 'chevron'
-  | 'square'
-  | 'brackets';
+  'cross' | 'cross_gap' | 'dot' | 'circle' | 'circle_dot' | 'circle_cross' | 'x' | 't' | 'chevron' | 'square' | 'brackets';
 
 /** A crosshair drawn over the game; whatever it leaves out is the default. */
 export interface Crosshair {
@@ -456,14 +465,7 @@ export interface PadState {
   touch: ({ x: number; y: number } | null)[];
 }
 
-export type PadFamily =
-  | 'xbox'
-  | 'dual_shock4'
-  | 'dual_sense'
-  | 'switch_pro'
-  | 'joy_con'
-  | 'game_cube'
-  | 'generic';
+export type PadFamily = 'xbox' | 'dual_shock4' | 'dual_sense' | 'switch_pro' | 'joy_con' | 'game_cube' | 'generic';
 
 /** A controller's gyro calibration: the bias taken off its rates (°/s) and the automatic switch. */
 export interface GyroCalibration {

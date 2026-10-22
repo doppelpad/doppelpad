@@ -129,7 +129,8 @@ export function actionLabel(a: Action): string {
     const dir = a.y > 0.5 ? '↑' : a.y < -0.5 ? '↓' : a.x < -0.5 ? '←' : a.x > 0.5 ? '→' : '•';
     return t(`labels.${a.stick}_stick`, { dir }) + pressSuffix(a.action);
   }
-  if ('trigger' in a) return `${a.trigger === 'left' ? 'LT' : 'RT'}${a.value !== undefined && a.value < 1 ? ` ${Math.round(a.value * 100)}%` : ''}`;
+  if ('trigger' in a)
+    return `${a.trigger === 'left' ? 'LT' : 'RT'}${a.value !== undefined && a.value < 1 ? ` ${Math.round(a.value * 100)}%` : ''}`;
   if ('mouse_move' in a) return t('labels.mouse_move', { dir: ARROWS[a.mouse_move] ?? a.mouse_move });
   if ('pause' in a) return `${a.pause} ms`;
   if ('rumble' in a) return t('labels.rumble', { ms: a.rumble });

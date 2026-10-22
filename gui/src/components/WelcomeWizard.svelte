@@ -59,7 +59,6 @@
   backdropClose={false}
   escapeClose={false}
 >
-
   {#if STEPS[step] === 'welcome'}
     <p>{t('welcome.welcome.text')}</p>
   {:else if STEPS[step] === 'drivers'}

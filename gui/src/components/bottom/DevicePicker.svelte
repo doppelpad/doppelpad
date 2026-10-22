@@ -64,9 +64,7 @@
       // Only wireless controllers can be told to turn off.
       ...(d.battery && !d.battery.wired ? [{ label: t('devices.power_off'), onclick: () => app.attempt(api.powerOff(d.id)) }] : []),
       // A group's own id cannot be ignored; its members can, in the settings.
-      ...(d.id.startsWith('group:')
-        ? []
-        : [{ label: t('devices.ignore'), onclick: () => app.attempt(api.setBlocked(d.id, true)) }]),
+      ...(d.id.startsWith('group:') ? [] : [{ label: t('devices.ignore'), onclick: () => app.attempt(api.setBlocked(d.id, true)) }]),
     ];
   }
 </script>

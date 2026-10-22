@@ -21,8 +21,18 @@ describe('trigger effects', () => {
   });
 
   it("keeps a weapon's end behind its start", () => {
-    expect(withEffectStart({ kind: 'weapon', start: 4, end: 6, strength: 8 }, 6)).toEqual({ kind: 'weapon', start: 6, end: 7, strength: 8 });
-    expect(withEffectStart({ kind: 'weapon', start: 4, end: 6, strength: 8 }, 2)).toEqual({ kind: 'weapon', start: 2, end: 6, strength: 8 });
+    expect(withEffectStart({ kind: 'weapon', start: 4, end: 6, strength: 8 }, 6)).toEqual({
+      kind: 'weapon',
+      start: 6,
+      end: 7,
+      strength: 8,
+    });
+    expect(withEffectStart({ kind: 'weapon', start: 4, end: 6, strength: 8 }, 2)).toEqual({
+      kind: 'weapon',
+      start: 2,
+      end: 6,
+      strength: 8,
+    });
     expect(withEffectStart({ kind: 'resistance', start: 0, strength: 4 }, 3)).toEqual({ kind: 'resistance', start: 3, strength: 4 });
   });
 

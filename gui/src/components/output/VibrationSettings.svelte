@@ -23,8 +23,30 @@
 <div class="section-title">{t('vibration.title')}</div>
 <p class="hint">{t('vibration.hint')}</p>
 <div class="fields">
-  <Slider label={t('vibration.left')} value={v.left} def={def.left} min={0} max={1} step={0.05} scale={100} unit="%" {disabled} onchange={(x) => set({ left: x })} />
-  <Slider label={t('vibration.right')} value={v.right} def={def.right} min={0} max={1} step={0.05} scale={100} unit="%" {disabled} onchange={(x) => set({ right: x })} />
+  <Slider
+    label={t('vibration.left')}
+    value={v.left}
+    def={def.left}
+    min={0}
+    max={1}
+    step={0.05}
+    scale={100}
+    unit="%"
+    {disabled}
+    onchange={(x) => set({ left: x })}
+  />
+  <Slider
+    label={t('vibration.right')}
+    value={v.right}
+    def={def.right}
+    min={0}
+    max={1}
+    step={0.05}
+    scale={100}
+    unit="%"
+    {disabled}
+    onchange={(x) => set({ right: x })}
+  />
   <Slider
     label={t('vibration.gap')}
     value={v.min_delay_ms}

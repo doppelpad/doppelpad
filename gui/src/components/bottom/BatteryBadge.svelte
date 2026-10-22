@@ -16,7 +16,11 @@
   class:critical={tone === 'danger'}
   title={t(b.charging ? 'devices.battery_charging' : 'devices.battery', { level: b.level })}
 >
-  {#if b.charging}<BatteryCharging size={14} />{:else if b.level < BATTERY_CRITICAL}<BatteryWarning size={14} />{:else if b.level < BATTERY_LOW}<BatteryLow size={14} />{:else if b.level < 80}<BatteryMedium size={14} />{:else}<BatteryFull size={14} />{/if}
+  {#if b.charging}<BatteryCharging size={14} />{:else if b.level < BATTERY_CRITICAL}<BatteryWarning
+      size={14}
+    />{:else if b.level < BATTERY_LOW}<BatteryLow size={14} />{:else if b.level < 80}<BatteryMedium size={14} />{:else}<BatteryFull
+      size={14}
+    />{/if}
   {b.level} %
 </span>
 
