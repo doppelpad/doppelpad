@@ -23,7 +23,16 @@
     trigger,
     align = 'left',
     title = '',
-  }: { items: MenuItem[]; trigger: Snippet; align?: 'left' | 'right'; title?: string } = $props();
+    iconOnly = false,
+  }: {
+    items: MenuItem[];
+    trigger: Snippet;
+    align?: 'left' | 'right';
+    /** The trigger's tooltip. */
+    title?: string;
+    /** The trigger shows only an icon: the title is its accessible name too. */
+    iconOnly?: boolean;
+  } = $props();
 
   let open = $state(false);
   let up = $state(false);
@@ -52,7 +61,7 @@
     type="button"
     class="trigger"
     {title}
-    aria-label={title || undefined}
+    aria-label={(iconOnly && title) || undefined}
     aria-haspopup="menu"
     aria-expanded={open}
     onclick={() => (open = !open)}

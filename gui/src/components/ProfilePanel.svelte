@@ -106,6 +106,7 @@
         <Menu
           align="right"
           title={t('profiles.game_options')}
+          iconOnly
           items={[
             { label: t('common.rename'), onclick: () => renameGame(g) },
             { label: t('profiles.autodetect') + '…', onclick: () => editProcesses(g) },

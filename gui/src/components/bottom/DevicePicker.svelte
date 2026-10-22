@@ -95,7 +95,7 @@
     {/snippet}
   </Menu>
   {#if current}
-    <Menu items={deviceMenu(current)} title={t('devices.options')}>
+    <Menu items={deviceMenu(current)} title={t('devices.options')} iconOnly>
       {#snippet trigger()}<span class="btn square"><Settings size={15} /></span>{/snippet}
     </Menu>
   {/if}

@@ -14,11 +14,11 @@
   const PAD_SIZES = [50, 70, 90] as const;
 
   function setPad(patch: Partial<PadOverlaySettings>) {
-    app.setSettings({ pad_overlay: { ...pad, ...patch } });
+    app.setSettings((s) => ({ pad_overlay: { ...s.pad_overlay, ...patch } }));
   }
 
   function setMappings(patch: Partial<MappingsOverlaySettings>) {
-    app.setSettings({ mappings_overlay: { ...mappings, ...patch } });
+    app.setSettings((s) => ({ mappings_overlay: { ...s.mappings_overlay, ...patch } }));
   }
 </script>
 
