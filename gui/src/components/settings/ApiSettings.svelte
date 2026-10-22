@@ -2,12 +2,12 @@
   // The local HTTP API for stream decks and scripts (see docs/API.md): off by default; this
   // computer only unless the network is allowed, and then only with the token.
   import { Copy, RefreshCw } from '@lucide/svelte';
-  import { api } from '../lib/api';
-  import { t } from '../lib/i18n/index.svelte';
-  import { parsePort } from '../lib/model/util';
-  import { app } from '../lib/state/app.svelte';
-  import type { HttpSettings } from '../lib/types';
-  import Toggle from './ui/Toggle.svelte';
+  import { api } from '../../lib/api';
+  import { t } from '../../lib/i18n/index.svelte';
+  import { parsePort } from '../../lib/model/util';
+  import { app } from '../../lib/state/app.svelte';
+  import type { HttpSettings } from '../../lib/types';
+  import Toggle from '../ui/Toggle.svelte';
 
   const http = $derived(app.live?.http ?? null);
 

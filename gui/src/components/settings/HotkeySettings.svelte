@@ -3,12 +3,12 @@
   // controller and letting go, clear it, or change the hold time.
   import { CircleDot, X } from '@lucide/svelte';
   import { onDestroy } from 'svelte';
-  import { api } from '../lib/api';
-  import { t } from '../lib/i18n/index.svelte';
-  import { controlLabel } from '../lib/model/controls';
-  import { padButtonsDown } from '../lib/model/devices';
-  import { app } from '../lib/state/app.svelte';
-  import type { HotkeyField, Hotkeys, PadButtonName } from '../lib/types';
+  import { api } from '../../lib/api';
+  import { t } from '../../lib/i18n/index.svelte';
+  import { controlLabel } from '../../lib/model/controls';
+  import { padButtonsDown } from '../../lib/model/devices';
+  import { app } from '../../lib/state/app.svelte';
+  import type { HotkeyField, Hotkeys, PadButtonName } from '../../lib/types';
 
   const FIELDS: HotkeyField[] = ['slot1', 'slot2', 'slot3', 'slot4', 'remap', 'stop_macros', 'emergency_stop', 'pad_overlay', 'mappings_overlay'];
   const MAX_BUTTONS = 4;

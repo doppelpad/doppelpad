@@ -2,10 +2,10 @@
   // Which controllers Doppelpad uses: devices it ignores completely, and groups of controllers
   // that act as one (one profile, one set of slots). Only connected devices can be grouped.
   import { Plus, Trash2 } from '@lucide/svelte';
-  import { api } from '../lib/api';
-  import { t } from '../lib/i18n/index.svelte';
-  import { app } from '../lib/state/app.svelte';
-  import type { DeviceGroup } from '../lib/types';
+  import { api } from '../../lib/api';
+  import { t } from '../../lib/i18n/index.svelte';
+  import { app } from '../../lib/state/app.svelte';
+  import type { DeviceGroup } from '../../lib/types';
 
   const live = $derived(app.live);
   const seen = $derived(live?.seen_devices ?? []);

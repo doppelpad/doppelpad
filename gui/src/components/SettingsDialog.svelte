@@ -4,11 +4,11 @@
   import { LANGUAGES, t } from '../lib/i18n/index.svelte';
   import { app } from '../lib/state/app.svelte';
   import type { Corner, MappingsOverlaySettings, OsdSettings, PadOverlaySettings, PlayerLights, RewasdChoice } from '../lib/types';
-  import DeviceSettings from './DeviceSettings.svelte';
-  import ApiSettings from './ApiSettings.svelte';
-  import DsuSettings from './DsuSettings.svelte';
-  import RuntimeSettings from './RuntimeSettings.svelte';
-  import HotkeySettings from './HotkeySettings.svelte';
+  import DeviceSettings from './settings/DeviceSettings.svelte';
+  import ApiSettings from './settings/ApiSettings.svelte';
+  import DsuSettings from './settings/DsuSettings.svelte';
+  import RuntimeSettings from './settings/RuntimeSettings.svelte';
+  import HotkeySettings from './settings/HotkeySettings.svelte';
   import Dialog from './ui/Dialog.svelte';
   import Slider from './ui/Slider.svelte';
   import Toggle from './ui/Toggle.svelte';

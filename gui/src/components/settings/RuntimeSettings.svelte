@@ -1,10 +1,10 @@
 <script lang="ts">
   // How remapping fits in with the rest of the system: sleep, focus, disconnects.
-  import { api } from '../lib/api';
-  import { t } from '../lib/i18n/index.svelte';
-  import { app } from '../lib/state/app.svelte';
-  import type { RuntimeOptions } from '../lib/types';
-  import Toggle from './ui/Toggle.svelte';
+  import { api } from '../../lib/api';
+  import { t } from '../../lib/i18n/index.svelte';
+  import { app } from '../../lib/state/app.svelte';
+  import type { RuntimeOptions } from '../../lib/types';
+  import Toggle from '../ui/Toggle.svelte';
 
   const options = $derived(app.live?.runtime ?? null);
 

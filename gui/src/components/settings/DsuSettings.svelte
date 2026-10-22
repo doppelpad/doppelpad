@@ -1,12 +1,12 @@
 <script lang="ts">
   // The DSU ("cemuhook") motion server: emulators read the controllers' buttons, sticks and
   // gyro from it. Off by default; this computer only unless the network is allowed.
-  import { api } from '../lib/api';
-  import { t } from '../lib/i18n/index.svelte';
-  import { parsePort } from '../lib/model/util';
-  import { app } from '../lib/state/app.svelte';
-  import type { DsuSettings } from '../lib/types';
-  import Toggle from './ui/Toggle.svelte';
+  import { api } from '../../lib/api';
+  import { t } from '../../lib/i18n/index.svelte';
+  import { parsePort } from '../../lib/model/util';
+  import { app } from '../../lib/state/app.svelte';
+  import type { DsuSettings } from '../../lib/types';
+  import Toggle from '../ui/Toggle.svelte';
 
   const dsu = $derived(app.live?.dsu ?? null);
 
