@@ -1,20 +1,28 @@
-// The app state against a fake bridge: settings writes that overlap.
+// The app state against a fake bridge: settings writes that overlap, undo and redo.
 
 import { describe, expect, it, vi } from 'vitest';
-import type { GuiSettings } from '../types';
+import type { GuiSettings, LoadedConfig, Profile } from '../types';
 
 /** What the bridge stored, write by write; each write takes a moment, like the real one. */
 const stored: GuiSettings[] = [];
 vi.mock('@tauri-apps/api/core', () => ({
   Channel: class {},
-  invoke: async (cmd: string, args?: { settings?: GuiSettings }) => {
+  invoke: async (cmd: string, args?: { settings?: GuiSettings; path?: string }) => {
+    if (cmd === 'config_load') return loaded(args?.path ?? '');
     if (cmd !== 'settings_set' || !args?.settings) return null;
     await new Promise((r) => setTimeout(r, 5));
     stored.push(args.settings);
   },
 }));
 
+/** A config as the bridge loads it; paths with "ro" in them are read-only. */
+function loaded(path: string): LoadedConfig {
+  const profile: Profile = { name: path, mappings: [{ trigger: 'A', actions: [{ key: 'Space' }] }] };
+  return { profile, diagnostics: [], read_only: path.includes('ro') };
+}
+
 const { app } = await import('./app.svelte');
+const { addLayer } = await import('../model/profile');
 
 describe('settings', () => {
   it('two changes within one round trip both stay', async () => {
@@ -32,5 +40,80 @@ describe('settings', () => {
       app.setSettings((s) => ({ osd: { ...s.osd, slot: !osd.slot } })),
     ]);
     expect(app.settings.osd).toMatchObject({ remap: !osd.remap, slot: !osd.slot });
+  });
+});
+
+describe('undo and redo', () => {
+  const rename = (name: string) => app.edit((p) => ({ ...p, name }));
+
+  it('undo brings back the loaded config and redo the change', async () => {
+    await app.openConfig('one.toml', true);
+    expect(app.canUndo).toBe(false);
+    rename('changed');
+    expect(app.dirty).toBe(true);
+    expect(app.canUndo).toBe(true);
+    app.undo();
+    expect(app.profile?.name).toBe('one.toml');
+    expect(app.dirty).toBe(false);
+    expect(app.canRedo).toBe(true);
+    app.redo();
+    expect(app.profile?.name).toBe('changed');
+    expect(app.canRedo).toBe(false);
+  });
+
+  it('a change that changes nothing is no step', async () => {
+    await app.openConfig('one.toml', true);
+    app.edit((p) => p);
+    app.update({ ...app.profile! });
+    expect(app.canUndo).toBe(false);
+  });
+
+  it('changes made in place are undone too', async () => {
+    await app.openConfig('one.toml', true);
+    app.edit((p) => {
+      p.mappings[0]!.actions = [{ key: 'E' }];
+      return p;
+    });
+    app.undo();
+    expect(app.profile?.mappings[0]?.actions).toEqual([{ key: 'Space' }]);
+  });
+
+  it('opening another config forgets the steps', async () => {
+    await app.openConfig('one.toml', true);
+    rename('changed');
+    await app.openConfig('two.toml', true);
+    expect(app.canUndo).toBe(false);
+    app.undo();
+    expect(app.profile?.name).toBe('two.toml');
+  });
+
+  it('a read-only config records nothing', async () => {
+    await app.openConfig('ro.json', true);
+    rename('changed');
+    expect(app.canUndo).toBe(false);
+    expect(app.profile?.name).toBe('ro.json');
+  });
+
+  it('an edit group is one step', async () => {
+    await app.openConfig('one.toml', true);
+    app.beginEditGroup();
+    rename('a');
+    rename('b');
+    rename('c');
+    app.endEditGroup();
+    rename('d');
+    app.undo();
+    expect(app.profile?.name).toBe('c');
+    app.undo();
+    expect(app.profile?.name).toBe('one.toml');
+  });
+
+  it('undoing a new layer leaves it for Main', async () => {
+    await app.openConfig('one.toml', true);
+    const { profile, id } = addLayer(app.profile!);
+    app.update(profile);
+    app.layer = id;
+    app.undo();
+    expect(app.layer).toBe(0);
   });
 });

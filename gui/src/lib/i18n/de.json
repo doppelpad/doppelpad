@@ -113,6 +113,8 @@
     "default_config_name": "Standard",
     "import": "JSON-Profil importieren…",
     "import_title": "JSON-Profil importieren",
+    "undo": "Rückgängig",
+    "redo": "Wiederholen",
     "save": "Speichern",
     "unsaved": "Ungespeicherte Änderungen",
     "discard_confirm": "Ungespeicherte Änderungen verwerfen?",
