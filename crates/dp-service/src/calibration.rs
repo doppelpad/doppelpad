@@ -138,7 +138,10 @@ impl Calibrator {
         let Some(m) = state.motion.as_mut() else {
             return;
         };
-        let d = self.devices.entry(id.to_owned()).or_default();
+        if !self.devices.contains_key(id) {
+            self.devices.insert(id.to_owned(), Default::default());
+        }
+        let d = self.devices.get_mut(id).expect("inserted above");
         let raw = m.gyro;
         let dt = d.last_ms.map_or(0.0, |t| now.saturating_sub(t) as f32);
         d.last_ms = Some(now);
