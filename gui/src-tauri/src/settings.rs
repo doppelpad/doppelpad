@@ -14,6 +14,8 @@ const OSD_SECONDS: RangeInclusive<u8> = 1..=30;
 const OPACITY: RangeInclusive<u8> = 20..=100;
 /// Size of the controller overlay, in percent.
 const PAD_SIZE: RangeInclusive<u8> = 30..=150;
+/// Size of the window's contents, in percent.
+pub const ZOOM: RangeInclusive<u16> = 80..=150;
 
 fn clamp<T: Ord + Copy>(value: T, range: &RangeInclusive<T>) -> T {
     value.clamp(*range.start(), *range.end())
@@ -43,6 +45,8 @@ pub struct GuiSettings {
     pub show_notes: bool,
     /// Questions the user asked not to be asked again (their ids); they count as answered OK.
     pub silenced: Vec<String>,
+    /// Size of the window's contents, in percent (80–150).
+    pub zoom: u16,
 }
 
 /// On-screen notifications: which events show one, and where and how.
@@ -176,6 +180,7 @@ impl Default for GuiSettings {
             welcome_done: false,
             show_notes: false,
             silenced: Vec::new(),
+            zoom: 100,
         }
     }
 }
@@ -201,6 +206,7 @@ impl GuiSettings {
         pad.opacity = clamp(pad.opacity, &OPACITY);
         let mappings = &mut self.mappings_overlay;
         mappings.opacity = clamp(mappings.opacity, &OPACITY);
+        self.zoom = clamp(self.zoom, &ZOOM);
         self.silenced.sort();
         self.silenced.dedup();
         self
@@ -226,10 +232,12 @@ mod tests {
         s.pad_overlay.size = 10;
         s.pad_overlay.opacity = 200;
         s.mappings_overlay.opacity = 0;
+        s.zoom = 300;
         let s = s.clamped();
         assert_eq!((s.osd.scale, s.osd.seconds, s.osd.opacity), (200, 1, 20));
         assert_eq!((s.pad_overlay.size, s.pad_overlay.opacity), (30, 100));
         assert_eq!(s.mappings_overlay.opacity, 20);
+        assert_eq!(s.zoom, 150);
     }
 
     #[test]

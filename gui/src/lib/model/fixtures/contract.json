@@ -238,7 +238,8 @@
     },
     "welcome_done": false,
     "show_notes": false,
-    "silenced": []
+    "silenced": [],
+    "zoom": 100
   },
   "hotkeys": {
     "hold_ms": 500,

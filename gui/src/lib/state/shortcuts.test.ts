@@ -32,8 +32,17 @@ describe('matching', () => {
   it('layers by digit, Main first', () => {
     expect(matchShortcut(press('1', { ctrlKey: true }), editor)).toEqual({ id: 'layer', digit: 1 });
     expect(matchShortcut(press('9', { ctrlKey: true }), editor)).toEqual({ id: 'layer', digit: 9 });
-    expect(id(press('0', { ctrlKey: true }))).toBeNull();
+    // Ctrl+0 is left for the window size.
+    expect(id(press('0', { ctrlKey: true }))).toBe('zoom_reset');
     expect(id(press('3'))).toBeNull();
+  });
+
+  it('sizes the window from anywhere, with either plus key', () => {
+    const typing = { ...editor, typing: true, overlay: true };
+    expect(id(press('+', { ctrlKey: true, shiftKey: true }), typing)).toBe('zoom_in');
+    expect(id(press('=', { ctrlKey: true }))).toBe('zoom_in');
+    expect(id(press('-', { ctrlKey: true }), typing)).toBe('zoom_out');
+    expect(id(press('0', { ctrlKey: true }), typing)).toBe('zoom_reset');
   });
 
   it('needs the exact modifiers; Alt and AltGr never match', () => {

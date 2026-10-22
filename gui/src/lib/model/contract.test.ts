@@ -129,6 +129,7 @@ const guiSettings = {
   welcome_done: true,
   show_notes: true,
   silenced: true,
+  zoom: true,
 } satisfies Keys<GuiSettings>;
 const osdSettings = {
   enabled: true,

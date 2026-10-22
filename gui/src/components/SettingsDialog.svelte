@@ -23,6 +23,7 @@
   import { api } from '../lib/api';
   import { LANGUAGES, has, t } from '../lib/i18n/index.svelte';
   import { app } from '../lib/state/app.svelte';
+  import { ZOOM_MAX, ZOOM_MIN, ZOOM_STEP } from '../lib/state/shortcuts';
   import type { RewasdChoice } from '../lib/types';
   import ApiSettings from './settings/ApiSettings.svelte';
   import DeviceSettings from './settings/DeviceSettings.svelte';
@@ -39,6 +40,9 @@
   import SettingsSection from './settings/SettingsSection.svelte';
   import Dialog from './ui/Dialog.svelte';
   import Toggle from './ui/Toggle.svelte';
+
+  /** The window sizes offered, in percent. */
+  const ZOOM_CHOICES = Array.from({ length: (ZOOM_MAX - ZOOM_MIN) / ZOOM_STEP + 1 }, (_, i) => ZOOM_MIN + i * ZOOM_STEP);
 
   let { onclose }: { onclose: () => void } = $props();
 
@@ -160,6 +164,13 @@
         {:else if page === 'hotkeys'}
           <HotkeySettings />
         {:else if page === 'display'}
+          <SettingRow label={t('settings.zoom')}>
+            <select value={app.settings.zoom} onchange={(e) => app.setSettings({ zoom: Number(e.currentTarget.value) })}>
+              {#each ZOOM_CHOICES as z (z)}
+                <option value={z}>{z} %</option>
+              {/each}
+            </select>
+          </SettingRow>
           <OsdSettings />
           <OverlaySettings />
         {:else if page === 'remapping'}

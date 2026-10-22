@@ -718,7 +718,30 @@ pub fn settings_set(
     // "Keep remapping active" may have changed.
     state.sync_suspend()?;
     crate::tray::refresh(&app);
+    if let Some(window) = app.get_webview_window(MAIN_WINDOW) {
+        apply_zoom(&window, settings_zoom(&state));
+    }
     Ok(())
+}
+
+fn settings_zoom(state: &AppState) -> u16 {
+    state.settings.lock().unwrap().zoom
+}
+
+/// The window's minimum size at 100 % (tauri.conf.json); it grows with the zoom so nothing is cut off.
+const MIN_SIZE: (f64, f64) = (1080.0, 680.0);
+
+/// Show the window's contents at `zoom` percent.
+pub fn apply_zoom(window: &tauri::WebviewWindow, zoom: u16) {
+    let scale = f64::from(zoom) / 100.0;
+    if let Err(e) = window.set_zoom(scale) {
+        tracing::warn!("cannot zoom the window: {e}");
+    }
+    let grow = scale.max(1.0);
+    let _ = window.set_min_size(Some(tauri::LogicalSize::new(
+        MIN_SIZE.0 * grow,
+        MIN_SIZE.1 * grow,
+    )));
 }
 
 /// Whether the app starts hidden in the tray when the user signs in; `None` where it

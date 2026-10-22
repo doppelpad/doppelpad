@@ -4,7 +4,21 @@
 import { t } from '../i18n/index.svelte';
 
 export type ShortcutId =
-  'save' | 'undo' | 'redo' | 'copy' | 'paste' | 'clear' | 'deselect' | 'layer' | 'rename' | 'duplicate' | 'find' | 'help';
+  | 'save'
+  | 'undo'
+  | 'redo'
+  | 'copy'
+  | 'paste'
+  | 'clear'
+  | 'deselect'
+  | 'layer'
+  | 'rename'
+  | 'duplicate'
+  | 'find'
+  | 'zoom_in'
+  | 'zoom_out'
+  | 'zoom_reset'
+  | 'help';
 
 /** One key combination. `key` is compared with `KeyboardEvent.key`, letters in lower case. */
 export interface Keys {
@@ -27,6 +41,11 @@ export interface Shortcut {
   keyboardView?: Keys[];
 }
 
+/** The window's size range and step, in percent (the bridge clamps to the same range). */
+export const ZOOM_MIN = 80;
+export const ZOOM_MAX = 150;
+export const ZOOM_STEP = 10;
+
 /** Digits for the layers: 1 is Main, 2 … 9 the shift layers in the toolbar's order. */
 const DIGITS = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
 
@@ -48,6 +67,17 @@ export const SHORTCUTS: Shortcut[] = [
   { id: 'rename', keys: [{ key: 'F2' }], keyboardView: [] },
   { id: 'duplicate', keys: [{ key: 'd', mod: true }] },
   { id: 'find', keys: [{ key: 'f', mod: true }] },
+  {
+    id: 'zoom_in',
+    keys: [
+      { key: '+', mod: true, anyShift: true },
+      { key: '=', mod: true, anyShift: true },
+    ],
+    inText: true,
+    inOverlay: true,
+  },
+  { id: 'zoom_out', keys: [{ key: '-', mod: true, anyShift: true }], inText: true, inOverlay: true },
+  { id: 'zoom_reset', keys: [{ key: '0', mod: true }], inText: true, inOverlay: true },
   { id: 'help', keys: [{ key: '/', mod: true, anyShift: true }, { key: 'F1' }], keyboardView: [{ key: '/', mod: true, anyShift: true }] },
 ];
 

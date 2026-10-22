@@ -729,6 +729,8 @@ export interface GuiSettings {
   show_notes: boolean;
   /** Questions the user asked not to be asked again (see `QuestionId`); they count as answered OK. */
   silenced: string[];
+  /** Size of the window's contents, in percent (80–150). */
+  zoom: number;
 }
 
 /** Starting points for new configs. */

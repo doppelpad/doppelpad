@@ -109,6 +109,7 @@ Ctrl+/ (or F1, or *Keyboard shortcuts* in the config's options menu) lists them 
 | Ctrl+1 … Ctrl+9 | Main, then the shift layers in the toolbar's order |
 | F2, Ctrl+D | Rename, duplicate the config |
 | Ctrl+F | Find mappings |
+| Ctrl + plus, Ctrl + minus, Ctrl+0 | Make the window's contents larger, smaller, normal (80–150 %; also *Settings → Display → Size*) |
 
 In the keyboard view, plain keys select themselves, so Delete, Escape, F1 and F2 do that there;
 clearing is Ctrl+Delete. In text fields the keys act on the text, and while a dialog or menu is
