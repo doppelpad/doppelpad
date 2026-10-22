@@ -93,7 +93,8 @@ pub struct LiveState {
     pub locked: bool,
     /// Remapping is paused because the config's game is not in front.
     pub focus_paused: bool,
-    /// Remapping is paused (the editor has focus).
+    /// Remapping is paused: the editor has focus, the desktop is locked, or the config's game
+    /// is not in front (`focus_paused`).
     pub suspended: bool,
     /// Executable of the foreground application.
     pub foreground: Option<String>,

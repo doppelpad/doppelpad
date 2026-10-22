@@ -13,7 +13,7 @@ use dp_core::pad::{Axis, PadButton, PadState};
 use dp_platform::{Battery, PadSnapshot};
 use serde::{Deserialize, Serialize};
 
-pub const SLOTS: usize = 4;
+const DSU_SLOTS: usize = 4;
 const VERSION: u16 = 1001;
 const MSG_VERSION: u32 = 0x10_0000;
 const MSG_INFO: u32 = 0x10_0001;
@@ -241,7 +241,7 @@ fn parse_request(p: &[u8]) -> Option<Request> {
                 .iter()
                 .take(n)
                 .copied()
-                .filter(|&s| (s as usize) < SLOTS);
+                .filter(|&s| (s as usize) < DSU_SLOTS);
             Some(Request::Info(slots.collect()))
         }
         MSG_DATA if body.len() >= 8 => {
@@ -260,7 +260,7 @@ fn parse_request(p: &[u8]) -> Option<Request> {
 /// One subscribed client.
 struct Client {
     all_until: Option<Instant>,
-    slot_until: [Option<Instant>; SLOTS],
+    slot_until: [Option<Instant>; DSU_SLOTS],
     packets: u32,
 }
 
@@ -270,13 +270,13 @@ impl Client {
     }
 
     fn alive(&self, now: Instant) -> bool {
-        (0..SLOTS).any(|s| self.wants(s, now))
+        (0..DSU_SLOTS).any(|s| self.wants(s, now))
     }
 }
 
 #[derive(Default)]
 struct Frame {
-    pads: [Option<SlotPad>; SLOTS],
+    pads: [Option<SlotPad>; DSU_SLOTS],
     seq: u64,
 }
 
@@ -287,9 +287,9 @@ pub struct DsuServer {
     thread: Option<JoinHandle<()>>,
     pub addr: SocketAddr,
     /// Which controller sits in which slot.
-    slots: [Option<String>; SLOTS],
+    slots: [Option<String>; DSU_SLOTS],
     epoch: Instant,
-    last: [Option<SlotPad>; SLOTS],
+    last: [Option<SlotPad>; DSU_SLOTS],
 }
 
 impl DsuServer {
@@ -318,7 +318,7 @@ impl DsuServer {
             addr,
             slots: Default::default(),
             epoch: Instant::now(),
-            last: [None; SLOTS],
+            last: [None; DSU_SLOTS],
         })
     }
 
@@ -347,7 +347,7 @@ impl DsuServer {
             }
         }
         let now_us = self.epoch.elapsed().as_micros() as u64;
-        let mut pads_out = [None; SLOTS];
+        let mut pads_out = [None; DSU_SLOTS];
         for (i, slot) in self.slots.iter().enumerate() {
             let Some(p) = slot
                 .as_ref()
@@ -432,7 +432,7 @@ fn serve(socket: UdpSocket, frame: &Mutex<Frame>, count: &AtomicUsize, stop: &At
                 Some(Request::Data { slot, mac }) => {
                     let c = clients.entry(from).or_insert(Client {
                         all_until: None,
-                        slot_until: [None; SLOTS],
+                        slot_until: [None; DSU_SLOTS],
                         packets: 0,
                     });
                     let until = Some(now + SUBSCRIPTION);
@@ -442,7 +442,7 @@ fn serve(socket: UdpSocket, frame: &Mutex<Frame>, count: &AtomicUsize, stop: &At
                         (None, None) if mac.is_none() => c.all_until = until,
                         (s, m) => {
                             for i in s.map(usize::from).into_iter().chain(m) {
-                                if i < SLOTS {
+                                if i < DSU_SLOTS {
                                     c.slot_until[i] = until;
                                 }
                             }
