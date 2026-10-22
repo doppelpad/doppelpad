@@ -493,4 +493,48 @@ mod tests {
             "{out}"
         );
     }
+
+    #[test]
+    fn routes_refuse_what_they_do_not_serve() {
+        let (tx, jobs) = crossbeam_channel::unbounded::<Job>();
+        let code = |raw: &str| route(&parse(raw), &tx).0;
+        assert_eq!(code("DELETE /api/status HTTP/1.1\r\n\r\n"), 405);
+        assert_eq!(code("GET /nowhere HTTP/1.1\r\n\r\n"), 404);
+        assert_eq!(
+            code("POST /api HTTP/1.1\r\nContent-Length: 2\r\n\r\n{}"),
+            415,
+            "not JSON"
+        );
+        let shutdown = r#"{"cmd":"shutdown"}"#;
+        let post = format!(
+            "POST /api HTTP/1.1\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{shutdown}",
+            shutdown.len()
+        );
+        assert_eq!(code(&post), 403, "quitting is the tray's job");
+        assert!(jobs.is_empty(), "none of them reached the service");
+    }
+
+    #[test]
+    fn the_summary_lists_devices_and_warnings() {
+        let live = LiveState {
+            devices: vec![crate::live::LiveDevice {
+                id: "hid:1".into(),
+                name: "Pad".into(),
+                family: dp_platform::PadFamily::DualSense,
+                backend: "hid".into(),
+                vendor_id: 0,
+                product_id: 0,
+                state: Default::default(),
+                gyro_calibration: None,
+                battery: None,
+                raw: None,
+            }],
+            warnings: vec!["careful".into()],
+            ..LiveState::default()
+        };
+        let s = summary(&live);
+        assert_eq!(s["devices"][0]["id"], "hid:1");
+        assert_eq!(s["devices"][0]["name"], "Pad");
+        assert_eq!(s["warnings"][0], "careful");
+    }
 }

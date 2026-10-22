@@ -482,8 +482,10 @@ mod tests {
     use std::net::Ipv4Addr;
 
     use dp_core::pad::{Motion, TouchPoint};
+    use dp_platform::PadFamily;
 
     use super::*;
+    use crate::runtime::testing;
 
     fn request(msg: u32, body: &[u8]) -> Vec<u8> {
         let mut p = packet(7, msg, body);
@@ -588,24 +590,8 @@ mod tests {
         client
             .set_read_timeout(Some(Duration::from_secs(2)))
             .unwrap();
-        let snap = dp_platform::PadSnapshot {
-            info: Arc::new(dp_platform::DeviceInfo {
-                id: dp_platform::DeviceId("pad1".into()),
-                name: "Pad (USB)".into(),
-                family: dp_platform::PadFamily::DualSense,
-                vendor_id: 0,
-                product_id: 0,
-                backend: "fake".into(),
-                instance_paths: vec![],
-                joycon: None,
-                has_motion: true,
-                has_touchpad: true,
-                has_rumble: true,
-            }),
-            state: pad().state,
-            battery: None,
-            raw: None,
-        };
+        let mut snap = testing::pad("pad1", PadFamily::DualSense);
+        snap.state = pad().state;
         server.publish(std::slice::from_ref(&snap));
         client
             .send_to(&request(MSG_INFO, &[1, 0, 0, 0, 0]), server.addr)
@@ -621,5 +607,31 @@ mod tests {
         assert_eq!(n, 100);
         assert_eq!(buf[20 + 17] & 0x20, 0x20, "A");
         assert_eq!(buf[20 + 3], 1, "USB");
+    }
+
+    #[test]
+    fn pads_keep_their_slots() {
+        let mut server = DsuServer::start(DsuSettings {
+            enabled: true,
+            lan: false,
+            port: 0,
+        })
+        .unwrap();
+        let (a, b) = (
+            testing::pad("a", PadFamily::DualSense),
+            testing::pad("b", PadFamily::SwitchPro),
+        );
+        let slots = |s: &DsuServer| s.slots.clone().map(|id| id.unwrap_or_default());
+        server.publish(&[a.clone(), b.clone()]);
+        assert_eq!(slots(&server), ["a", "b", "", ""]);
+        server.publish(std::slice::from_ref(&b));
+        assert_eq!(slots(&server), ["", "b", "", ""], "b keeps its slot");
+        assert!(server.frame.lock().unwrap().pads[0].is_none());
+        server.publish(&[b, a]);
+        assert_eq!(
+            slots(&server),
+            ["a", "b", "", ""],
+            "a takes the free slot again"
+        );
     }
 }

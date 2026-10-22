@@ -1407,9 +1407,62 @@ fn group_problem(groups: &[DeviceGroup]) -> Option<String> {
 mod tests {
     use std::sync::{Arc, Mutex};
 
-    use dp_platform::{ForegroundWatcher, NullPlatform};
+    use dp_platform::{ForegroundWatcher, NullPlatform, PadFamily, Platform};
 
     use super::*;
+    use crate::runtime::testing::{self, Shared};
+
+    /// A service for a test, its profiles under the test's directory.
+    struct TestService {
+        platform: Platform,
+        opts: ServiceOptions,
+    }
+
+    impl TestService {
+        /// On the null platform.
+        fn new(dir: &Path) -> TestService {
+            TestService {
+                platform: NullPlatform::platform(),
+                opts: ServiceOptions::new(dir.join("profiles")),
+            }
+        }
+
+        /// On the fake platform with these controllers, and the world the fakes share.
+        fn fake(dir: &Path, pads: &[(&str, PadFamily)]) -> (TestService, Shared) {
+            let (platform, world) = testing::platform();
+            world
+                .lock()
+                .unwrap()
+                .pads
+                .extend(pads.iter().map(|&(id, family)| testing::pad(id, family)));
+            let t = TestService {
+                platform,
+                opts: ServiceOptions::new(dir.join("profiles")),
+            };
+            (t, world)
+        }
+
+        /// With this foreground watcher, asked on every tick.
+        fn foreground(mut self, fg: impl ForegroundWatcher + 'static) -> TestService {
+            self.platform.foreground = Box::new(fg);
+            self.opts.foreground_poll_ms = 0;
+            self
+        }
+
+        fn platform(mut self, f: impl FnOnce(&mut Platform)) -> TestService {
+            f(&mut self.platform);
+            self
+        }
+
+        fn opts(mut self, f: impl FnOnce(&mut ServiceOptions)) -> TestService {
+            f(&mut self.opts);
+            self
+        }
+
+        fn build(self) -> Service {
+            Service::new(Runtime::with_platform(self.platform), self.opts).unwrap()
+        }
+    }
     #[test]
     fn device_groups_need_names_and_distinct_members() {
         let g = |name: &str, members: &[&str]| DeviceGroup {
@@ -1446,15 +1499,11 @@ mod tests {
 
     fn service(dir: &Path, state: Option<PathBuf>) -> (Service, Arc<Mutex<Option<String>>>) {
         let fg = Arc::new(Mutex::new(None));
-        let mut platform = NullPlatform::platform();
-        platform.foreground = Box::new(FakeForeground(fg.clone()));
-        let mut opts = ServiceOptions::new(dir.join("profiles"));
-        opts.state_path = state;
-        opts.foreground_poll_ms = 0;
-        (
-            Service::new(Runtime::with_platform(platform), opts).unwrap(),
-            fg,
-        )
+        let s = TestService::new(dir)
+            .foreground(FakeForeground(fg.clone()))
+            .opts(|o| o.state_path = state)
+            .build();
+        (s, fg)
     }
 
     fn active_name(s: &Service) -> Option<String> {
@@ -1527,12 +1576,10 @@ Host: 127.0.0.1:{}
         let game = write_profile(dir.path(), "game.toml", "Game", &["game.exe"]);
         let fg = Arc::new(Mutex::new(Some("game.exe".to_string())));
         let active = Arc::new(AtomicBool::new(true));
-        let mut platform = NullPlatform::platform();
-        platform.foreground = Box::new(FakeForeground(fg.clone()));
-        platform.system = Box::new(Desktop(active.clone()));
-        let mut opts = ServiceOptions::new(dir.path().join("profiles"));
-        opts.foreground_poll_ms = 0;
-        let mut s = Service::new(Runtime::with_platform(platform), opts).unwrap();
+        let mut s = TestService::new(dir.path())
+            .foreground(FakeForeground(fg.clone()))
+            .platform(|p| p.system = Box::new(Desktop(active.clone())))
+            .build();
         s.handle(ServiceCmd::ApplyToSlot {
             device: None,
             slot: 0,
@@ -1555,11 +1602,11 @@ Host: 127.0.0.1:{}
         assert!(!s.live().suspended);
 
         active.store(false, Ordering::Relaxed);
-        std::thread::sleep(std::time::Duration::from_millis(DESKTOP_POLL_MS + 20));
+        s.rt.advance_ms(DESKTOP_POLL_MS + 20);
         s.tick();
         assert!(s.live().locked && s.live().suspended, "locked");
         active.store(true, Ordering::Relaxed);
-        std::thread::sleep(std::time::Duration::from_millis(DESKTOP_POLL_MS + 20));
+        s.rt.advance_ms(DESKTOP_POLL_MS + 20);
         s.tick();
         assert!(!s.live().suspended);
     }
@@ -1698,11 +1745,9 @@ Host: 127.0.0.1:{}
     fn editor_pause_holds_only_while_doppelpad_is_in_front() {
         let dir = tempfile::tempdir().unwrap();
         let pid = Arc::new(Mutex::new(Some(std::process::id())));
-        let mut platform = NullPlatform::platform();
-        platform.foreground = Box::new(PidForeground(pid.clone()));
-        let mut opts = ServiceOptions::new(dir.path().join("profiles"));
-        opts.foreground_poll_ms = 0;
-        let mut s = Service::new(Runtime::with_platform(platform), opts).unwrap();
+        let mut s = TestService::new(dir.path())
+            .foreground(PidForeground(pid.clone()))
+            .build();
 
         s.handle(ServiceCmd::SetSuspended(true));
         s.tick();
@@ -1814,14 +1859,10 @@ Host: 127.0.0.1:{}
 
     #[test]
     fn gyro_calibration_commands_reach_the_controller_and_disk() {
-        use dp_platform::PadFamily;
-
         let dir = tempfile::tempdir().unwrap();
-        let (platform, world) = crate::runtime::testing::platform();
-        let mut opts = ServiceOptions::new(dir.path().join("profiles"));
         let path = dir.path().join("calibration.toml");
-        opts.calibration_path = Some(path.clone());
-        let mut s = Service::new(Runtime::with_platform(platform), opts).unwrap();
+        let (t, world) = TestService::fake(dir.path(), &[]);
+        let mut s = t.opts(|o| o.calibration_path = Some(path.clone())).build();
         assert!(matches!(
             s.handle(ServiceCmd::CalibrateGyro { device: None }),
             ServiceReply::Err(_)
@@ -1850,20 +1891,13 @@ Host: 127.0.0.1:{}
     #[test]
     fn hotkeys_select_slots_and_switch_remapping() {
         use dp_core::pad::PadButton::{self, *};
-        use dp_platform::PadFamily;
-
         let dir = tempfile::tempdir().unwrap();
         let a = write_profile(dir.path(), "a.toml", "A", &[]);
         let b = write_profile(dir.path(), "b.toml", "B", &[]);
-        let (platform, world) = crate::runtime::testing::platform();
-        world
-            .lock()
-            .unwrap()
-            .pads
-            .push(crate::runtime::testing::pad("pad", PadFamily::Xbox));
-        let mut opts = ServiceOptions::new(dir.path().join("profiles"));
-        opts.hotkeys_path = Some(dir.path().join("hotkeys.toml"));
-        let mut s = Service::new(Runtime::with_platform(platform), opts).unwrap();
+        let (t, world) = TestService::fake(dir.path(), &[("pad", PadFamily::Xbox)]);
+        let mut s = t
+            .opts(|o| o.hotkeys_path = Some(dir.path().join("hotkeys.toml")))
+            .build();
         s.handle(ServiceCmd::ApplyToSlot {
             device: None,
             slot: 0,
@@ -1890,7 +1924,7 @@ Host: 127.0.0.1:{}
         let hold = |s: &mut Service, buttons: &[PadButton]| {
             world.lock().unwrap().pads[0].state.buttons = PadButton::mask(buttons);
             s.tick();
-            std::thread::sleep(std::time::Duration::from_millis(70));
+            s.rt.advance_ms(70);
             s.tick();
             world.lock().unwrap().pads[0].state.buttons = 0;
             s.tick();
@@ -1986,8 +2020,6 @@ Host: 127.0.0.1:{}
     fn two_controllers_with_their_own_profiles() {
         use dp_core::keys::Key;
         use dp_core::pad::PadButton;
-        use dp_platform::PadFamily;
-
         let dir = tempfile::tempdir().unwrap();
         let profile = |name: &str, key: &str| {
             let path = dir.path().join(format!("{name}.toml"));
@@ -2000,16 +2032,11 @@ Host: 127.0.0.1:{}
         };
         let one = profile("One", "Q");
         let two = profile("Two", "E");
-        let (platform, world) = crate::runtime::testing::platform();
-        {
-            let mut w = world.lock().unwrap();
-            w.pads
-                .push(crate::runtime::testing::pad("p1", PadFamily::Xbox));
-            w.pads
-                .push(crate::runtime::testing::pad("p2", PadFamily::DualSense));
-        }
-        let opts = ServiceOptions::new(dir.path().join("profiles"));
-        let mut s = Service::new(Runtime::with_platform(platform), opts).unwrap();
+        let (t, world) = TestService::fake(
+            dir.path(),
+            &[("p1", PadFamily::Xbox), ("p2", PadFamily::DualSense)],
+        );
+        let mut s = t.build();
         s.tick();
         let ok = |r: ServiceReply| r.into_result().unwrap();
         ok(s.handle(ServiceCmd::ApplyToSlot {
@@ -2107,17 +2134,8 @@ Host: 127.0.0.1:{}
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("pad.toml");
         std::fs::write(&path, "name = \"Pad\"\n").unwrap();
-        let (platform, world) = crate::runtime::testing::platform();
-        world
-            .lock()
-            .unwrap()
-            .pads
-            .push(crate::runtime::testing::pad(
-                "p1",
-                dp_platform::PadFamily::Xbox,
-            ));
-        let opts = ServiceOptions::new(dir.path().join("profiles"));
-        let mut s = Service::new(Runtime::with_platform(platform), opts).unwrap();
+        let (t, _) = TestService::fake(dir.path(), &[("p1", PadFamily::Xbox)]);
+        let mut s = t.build();
         s.tick();
         s.handle(ServiceCmd::ApplyToSlot {
             device: None,
@@ -2169,5 +2187,66 @@ Host: 127.0.0.1:{}
         assert!(mentions(&s), "the failure is reported");
         s.handle_ipc(Request::Stop);
         assert!(!mentions(&s), "and forgotten once stopped");
+    }
+
+    #[test]
+    fn layouts_need_a_model_and_a_mapping() {
+        let mut l = GenericLayout {
+            device: "pad".into(),
+            ..Default::default()
+        };
+        assert!(
+            layout_problem(&l)
+                .unwrap()
+                .contains("not a controller model")
+        );
+        l.device = "0079:0006".into();
+        assert_eq!(
+            layout_problem(&l).as_deref(),
+            Some("the layout maps nothing")
+        );
+        l.sticks.push(dp_platform::generic::StickBind {
+            axis: dp_core::pad::Axis::LeftX,
+            from: 0,
+            invert: false,
+        });
+        assert_eq!(layout_problem(&l), None);
+    }
+
+    #[test]
+    fn keep_offline_pads_holds_a_controllers_session() {
+        let dir = tempfile::tempdir().unwrap();
+        let a = write_profile(dir.path(), "a.toml", "A", &[]);
+        let (t, world) = TestService::fake(dir.path(), &[("p1", PadFamily::Xbox)]);
+        let mut s = t.build();
+        s.tick();
+        s.handle(ServiceCmd::ApplyToSlot {
+            device: Some("p1".into()),
+            slot: 0,
+            path: a,
+        })
+        .into_result()
+        .unwrap();
+        let owned = |s: &Service| {
+            s.runtime()
+                .sessions()
+                .iter()
+                .any(|x| x.owner.as_deref() == Some("p1"))
+        };
+        assert!(owned(&s));
+        let p1 = world.lock().unwrap().pads.remove(0);
+        s.tick();
+        assert!(!owned(&s), "its session ends with it");
+        world.lock().unwrap().pads.push(p1);
+        s.tick();
+        assert!(owned(&s), "and starts again");
+
+        s.handle(ServiceCmd::SetRuntimeOptions(RuntimeOptions {
+            keep_offline_pads: true,
+            ..Default::default()
+        }));
+        world.lock().unwrap().pads.clear();
+        s.tick();
+        assert!(owned(&s), "kept while it is away");
     }
 }
