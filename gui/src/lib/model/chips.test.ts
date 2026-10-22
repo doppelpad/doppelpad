@@ -25,6 +25,7 @@ const view = (patch: Partial<ChipView> = {}): ChipView => ({
   selectedKey: '',
   stick: null,
   layerLabel: (id) => layerLabel(p, id),
+  notes: false,
   ...patch,
 });
 
@@ -48,6 +49,24 @@ describe('drawing chips', () => {
 
   it('works without a config', () => {
     expect(buildChips([at('A')], view({ profile: null }))[0]).toMatchObject({ summary: '', mapped: false });
+  });
+
+  it('show notes instead of actions, and mark notes they do not show', () => {
+    const noted: Profile = {
+      ...p,
+      mappings: [
+        { trigger: 'A', actions: [{ key: 'Space' }], description: 'Jump' },
+        { trigger: 'A', activator: 'long', actions: [{ key: 'C' }], description: 'Crouch' },
+        { trigger: 'LeftStickUp', actions: [{ key: 'W' }], description: 'Walk' },
+        { trigger: 'B', actions: [{ key: 'E' }] },
+      ],
+    };
+    const v = (notes: boolean) => view({ profile: noted, layerLabel: (id) => layerLabel(noted, id), notes });
+    const [a, ls, b] = buildChips([at('A'), at('LS'), at('B')], v(false));
+    expect([a.summary, a.hiddenNote, ls.hiddenNote, b.hiddenNote]).toEqual(['Space · C', true, true, false]);
+    const [a2, ls2, b2] = buildChips([at('A'), at('LS'), at('B')], v(true));
+    expect([a2.summary, ls2.summary, b2.summary]).toEqual(['Jump · Crouch', '↑ Walk', 'E']);
+    expect([a2.hiddenNote, ls2.hiddenNote]).toEqual([false, false]);
   });
 
   it('sum up the gyro directions', () => {

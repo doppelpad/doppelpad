@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Gamepad2, List, PenTool } from '@lucide/svelte';
+  import { Gamepad2, List, PenTool, StickyNote } from '@lucide/svelte';
   import { t } from './lib/i18n/index.svelte';
   import { drawingsFor } from './lib/model/devices';
   import { app } from './lib/state/app.svelte';
@@ -35,6 +35,8 @@
 
   let settingsOpen = $state(false);
   let listMode = $state(false);
+  /** Views that show what controls do, where notes can stand in for the actions. */
+  const CONTROL_VIEWS = new Set(['front', 'back', 'keyboard', 'mouse']);
 
   /** Front and back drawings for the connected controller model. */
   const drawings = $derived(drawingsFor(app.primary));
@@ -68,16 +70,31 @@
       <DiagnosticsBar />
       <div class="workspace">
         <div class="center">
+          {#if CONTROL_VIEWS.has(app.view)}
+            <div class="view-tools">
+              <button
+                class="icon-btn"
+                class:active={app.settings.show_notes}
+                aria-pressed={app.settings.show_notes}
+                title={t(app.settings.show_notes ? 'views.show_actions' : 'views.show_notes')}
+                onclick={() => app.setSettings({ show_notes: !app.settings.show_notes })}
+              >
+                <StickyNote size={16} />
+              </button>
+              {#if app.view === 'front' || app.view === 'back'}
+                <button
+                  class="icon-btn view-mode"
+                  title={listMode ? t('views.as_drawing') : t('views.as_list')}
+                  onclick={() => (listMode = !listMode)}
+                >
+                  {#if listMode}<PenTool size={16} />{:else}<List size={16} />{/if}
+                </button>
+              {/if}
+            </div>
+          {/if}
           {#if app.view === 'output'}
             <OutputPanel />
           {:else if app.view === 'front' || app.view === 'back'}
-            <button
-              class="icon-btn view-mode"
-              title={listMode ? t('views.as_drawing') : t('views.as_list')}
-              onclick={() => (listMode = !listMode)}
-            >
-              {#if listMode}<PenTool size={16} />{:else}<List size={16} />{/if}
-            </button>
             {#if listMode}
               <ControlList back={app.view === 'back'} device={drawing} />
             {:else}
@@ -152,11 +169,13 @@
     min-height: 0;
     overflow: auto;
   }
-  .view-mode {
+  .view-tools {
     position: absolute;
     top: 10px;
     right: 12px;
     z-index: 5;
+    display: flex;
+    gap: 4px;
   }
   .side {
     border-left: 1px solid var(--line);

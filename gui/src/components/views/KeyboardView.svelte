@@ -4,7 +4,7 @@
   import { SvelteSet } from 'svelte/reactivity';
   import { t } from '../../lib/i18n/index.svelte';
   import { keyFromEvent } from '../../lib/model/keymap';
-  import { effectiveSummary } from '../../lib/model/labels';
+  import { shownSummary } from '../../lib/model/labels';
   import { app } from '../../lib/state/app.svelte';
   import { modalOpen } from '../ui/Dialog.svelte';
   import { controlMenu } from '../binding/controlMenu';
@@ -131,7 +131,7 @@
     return k;
   }
 
-  const summary = (k: string) => app.profile && effectiveSummary(app.profile, app.layer, `Key:${k}`, app.layerLabel);
+  const summary = (k: string) => app.profile && shownSummary(app.profile, app.layer, `Key:${k}`, app.layerLabel, app.settings.show_notes);
 
   const held = new SvelteSet<string>();
 
@@ -170,6 +170,7 @@
         class="key"
         class:mapped={!!s}
         class:inh={s?.inherited}
+        class:noted={s?.hiddenNote}
         class:selected={app.selectedKey === `Key:${key.k}`}
         class:held={held.has(key.k)}
         style="--x: {key.x}; --y: {key.y}; --kw: {key.w}; --kh: {key.h}"
@@ -247,5 +248,16 @@
   }
   .key.held {
     box-shadow: 0 0 0 2px var(--accent);
+  }
+  /* A note the summary does not show: a small corner mark (Show notes shows it). */
+  .key.noted::after {
+    content: '';
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--text-dim);
   }
 </style>
