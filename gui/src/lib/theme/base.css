@@ -88,6 +88,14 @@ input[type='checkbox']:disabled:hover {
   border-color: var(--line-strong);
 }
 
+/* Colour pickers: just the swatch. */
+input[type='color'] {
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--line-strong);
+  background: none;
+}
+
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;

@@ -29,7 +29,7 @@
   }
 </script>
 
-<div class="label">{t('light.title')}</div>
+<div class="section-title">{t('light.title')}</div>
 <p class="hint">{t('light.hint')}</p>
 
 {#if layers.length > 0}
@@ -50,7 +50,7 @@
 />
 
 {#if own}
-  <div class="box">
+  <div class="box card">
     <label class="row">
       <span>{t('light.mode')}</span>
       <select value={light.mode} {disabled} onchange={(e) => set({ mode: e.currentTarget.value as LightMode })}>
@@ -92,13 +92,8 @@
 {/if}
 
 <style>
-  .label {
+  .section-title {
     margin-top: 10px;
-    font-size: var(--fs-xs);
-    font-weight: 600;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--text-dim);
   }
   .hint {
     margin: 0;
@@ -117,9 +112,6 @@
     flex-direction: column;
     gap: 12px;
     padding: 12px 16px;
-    border: 1px solid var(--line);
-    border-radius: var(--radius-m);
-    background: var(--bg-1);
   }
   .colors {
     display: flex;
@@ -134,10 +126,6 @@
   }
   .color input {
     width: 34px;
-    height: 24px;
-    padding: 0;
-    border: 1px solid var(--line-strong);
-    background: none;
   }
   .chip-x {
     display: inline-grid;

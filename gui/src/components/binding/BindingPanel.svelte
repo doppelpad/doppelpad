@@ -688,11 +688,6 @@
   }
   .section-title {
     margin-top: 6px;
-    font-size: var(--fs-xs);
-    font-weight: 600;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--text-dim);
   }
   .chips {
     display: flex;

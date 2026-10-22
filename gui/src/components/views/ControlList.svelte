@@ -75,7 +75,7 @@
 
 <div class="list">
   {#each groups as g (g.id)}
-    <div class="group">{t(`views.groups.${g.id}`)}</div>
+    <div class="section-title">{t(`views.groups.${g.id}`)}</div>
     <div class="grid">
       {#each g.controls as c (c)}
         {@const tl = tile(c)}
@@ -99,12 +99,7 @@
   .list {
     padding: 20px 24px 32px;
   }
-  .group {
-    font-size: var(--fs-xs);
-    font-weight: 600;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--text-dim);
+  .section-title {
     margin: 14px 0 8px;
   }
   .grid {

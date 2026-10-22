@@ -112,7 +112,7 @@
         <button class="btn primary" onclick={start}>{t('identify.start')}</button>
       </div>
     {:else if phase === 'step'}
-      <div class="progress">{t('identify.step', { n: index + 1, of: STEPS.length })}</div>
+      <div class="section-title">{t('identify.step', { n: index + 1, of: STEPS.length })}</div>
       <p class="prompt">{prompt(STEPS[index])}</p>
       <p class="hint">{waiting ? t('identify.release') : t('identify.waiting')}</p>
       <div class="actions">
@@ -169,13 +169,6 @@
   .hint {
     color: var(--text-dim);
     font-size: var(--fs-s);
-  }
-  .progress {
-    color: var(--text-dim);
-    font-size: var(--fs-xs);
-    font-weight: 600;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
   }
   .prompt {
     font-size: 18px;

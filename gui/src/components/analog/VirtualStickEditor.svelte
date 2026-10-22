@@ -56,7 +56,7 @@
 
 {#if cfg && def && ref}
   <section class="virtual">
-    <div class="sub">{t('analog.virtual.title')}</div>
+    <div class="section-title">{t('analog.virtual.title')}</div>
     <p class="hint">{t('analog.virtual.hint')}</p>
     <LayerNote kind="virtual_sticks" sides={[side]} />
     <div class="grid">
@@ -221,7 +221,7 @@
         </svg>
         <p class="live-hint">{t('analog.virtual.preview')}</p>
         {#if curveCfg}
-          <div class="sub">{t('analog.virtual.curve')}</div>
+          <div class="section-title">{t('analog.virtual.curve')}</div>
           <CurveEditor cfg={curveCfg} live={null} {disabled} onchange={(curve: CurvePoint[]) => set({ curve })} />
           <p class="live-hint">{t('analog.virtual.curve_hint')}</p>
         {/if}
@@ -314,12 +314,5 @@
     text-align: center;
     color: var(--text-faint);
     font-size: 11.5px;
-  }
-  .sub {
-    font-size: var(--fs-xs);
-    font-weight: 600;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--text-dim);
   }
 </style>

@@ -27,7 +27,7 @@
   <div class="drawing"><ControllerView device="mouse" /></div>
 
   {#each groups as g (g.id)}
-    <div class="group">{t(`picker.${g.id}`)}</div>
+    <div class="section-title">{t(`picker.${g.id}`)}</div>
     <div class="grid">
       {#each g.controls as c (c)}
         {@const s = summary(c)}
@@ -49,12 +49,7 @@
   .drawing {
     height: 380px;
   }
-  .group {
-    font-size: var(--fs-xs);
-    font-weight: 600;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--text-dim);
+  .section-title {
     margin: 14px 0 8px;
   }
   .grid {

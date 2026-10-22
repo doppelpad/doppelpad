@@ -55,12 +55,12 @@
   }
 </script>
 
-<div class="label">{t('radial.title')}</div>
+<div class="section-title">{t('radial.title')}</div>
 <p class="hint">{t('radial.hint')}</p>
 
 {#each menus as m, i (i)}
   {@const n = m.sectors.length}
-  <section class="menu">
+  <section class="menu card">
     <header>
       <svg class="preview" viewBox="-104 -104 208 208" aria-hidden="true">
         {#each m.sectors as s, k (k)}
@@ -72,7 +72,7 @@
       <span class="num">{i + 1}</span>
       <input class="name" value={m.name ?? ''} placeholder={t('radial.name')} {disabled} onchange={(e) => setMenu(i, { name: e.currentTarget.value.trim() || undefined })} />
       {#if !disabled}
-        <button class="icon-btn del" title={t('radial.remove')} onclick={() => app.edit((p) => removeMenu(p, i))}><Trash2 size={15} /></button>
+        <button class="icon-btn del danger" title={t('radial.remove')} onclick={() => app.edit((p) => removeMenu(p, i))}><Trash2 size={15} /></button>
       {/if}
     </header>
 
@@ -178,13 +178,8 @@
 {/if}
 
 <style>
-  .label {
+  .section-title {
     margin-top: 10px;
-    font-size: var(--fs-xs);
-    font-weight: 600;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--text-dim);
   }
   .hint {
     margin: 0;
@@ -201,9 +196,6 @@
     flex-direction: column;
     gap: 12px;
     padding: 12px 16px 16px;
-    border: 1px solid var(--line);
-    border-radius: var(--radius-m);
-    background: var(--bg-1);
   }
   header {
     display: flex;
@@ -231,9 +223,6 @@
   }
   .del {
     margin-left: auto;
-  }
-  .del:hover {
-    color: var(--danger);
   }
   .row {
     display: flex;
@@ -276,10 +265,6 @@
   }
   .sector input[type='color'] {
     width: 30px;
-    height: 24px;
-    padding: 0;
-    border: 1px solid var(--line-strong);
-    background: none;
   }
   .acts {
     display: flex;

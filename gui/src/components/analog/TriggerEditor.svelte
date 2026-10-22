@@ -124,9 +124,6 @@
     flex-direction: column;
     gap: 14px;
     padding: 14px 16px 16px;
-    border: 1px solid var(--line);
-    border-radius: var(--radius-m);
-    background: var(--bg-1);
   }
   h3 {
     margin: 0;

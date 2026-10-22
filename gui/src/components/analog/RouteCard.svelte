@@ -112,7 +112,7 @@
 
 <svelte:window onkeydown={onKeydown} />
 
-<section class="route">
+<section class="route card">
   <header>
     {#if !fixedSource}
       <label class="end">
@@ -130,7 +130,7 @@
       </select>
     </label>
     {#if !disabled}
-      <button class="icon-btn del" title={t('analog.routes.delete')} onclick={() => app.edit((p) => removeRoute(p, index))}>
+      <button class="icon-btn del danger" title={t('analog.routes.delete')} onclick={() => app.edit((p) => removeRoute(p, index))}>
         <Trash2 size={15} />
       </button>
     {/if}
@@ -250,9 +250,6 @@
     flex-direction: column;
     gap: 14px;
     padding: 12px 16px 16px;
-    border: 1px solid var(--line);
-    border-radius: var(--radius-m);
-    background: var(--bg-1);
   }
   header {
     display: flex;
@@ -279,9 +276,6 @@
   }
   .del {
     margin-left: auto;
-  }
-  .del:hover {
-    color: var(--danger);
   }
   .flick-note {
     margin: 0;

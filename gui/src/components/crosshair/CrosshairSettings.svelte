@@ -45,18 +45,18 @@
   }
 </script>
 
-<div class="label">{t('crosshairs.title')}</div>
+<div class="section-title">{t('crosshairs.title')}</div>
 <p class="hint">{t('crosshairs.hint')}</p>
 
 {#each crosshairs as c, i (i)}
   {@const f = full(c)}
-  <section class="xh">
+  <section class="xh card">
     <header>
       <span class="preview"><CrosshairShape crosshair={f} px={56} /></span>
       <span class="num">{i + 1}</span>
       <input class="name" value={c.name ?? ''} placeholder={t('crosshairs.name')} {disabled} onchange={(e) => set(i, { name: e.currentTarget.value.trim() || undefined })} />
       {#if !disabled}
-        <button class="icon-btn del" title={t('crosshairs.remove')} onclick={() => app.edit((p) => removeCrosshair(p, i))}>
+        <button class="icon-btn del danger" title={t('crosshairs.remove')} onclick={() => app.edit((p) => removeCrosshair(p, i))}>
           <Trash2 size={15} />
         </button>
       {/if}
@@ -132,13 +132,8 @@
 {/if}
 
 <style>
-  .label {
+  .section-title {
     margin-top: 10px;
-    font-size: var(--fs-xs);
-    font-weight: 600;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--text-dim);
   }
   .hint {
     margin: 0;
@@ -150,9 +145,6 @@
     flex-direction: column;
     gap: 12px;
     padding: 12px 16px 16px;
-    border: 1px solid var(--line);
-    border-radius: var(--radius-m);
-    background: var(--bg-1);
   }
   header {
     display: flex;
@@ -178,9 +170,6 @@
   }
   .del {
     margin-left: auto;
-  }
-  .del:hover {
-    color: var(--danger);
   }
   .shapes {
     display: flex;
@@ -215,10 +204,6 @@
   }
   .color input[type='color'] {
     width: 34px;
-    height: 24px;
-    padding: 0;
-    border: 1px solid var(--line-strong);
-    background: none;
   }
   .color input[type='number'] {
     width: 64px;

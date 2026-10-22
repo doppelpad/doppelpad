@@ -25,7 +25,7 @@
 
 {#if http}
   <div class="section">
-    <div class="section-head"><span>{t('settings.http.title')}</span></div>
+    <div class="section-title"><span>{t('settings.http.title')}</span></div>
     <p class="hint">{t('settings.http.hint')}</p>
     <Toggle checked={http.settings.enabled} label={t('settings.http.enabled')} onchange={(v) => set({ enabled: v })} />
     <label class="row">
@@ -42,7 +42,7 @@
       </div>
     {/if}
     {#if http.error}
-      <p class="error">{http.error}</p>
+      <p class="error-text">{http.error}</p>
     {:else if http.address}
       <p class="hint">{t('settings.http.status', { address: http.address })}</p>
     {/if}
@@ -57,21 +57,9 @@
     flex-direction: column;
     gap: 8px;
   }
-  .section-head {
-    font-size: var(--fs-xs);
-    font-weight: 600;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--text-dim);
-  }
   .hint {
     margin: 0;
     color: var(--text-dim);
-    font-size: var(--fs-s);
-  }
-  .error {
-    margin: 0;
-    color: var(--danger);
     font-size: var(--fs-s);
   }
   .row {
