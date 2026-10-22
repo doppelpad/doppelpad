@@ -11,7 +11,7 @@ use std::time::{Duration, Instant};
 
 use dp_core::pad::{Axis, Motion, PadButton, PadState, Rumble};
 
-use super::{StickCal, Switch2Model, apply_buttons, gc_trigger};
+use super::{CAL_MAGIC, FIRST_PLAYER, StickCal, Switch2Model, apply_buttons, gc_trigger};
 use crate::nintendo::player_mask;
 use crate::padio::{BulkIo, Identity, InitError, LateBulk, PadDriver, ReportIo, RumblePacer};
 use crate::report::{le_f32, le_i16, le_u32, unpack12};
@@ -24,7 +24,6 @@ pub const INPUT_REPORT: u8 = 0x05;
 const COMMAND_TIMEOUT: Duration = Duration::from_millis(200);
 /// How long to wait for input when another program started the pad.
 const FOREIGN_INIT_WAIT: Duration = Duration::from_millis(1500);
-const CAL_MAGIC: [u8; 2] = [0xB2, 0xA1];
 /// Full strength is capped below the actuators' maximum, as the console does.
 const RUMBLE_MAX: f32 = 29000.0;
 const HIGH_FREQ: u16 = 0x187;
@@ -304,7 +303,7 @@ impl Switch2Driver {
             ),
             gc_error: 0,
             player_want: None,
-            player_sent: Some(0x01),
+            player_sent: Some(FIRST_PLAYER),
         }
     }
 
@@ -429,7 +428,7 @@ impl Switch2Driver {
             let _ = Self::send(bulk, &select_report_command());
             Self::send(bulk, &start_output_command())?;
         }
-        if let Err(e) = Self::send(bulk, &player_led_command(0x01)) {
+        if let Err(e) = Self::send(bulk, &player_led_command(FIRST_PLAYER)) {
             tracing::debug!("player LED: {e}");
         }
         Ok(())

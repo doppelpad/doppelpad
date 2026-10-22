@@ -68,10 +68,8 @@ fn driver_kind(vid: u16, pid: u16, usage_page: u16, usage: u16) -> Option<Driver
         return pad.then_some(DriverKind::Nintendo(m));
     }
     // Xbox pads are read through XInput.
-    (pad && vid != MICROSOFT_VID).then_some(DriverKind::Generic)
+    (pad && vid != crate::MICROSOFT_VID).then_some(DriverKind::Generic)
 }
-
-const MICROSOFT_VID: u16 = 0x045E;
 
 /// Generic pads whose reports the HID parser cannot read: nothing to report.
 struct NoDecoder;
@@ -123,7 +121,9 @@ impl Base {
             _ if self.bluetooth => "Bluetooth",
             DriverKind::Steam(SteamModel::Receiver) => "wireless",
             DriverKind::Steam(SteamModel::Deck) => "built in",
-            DriverKind::Nintendo(Model::Switch1) if self.pid == 0x200E => "USB grip",
+            DriverKind::Nintendo(Model::Switch1) if self.pid == nintendo::pid::CHARGING_GRIP => {
+                "USB grip"
+            }
             _ => "USB",
         }
     }
@@ -143,7 +143,7 @@ impl Base {
                 bluetooth: self.bluetooth,
                 vid: self.vid,
                 pid: self.pid,
-                grip_slot: if self.pid == 0x200E {
+                grip_slot: if self.pid == nintendo::pid::CHARGING_GRIP {
                     grip_slot(&self.instance_id)
                 } else {
                     None

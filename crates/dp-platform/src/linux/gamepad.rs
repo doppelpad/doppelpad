@@ -417,9 +417,7 @@ impl Scanner {
                 }
             };
             let id = dev.input_id();
-            if id.vendor() == NINTENDO_VID
-                && matches!(id.product(), 0x2066 | 0x2067 | 0x2069 | 0x2073)
-            {
+            if crate::nintendo::is_switch2(id.vendor(), id.product()) {
                 // Without a kernel driver these stay silent until their USB vendor interface
                 // is initialised, which the Linux backend does not do yet.
                 if !self.warned_switch2 {

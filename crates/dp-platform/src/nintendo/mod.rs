@@ -15,6 +15,30 @@ use dp_core::pad::{Axis, PadButton, PadState};
 
 pub const NINTENDO_VID: u16 = 0x057E;
 
+/// Nintendo product ids.
+pub mod pid {
+    pub const JOYCON_L: u16 = 0x2006;
+    pub const JOYCON_R: u16 = 0x2007;
+    /// The pair joycond (Linux) makes of two Joy-Con.
+    pub const JOYCOND_PAIR: u16 = 0x2008;
+    pub const PRO: u16 = 0x2009;
+    pub const CHARGING_GRIP: u16 = 0x200E;
+    pub const SNES: u16 = 0x2017;
+    pub const N64: u16 = 0x2019;
+    pub const GENESIS: u16 = 0x201E;
+    pub const SWITCH2_JOYCON_R: u16 = 0x2066;
+    pub const SWITCH2_JOYCON_L: u16 = 0x2067;
+    /// The id we give a pair of Joy-Con 2 (not a real device).
+    pub const SWITCH2_PAIR: u16 = 0x2068;
+    pub const SWITCH2_PRO: u16 = 0x2069;
+    pub const SWITCH2_GAMECUBE: u16 = 0x2073;
+}
+
+/// User calibration blocks in flash start with this when they are set.
+pub(crate) const CAL_MAGIC: [u8; 2] = [0xB2, 0xA1];
+/// The player lights of player 1 (the first light), what a pad shows when it connects.
+pub(crate) const FIRST_PLAYER: u8 = 0x01;
+
 pub(crate) const HORI_VID: u16 = 0x0F0D;
 pub(crate) const PDP_VID: u16 = 0x0E6F;
 pub(crate) const POWERA_VID: u16 = 0x20D6;
@@ -41,23 +65,35 @@ pub enum Model {
 
 pub fn model_for(vid: u16, pid: u16) -> Option<Model> {
     match (vid, pid) {
-        // Joy-Con L/R, Pro Controller, charging grip, SNES, N64, Genesis.
-        (NINTENDO_VID, 0x2006 | 0x2007 | 0x2009 | 0x200E | 0x2017 | 0x2019 | 0x201E) => {
-            Some(Model::Switch1)
-        }
-        (NINTENDO_VID, 0x2066) => Some(Model::Switch2(Switch2Model::JoyConRight)),
-        (NINTENDO_VID, 0x2067) => Some(Model::Switch2(Switch2Model::JoyConLeft)),
-        (NINTENDO_VID, 0x2069) => Some(Model::Switch2(Switch2Model::Pro)),
-        (NINTENDO_VID, 0x2073) => Some(Model::Switch2(Switch2Model::GameCube)),
+        (
+            NINTENDO_VID,
+            pid::JOYCON_L
+            | pid::JOYCON_R
+            | pid::PRO
+            | pid::CHARGING_GRIP
+            | pid::SNES
+            | pid::N64
+            | pid::GENESIS,
+        )
         // Third-party pads with the full protocol: HORI Wireless Switch Pad, PDP Afterglow
         // Wireless, PDP REALMz.
-        (HORI_VID, 0x00F6) | (PDP_VID, 0x0186 | 0x018C) => Some(Model::Switch1),
+        | (HORI_VID, 0x00F6)
+        | (PDP_VID, 0x0186 | 0x018C) => Some(Model::Switch1),
+        (NINTENDO_VID, pid::SWITCH2_JOYCON_R) => Some(Model::Switch2(Switch2Model::JoyConRight)),
+        (NINTENDO_VID, pid::SWITCH2_JOYCON_L) => Some(Model::Switch2(Switch2Model::JoyConLeft)),
+        (NINTENDO_VID, pid::SWITCH2_PRO) => Some(Model::Switch2(Switch2Model::Pro)),
+        (NINTENDO_VID, pid::SWITCH2_GAMECUBE) => Some(Model::Switch2(Switch2Model::GameCube)),
         (HORI_VID, 0x00C1 | 0x0092 | 0x00AA | 0x00F0)
         | (PDP_VID, 0x0180 | 0x0181 | 0x0184 | 0x0185 | 0x0187 | 0x0188 | 0x018B)
         | (POWERA_VID, 0xA711..=0xA716 | 0xA718)
         | (ZUIKI_VID, 0x0001..=0x0003) => Some(Model::Wired),
         _ => None,
     }
+}
+
+/// Whether `vid:pid` is a Switch 2 controller.
+pub fn is_switch2(vid: u16, pid: u16) -> bool {
+    matches!(model_for(vid, pid), Some(Model::Switch2(_)))
 }
 
 /// Devices that enumerate over USB but cannot be talked to there (the HORI Wireless
@@ -162,6 +198,12 @@ pub struct StickCal {
 const UNSET: u16 = 0xFFF;
 
 impl StickCal {
+    /// A first-generation calibration whose fields are all unset.
+    pub fn switch1_unset() -> StickCal {
+        let unset = (UNSET, UNSET);
+        StickCal::switch1(unset, unset, unset)
+    }
+
     /// Uncalibrated 12-bit stick: centre 2048, full range.
     pub const DEFAULT: StickCal = StickCal {
         x: AxisCal {
@@ -310,7 +352,7 @@ mod tests {
 
     #[test]
     fn unset_calibration_falls_back() {
-        let mut cal = StickCal::switch1((0xFFF, 0xFFF), (0xFFF, 0xFFF), (0xFFF, 0xFFF));
+        let mut cal = StickCal::switch1_unset();
         assert_eq!(cal.x.center, 2048.0);
         assert_eq!(cal.normalize((2048, 2048)), (0.0, 0.0));
         let (x, _) = cal.normalize((4095, 2048));

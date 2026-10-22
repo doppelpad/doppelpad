@@ -10,15 +10,11 @@ use std::sync::Arc;
 
 use dp_core::pad::{Axis, Motion, PadButton, PadState, Rgb, Rumble, Stick};
 
-use crate::nintendo::NINTENDO_VID;
+use crate::nintendo::{NINTENDO_VID, is_switch2, pid};
 use crate::{
     Battery, DeviceId, DeviceInfo, GamepadBackend, JoyConSide, Leds, PadFamily, PadSnapshot,
     TriggerEffects, VirtualIgnoreList,
 };
-
-/// Product ID of joycond's combined Joy-Con device (Linux).
-const JOYCOND_PAIR_PID: u16 = 0x2008;
-const SWITCH2_PAIR_PID: u16 = 0x2068;
 
 /// One controller from a left and a right Joy-Con.
 pub fn combine(left: &PadState, right: &PadState) -> PadState {
@@ -95,7 +91,7 @@ struct Pair {
 }
 
 fn pair_info(left: &DeviceInfo, right: &DeviceInfo) -> Arc<DeviceInfo> {
-    let switch2 = left.name.contains("Joy-Con 2");
+    let switch2 = is_switch2(left.vendor_id, left.product_id);
     let mut instance_paths = left.instance_paths.clone();
     instance_paths.extend(right.instance_paths.iter().cloned());
     Arc::new(DeviceInfo {
@@ -109,9 +105,9 @@ fn pair_info(left: &DeviceInfo, right: &DeviceInfo) -> Arc<DeviceInfo> {
         family: PadFamily::JoyCon,
         vendor_id: NINTENDO_VID,
         product_id: if switch2 {
-            SWITCH2_PAIR_PID
+            pid::SWITCH2_PAIR
         } else {
-            JOYCOND_PAIR_PID
+            pid::JOYCOND_PAIR
         },
         backend: left.backend.clone(),
         instance_paths,
@@ -203,7 +199,7 @@ impl<B: GamepadBackend> GamepadBackend for JoyConCombiner<B> {
         self.inner.poll(&mut self.raw);
         // joycond (Linux) already pairs Joy-Cons into its own device.
         let joycond = self.raw.iter().any(|s| {
-            (s.info.vendor_id, s.info.product_id) == (NINTENDO_VID, JOYCOND_PAIR_PID)
+            (s.info.vendor_id, s.info.product_id) == (NINTENDO_VID, pid::JOYCOND_PAIR)
                 && s.info.joycon.is_none()
         });
         self.update_pairs(joycond);
@@ -345,7 +341,7 @@ mod tests {
                     PadFamily::Xbox
                 },
                 vendor_id: NINTENDO_VID,
-                product_id: 0x2006,
+                product_id: pid::JOYCON_L,
                 backend: "fake".into(),
                 instance_paths: vec![format!("path-{id}")],
                 joycon,
@@ -407,13 +403,13 @@ mod tests {
         };
         let mut c = JoyConCombiner::new(Fake::default());
         c.inner.pads = vec![
-            switch2("l", L, "Joy-Con 2 (L)", 0x2067),
-            switch2("r", R, "Joy-Con 2 (R)", 0x2066),
+            switch2("l", L, "Joy-Con 2 (L)", pid::SWITCH2_JOYCON_L),
+            switch2("r", R, "Joy-Con 2 (R)", pid::SWITCH2_JOYCON_R),
         ];
         let out = poll(&mut c);
         assert_eq!(ids(&out), ["l+r"]);
         assert_eq!(out[0].info.name, "Joy-Con 2 (L/R)");
-        assert_eq!(out[0].info.product_id, SWITCH2_PAIR_PID);
+        assert_eq!(out[0].info.product_id, pid::SWITCH2_PAIR);
         assert_eq!(out[0].info.family, PadFamily::JoyCon);
     }
 
@@ -549,7 +545,7 @@ mod tests {
         let mut c = JoyConCombiner::new(Fake::default());
         let mut combined = pad("combined", None, PadState::default());
         let info = Arc::make_mut(&mut combined.info);
-        info.product_id = JOYCOND_PAIR_PID;
+        info.product_id = pid::JOYCOND_PAIR;
         c.inner.pads = vec![
             combined,
             pad("l", L, PadState::default()),

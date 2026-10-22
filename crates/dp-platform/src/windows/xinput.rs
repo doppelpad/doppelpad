@@ -169,7 +169,7 @@ impl XInputBackend {
             id: DeviceId(format!("xinput:{slot}")),
             name: format!("Xbox controller (XInput slot {})", slot + 1),
             family: PadFamily::Xbox,
-            vendor_id: 0x045E,
+            vendor_id: crate::MICROSOFT_VID,
             product_id: 0,
             backend: "xinput".into(),
             instance_paths: Vec::new(),

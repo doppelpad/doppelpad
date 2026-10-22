@@ -75,8 +75,9 @@ fn open() -> Result<OwnedHandle> {
         Err(PlatformError::DriverMissing(
             "HidHide",
             format!(
-                "{} (install it from https://github.com/nefarius/HidHide/releases)",
-                std::io::Error::last_os_error()
+                "{} (install it from {})",
+                std::io::Error::last_os_error(),
+                crate::HIDHIDE_RELEASES
             ),
         ))
     }

@@ -25,13 +25,15 @@ pub enum SonyModel {
 }
 
 pub const SONY_VID: u16 = 0x054C;
+/// The first DualShock 4 (CUH-ZCT1), which a virtual DualShock 4 claims to be.
+pub const DS4_V1_PID: u16 = 0x05C4;
 
 pub fn model_for(vid: u16, pid: u16) -> Option<SonyModel> {
     if vid != SONY_VID {
         return None;
     }
     match pid {
-        0x05C4 | 0x09CC | 0x0BA0 => Some(SonyModel::DualShock4),
+        DS4_V1_PID | 0x09CC | 0x0BA0 => Some(SonyModel::DualShock4),
         0x0CE6 => Some(SonyModel::DualSense),
         0x0DF2 => Some(SonyModel::DualSenseEdge),
         _ => None,
