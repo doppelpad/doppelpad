@@ -104,7 +104,9 @@
     "no_config": "No config active",
     "no_controller": "No controller connected",
     "charging": "charging",
-    "quit": "Quit"
+    "quit": "Quit",
+    "not_remapped": "Not remapped",
+    "own_slots": "Own slots for this controller"
   },
   "header": {
     "from_template": "New from template: {template}",
@@ -1013,6 +1015,7 @@
       "title": "Controllers",
       "hint": "Doppelpad uses the ticked devices and ignores the others completely (no input, no hiding). Groups play several controllers as one: one config, one set of slots.",
       "ignored": "ignored",
+      "tray_color": "Colour of its tray icon",
       "groups": "Groups",
       "group_name": "Name of the group",
       "make_group": "Make a group",
@@ -1154,7 +1157,8 @@
       "moved": "Games and configs moved to {dir}.",
       "used": "Using the games and configs in {dir}.",
       "left_behind": "Moved, but {n} old files could not be removed from {dir}. Their copies are safe."
-    }
+    },
+    "tray_per_controller": "One more tray icon for each connected controller, in its own colour"
   },
   "hotkeys": {
     "title": "Controller hotkeys",

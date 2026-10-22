@@ -568,6 +568,14 @@ turns remapping on or off. The right-click menu has:
 The tray follows every change, whether it comes from the window, from `doppelpad`
 commands, or from a mapping that turns remapping off.
 
+*Settings → General → One more tray icon for each connected controller* adds an icon per
+controller next to the main one, in a colour of its own (*Settings → Controllers* sets it
+per controller; without a choice each controller keeps the same palette colour). Its tooltip
+names the controller, the config it runs (or *Not remapped*) and its battery. Its menu lists
+its slots: its own if it has slots of its own, the shared ones while it is the controller in
+use; another controller offers **Own slots for this controller** instead. The icons come and
+go with the controllers and are greyed out while remapping is off.
+
 *Settings → General → Start with Windows, in the tray* (Windows only) starts Doppelpad when
 you sign in, with only the tray icon showing; remapping runs as it was left. The setting is
 the `Doppelpad` entry under `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`, which runs

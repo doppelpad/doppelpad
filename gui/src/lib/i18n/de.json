@@ -104,7 +104,9 @@
     "no_config": "Keine Config aktiv",
     "no_controller": "Kein Controller verbunden",
     "charging": "lädt",
-    "quit": "Beenden"
+    "quit": "Beenden",
+    "not_remapped": "Nicht umbelegt",
+    "own_slots": "Eigene Slots für diesen Controller"
   },
   "header": {
     "from_template": "Neu aus Vorlage: {template}",
@@ -1013,6 +1015,7 @@
       "title": "Controller",
       "hint": "Abgehakte Geräte nutzt Doppelpad; die anderen ignoriert es ganz (keine Eingabe, kein Ausblenden). Gruppen spielen mehrere Controller als einen: eine Config, ein Satz Slots.",
       "ignored": "ignoriert",
+      "tray_color": "Farbe seines Tray-Symbols",
       "groups": "Gruppen",
       "group_name": "Name der Gruppe",
       "make_group": "Gruppe bilden",
@@ -1154,7 +1157,8 @@
       "moved": "Spiele und Configs liegen jetzt in {dir}.",
       "used": "Die Spiele und Configs aus {dir} werden verwendet.",
       "left_behind": "Verschoben, aber {n} alte Dateien ließen sich nicht aus {dir} entfernen. Ihre Kopien sind sicher."
-    }
+    },
+    "tray_per_controller": "Ein weiteres Tray-Symbol für jeden verbundenen Controller, in eigener Farbe"
   },
   "rewasd": {
     "title": "reWASD läuft",

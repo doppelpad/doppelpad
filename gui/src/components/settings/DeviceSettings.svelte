@@ -5,6 +5,7 @@
   import { api } from '../../lib/api';
   import { t } from '../../lib/i18n/index.svelte';
   import { app } from '../../lib/state/app.svelte';
+  import { padColor } from '../../lib/model/padColors';
   import type { DeviceGroup } from '../../lib/types';
   import SettingRow from './SettingRow.svelte';
   import SettingsSection from './SettingsSection.svelte';
@@ -26,6 +27,11 @@
   /** Idle timeouts offered, in minutes; 0 never turns controllers off. */
   const IDLE_MINUTES = [0, 5, 10, 15, 20, 30, 45, 60];
 
+  /** The colour of a controller's tray icon. */
+  function setColor(id: string, color: string) {
+    return app.setSettings((s) => ({ controller_colors: { ...s.controller_colors, [id]: color } }));
+  }
+
   function setGroups(next: DeviceGroup[]) {
     return app.attempt(api.setGroups(next));
   }
@@ -39,11 +45,22 @@
 
 <SettingsSection title={t('devices.settings.title')} hint={t('devices.settings.hint')}>
   {#each listed as d (d.id)}
-    <label class="dev">
-      <input type="checkbox" checked={!blocked.has(d.id)} onchange={(e) => app.attempt(api.setBlocked(d.id, !e.currentTarget.checked))} />
-      <span class="name">{d.name}</span>
-      {#if blocked.has(d.id)}<span class="tag">{t('devices.settings.ignored')}</span>{/if}
-    </label>
+    <div class="dev-row">
+      <label class="dev">
+        <input type="checkbox" checked={!blocked.has(d.id)} onchange={(e) => app.attempt(api.setBlocked(d.id, !e.currentTarget.checked))} />
+        <span class="name">{d.name}</span>
+        {#if blocked.has(d.id)}<span class="tag">{t('devices.settings.ignored')}</span>{/if}
+      </label>
+      {#if app.settings.tray_per_controller}
+        <input
+          type="color"
+          title={t('devices.settings.tray_color')}
+          aria-label={t('devices.settings.tray_color')}
+          value={padColor(d.id, app.settings.controller_colors)}
+          onchange={(e) => setColor(d.id, e.currentTarget.value)}
+        />
+      {/if}
+    </div>
   {/each}
 
   <div class="sub">{t('devices.settings.groups')}</div>
@@ -88,6 +105,12 @@
 </SettingsSection>
 
 <style>
+  .dev-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
   .dev,
   .pick {
     display: flex;

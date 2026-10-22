@@ -265,7 +265,9 @@
     "show_notes": false,
     "silenced": [],
     "zoom": 100,
-    "pad_navigation": false
+    "pad_navigation": false,
+    "tray_per_controller": false,
+    "controller_colors": {}
   },
   "hotkeys": {
     "hold_ms": 500,

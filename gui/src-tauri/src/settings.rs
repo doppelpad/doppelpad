@@ -1,5 +1,6 @@
 //! GUI preferences, stored in `config_dir/gui.toml`.
 
+use std::collections::BTreeMap;
 use std::ops::RangeInclusive;
 use std::path::PathBuf;
 use std::time::Duration;
@@ -50,6 +51,18 @@ pub struct GuiSettings {
     /// The controller drives the app (moves the focus, activates, goes back) instead of
     /// selecting the pressed control.
     pub pad_navigation: bool,
+    /// One more tray icon for each connected controller, besides the main one.
+    pub tray_per_controller: bool,
+    /// The colour of each controller's tray icon (`#rrggbb`) by device id; a controller without
+    /// one gets a colour from a palette.
+    pub controller_colors: BTreeMap<String, String>,
+}
+
+/// `#rrggbb` as red, green and blue.
+pub fn parse_color(s: &str) -> Option<[u8; 3]> {
+    let hex = s.strip_prefix('#').filter(|h| h.len() == 6)?;
+    let byte = |i: usize| u8::from_str_radix(hex.get(i..i + 2)?, 16).ok();
+    Some([byte(0)?, byte(2)?, byte(4)?])
 }
 
 /// On-screen notifications: which events show one, and where and how.
@@ -185,6 +198,8 @@ impl Default for GuiSettings {
             silenced: Vec::new(),
             zoom: 100,
             pad_navigation: false,
+            tray_per_controller: false,
+            controller_colors: BTreeMap::new(),
         }
     }
 }
@@ -213,6 +228,8 @@ impl GuiSettings {
         self.zoom = clamp(self.zoom, &ZOOM);
         self.silenced.sort();
         self.silenced.dedup();
+        self.controller_colors
+            .retain(|_, c| parse_color(c).is_some());
         self
     }
 
@@ -251,5 +268,24 @@ mod tests {
             ..GuiSettings::default()
         };
         assert_eq!(s.clamped().silenced, ["a", "b"]);
+    }
+
+    #[test]
+    fn controller_colours_must_be_hex() {
+        assert_eq!(parse_color("#3b82f6"), Some([0x3b, 0x82, 0xf6]));
+        assert_eq!(parse_color("3b82f6"), None);
+        assert_eq!(parse_color("#3b82f"), None);
+        assert_eq!(parse_color("#gg0000"), None);
+        let s = GuiSettings {
+            controller_colors: [("a", "#ff0000"), ("b", "red")]
+                .map(|(k, v)| (k.to_owned(), v.to_owned()))
+                .into(),
+            ..GuiSettings::default()
+        };
+        assert_eq!(
+            s.clamped().controller_colors.len(),
+            1,
+            "a broken colour goes"
+        );
     }
 }

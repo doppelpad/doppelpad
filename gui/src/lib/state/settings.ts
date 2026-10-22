@@ -32,4 +32,6 @@ export const SETTINGS_PLACEHOLDER: GuiSettings = {
   silenced: [],
   zoom: 100,
   pad_navigation: false,
+  tray_per_controller: false,
+  controller_colors: {},
 };
