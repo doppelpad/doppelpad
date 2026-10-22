@@ -18,6 +18,7 @@ use crossbeam_channel::{Receiver, Sender, bounded};
 use dp_ipc::{Request, Response};
 use serde::{Deserialize, Serialize};
 
+use crate::client::round_trip;
 use crate::live::LiveState;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -73,7 +74,6 @@ pub struct HttpApi {
 const MAX_HEAD: usize = 16 << 10;
 const MAX_BODY: usize = 64 << 10;
 const IO_TIMEOUT: Duration = Duration::from_secs(5);
-const REPLY_TIMEOUT: Duration = Duration::from_secs(10);
 /// How often the event stream looks for changes.
 const EVENT_EVERY: Duration = Duration::from_millis(200);
 /// Comment lines keep idle event streams (and their proxies) open.
@@ -289,18 +289,11 @@ fn error_json(message: &str) -> String {
 }
 
 fn ask_ipc(tx: &Sender<Job>, req: Request) -> Response {
-    let (rtx, rrx) = bounded(1);
-    if tx.send(Job::Ipc(req, rtx)).is_err() {
-        return Response::error("Doppelpad is shutting down");
-    }
-    rrx.recv_timeout(REPLY_TIMEOUT)
-        .unwrap_or_else(|_| Response::error("Doppelpad did not answer"))
+    round_trip(tx, |rtx| Job::Ipc(req, rtx)).unwrap_or_else(Response::from)
 }
 
 fn ask_live(tx: &Sender<Job>) -> Option<LiveState> {
-    let (rtx, rrx) = bounded(1);
-    tx.send(Job::Live(rtx)).ok()?;
-    rrx.recv_timeout(REPLY_TIMEOUT).ok()
+    round_trip(tx, Job::Live).ok()
 }
 
 /// The parts of the live state the event stream reports. Slots count 1–4, as in the status.

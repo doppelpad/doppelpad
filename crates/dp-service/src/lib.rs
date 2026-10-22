@@ -4,6 +4,7 @@
 
 pub mod anticheat;
 pub mod calibration;
+mod client;
 pub mod dsu;
 pub mod host;
 pub mod hotkeys;

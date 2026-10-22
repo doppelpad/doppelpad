@@ -180,6 +180,16 @@ pub enum ServiceReply {
     Hotkeys(Hotkeys),
 }
 
+/// The IPC form of a reply.
+impl From<ServiceReply> for Response {
+    fn from(reply: ServiceReply) -> Response {
+        match reply {
+            ServiceReply::Ipc(r) => r,
+            other => other.into_result().into(),
+        }
+    }
+}
+
 impl ServiceReply {
     pub fn into_result(self) -> Result<String, String> {
         match self {
@@ -499,7 +509,7 @@ impl Service {
 
     /// The reply to a slot or remap command in IPC form; slots are 1–4 over IPC.
     fn ipc_reply(&mut self, cmd: ServiceCmd) -> Response {
-        self.handle(cmd).into_result().into()
+        self.handle(cmd).into()
     }
 
     /// Run a slot command for a 1-based slot number from IPC.
