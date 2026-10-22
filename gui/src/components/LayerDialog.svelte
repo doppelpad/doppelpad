@@ -15,8 +15,8 @@
   } from '../lib/model/profile';
   import { app } from '../lib/state/app.svelte';
   import type { Combo, Unlock } from '../lib/types';
-  import Toggle from './ui/Toggle.svelte';
   import Dialog from './ui/Dialog.svelte';
+  import Toggle from './ui/Toggle.svelte';
 
   let { layer, onclose }: { layer: number; onclose: () => void } = $props();
 
