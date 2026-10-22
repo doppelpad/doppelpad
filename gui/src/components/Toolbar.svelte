@@ -8,6 +8,7 @@
   import { app, type View } from '../lib/state/app.svelte';
   import type { PresetEntry, Profile } from '../lib/types';
   import LayerDialog from './LayerDialog.svelte';
+  import LayerTip from './LayerTip.svelte';
   import Menu from './ui/Menu.svelte';
 
   type Tile = { id: View; icon: typeof Gamepad2; label: string; title?: string };
@@ -25,6 +26,24 @@
   ]);
 
   const layers = $derived(app.profile ? layerIds(app.profile) : [0]);
+
+  /** The layer chip whose tooltip shows, and where (below the chip). */
+  let tip = $state<{ layer: number; x: number; y: number } | null>(null);
+  let tipTimer: ReturnType<typeof setTimeout> | undefined;
+  const tipId = $props.id();
+
+  function showTip(layer: number, chip: HTMLElement, delay: number) {
+    clearTimeout(tipTimer);
+    tipTimer = setTimeout(() => {
+      const r = chip.getBoundingClientRect();
+      tip = { layer, x: Math.max(4, Math.min(r.left, window.innerWidth - 344)), y: r.bottom + 6 };
+    }, delay);
+  }
+
+  function hideTip() {
+    clearTimeout(tipTimer);
+    tip = null;
+  }
 
   // Chip widths come from an invisible copy of every chip, so the strip knows what fits before showing it.
   const GAP = 4;
@@ -164,7 +183,11 @@
         class="layer"
         class:active={app.layer === id}
         style:--c={layerColor(id)}
-        title={app.layerLabel(id)}
+        aria-describedby={tip?.layer === id ? tipId : undefined}
+        onmouseenter={(e) => showTip(id, e.currentTarget, 400)}
+        onmouseleave={hideTip}
+        onfocus={(e) => showTip(id, e.currentTarget, 0)}
+        onblur={hideTip}
         onclick={() => {
           app.layer = id;
         }}
@@ -200,6 +223,8 @@
     {#each extras as v (v.id)}{@render tile(v)}{/each}
   </div>
 </div>
+
+{#if tip}<LayerTip layer={tip.layer} x={tip.x} y={tip.y} id={tipId} />{/if}
 
 {#if layerDialog !== null}
   <LayerDialog layer={layerDialog} onclose={() => (layerDialog = null)} />
