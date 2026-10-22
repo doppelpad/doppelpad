@@ -1,6 +1,7 @@
 <script lang="ts">
   // Inline fields for the parameters of one action: stick amount and mode, trigger value, wheel
   // clicks, mouse speed, rumble length and strength, launch path and arguments.
+  import { parseDecimal, parsePercent } from '../../lib/model/numbers';
   import { t } from '../../lib/i18n/index.svelte';
   import { stickAmount, withStickAmount } from '../../lib/model/actions';
   import type { Action } from '../../lib/types';
@@ -10,14 +11,11 @@
 
   const pct = (v: number) => Math.round(v * 100);
 
-  function percent(raw: string): number | null {
-    const n = parseFloat(raw.replace(',', '.'));
-    return Number.isFinite(n) ? Math.min(Math.max(n, 0), 100) / 100 : null;
-  }
+  const percent = parsePercent;
 
   function positive(raw: string, min = 0): number | null {
-    const n = parseFloat(raw.replace(',', '.'));
-    return Number.isFinite(n) && n >= min ? n : null;
+    const n = parseDecimal(raw);
+    return n !== null && n >= min ? n : null;
   }
 
   function set(patch: Record<string, unknown>) {
@@ -92,8 +90,8 @@
     })}
   {:else if 'turn' in action}
     {@render field(t('params.degrees'), action.turn, '°', (raw) => {
-      const n = parseFloat(raw.replace(',', '.'));
-      if (Number.isFinite(n) && Math.abs(n) <= 3600) set({ turn: n });
+      const n = parseDecimal(raw);
+      if (n !== null && Math.abs(n) <= 3600) set({ turn: n });
     })}
   {:else if 'rumble' in action}
     {@render field(t('params.length'), action.rumble, t('common.ms'), (raw) => {

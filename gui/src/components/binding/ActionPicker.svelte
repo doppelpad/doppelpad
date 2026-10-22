@@ -6,6 +6,7 @@
   import { confirmAsk } from '../../lib/api';
   import { t } from '../../lib/i18n/index.svelte';
   import { keyFromEvent, keyGroups, keyLabel } from '../../lib/model/keymap';
+  import { parseNonNegInt } from '../../lib/model/numbers';
   import { SIDES, controlLabel } from '../../lib/model/controls';
   import { POWER_COMMANDS, RADIAL_COMMANDS, SIMPLE_COMMANDS } from '../../lib/model/profile';
   import { app } from '../../lib/state/app.svelte';
@@ -65,15 +66,13 @@
   }
 
   async function pickPause() {
-    const v = await app.ask(t('picker.pause_ms'), '100');
-    const n = v ? parseInt(v, 10) : NaN;
-    if (n > 0) onpick({ pause: n });
+    const n = parseNonNegInt((await app.ask(t('picker.pause_ms'), '100')) ?? '');
+    if (n) onpick({ pause: n });
   }
 
   async function pickRumble() {
-    const v = await app.ask(t('picker.rumble_ms'), '200');
-    const n = v ? parseInt(v, 10) : NaN;
-    if (n > 0) onpick({ rumble: n });
+    const n = parseNonNegInt((await app.ask(t('picker.rumble_ms'), '200')) ?? '');
+    if (n) onpick({ rumble: n });
   }
 </script>
 

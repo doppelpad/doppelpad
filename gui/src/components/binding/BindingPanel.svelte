@@ -31,6 +31,7 @@
     removeMapping,
   } from '../../lib/model/profile';
   import { hasParameters } from '../../lib/model/actions';
+  import { parseNonNegInt } from '../../lib/model/numbers';
   import { comboLabel } from '../../lib/model/labels';
   import { app, type AnalogTab } from '../../lib/state/app.svelte';
   import type { Action, Activator, Combo, JumpMode, Mapping, Mode } from '../../lib/types';
@@ -148,10 +149,7 @@
     edit((m) => m.jump && (m.jump = { ...m.jump, mode }));
   }
 
-  function num(v: string): number | undefined {
-    const n = parseInt(v, 10);
-    return Number.isFinite(n) && n >= 0 ? n : undefined;
-  }
+  const num = (v: string) => parseNonNegInt(v) ?? undefined;
 
   type TimingField = 'turbo_ms' | 'long_press_ms' | 'double_tap_ms' | 'triple_tap_ms' | 'key_delay_ms';
   function setTiming(field: TimingField, v: string) {

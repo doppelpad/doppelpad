@@ -5,25 +5,11 @@
   import { Rotate3d, SlidersHorizontal } from '@lucide/svelte';
   import { DEVICE_LAYOUTS, type DeviceId, type LayoutControl } from '../../assets/devices/layouts';
   import { t } from '../../lib/i18n/index.svelte';
-  import {
-    DIAGONALS,
-    DIRS8,
-    SIDES,
-    SIDE_NAMES,
-    TOUCH_REGIONS,
-    ZONES,
-    controlShort,
-    fullPullTag,
-    gyroControls,
-    withZone,
-    zoneFamily,
-    zoneParts,
-    zoneTag,
-  } from '../../lib/model/controls';
-  import { layerRoutes, sourceOf, targetOf, type Side } from '../../lib/model/analog';
+  import { SIDES } from '../../lib/model/controls';
+  import type { Side } from '../../lib/model/analog';
   import { hasMotion, moveStickCaps } from '../../lib/model/devices';
-  import { effectiveSummary } from '../../lib/model/labels';
-  import { shortcutMembers } from '../../lib/model/profile';
+  import { buildChips, clickSide, gyroChipOf, type ChipView } from '../../lib/model/chips';
+  import { polylinePoints } from '../../lib/svg';
   import { STICK_GROUPS, stickGroupOf, type StickGroup } from '../../lib/model/stickgroups';
   import { app } from '../../lib/state/app.svelte';
   import type { ControlName } from '../../lib/types';
@@ -55,129 +41,22 @@
   const split = $derived(!!app.profile?.touchpad?.split);
   const GESTURES = ['Tap', 'TapLeft', 'TapCenter', 'TapRight', 'MultiTap', 'ZoomIn', 'ZoomOut', 'SwipeUp', 'SwipeDown', 'SwipeLeft', 'SwipeRight', 'Swipe2Up', 'Swipe2Down', 'Swipe2Left', 'Swipe2Right'] as const;
 
-  const ARROW: Record<string, string> = {
-    Up: '↑',
-    Down: '↓',
-    Left: '←',
-    Right: '→',
-    Center: '◎',
-    UpLeft: '↖',
-    UpRight: '↗',
-    DownLeft: '↙',
-    DownRight: '↘',
-  };
-
-  const combos = $derived(app.profile ? shortcutMembers(app.profile, app.layer) : new Set<string>());
-
-  const summaryOf = (c: ControlName) => app.profile && effectiveSummary(app.profile, app.layer, c, app.layerLabel);
-
-  /** The side of a stick-click control (`LS` → left), else null. */
-  const clickSide = (c: ControlName): Side | null => SIDE_NAMES.find((s) => SIDES[s].click === c) ?? null;
-
-  /** What the routes on this layer make of each whole stick ("Mouse", "Flick stick"). */
-  const stickRoutes = $derived.by(() => {
-    const out = new Map<Side, { text: string; inherited: boolean }>();
-    for (const ref of app.profile ? layerRoutes(app.profile, app.layer) : []) {
-      const s = sourceOf(ref.route);
-      const side = SIDE_NAMES.find((x) => SIDES[x].source === s);
-      if (side && !out.has(side)) out.set(side, { text: t(`analog.routes.targets.${targetOf(ref.route)}`), inherited: ref.inherited });
-    }
-    return out;
+  const chipView = $derived<ChipView>({
+    profile: app.profile,
+    layer: app.layer,
+    family: app.family,
+    selectedKey: app.selectedKey,
+    stick: app.stick,
+    pressed: app.pressed,
+    layerLabel: app.layerLabel,
   });
+  const chips = $derived(buildChips(layout.controls, chipView));
+  const gyroChip = $derived(gyroChipOf(chipView));
 
   function wholeStick(side: Side, g: StickGroup) {
     menu = null;
     app.setStickGroup(side, g);
   }
-
-  /** Zone tag of a control ("H"), or "" for a control without a zone. */
-  function zoneSuffix(c: ControlName): string {
-    const z = zoneParts(c)?.zone;
-    return z ? zoneTag(z) : '';
-  }
-
-  /**
-   * Controls a chip stands for besides its own, with a tag for its summary: a stick's
-   * directions, their zones and its any-direction zones; a trigger's zones.
-   */
-  function related(c: ControlName): { c: ControlName; tag: string }[] {
-    const side = clickSide(c);
-    if (side) {
-      const stick = SIDES[side].stick;
-      return [
-        ...DIRS8.flatMap((d) => zoneFamily(stick + d).map((x) => ({ c: x, tag: ARROW[d] + zoneSuffix(x) }))),
-        ...zoneFamily(stick).map((x) => ({ c: x, tag: '◎' + zoneSuffix(x) })),
-      ];
-    }
-    if (c === 'Touchpad') return [...TOUCH_REGIONS, ...DIAGONALS].map((r) => ({ c: `Touch${r}`, tag: ARROW[r] }));
-    if (zoneParts(c)) {
-      return [...ZONES.map((z) => ({ c: withZone(c, z), tag: zoneTag(z) })), { c: `${c}Full`, tag: fullPullTag() }];
-    }
-    return [];
-  }
-
-  /** The gyro chip: summaries of the gyro directions. */
-  const gyroChip = $derived.by(() => {
-    const parts: string[] = [];
-    let selected = false;
-    for (const c of gyroControls()) {
-      const s = summaryOf(c);
-      if (s) parts.push(`${ARROW[c.slice(4)]} ${s.text}`);
-      if (app.selectedKey === c) selected = true;
-    }
-    return { summary: parts.join('  '), selected };
-  });
-
-  interface Chip {
-    lc: LayoutControl;
-    label: string;
-    summary: string;
-    mapped: boolean;
-    inherited: boolean;
-    selected: boolean;
-    pressed: boolean;
-    combo: boolean;
-  }
-
-  const chips = $derived<Chip[]>(
-    layout.controls.map((lc) => {
-      const c = lc.control;
-      const own = summaryOf(c);
-      let summary = own?.text ?? '';
-      let mapped = !!own;
-      let selected = app.selectedKey === c;
-      // app.pressed is also what press-to-select reacts to, so highlight and selection agree.
-      let isPressed = app.pressed.has(c);
-      // Stick chips also show the directions and zones, trigger chips the zones.
-      const parts: string[] = [];
-      // A whole-stick route comes first: it is what the stick mostly does.
-      const side = clickSide(c);
-      const route = side ? stickRoutes.get(side) : undefined;
-      if (route) parts.push(route.text);
-      if (side && app.stick === side) selected = true;
-      for (const r of related(c)) {
-        const s = summaryOf(r.c);
-        if (s) parts.push(`${r.tag} ${s.text}`);
-        if (app.selectedKey === r.c) selected = true;
-        if (app.pressed.has(r.c)) isPressed = true;
-      }
-      if (parts.length) {
-        summary = [own ? `● ${own.text}` : '', ...parts].filter(Boolean).join('  ');
-        mapped = true;
-      }
-      return {
-        lc,
-        // The touchpad chip stands for its click and its regions.
-        label: c === 'Touchpad' ? t('views.groups.touchpad') : controlShort(c, app.family),
-        summary,
-        mapped,
-        inherited: !!own?.inherited,
-        selected,
-        pressed: isPressed,
-        combo: combos.has(c),
-      };
-    }),
-  );
 
   const pct = (x: number, y: number) => ({ left: ((x - vx) / vw) * 100, top: ((y - vy) / vh) * 100 });
 
@@ -187,9 +66,7 @@
     return `left: ${left}%; top: ${top}%; transform: translate(${shift});`;
   }
 
-  function leader(lc: LayoutControl): string {
-    return [lc.anchor, ...(lc.via ?? []), lc.labelAt].map((p) => p.join(',')).join(' ');
-  }
+  const leader = (lc: LayoutControl) => polylinePoints([lc.anchor, ...(lc.via ?? []), lc.labelAt]);
 
   function choose(c: ControlName, at?: [number, number]) {
     const side = clickSide(c);
