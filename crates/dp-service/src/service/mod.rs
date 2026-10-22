@@ -101,6 +101,50 @@ const TEST_TURN_DELAY_MS: u64 = 3000;
 /// ... and takes this long.
 const TEST_TURN_MS: u64 = 1000;
 
+/// Why remapping is paused: the editor has focus, the desktop is locked or a secure desktop
+/// shows, the config's game is not in front.
+struct PauseState {
+    gui_suspended: bool,
+    /// When the editor last reported getting the focus.
+    gui_since: u64,
+    /// The editor reports focus while another program is in front (a missed focus change).
+    gui_stale: bool,
+    locked: bool,
+    desktop_poll: Every,
+    focus_paused: bool,
+}
+
+/// The application in front.
+struct Foreground {
+    /// Asked at most this often.
+    poll: Every,
+    /// As last asked.
+    now: Option<String>,
+    /// Its process id, where the platform can tell.
+    pid: Option<u32>,
+    /// The application auto-switch last acted on (`None` while it is off).
+    switched_for: Option<String>,
+}
+
+/// Driver availability, probed now and then.
+struct DriverWatch {
+    status: DriverStatus,
+    poll: Every,
+    /// [`Runtime::hiding_problems`], refreshed with the driver status.
+    hiding_problems: Vec<String>,
+}
+
+/// What went wrong, for replies and warnings.
+#[derive(Default)]
+struct Errors {
+    /// Applying the active profile.
+    last: Option<String>,
+    /// Saving the state during the command being handled.
+    unsaved: Option<String>,
+    /// Applying a controller's own profile, by device id.
+    devices: std::collections::BTreeMap<String, String>,
+}
+
 pub struct Service {
     rt: Runtime,
     opts: ServiceOptions,
@@ -110,19 +154,10 @@ pub struct Service {
     oneoff: Option<PathBuf>,
     /// Profile applied because its application is in the foreground.
     auto_active: Option<PathBuf>,
-    /// The application auto-switch last acted on (`None` while it is off).
-    foreground: Option<String>,
-    /// The foreground application is asked at most this often.
-    fg_poll: Every,
-    drivers: DriverStatus,
-    driver_poll: Every,
-    /// [`Runtime::hiding_problems`], refreshed with the driver status.
-    hiding_problems: Vec<String>,
-    last_error: Option<String>,
-    /// Why saving the state failed during the command being handled.
-    unsaved: Option<String>,
-    /// Why a controller's own profile could not be applied, by device id.
-    device_errors: std::collections::BTreeMap<String, String>,
+    /// The application in front.
+    fg: Foreground,
+    drivers: DriverWatch,
+    errors: Errors,
     /// Connected controllers when their sessions were last brought in line.
     connected: Vec<String>,
     /// The DSU motion server.
@@ -131,20 +166,8 @@ pub struct Service {
     http: Listener<HttpApi>,
     /// The live snapshot as user interfaces and the HTTP API read it.
     shared_live: SharedLive,
-    /// Why remapping is paused: the editor has focus, the desktop is locked or a secure
-    /// desktop shows, the config's game is not in front.
-    gui_suspended: bool,
-    /// When the editor last reported getting the focus.
-    gui_since: u64,
-    locked: bool,
-    focus_paused: bool,
-    desktop_poll: Every,
-    /// The application in front, as last asked.
-    fg_now: Option<String>,
-    /// Its process id, where the platform can tell.
-    fg_pid: Option<u32>,
-    /// The editor reports focus while another program is in front (a missed focus change).
-    gui_stale: bool,
+    /// Why remapping is paused.
+    pause: PauseState,
     /// Automatic gyro calibration changes are saved at most this often.
     calibration_save: Every,
 }
@@ -198,26 +221,30 @@ impl Service {
             state,
             oneoff: opts.initial_profile.clone(),
             auto_active: None,
-            foreground: None,
-            fg_poll: Every::new(opts.foreground_poll_ms),
-            drivers: DriverStatus::default(),
-            driver_poll: Every::new(DRIVER_POLL_MS),
-            hiding_problems: Vec::new(),
-            last_error: None,
-            unsaved: None,
-            device_errors: Default::default(),
+            fg: Foreground {
+                poll: Every::new(opts.foreground_poll_ms),
+                now: None,
+                pid: None,
+                switched_for: None,
+            },
+            drivers: DriverWatch {
+                status: DriverStatus::default(),
+                poll: Every::new(DRIVER_POLL_MS),
+                hiding_problems: Vec::new(),
+            },
+            errors: Errors::default(),
             connected: Vec::new(),
             dsu: Listener::default(),
             http: Listener::default(),
             shared_live: SharedLive::default(),
-            gui_suspended: false,
-            gui_since: 0,
-            locked: false,
-            focus_paused: false,
-            desktop_poll: Every::new(DESKTOP_POLL_MS),
-            fg_now: None,
-            fg_pid: None,
-            gui_stale: false,
+            pause: PauseState {
+                gui_suspended: false,
+                gui_since: 0,
+                gui_stale: false,
+                locked: false,
+                desktop_poll: Every::new(DESKTOP_POLL_MS),
+                focus_paused: false,
+            },
             calibration_save: Every::new(CALIBRATION_SAVE_MS),
             opts,
         };
@@ -267,7 +294,7 @@ impl Service {
                 && !wanted.iter().any(|(id, _)| *id == owner)
             {
                 self.rt.stop_device(&dp_platform::DeviceId(owner.clone()));
-                self.device_errors.remove(&owner);
+                self.errors.devices.remove(&owner);
             }
         }
         for (id, path) in wanted {
@@ -279,11 +306,11 @@ impl Service {
                 load(&path).and_then(|p| self.rt.apply_device(&device, p, Some(path.clone())));
             match result {
                 Ok(()) => {
-                    self.device_errors.remove(&id);
+                    self.errors.devices.remove(&id);
                 }
                 Err(e) => {
                     tracing::warn!(device = %id, "cannot apply {}: {e:#}", path.display());
-                    self.device_errors.insert(id, format!("{e:#}"));
+                    self.errors.devices.insert(id, format!("{e:#}"));
                 }
             }
         }
@@ -378,13 +405,13 @@ impl Service {
         {
             let msg = format!("cannot save {}: {e}", path.display());
             tracing::warn!("{msg}");
-            self.unsaved = Some(msg);
+            self.errors.unsaved = Some(msg);
         }
     }
 
     fn apply_path(&mut self, path: &Path) -> Result<()> {
         let result = load(path).and_then(|p| self.rt.apply(p, Some(path.to_path_buf())));
-        self.last_error = result.as_ref().err().map(|e| format!("{e:#}"));
+        self.errors.last = result.as_ref().err().map(|e| format!("{e:#}"));
         result
     }
 
@@ -406,7 +433,7 @@ impl Service {
             }
             None => {
                 self.rt.stop_default();
-                self.last_error = None;
+                self.errors.last = None;
             }
         }
     }
@@ -485,14 +512,14 @@ impl Service {
             self.apply_suspend();
         }
         self.auto_switch_tick();
-        if self.driver_poll.elapsed(now) {
+        if self.drivers.poll.elapsed(now) {
             self.check_drivers(now);
         }
     }
 
     fn check_drivers(&mut self, now: u64) {
         let drivers = self.rt.drivers();
-        if !self.driver_poll.ever() || drivers != self.drivers {
+        if !self.drivers.poll.ever() || drivers != self.drivers.status {
             tracing::info!(
                 "drivers: virtual pads {}, device hiding {}",
                 drivers.virtual_pads,
@@ -502,13 +529,13 @@ impl Service {
         let problems = self.rt.hiding_problems();
         for p in problems
             .iter()
-            .filter(|p| !self.hiding_problems.contains(p))
+            .filter(|p| !self.drivers.hiding_problems.contains(p))
         {
             tracing::warn!("{p}");
         }
-        self.drivers = drivers;
-        self.hiding_problems = problems;
-        self.driver_poll.done(now);
+        self.drivers.status = drivers;
+        self.drivers.hiding_problems = problems;
+        self.drivers.poll.done(now);
     }
 
     /// Release everything and unhide devices.

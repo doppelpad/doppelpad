@@ -6,13 +6,13 @@ impl Service {
     /// Pause while the user's desktop does not take input (locked, Ctrl+Alt+Del, an
     /// elevation prompt): nothing stays pressed meanwhile.
     pub(super) fn watch_desktop(&mut self, now: u64) {
-        if !self.desktop_poll.due(now) {
+        if !self.pause.desktop_poll.due(now) {
             return;
         }
         let locked = !self.rt.platform_mut().system.desktop_active();
-        if locked != self.locked {
+        if locked != self.pause.locked {
             tracing::info!(locked, "the user's desktop changed");
-            self.locked = locked;
+            self.pause.locked = locked;
             self.apply_suspend();
         }
     }
@@ -43,13 +43,13 @@ impl Service {
     pub(super) fn watch_focus(&mut self) {
         let paused = self.state.runtime.pause_unfocused
             && self.state.remap_on
-            && self.fg_now.as_deref().is_some_and(|fg| {
+            && self.fg.now.as_deref().is_some_and(|fg| {
                 let games = self.game_processes();
                 !games.is_empty() && !games.iter().any(|g| g.eq_ignore_ascii_case(fg))
             });
-        if paused != self.focus_paused {
+        if paused != self.pause.focus_paused {
             tracing::info!(paused, "the config's game lost or got the focus");
-            self.focus_paused = paused;
+            self.pause.focus_paused = paused;
             self.apply_suspend();
         }
     }
@@ -58,26 +58,26 @@ impl Service {
     /// (after a grace period for the foreground check to catch up): a focus change the
     /// window missed must not leave the controller dead in the game.
     fn editing(&mut self) -> bool {
-        let stale = self.gui_suspended
-            && self.rt.now_ms() >= self.gui_since + self.opts.gui_focus_grace_ms
-            && self.fg_pid.is_some_and(|pid| pid != std::process::id());
-        if stale != self.gui_stale {
-            self.gui_stale = stale;
+        let stale = self.pause.gui_suspended
+            && self.rt.now_ms() >= self.pause.gui_since + self.opts.gui_focus_grace_ms
+            && self.fg.pid.is_some_and(|pid| pid != std::process::id());
+        if stale != self.pause.gui_stale {
+            self.pause.gui_stale = stale;
             if stale {
                 tracing::warn!(
-                    foreground = self.fg_now.as_deref().unwrap_or("?"),
+                    foreground = self.fg.now.as_deref().unwrap_or("?"),
                     "the Doppelpad window still reports focus while another program is in front; not pausing"
                 );
             }
         }
-        self.gui_suspended && !stale
+        self.pause.gui_suspended && !stale
     }
 
     pub(super) fn apply_suspend(&mut self) {
         let reasons = [
             (self.editing(), "editing"),
-            (self.locked, "desktop locked"),
-            (self.focus_paused, "game not in front"),
+            (self.pause.locked, "desktop locked"),
+            (self.pause.focus_paused, "game not in front"),
         ];
         let on = reasons.iter().any(|(r, _)| *r);
         if on != self.rt.is_suspended() {

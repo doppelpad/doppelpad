@@ -13,7 +13,7 @@ impl Service {
             profile_path: self.rt.profile_path().map(|p| p.display().to_string()),
             layer: self.rt.layer(),
             auto_switch: self.state.auto_switch,
-            foreground: self.fg_now.clone(),
+            foreground: self.fg.now.clone(),
             virtual_pad: self.rt.virtual_pad().map(|k| k.name().to_owned()),
             hidden_devices: self.rt.hidden_devices(),
             warnings: self.warnings(),
@@ -25,17 +25,19 @@ impl Service {
 
     fn warnings(&self) -> Vec<String> {
         let mut w = self.rt.warnings();
-        w.extend(self.hiding_problems.iter().cloned());
+        w.extend(self.drivers.hiding_problems.iter().cloned());
         w.extend(self.rt.device_problems());
-        w.extend(self.last_error.clone());
+        w.extend(self.errors.last.clone());
         w.extend(
-            self.fg_now
+            self.fg
+                .now
                 .as_deref()
                 .and_then(crate::anticheat::lookup)
                 .map(|a| a.warning()),
         );
         w.extend(
-            self.device_errors
+            self.errors
+                .devices
                 .iter()
                 .map(|(id, e)| format!("{id}: {e}")),
         );
@@ -95,8 +97,8 @@ impl Service {
             groups: self.state.groups.clone(),
             power_off_after_min: self.state.power_off_after_min,
             runtime: self.state.runtime,
-            locked: self.locked,
-            focus_paused: self.focus_paused,
+            locked: self.pause.locked,
+            focus_paused: self.pause.focus_paused,
             layouts: self
                 .state
                 .layouts
@@ -117,11 +119,11 @@ impl Service {
             auto_switch: self.state.auto_switch,
             auto_active: self.auto_active.is_some(),
             suspended: self.rt.is_suspended(),
-            foreground: self.fg_now.clone(),
+            foreground: self.fg.now.clone(),
             virtual_pad: self.rt.virtual_pad().map(|k| k.name().to_owned()),
             hidden_devices: self.rt.hidden_devices(),
             warnings: self.warnings(),
-            drivers: self.drivers.clone(),
+            drivers: self.drivers.status.clone(),
             device_slots: self
                 .state
                 .devices
