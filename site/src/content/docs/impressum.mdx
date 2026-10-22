@@ -1,0 +1,34 @@
+---
+title: Legal notice
+description: Legal notice (Impressum) of the Doppelpad website.
+editUrl: false
+pagefind: false
+tableOfContents: false
+---
+
+import Operator from '../../components/Operator.astro';
+
+<Operator lang="en" notice />
+
+German law requires this notice (Impressum). The [German version](../de/impressum/) is the
+binding one.
+
+## Provider (§ 5 DDG)
+
+<Operator lang="en" fields={['name', 'street', 'city', 'country']} />
+
+## Contact
+
+<Operator lang="en" fields={['email', 'phone']} labels={{ email: 'Email:', phone: 'Phone:' }} />
+
+## Responsible for the content (§ 18 (2) MStV)
+
+<Operator lang="en" fields={['name']} />
+Address as above.
+
+## About this project
+
+Doppelpad is a private, non-commercial open-source project. Its source code and downloads are on
+[GitHub](https://github.com/doppelpad/doppelpad). Doppelpad is an independent project and is not
+affiliated with any maker of controllers or other remapping software. All trademarks belong to
+their respective owners.

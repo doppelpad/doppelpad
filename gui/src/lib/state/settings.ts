@@ -11,6 +11,7 @@ export const SETTINGS_PLACEHOLDER: GuiSettings = {
   stay_live: false,
   hook_buttons: true,
   rewasd_at_start: 'ask',
+  check_updates: true,
   osd: {
     enabled: true,
     remap: true,

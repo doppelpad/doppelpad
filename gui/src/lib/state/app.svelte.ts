@@ -8,6 +8,7 @@ import { controlsFromPad, drawingsFor, sideShowing } from '../model/devices';
 import { setStickGroup, stickGroupConflicts, stickGroupOf, type StickGroup } from '../model/stickgroups';
 import { comboKey, editMappingIn, layerIds, mappingAt, type LayerCopy } from '../model/profile';
 import { layerLabel } from '../model/labels';
+import { launchRows } from '../model/launches';
 import { clone } from '../model/util';
 import { isStreamingField, pointer } from '../dom';
 import { movedPath } from '../paths';
@@ -27,6 +28,7 @@ import type {
   Game,
   GuiSettings,
   Hotkeys,
+  Launch,
   Library,
   LiveDevice,
   LiveState,
@@ -34,6 +36,7 @@ import type {
   PadFamily,
   Profile,
   RewasdStatus,
+  UpdateInfo,
 } from '../types';
 
 export type View = 'front' | 'back' | 'keyboard' | 'mouse' | 'shortcuts' | 'macro' | 'output' | 'analog';
@@ -53,13 +56,36 @@ interface PromptRequest {
   resolve: (v: string | null) => void;
 }
 
-interface QuestionRequest {
-  message: string;
-  /** A question that can be silenced ("Don't ask again"). */
+/**
+ * What a question (ConfirmDialog) can show and offer besides its message; without options it
+ * asks with a warning sign, OK and Cancel.
+ */
+export interface QuestionOptions {
+  title?: string;
+  /** Longer text below the message, kept as written (line breaks too), e.g. release notes. */
+  details?: string | null;
+  /** Rows under the message: a line of code (a command line, say) and notes under it. */
+  items?: { code: string; notes: string[] }[];
+  /** The label of the OK button. */
+  ok?: string;
+  /** The label of the Cancel button. */
+  cancel?: string;
+  /** A second answer, between Cancel and OK. */
+  alt?: string;
+  /** The sign before the title. */
+  kind?: 'warning' | 'update';
+  /** A question that can be silenced ("Don't ask again"); a silenced one answers OK at once. */
   id?: QuestionId;
+}
+
+/** The button a question was answered with; `null` for Cancel (and Escape). */
+export type Answer = 'ok' | 'alt' | null;
+
+interface QuestionRequest extends QuestionOptions {
+  message: string;
   /** Something to read, not to answer: only OK, and "Don't show again" with an id. */
   info?: boolean;
-  resolve: (ok: boolean) => void;
+  resolve: (answer: Answer) => void;
 }
 
 /**
@@ -89,6 +115,10 @@ class AppState {
   /** The start-up question whether to quit reWASD is open. */
   rewasdAsk = $state(false);
   rewasdQuitting = $state(false);
+  /** The update check runs. */
+  updateChecking = $state(false);
+  /** While an update downloads: its progress in percent. */
+  updateProgress = $state<number | null>(null);
 
   gameDir = $state<string | null>(null);
   configPath = $state<string | null>(null);
@@ -200,6 +230,8 @@ class AppState {
       const game = this.library.games.find((g) => g.configs.some((c) => c.path === applied)) ?? this.library.games[0];
       if (game) await this.selectGame(game.dir);
       if (opened.length) await this.openFiles(opened);
+      // The question waits in the window, also when the app started hidden with Windows.
+      if (this.settings.check_updates) this.checkForUpdate();
     } catch (e) {
       this.toast(errorText(e), 'error');
     }
@@ -359,10 +391,13 @@ class AppState {
     }
   }
 
-  /** Unpack a game bundle into a new game and open it. */
+  /** Unpack a game bundle into a new game and open it, asking first about programs it starts. */
   importGame(file: string): Promise<boolean> {
     return this.attempt(
-      api.gameImport(file).then(async (g) => {
+      api.gameLaunches(file).then(async (found) => {
+        const keep = await this.keepLaunches(found);
+        if (keep === null) return;
+        const g = await api.gameImport(file, keep);
         await this.openCreatedGame(g);
         this.toast(t('profiles.imported', { name: g.meta.name }), 'ok');
       }),
@@ -396,13 +431,18 @@ class AppState {
 
   /**
    * Ask an OK/Cancel question in the app's own dialog (ConfirmDialog); `true` for OK. Not
-   * `window.confirm`: in the webview it returns a promise without asking.
+   * `window.confirm`: in the webview it returns a promise without asking. With `options.id` it
+   * offers "Don't ask again", and a silenced id answers OK at once.
    */
-  /** Ask OK/Cancel in the app's own dialog. With an `id` it offers "Don't ask again", and a silenced id answers OK at once. */
-  confirmAsk(message: string, id?: QuestionId): Promise<boolean> {
-    if (id && this.settings.silenced.includes(id)) return Promise.resolve(true);
-    this.question?.resolve(false);
-    return new Promise((resolve) => (this.question = { message, id, resolve }));
+  async confirmAsk(message: string, options: QuestionOptions = {}): Promise<boolean> {
+    return (await this.choose(message, options)) === 'ok';
+  }
+
+  /** `confirmAsk` that tells which answer, for a question with a second one (`options.alt`). */
+  choose(message: string, options: QuestionOptions = {}): Promise<Answer> {
+    if (options.id && this.settings.silenced.includes(options.id)) return Promise.resolve('ok');
+    this.question?.resolve(null);
+    return new Promise((resolve) => (this.question = { ...options, message, resolve }));
   }
 
   /** Tell something in the app's dialog; with an `id` it offers "Don't show again", and a silenced id shows nothing. */
@@ -419,6 +459,67 @@ class AppState {
     return this.setSettings((s) => ({
       silenced: on ? [...s.silenced.filter((x) => x !== id), id] : s.silenced.filter((x) => x !== id),
     }));
+  }
+
+  /**
+   * Ask the update endpoints (GitHub) for a newer version and offer to install it. `manual`
+   * (*Check now*) also says when there is none or the check failed; the check at start-up
+   * leaves that to the log.
+   */
+  async checkForUpdate(manual = false) {
+    if (this.updateChecking || this.updateProgress !== null) return;
+    this.updateChecking = true;
+    let update: UpdateInfo | null;
+    try {
+      update = await api.updateCheck();
+    } catch (e) {
+      if (manual) this.toast(t('updates.check_failed', { error: errorText(e) }), 'error');
+      return;
+    } finally {
+      this.updateChecking = false;
+    }
+    if (!update) {
+      if (manual) this.toast(t('updates.up_to_date'), 'ok');
+      return;
+    }
+    const install = await this.confirmAsk(t('updates.available', { version: update.version, current: update.current }), {
+      title: t('updates.title'),
+      details: update.notes,
+      ok: t('updates.install'),
+      cancel: t('updates.later'),
+      kind: 'update',
+    });
+    if (install) await this.installUpdate();
+  }
+
+  /** Download and install the update the last check found; the app starts again when it worked. */
+  private async installUpdate() {
+    if (!(await this.confirmDiscard())) return;
+    this.updateProgress = 0;
+    this.toast(t('updates.downloading'));
+    try {
+      await api.updateInstall((percent) => (this.updateProgress = percent));
+    } catch (e) {
+      this.toast(t('updates.install_failed', { error: errorText(e) }), 'error');
+    } finally {
+      this.updateProgress = null;
+    }
+  }
+
+  /**
+   * Whether an import keeps the launch commands it brings (`found`), which start programs:
+   * asked in the app's dialog, where leaving them out is the default; `null` when the import
+   * is cancelled. Without any there is no question, and `false`.
+   */
+  async keepLaunches(found: Launch[]): Promise<boolean | null> {
+    if (found.length === 0) return false;
+    const answer = await this.choose(t('launches.message'), {
+      title: t('launches.title'),
+      items: launchRows(found, this.family).map((r) => ({ code: r.command, notes: r.places })),
+      ok: t('launches.drop'),
+      alt: t('launches.keep'),
+    });
+    return answer === null ? null : answer === 'alt';
   }
 
   /** Ask before discarding unsaved changes. */
@@ -639,7 +740,7 @@ class AppState {
     if (!p || !def || this.readOnly) return;
     if (group && stickGroupOf(p, this.layer, s) === group) return this.selectStick(s);
     const n = stickGroupConflicts(p, this.layer, s);
-    if (n > 0 && !(await this.confirmAsk(t('binding.whole_stick_replace', { n }), 'whole_stick_replace'))) return;
+    if (n > 0 && !(await this.confirmAsk(t('binding.whole_stick_replace', { n }), { id: 'whole_stick_replace' }))) return;
     // The config may have changed while the question was open.
     if (this.profile !== p) return;
     this.update(setStickGroup(p, this.layer, s, group, def));

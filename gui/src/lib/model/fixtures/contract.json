@@ -237,6 +237,7 @@
     "stay_live": false,
     "hook_buttons": true,
     "rewasd_at_start": "ask",
+    "check_updates": true,
     "osd": {
       "enabled": true,
       "remap": true,
@@ -313,5 +314,32 @@
     "opacity": 90,
     "scale": 100,
     "corner": "top_right"
-  }
+  },
+  "launches": [
+    {
+      "file": "racing.toml",
+      "config": "Racing",
+      "place": {
+        "kind": "mapping",
+        "layer": 1,
+        "layer_name": "Shift",
+        "trigger": "A"
+      },
+      "path": "notepad.exe",
+      "args": "notes.txt"
+    },
+    {
+      "file": null,
+      "config": "Racing",
+      "place": {
+        "kind": "radial",
+        "menu": 1,
+        "name": "Tools",
+        "sector": 2,
+        "label": "Notes"
+      },
+      "path": "notepad.exe",
+      "args": ""
+    }
+  ]
 }

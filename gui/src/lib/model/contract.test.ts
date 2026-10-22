@@ -14,6 +14,8 @@ import type {
   GyroCalibration,
   Hotkeys,
   HttpSettings,
+  Launch,
+  LaunchPlace,
   LiveDevice,
   LiveDsu,
   LiveHttp,
@@ -127,6 +129,7 @@ const guiSettings = {
   stay_live: true,
   hook_buttons: true,
   rewasd_at_start: true,
+  check_updates: true,
   osd: true,
   pad_overlay: true,
   mappings_overlay: true,
@@ -178,6 +181,11 @@ const osdMessage = {
   scale: true,
   corner: true,
 } satisfies Keys<Extract<OsdMessage, { kind: 'battery_low' }>>;
+const launch = { file: true, config: true, place: true, path: true, args: true } satisfies Keys<Launch>;
+const mappingPlace = { kind: true, layer: true, layer_name: true, trigger: true } satisfies Keys<Extract<LaunchPlace, { kind: 'mapping' }>>;
+const radialPlace = { kind: true, menu: true, name: true, sector: true, label: true } satisfies Keys<
+  Extract<LaunchPlace, { kind: 'radial' }>
+>;
 
 const l = contract.live;
 const d = l.devices[0];
@@ -209,6 +217,9 @@ const cases: [string, object, object][] = [
   ['MappingsOverlaySettings', mappingsOverlay, contract.gui_settings.mappings_overlay],
   ['Hotkeys', hotkeys, contract.hotkeys],
   ['OsdMessage', osdMessage, contract.osd_message],
+  ['Launch', launch, contract.launches[0]!],
+  ['LaunchPlace mapping', mappingPlace, contract.launches[0]!.place],
+  ['LaunchPlace radial', radialPlace, contract.launches[1]!.place],
 ];
 
 const sorted = (o: object) => Object.keys(o).sort();

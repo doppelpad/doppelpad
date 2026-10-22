@@ -88,6 +88,14 @@
     "game_options": "Game options",
     "open_confirm": "Import the game “{name}”? It is added as a new game; nothing existing is overwritten."
   },
+  "launches": {
+    "title": "This import starts programs",
+    "message": "Buttons in it would start these programs on your computer, with these arguments. A config from someone else can do harm this way: keep them only if you trust where it came from.",
+    "drop": "Import without these",
+    "keep": "Import with them",
+    "radial": "{name} (radial menu)",
+    "sector": "Sector {n}"
+  },
   "window": {
     "minimize": "Minimize",
     "maximize": "Maximize",
@@ -1195,6 +1203,23 @@
     "quit_done": "reWASD was quit — Doppelpad can use your controllers now.",
     "declined": "reWASD keeps running: the administrator prompt was declined.",
     "quit_failed": "Could not quit reWASD completely: {error}"
+  },
+  "updates": {
+    "section": "Updates",
+    "hint": "Doppelpad asks GitHub for the newest version. GitHub sees your IP address, as with any download. An update is installed only when you agree.",
+    "auto": "Check for updates automatically",
+    "version": "Version {version}",
+    "check_now": "Check now",
+    "checking": "Checking…",
+    "downloading_percent": "Downloading… {percent} %",
+    "up_to_date": "Doppelpad is up to date.",
+    "check_failed": "Could not check for updates: {error}",
+    "title": "Update available",
+    "available": "Doppelpad {version} is out (you have {current}). Installing closes Doppelpad and pauses remapping for a moment. Windows asks for administrator permission, then Doppelpad starts again.",
+    "install": "Install and restart",
+    "later": "Later",
+    "downloading": "Downloading the update…",
+    "install_failed": "The update was not installed: {error}"
   },
   "notices": {
     "service-takeover": "A running Doppelpad background service was stopped — this app now handles remapping.",

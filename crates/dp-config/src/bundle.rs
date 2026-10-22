@@ -2,13 +2,16 @@
 //!
 //! A game bundle (`.dpgame`) is JSON: the game's metadata, every config file as text, and its
 //! picture (base64) if it has one. Importing never overwrites: the game gets a folder of its
-//! own. Layer presets are TOML files in the `presets` folder of the profiles directory.
+//! own. It leaves out launch commands unless asked to keep them (see [`crate::launches`]). Layer
+//! presets are TOML files in the `presets` folder of the profiles directory.
 
 use std::path::{Path, PathBuf};
 
-use dp_core::profile::{AnalogMapping, Layer, Mapping};
+use dp_core::profile::{AnalogMapping, Layer, Mapping, Profile};
 use serde::{Deserialize, Serialize};
 
+use crate::Format;
+use crate::launches::{self, Launch};
 use crate::library::{self, Game, GameMeta, LibraryError, Result, io};
 
 /// Format version of game bundles.
@@ -125,13 +128,48 @@ pub fn export_game(dir: &Path, out: &Path) -> Result<()> {
     crate::store::write_atomic(out, text).map_err(io(out))
 }
 
-/// Unpack a bundle into a new game folder under `root`.
-pub fn import_game(root: &Path, bundle: &Path) -> Result<Game> {
+fn read_bundle(bundle: &Path) -> Result<Bundle> {
     let text = std::fs::read_to_string(bundle).map_err(io(bundle))?;
     let b: Bundle = serde_json::from_str(&text)
         .map_err(|e| invalid(bundle, format!("not a Doppelpad game: {e}")))?;
     if b.doppelpad_game > BUNDLE_VERSION {
         return Err(invalid(bundle, "made by a newer Doppelpad"));
+    }
+    Ok(b)
+}
+
+impl BundledFile {
+    /// The config as the library will read it once unpacked; `None` for one it cannot read
+    /// (which then runs nothing either).
+    fn profile(&self) -> Option<(Profile, Format)> {
+        let (profile, _, format) =
+            crate::parse_with_format(Path::new(&self.file), &self.data).ok()?;
+        Some((profile, format))
+    }
+}
+
+/// Every launch command in a bundle's configs, to ask about before [`import_game`].
+pub fn launches(bundle: &Path) -> Result<Vec<Launch>> {
+    let b = read_bundle(bundle)?;
+    let mut out = Vec::new();
+    for c in b.configs.iter().filter(|c| safe_name(&c.file).is_some()) {
+        let Some((profile, _)) = c.profile() else {
+            continue;
+        };
+        out.extend(launches::find(&profile).into_iter().map(|l| Launch {
+            file: Some(c.file.clone()),
+            ..l
+        }));
+    }
+    Ok(out)
+}
+
+/// Unpack a bundle into a new game folder under `root`, without its launch commands unless
+/// `keep_launches`.
+pub fn import_game(root: &Path, bundle: &Path, keep_launches: bool) -> Result<Game> {
+    let mut b = read_bundle(bundle)?;
+    if !keep_launches {
+        drop_launches(&mut b)?;
     }
     let created = library::create_game_empty(root, &b.meta.name)?;
     let filled = fill_game(&created, b);
@@ -171,6 +209,43 @@ fn fill_game(created: &Path, b: Bundle) -> Result<Game> {
     }
     library::update_game_meta(created, &meta)?;
     library::read_game(created)
+}
+
+/// Take the launch commands out of a bundle's configs. A config that has some is written
+/// again as Doppelpad TOML, a JSON one under a `.toml` name (which the default config
+/// follows); the others stay exactly as they came.
+fn drop_launches(b: &mut Bundle) -> Result<()> {
+    for i in 0..b.configs.len() {
+        let file = b.configs[i].file.clone();
+        if safe_name(&file).is_none() {
+            continue;
+        }
+        let Some((mut profile, format)) = b.configs[i].profile() else {
+            continue;
+        };
+        if launches::strip(&mut profile) == 0 {
+            continue;
+        }
+        let text = crate::to_toml(&profile)
+            .map_err(|e| LibraryError::Serialize(PathBuf::from(&file), e))?;
+        if format == Format::Json {
+            let stem = Path::new(&file)
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or("config");
+            let taken = |name: &str| b.configs.iter().any(|c| c.file.eq_ignore_ascii_case(name));
+            let renamed = std::iter::once(format!("{stem}.toml"))
+                .chain((2..).map(|n| format!("{stem}-{n}.toml")))
+                .find(|f| safe_name(f).is_some() && !taken(f))
+                .expect("unbounded");
+            if b.meta.default_config.as_deref() == Some(file.as_str()) {
+                b.meta.default_config = Some(renamed.clone());
+            }
+            b.configs[i].file = renamed;
+        }
+        b.configs[i].data = text;
+    }
+    Ok(())
 }
 
 /// One layer to reuse in other configs: its settings, mappings and routes.
@@ -274,8 +349,8 @@ mod tests {
         export_game(&game.dir, &file).unwrap();
 
         let dst = tempfile::tempdir().unwrap();
-        let a = import_game(dst.path(), &file).unwrap();
-        let b = import_game(dst.path(), &file).unwrap();
+        let a = import_game(dst.path(), &file, false).unwrap();
+        let b = import_game(dst.path(), &file, false).unwrap();
         assert_ne!(a.dir, b.dir, "a second import gets its own folder");
         assert_eq!(a.meta.name, "Space Game");
         assert_eq!(a.meta.processes, ["space.exe"]);
@@ -379,8 +454,122 @@ mod tests {
         let file = root.path().join("broken.dpgame");
         std::fs::write(&file, serde_json::to_string(&bundle).unwrap()).unwrap();
         let games = root.path().join("profiles");
-        assert!(import_game(&games, &file).is_err());
+        assert!(import_game(&games, &file, false).is_err());
         let left: Vec<_> = std::fs::read_dir(&games).unwrap().flatten().collect();
         assert!(left.is_empty(), "{left:?}");
+    }
+
+    const LAUNCHING_TOML: &str = r#"# shared by a stranger
+name = "Shared"
+
+[[mappings]]
+trigger = "A"
+actions = [{ command = { launch = { path = "powershell", args = "-enc ZQBjAGgAbwA=" } } }]
+
+[[mappings]]
+trigger = "B"
+actions = [{ key = "W" }]
+"#;
+
+    const LAUNCHING_JSON: &str = r#"{ "schemaVersion": 3.0, "config": { "appName": "Json" },
+      "devices": { "hardware": [ { "id": 1, "name": "gamepad" } ] },
+      "commands": [ { "id": 7, "type": 1000, "params": { "path": "calc.exe" } } ],
+      "masks": [ { "id": 1, "set": [ { "deviceId": 1, "buttonId": 1 } ] } ],
+      "mappings": [ { "condition": { "mask": { "id": 1, "activator": { "type": "single", "mode": "hold_until_release" } } },
+                      "macros": [ { "command": { "id": 7 } } ] } ] }"#;
+
+    const PLAIN_TOML: &str = "# my notes\nname = \"Plain\"\n";
+
+    /// A bundle with a TOML and a JSON config that launch programs, and one that does not.
+    fn launching_bundle(dir: &Path) -> PathBuf {
+        let config = |file: &str, data: &str| BundledFile {
+            file: file.into(),
+            data: data.into(),
+        };
+        let bundle = Bundle {
+            doppelpad_game: BUNDLE_VERSION,
+            meta: library::GameMeta {
+                name: "Shared".into(),
+                default_config: Some("shared.json".into()),
+                ..Default::default()
+            },
+            configs: vec![
+                config("shared.toml", LAUNCHING_TOML),
+                config("shared.json", LAUNCHING_JSON),
+                config("plain.toml", PLAIN_TOML),
+            ],
+            image: None,
+        };
+        let file = dir.join("shared.dpgame");
+        std::fs::write(&file, serde_json::to_string(&bundle).unwrap()).unwrap();
+        file
+    }
+
+    /// Every launch command in an unpacked game.
+    fn game_launches(g: &Game) -> Vec<Launch> {
+        g.configs
+            .iter()
+            .flat_map(|c| launches::find(&crate::load(&c.path).unwrap().0))
+            .collect()
+    }
+
+    #[test]
+    fn bundles_list_their_launches() {
+        let dir = tempfile::tempdir().unwrap();
+        let found = launches(&launching_bundle(dir.path())).unwrap();
+        let summary: Vec<(Option<&str>, &str, &str, &str)> = found
+            .iter()
+            .map(|l| {
+                let file = l.file.as_deref();
+                (file, l.config.as_str(), l.path.as_str(), l.args.as_str())
+            })
+            .collect();
+        assert_eq!(
+            summary,
+            [
+                (
+                    Some("shared.toml"),
+                    "Shared",
+                    "powershell",
+                    "-enc ZQBjAGgAbwA="
+                ),
+                (Some("shared.json"), "Json", "calc.exe", ""),
+            ]
+        );
+    }
+
+    #[test]
+    fn imports_drop_launches_unless_kept() {
+        let src = tempfile::tempdir().unwrap();
+        let file = launching_bundle(src.path());
+        let dst = tempfile::tempdir().unwrap();
+
+        let kept = import_game(dst.path(), &file, true).unwrap();
+        assert_eq!(game_launches(&kept).len(), 2);
+        let read = |g: &Game, f: &str| std::fs::read_to_string(g.dir.join(f)).unwrap();
+        assert_eq!(
+            read(&kept, "shared.toml"),
+            LAUNCHING_TOML,
+            "kept as it came"
+        );
+
+        let g = import_game(dst.path(), &file, false).unwrap();
+        assert!(game_launches(&g).is_empty());
+        assert!(g.configs.iter().all(|c| c.error.is_none()));
+        let files: Vec<String> = g
+            .configs
+            .iter()
+            .map(|c| c.path.file_name().unwrap().to_string_lossy().into_owned())
+            .collect();
+        assert_eq!(files, ["plain.toml", "shared-2.toml", "shared.toml"]);
+        assert_eq!(
+            g.meta.default_config.as_deref(),
+            Some("shared-2.toml"),
+            "follows the JSON config's new name"
+        );
+        assert_eq!(read(&g, "plain.toml"), PLAIN_TOML, "untouched");
+        let shared = crate::load(&g.dir.join("shared.toml")).unwrap().0;
+        assert_eq!(shared.name, "Shared");
+        assert_eq!(shared.mappings.len(), 1, "B stays, A only launched");
     }
 }

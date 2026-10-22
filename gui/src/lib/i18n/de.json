@@ -88,6 +88,14 @@
     "game_options": "Spiel-Optionen",
     "open_confirm": "Das Spiel „{name}“ importieren? Es kommt als neues Spiel hinzu; nichts Vorhandenes wird überschrieben."
   },
+  "launches": {
+    "title": "Dieser Import startet Programme",
+    "message": "Tasten darin würden diese Programme auf deinem Computer starten, mit diesen Argumenten. Eine Config von jemand anderem kann so Schaden anrichten: Behalte sie nur, wenn du der Quelle vertraust.",
+    "drop": "Ohne diese importieren",
+    "keep": "Mit ihnen importieren",
+    "radial": "{name} (Radialmenü)",
+    "sector": "Sektor {n}"
+  },
   "window": {
     "minimize": "Minimieren",
     "maximize": "Maximieren",
@@ -1174,6 +1182,23 @@
     "quit_done": "reWASD wurde beendet – Doppelpad kann deine Controller jetzt nutzen.",
     "declined": "reWASD läuft weiter: Die Administrator-Abfrage wurde abgelehnt.",
     "quit_failed": "reWASD konnte nicht vollständig beendet werden: {error}"
+  },
+  "updates": {
+    "section": "Updates",
+    "hint": "Doppelpad fragt bei GitHub nach der neuesten Version. GitHub sieht dabei deine IP-Adresse, wie bei jedem Download. Installiert wird ein Update nur, wenn du zustimmst.",
+    "auto": "Automatisch nach Updates suchen",
+    "version": "Version {version}",
+    "check_now": "Jetzt prüfen",
+    "checking": "Wird geprüft …",
+    "downloading_percent": "Wird geladen … {percent} %",
+    "up_to_date": "Doppelpad ist auf dem neuesten Stand.",
+    "check_failed": "Die Suche nach Updates ist fehlgeschlagen: {error}",
+    "title": "Update verfügbar",
+    "available": "Doppelpad {version} ist erschienen (installiert ist {current}). Beim Installieren schließt sich Doppelpad und das Remapping pausiert kurz. Windows fragt nach Administratorrechten, danach startet Doppelpad wieder.",
+    "install": "Installieren und neu starten",
+    "later": "Später",
+    "downloading": "Das Update wird heruntergeladen …",
+    "install_failed": "Das Update wurde nicht installiert: {error}"
   },
   "hotkeys": {
     "title": "Controller-Hotkeys",

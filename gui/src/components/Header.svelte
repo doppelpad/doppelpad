@@ -25,14 +25,18 @@
   }
 
   async function importJson() {
-    if (!app.gameDir) {
+    const dir = app.gameDir;
+    if (!dir) {
       app.toast(t('header.no_selection'), 'error');
       return;
     }
     const source = await open({ title: t('header.import_title'), multiple: false, directory: false });
     if (typeof source !== 'string') return;
     await app.attempt(
-      api.configImport(app.gameDir, source).then(async (r) => {
+      api.configImportLaunches(source).then(async (found) => {
+        const keep = await app.keepLaunches(found);
+        if (keep === null) return;
+        const r = await api.configImport(dir, source, keep);
         await app.openCreated(r.path);
         app.toast(t('notices.imported', { name: app.profile?.name ?? '' }), 'ok');
         for (const d of r.diagnostics.filter((d) => d.severity !== 'info').slice(0, 3)) app.toast(d.message, 'info');
@@ -63,7 +67,7 @@
   }
 
   async function clearMappings() {
-    if (!app.profile || !(await app.confirmAsk(t('header.clear_confirm'), 'clear_mappings'))) return;
+    if (!app.profile || !(await app.confirmAsk(t('header.clear_confirm'), { id: 'clear_mappings' }))) return;
     app.edit((p) => ({ ...p, mappings: [] }));
   }
 

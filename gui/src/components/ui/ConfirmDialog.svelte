@@ -1,39 +1,63 @@
 <script lang="ts">
-  // The app's OK/Cancel question (`app.confirmAsk`), or a hint with OK only (`app.inform`); the
-  // system's message box is never used. Those with an id offer "Don't ask (show) again", which
-  // takes effect with OK.
-  import { Info, TriangleAlert } from '@lucide/svelte';
+  // The app's questions (`app.confirmAsk`, `app.choose`) and hints with OK only (`app.inform`);
+  // the system's message box is never used. Those with an id offer "Don't ask (show) again",
+  // which takes effect with OK.
+  import { CircleArrowDown, Info, TriangleAlert } from '@lucide/svelte';
   import { t } from '../../lib/i18n/index.svelte';
-  import { app } from '../../lib/state/app.svelte';
+  import { app, type Answer } from '../../lib/state/app.svelte';
   import Dialog from './Dialog.svelte';
 
   let silence = $state(false);
 
-  function finish(ok: boolean) {
+  function finish(answer: Answer) {
     const q = app.question;
     app.question = null;
-    if (ok && silence && q?.id) app.silence(q.id);
+    if (answer === 'ok' && silence && q?.id) app.silence(q.id);
     silence = false;
-    q?.resolve(ok);
+    q?.resolve(answer);
   }
 </script>
 
 {#if app.question}
-  {@const info = app.question.info}
-  <Dialog title={t(info ? 'common.hint' : 'common.confirm')} onclose={() => finish(!!info)} width={420} gap={14} showClose={false}>
+  {@const q = app.question}
+  <Dialog
+    title={q.title ?? t(q.info ? 'common.hint' : 'common.confirm')}
+    onclose={() => finish(q.info ? 'ok' : null)}
+    width={q.items ? 540 : q.details ? 520 : 420}
+    gap={14}
+    showClose={false}
+  >
     {#snippet icon()}
-      {#if info}<span class="info"><Info size={17} /></span>{:else}<span class="warn"><TriangleAlert size={17} /></span>{/if}
+      {#if q.kind === 'update'}
+        <span class="accent"><CircleArrowDown size={17} /></span>
+      {:else if q.info}
+        <span class="accent"><Info size={17} /></span>
+      {:else}
+        <span class="warn"><TriangleAlert size={17} /></span>
+      {/if}
     {/snippet}
-    <p>{app.question.message}</p>
-    {#if app.question.id}
+    <p>{q.message}</p>
+    {#if q.details}<div class="details">{q.details}</div>{/if}
+    {#if q.items?.length}
+      <ul class="items">
+        {#each q.items as item, i (i)}
+          <li>
+            <code>{item.code}</code>
+            {#each item.notes as note, j (j)}<span class="note">{note}</span>{/each}
+          </li>
+        {/each}
+      </ul>
+    {/if}
+    {#if q.id}
       <label class="silence"
-        ><input type="checkbox" bind:checked={silence} /> {t(info ? 'questions.dont_show' : 'questions.dont_ask')}</label
+        ><input type="checkbox" bind:checked={silence} /> {t(q.info ? 'questions.dont_show' : 'questions.dont_ask')}</label
       >
     {/if}
     {#snippet footer()}
-      {#if !info}<button class="btn" onclick={() => finish(false)}>{t('common.cancel')}</button>{/if}
+      {#if !q.info}<button class="btn" onclick={() => finish(null)}>{q.cancel ?? t('common.cancel')}</button>{/if}
+      {#if q.alt}<button class="btn" onclick={() => finish('alt')}>{q.alt}</button>{/if}
       <!-- svelte-ignore a11y_autofocus -->
-      <button class="btn primary" onclick={() => finish(true)} autofocus>{t('common.ok')}</button>
+      <button class="btn primary" onclick={() => finish('ok')} autofocus>{q.ok ?? t('common.ok')}</button>
     {/snippet}
   </Dialog>
 {/if}
@@ -43,12 +67,53 @@
     display: inline-flex;
     color: var(--warning);
   }
-  .info {
+  .accent {
     display: inline-flex;
     color: var(--accent);
   }
   p {
     margin: 0;
+    color: var(--text-dim);
+  }
+  /* Release notes and the like: as written, scrolling when long. */
+  .details {
+    max-height: 260px;
+    overflow-y: auto;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-m);
+    background: var(--bg-2);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    user-select: text;
+  }
+  .items {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 260px;
+    overflow-y: auto;
+  }
+  li {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 8px 10px;
+    background: var(--bg-2);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-s);
+  }
+  code {
+    font-family: var(--mono);
+    font-size: var(--fs-s);
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+  .note {
+    font-size: var(--fs-xs);
     color: var(--text-dim);
   }
   .silence {

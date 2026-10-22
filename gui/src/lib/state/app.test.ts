@@ -122,17 +122,17 @@ describe('questions', () => {
   it('a silenced question answers OK without asking; others still ask', async () => {
     await app.silence('clear_mappings');
     expect(app.settings.silenced).toContain('clear_mappings');
-    await expect(app.confirmAsk('Clear?', 'clear_mappings')).resolves.toBe(true);
+    await expect(app.confirmAsk('Clear?', { id: 'clear_mappings' })).resolves.toBe(true);
     expect(app.question).toBeNull();
-    const pending = app.confirmAsk('Replace?', 'whole_stick_replace');
+    const pending = app.confirmAsk('Replace?', { id: 'whole_stick_replace' });
     expect(app.question?.id).toBe('whole_stick_replace');
-    app.question?.resolve(false);
+    app.question?.resolve(null);
     await expect(pending).resolves.toBe(false);
     await app.silence('clear_mappings', false);
     expect(app.settings.silenced).not.toContain('clear_mappings');
-    app.confirmAsk('Clear?', 'clear_mappings');
+    app.confirmAsk('Clear?', { id: 'clear_mappings' });
     expect(app.question?.message).toBe('Clear?');
-    app.question?.resolve(false);
+    app.question?.resolve(null);
     app.question = null;
   });
 

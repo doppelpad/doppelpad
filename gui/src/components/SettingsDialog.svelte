@@ -20,6 +20,7 @@
 
 <script lang="ts">
   // The app's settings: a list of pages on the left, the chosen page on the right.
+  import { getVersion } from '@tauri-apps/api/app';
   import { api } from '../lib/api';
   import { LANGUAGES, has, t } from '../lib/i18n/index.svelte';
   import { app } from '../lib/state/app.svelte';
@@ -54,6 +55,8 @@
 
   let logFile = $state('');
   api.logFile().then((f) => (logFile = f));
+  let version = $state('');
+  getVersion().then((v) => (version = v));
   /** Read from Windows each time the dialog opens: Task Manager can change it too. */
   let autostart = $state<boolean | null>(null);
   api.autostartGet().then((on) => (autostart = on));
@@ -152,6 +155,25 @@
               </div>
             {/if}
           {/if}
+          <SettingsSection title={t('updates.section')} hint={t('updates.hint')}>
+            <Toggle
+              checked={app.settings.check_updates}
+              label={t('updates.auto')}
+              onchange={(v) => app.setSettings({ check_updates: v })}
+            />
+            <div class="running">
+              <span>{t('updates.version', { version })}</span>
+              <button class="btn" disabled={app.updateChecking || app.updateProgress !== null} onclick={() => app.checkForUpdate(true)}>
+                {#if app.updateProgress !== null}
+                  {t('updates.downloading_percent', { percent: app.updateProgress })}
+                {:else if app.updateChecking}
+                  {t('updates.checking')}
+                {:else}
+                  {t('updates.check_now')}
+                {/if}
+              </button>
+            </div>
+          </SettingsSection>
           <SettingsSection title={t('questions.title')}>
             {#each app.settings.silenced as q (q)}
               <div class="running">

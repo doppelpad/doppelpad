@@ -14,6 +14,7 @@ import type {
   Hotkeys,
   HttpSettings,
   Imported,
+  Launch,
   LayerPreset,
   Library,
   LibraryMoved,
@@ -28,6 +29,7 @@ import type {
   RewasdStatus,
   RuntimeOptions,
   Template,
+  UpdateInfo,
 } from './types';
 
 export const api = {
@@ -59,7 +61,8 @@ export const api = {
     invoke<string>('config_from_template', { gameDir, name, template }),
   openDriverPage: (driver: Driver) => invoke<void>('open_driver_page', { driver }),
   gameExport: (dir: string, out: string) => invoke<void>('game_export', { dir, out }),
-  gameImport: (file: string) => invoke<Game>('game_import', { file }),
+  gameLaunches: (file: string) => invoke<Launch[]>('game_launches', { file }),
+  gameImport: (file: string, keepLaunches: boolean) => invoke<Game>('game_import', { file, keepLaunches }),
   presetList: () => invoke<PresetEntry[]>('preset_list'),
   presetSave: (preset: LayerPreset) => invoke<string>('preset_save', { preset }),
   presetLoad: (path: string) => invoke<LayerPreset>('preset_load', { path }),
@@ -74,7 +77,9 @@ export const api = {
   configCreate: (gameDir: string, name: string) => invoke<string>('config_create', { gameDir, name }),
   configDuplicate: (path: string) => invoke<string>('config_duplicate', { path }),
   configDelete: (path: string) => invoke<void>('config_delete', { path }),
-  configImport: (gameDir: string, source: string) => invoke<Imported>('config_import', { gameDir, source }),
+  configImportLaunches: (source: string) => invoke<Launch[]>('config_import_launches', { source }),
+  configImport: (gameDir: string, source: string, keepLaunches: boolean) =>
+    invoke<Imported>('config_import', { gameDir, source, keepLaunches }),
   reveal: (path: string) => invoke<void>('reveal', { path }),
 
   /** `device`: that controller's own slots instead of the shared ones. */
@@ -145,6 +150,18 @@ export const api = {
   takeNotices: () => invoke<Notice[]>('take_notices'),
   /** Game bundles the app was started with (opened from Explorer). */
   takeOpenFiles: () => invoke<string[]>('take_open_files'),
+
+  /** Ask the update endpoints (GitHub) for a newer version; `null` when this one is the newest. */
+  updateCheck: () => invoke<UpdateInfo | null>('update_check'),
+  /**
+   * Download the update the last check found, check its signature and install it. The app stops
+   * remapping and exits, the setup starts it again; the promise settles only when that failed.
+   */
+  updateInstall(onProgress: (percent: number) => void) {
+    const channel = new Channel<number>();
+    channel.onmessage = onProgress;
+    return invoke<void>('update_install', { onProgress: channel });
+  },
 };
 
 /** Error text from a rejected command. */

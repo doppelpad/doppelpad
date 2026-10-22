@@ -571,6 +571,15 @@ export interface Battery {
 /** The drivers Doppelpad uses, by what they do (`Driver` in commands.rs). */
 export type Driver = 'virtual_pads' | 'device_hiding';
 
+/** A newer version than the running one (`UpdateInfo` in updates.rs). */
+export interface UpdateInfo {
+  version: string;
+  /** The running version. */
+  current: string;
+  /** The release notes, as plain text. */
+  notes: string | null;
+}
+
 /** Messages from before the window was ready (`Notice` in commands.rs; `notices.<name>` keys). */
 export type Notice = 'service-takeover';
 
@@ -746,6 +755,8 @@ export interface GuiSettings {
   stay_live: boolean;
   hook_buttons: boolean;
   rewasd_at_start: RewasdChoice;
+  /** Ask GitHub for a newer version at start-up. */
+  check_updates: boolean;
   osd: OsdSettings;
   pad_overlay: PadOverlaySettings;
   mappings_overlay: MappingsOverlaySettings;
@@ -850,6 +861,22 @@ export interface RadialContent {
 export interface Imported {
   path: string;
   diagnostics: DiagMsg[];
+}
+
+/** Where a launch command sits: a mapping, or a radial menu sector (both counted from 1). */
+export type LaunchPlace =
+  | { kind: 'mapping'; layer: number; layer_name: string; trigger: Combo }
+  | { kind: 'radial'; menu: number; name: string; sector: number; label: string };
+
+/** A program that a config being imported would start (crates/dp-config/src/launches.rs). */
+export interface Launch {
+  /** The config file, for a game bundle's configs. */
+  file: string | null;
+  /** The config's name. */
+  config: string;
+  place: LaunchPlace;
+  path: string;
+  args: string;
 }
 
 /** What of reWASD is running; it keeps the controllers to itself. */

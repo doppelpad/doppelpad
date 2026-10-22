@@ -1,0 +1,211 @@
+---
+title: Open-source controller remapping
+description: Free, open-source controller remapping for Windows, with Linux in preview. Remaps, combos, macros, shift layers, gyro aiming and virtual Xbox or DualShock 4 controllers.
+template: splash
+editUrl: false
+hero:
+  title: Doppelpad
+  tagline: Free, open-source controller remapping for Windows, with Linux in preview. Remap buttons, build combos and macros, add shift layers, aim with gyro, or play with keyboard and mouse as an Xbox controller.
+  actions:
+    - text: Download for Windows
+      link: https://github.com/doppelpad/doppelpad/releases/latest
+      icon: download
+      variant: primary
+    - text: Read the handbook
+      link: /handbook/desktop-app/
+      icon: open-book
+      variant: secondary
+    - text: Source on GitHub
+      link: https://github.com/doppelpad/doppelpad
+      icon: github
+      variant: minimal
+---
+
+import { Aside, Card, CardGrid, LinkButton, Steps } from '@astrojs/starlight/components';
+import ControllerGallery from '../../components/ControllerGallery.svelte';
+import { controllers } from '../../lib/controllers';
+
+<div class="landing">
+
+<Aside type="note" title="Early preview (0.3)">
+The remapping engine, the profile format, the importer and the Windows backends are implemented
+and unit-tested, and real DualSense input has been verified. The desktop app is new and still
+being polished, and several controllers and features have not run on real hardware yet. The
+[roadmap](https://github.com/doppelpad/doppelpad/blob/main/docs/ROADMAP.md) marks which. Expect
+rough edges.
+</Aside>
+
+## What it does
+
+<p class="lead">
+  Doppelpad turns a controller, keyboard or mouse into whatever a game expects. It is an
+  independent, open alternative to reWASD, built only on open drivers.
+</p>
+
+<CardGrid>
+  <Card title="Remap anything" icon="random">
+    Remap or unmap buttons, send keys and mouse input from a controller, or play with keyboard
+    and mouse as a virtual Xbox 360 or DualShock 4 controller, with the game's rumble fed back.
+  </Card>
+  <Card title="Combos and activators" icon="puzzle">
+    Combos of up to four inputs. Single, long, double and triple presses, on press or on release,
+    and zones on sticks, triggers, gyro and mouse speed.
+  </Card>
+  <Card title="Turbo, toggles and macros" icon="rocket">
+    Hold, turbo, toggle, run once, repeat or repeat while held. Macros with pauses, rumble and
+    program launch, an anti-recoil preset, and recording from keyboard or controller.
+  </Card>
+  <Card title="Shift layers" icon="list-format">
+    Layers you hold, toggle or switch to, inheriting from the base layer, each with its own
+    stick, trigger and light bar settings.
+  </Card>
+  <Card title="Sticks, gyro and touchpad" icon="setting">
+    Deadzones, anti-deadzone, curves and rotation. Stick to mouse, mouse to stick, flick stick,
+    gyro to mouse or stick, and touchpad gestures (gyro and touchpad still await hardware tests).
+  </Card>
+  <Card title="Per-game profiles" icon="laptop">
+    Four slots per controller, switched by controller hotkeys or automatically by the game in
+    front. Hold Back + Start + LB + RB to stop every macro and release all outputs.
+  </Card>
+  <Card title="Overlays" icon="desktop">
+    On-screen notifications, crosshairs with a magnifier, radial menus, a controller overlay and
+    a mappings sheet (Windows, in the app).
+  </Card>
+  <Card title="Share and import" icon="document">
+    Share games as `.dpgame` bundles, print a bindings sheet, keep layer presets, and import
+    JSON profiles (schema 3.0) from other remappers.
+  </Card>
+</CardGrid>
+
+Light bar colours, player LEDs, DualSense adaptive triggers, vibration settings, battery levels,
+a DSU motion server for emulators and a local HTTP API are in as well. The app speaks English and
+German. The [handbook](handbook/desktop-app/) describes everything in detail.
+
+## Supported controllers
+
+Doppelpad reads controllers directly, so each one shows up with its own buttons, drawn as in the
+app. Pick one to see its front and back.
+
+<ControllerGallery
+  client:visible
+  controllers={controllers.en}
+  sides={{ front: 'Front', back: 'Back', label: 'Controllers' }}
+/>
+
+Also supported: the Steam Controller (USB and its wireless receiver) and the Steam Deck with
+trackpads, gyro and back buttons (Windows, awaiting hardware tests), plus keyboards and mice as
+inputs. Xbox Elite paddles, the Wii Remote and the DualShock 3 are not supported yet.
+
+## Download
+
+<LinkButton href="https://github.com/doppelpad/doppelpad/releases/latest" icon="download" iconPlacement="start">
+  Download the latest release
+</LinkButton>
+
+Doppelpad runs on **Windows 10 and 11 (x64)**. The setup installs the two drivers it needs when
+they are missing. On Linux, Doppelpad is a preview that you build from source; the
+[Linux page](handbook/linux/) has the setup.
+
+<Aside type="caution" title="Windows SmartScreen will warn you">
+The setup is not code-signed yet; signing is planned for later. Windows therefore does not know
+the publisher and shows *Windows protected your PC* when you start it.
+Download the setup only from the GitHub releases page above, then:
+
+<Steps>
+
+1. Click **More info** in the SmartScreen window.
+2. Check that the app is the Doppelpad setup you just downloaded. The publisher shows as
+   *Unknown publisher*.
+3. Click **Run anyway**.
+
+</Steps>
+
+Your browser may also say that the file is not commonly downloaded. Choose **Keep** to keep it.
+</Aside>
+
+## Drivers
+
+Doppelpad uses two open-source drivers by Nefarius and no closed ones:
+
+- **[ViGEmBus](https://github.com/nefarius/ViGEmBus)** creates the virtual Xbox 360 or
+  DualShock 4 controller that games see. It is needed for controller output.
+- **[HidHide](https://github.com/nefarius/HidHide)** hides the physical controller from games,
+  so they don't see double input. It is optional.
+
+The setup installs both when they are missing. `doppelpad doctor` checks the drivers and lists
+the detected controllers. Linux needs no extra drivers, only a udev rule for `/dev/uinput` and
+the input devices.
+
+## FAQ
+
+<details>
+<summary>Is Doppelpad free?</summary>
+
+Yes. It is free and open source, licensed under MIT or Apache 2.0, at your option. There is no
+account and no subscription.
+
+</details>
+
+<details>
+<summary>Why does Windows warn about the setup?</summary>
+
+The setup is not code-signed yet, so SmartScreen does not know its publisher. See
+[Download](#download) for how to start it anyway.
+
+</details>
+
+<details>
+<summary>Does it run on Linux or macOS?</summary>
+
+The Linux backend (evdev and uinput) is implemented and unit-tested but has not been tested on
+real hardware yet; see the [Linux page](handbook/linux/). macOS is planned. The engine
+compiles there, but a virtual gamepad needs a signed driver extension that requires an Apple
+entitlement.
+
+</details>
+
+<details>
+<summary>Can I use my existing profiles?</summary>
+
+Doppelpad imports JSON profiles (schema 3.0) from other remapping tools, with a few limits listed
+in the [profile reference](handbook/profiles/#importing-json-profiles). Its own
+profiles are readable TOML files.
+
+</details>
+
+<details>
+<summary>How does it relate to reWASD?</summary>
+
+Doppelpad is an independent open-source alternative to reWASD and is not affiliated with it. It
+is written from public documentation, open drivers and its own observations. reWASD keeps
+controllers to itself while it runs, so the app offers to quit it at start-up. All trademarks
+belong to their respective owners.
+
+</details>
+
+<details>
+<summary>Is remapping allowed in online games?</summary>
+
+That depends on the game. Doppelpad works through a virtual controller, as other remappers do,
+but some games' rules forbid macros, turbo or remapping in online play. Check the rules of the
+games you play.
+
+</details>
+
+<details>
+<summary>A macro is stuck. How do I stop everything?</summary>
+
+Hold **Back + Start + LB + RB** on the controller. That stops every macro and releases all
+outputs. The hold time can be set in the app.
+
+</details>
+
+<details>
+<summary>Where do I report bugs or ask for features?</summary>
+
+In the [issues on GitHub](https://github.com/doppelpad/doppelpad/issues). Contributions are
+welcome too.
+
+</details>
+
+</div>

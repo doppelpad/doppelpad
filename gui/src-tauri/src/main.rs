@@ -17,6 +17,7 @@ mod settings;
 #[cfg(test)]
 mod tests;
 mod tray;
+mod updates;
 
 use std::sync::atomic::{AtomicBool, AtomicU64};
 use std::sync::{Arc, Mutex};
@@ -90,6 +91,7 @@ fn main() {
             }
         }))
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             logging::init();
             tracing::info!(
@@ -124,6 +126,7 @@ fn main() {
             });
             app.manage(overlay::Overlays::default());
             app.manage(osd::OsdState::default());
+            app.manage(updates::PendingUpdate::default());
             tray::create(app.handle())?;
             overlay::spawn_watcher(app.handle(), "osd", osd::watch)?;
             overlay::spawn_watcher(app.handle(), "crosshair", crosshair::watch)?;
@@ -173,6 +176,7 @@ fn main() {
             commands::config_from_template,
             commands::open_driver_page,
             commands::game_export,
+            commands::game_launches,
             commands::game_import,
             commands::preset_list,
             commands::preset_save,
@@ -185,6 +189,7 @@ fn main() {
             commands::config_create,
             commands::config_duplicate,
             commands::config_delete,
+            commands::config_import_launches,
             commands::config_import,
             commands::reveal,
             commands::apply_to_slot,
@@ -228,6 +233,8 @@ fn main() {
             commands::log_file,
             commands::take_notices,
             commands::take_open_files,
+            updates::update_check,
+            updates::update_install,
             overlay::overlay_ready,
             osd::osd_test,
             osd::osd_monitors,

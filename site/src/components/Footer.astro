@@ -1,0 +1,45 @@
+---
+// Starlight's footer plus the links German law asks for on every page, and the page in the
+// other language: pages without a sidebar have no language menu on phones.
+import Default from '@astrojs/starlight/components/Footer.astro';
+import { withBase } from '../lib/url';
+
+const de = Astro.locals.starlightRoute.lang === 'de';
+const prefix = de ? '/de' : '';
+const path = Astro.url.pathname.slice(withBase('/').length - 1);
+const other = de ? path.replace(/^\/de(\/|$)/, '/') : `/de${path}`;
+const links = [
+  { href: withBase(`${prefix}/impressum/`), text: de ? 'Impressum' : 'Legal notice' },
+  { href: withBase(`${prefix}/datenschutz/`), text: de ? 'Datenschutz' : 'Privacy' },
+  { href: 'https://github.com/doppelpad/doppelpad', text: 'GitHub' },
+];
+---
+
+<Default />
+<nav class="legal" aria-label={de ? 'Rechtliches' : 'Legal'}>
+  <a href={withBase(other)} hreflang={de ? 'en' : 'de'} lang={de ? 'en' : 'de'}>{de ? 'English' : 'Deutsch'}</a>
+  {links.map((l) => <a href={l.href}>{l.text}</a>)}
+  <span>{de ? 'MIT- oder Apache-2.0-Lizenz' : 'MIT or Apache-2.0 licence'}</span>
+</nav>
+
+<style>
+  .legal {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.5rem 1.5rem;
+    margin-top: 2.5rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--sl-color-hairline-light);
+    font-size: var(--sl-text-xs);
+    color: var(--sl-color-gray-3);
+  }
+  .legal a {
+    color: var(--sl-color-gray-3);
+    text-decoration: none;
+  }
+  .legal a:hover {
+    color: var(--sl-color-white);
+    text-decoration: underline;
+  }
+</style>
