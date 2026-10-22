@@ -1,10 +1,11 @@
 //! Scenario tests: a fake 1 ms clock drives the engine through button timelines.
 
 use super::*;
-use crate::control::{GyroDir, Half, TouchGesture, TouchRegion, TrackpadPart, Zone};
-use crate::pad::Axis;
+use crate::control::{Dir, GyroDir, Half, TouchGesture, TouchRegion, TrackpadPart, Zone};
+use crate::pad::{Axis, PadButton, Trigger};
 use crate::profile::{
-    Action, AnalogMapping, AnalogTarget, Combo, Jump, JumpMode, Layer, Mapping, Press,
+    Action, Activator, AnalogMapping, AnalogSource, AnalogTarget, Combo, Jump, JumpMode, Layer,
+    Mapping, Mode, Press,
 };
 
 struct Harness {

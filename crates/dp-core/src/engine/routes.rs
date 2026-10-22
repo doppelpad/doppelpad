@@ -116,6 +116,20 @@ fn shape_vector((x, y): (f32, f32), deadzone: f32, outer: f32, curve: f32) -> (f
     (x / mag * t, y / mag * t)
 }
 
+/// `v`, or 0 below `min` (noise).
+fn gate(v: f32, min: f32) -> f32 {
+    if v.abs() < min { 0.0 } else { v }
+}
+
+/// A power curve over the magnitude; 1 leaves the vector as it is.
+fn power_curve(v: (f32, f32), curve: f32) -> (f32, f32) {
+    if curve != 1.0 {
+        shape_vector(v, 0.0, 1.0, curve)
+    } else {
+        v
+    }
+}
+
 fn to_stick(r: &AnalogMapping, (x, y): (f32, f32)) -> RouteOutput {
     let Some(stick) = r.target.stick() else {
         return RouteOutput::None;
@@ -151,11 +165,11 @@ fn flick(
     st: &mut RouteState,
     (x, y): (f32, f32),
     input: &RouteInput,
+    sx: f32,
 ) -> RouteOutput {
     let threshold = r.deadzone.clamp(0.05, 0.99);
     let mag = x.hypot(y);
-    let dir = if r.invert_x { -1.0 } else { 1.0 };
-    let per_deg = input.turn.counts_per_turn / 360.0 * r.sensitivity * dir;
+    let per_deg = input.turn.counts_per_turn / 360.0 * r.sensitivity * sx;
     // Angle from "up", clockwise positive.
     let angle = x.atan2(y).to_degrees();
     let mut counts = 0.0;
@@ -201,194 +215,218 @@ pub(super) fn run(r: &AnalogMapping, st: &mut RouteState, input: &RouteInput) ->
     let sx = if r.invert_x { -1.0 } else { 1.0 };
     let sy = if r.invert_y { -1.0 } else { 1.0 };
     match r.source {
-        AnalogSource::LeftStick | AnalogSource::RightStick => {
-            let Some(raw) = r.source.stick().and_then(|s| stick_source(s, input)) else {
-                return RouteOutput::None;
+        AnalogSource::LeftStick | AnalogSource::RightStick => stick_route(r, st, input, sx, sy),
+        AnalogSource::Mouse => mouse_route(r, st, input, sx, sy),
+        AnalogSource::Gyro => gyro_route(r, st, input, sx, sy),
+        AnalogSource::Touchpad => touch_route(r, st, input, sx, sy),
+    }
+}
+
+/// A physical stick to the mouse, a flick or a virtual stick.
+fn stick_route(
+    r: &AnalogMapping,
+    st: &mut RouteState,
+    input: &RouteInput,
+    sx: f32,
+    sy: f32,
+) -> RouteOutput {
+    let Some(raw) = r.source.stick().and_then(|s| stick_source(s, input)) else {
+        return RouteOutput::None;
+    };
+    match r.target {
+        AnalogTarget::Flick => flick(r, st, raw, input, sx),
+        AnalogTarget::Mouse => {
+            let (x, y) = shape_vector(raw, r.deadzone, r.outer, r.curve);
+            // Held at the edge, the speed grows (acceleration).
+            let boost = if r.acceleration > 0.0 && x.hypot(y) >= ACCEL_FROM {
+                let since = *st.accel_since.get_or_insert(input.now);
+                let held = secs_since(input.now, since);
+                (1.0 + r.acceleration * held).min(ACCEL_MAX)
+            } else {
+                st.accel_since = None;
+                1.0
             };
-            match r.target {
-                AnalogTarget::Flick => flick(r, st, raw, input),
-                AnalogTarget::Mouse => {
-                    let (x, y) = shape_vector(raw, r.deadzone, r.outer, r.curve);
-                    // Held at the edge, the speed grows (acceleration).
-                    let boost = if r.acceleration > 0.0 && x.hypot(y) >= ACCEL_FROM {
-                        let since = *st.accel_since.get_or_insert(input.now);
-                        let held = secs_since(input.now, since);
-                        (1.0 + r.acceleration * held).min(ACCEL_MAX)
-                    } else {
-                        st.accel_since = None;
-                        1.0
-                    };
-                    let speed = scale::STICK_MOUSE_PX_PER_S * r.sensitivity * boost;
-                    // Stick y is up-positive; the screen is y-down.
-                    let v = smooth(
-                        st,
-                        (x * speed * sx, -y * speed * r.vertical_ratio * sy),
-                        r.smoothing_ms,
-                        input.dt,
-                    );
-                    RouteOutput::Mouse(v.0 * input.dt, v.1 * input.dt)
-                }
-                _ => {
-                    let (x, y) = shape_radial(raw, r.deadzone, r.outer, |t| t);
-                    to_stick(r, (x * r.sensitivity * sx, y * r.sensitivity * sy))
-                }
-            }
+            let speed = scale::STICK_MOUSE_PX_PER_S * r.sensitivity * boost;
+            // Stick y is up-positive; the screen is y-down.
+            let v = smooth(
+                st,
+                (x * speed * sx, -y * speed * r.vertical_ratio * sy),
+                r.smoothing_ms,
+                input.dt,
+            );
+            RouteOutput::Mouse(v.0 * input.dt, v.1 * input.dt)
         }
-        AnalogSource::Mouse => {
-            if matches!(r.target, AnalogTarget::Mouse | AnalogTarget::Flick) || input.dt <= 0.0 {
-                return RouteOutput::None;
-            }
-            let quiet = |v: f32| if v.abs() < r.noise_filter { 0.0 } else { v };
-            let (dx, dy) = (quiet(input.mouse.0), quiet(input.mouse.1));
-            if !r.spring {
-                // The mouse pushes the stick around and it stays where it was left.
-                let k = r.sensitivity / scale::MOUSE_STICK_COUNTS_FULL;
-                st.pos = (
-                    (st.pos.0 + dx * k * sx).clamp(-1.0, 1.0),
-                    (st.pos.1 - dy * k * sy).clamp(-1.0, 1.0),
-                );
-                let v = if r.curve != 1.0 {
-                    shape_vector(st.pos, 0.0, 1.0, r.curve)
-                } else {
-                    st.pos
-                };
-                return to_stick(r, v);
-            }
-            if dx != 0.0 || dy != 0.0 {
-                st.last_motion = input.now;
-            } else if input.now.saturating_sub(st.last_motion) >= u64::from(r.decay_ms) {
-                st.ema = (0.0, 0.0);
-                return to_stick(r, (0.0, 0.0));
-            }
-            // Counts/s → deflection; mouse y is down-positive, stick y is up-positive.
-            let full = scale::MOUSE_STICK_COUNTS_PER_S / r.sensitivity.max(0.001);
-            let raw = (dx / input.dt / full * sx, -dy / input.dt / full * sy);
-            let v = if dx != 0.0 || dy != 0.0 {
-                smooth(st, raw, r.smoothing_ms, input.dt)
-            } else {
-                st.ema
-            };
-            let v = if r.curve != 1.0 {
-                shape_vector(v, 0.0, 1.0, r.curve)
-            } else {
-                v
-            };
+        _ => {
+            let (x, y) = shape_radial(raw, r.deadzone, r.outer, |t| t);
+            to_stick(r, (x * r.sensitivity * sx, y * r.sensitivity * sy))
+        }
+    }
+}
+
+/// The physical mouse to a virtual stick.
+fn mouse_route(
+    r: &AnalogMapping,
+    st: &mut RouteState,
+    input: &RouteInput,
+    sx: f32,
+    sy: f32,
+) -> RouteOutput {
+    if matches!(r.target, AnalogTarget::Mouse | AnalogTarget::Flick) || input.dt <= 0.0 {
+        return RouteOutput::None;
+    }
+    let (dx, dy) = (
+        gate(input.mouse.0, r.noise_filter),
+        gate(input.mouse.1, r.noise_filter),
+    );
+    if !r.spring {
+        // The mouse pushes the stick around and it stays where it was left.
+        let k = r.sensitivity / scale::MOUSE_STICK_COUNTS_FULL;
+        st.pos = (
+            (st.pos.0 + dx * k * sx).clamp(-1.0, 1.0),
+            (st.pos.1 - dy * k * sy).clamp(-1.0, 1.0),
+        );
+        return to_stick(r, power_curve(st.pos, r.curve));
+    }
+    if dx != 0.0 || dy != 0.0 {
+        st.last_motion = input.now;
+    } else if input.now.saturating_sub(st.last_motion) >= u64::from(r.decay_ms) {
+        st.ema = (0.0, 0.0);
+        return to_stick(r, (0.0, 0.0));
+    }
+    // Counts/s → deflection; mouse y is down-positive, stick y is up-positive.
+    let full = scale::MOUSE_STICK_COUNTS_PER_S / r.sensitivity.max(0.001);
+    let raw = (dx / input.dt / full * sx, -dy / input.dt / full * sy);
+    let v = if dx != 0.0 || dy != 0.0 {
+        smooth(st, raw, r.smoothing_ms, input.dt)
+    } else {
+        st.ema
+    };
+    to_stick(r, power_curve(v, r.curve))
+}
+
+/// The gyro to the mouse or a virtual stick.
+fn gyro_route(
+    r: &AnalogMapping,
+    st: &mut RouteState,
+    input: &RouteInput,
+    sx: f32,
+    sy: f32,
+) -> RouteOutput {
+    let Some((yaw, pitch)) = input.gyro_rates else {
+        return RouteOutput::None;
+    };
+    if !input.gyro_enabled {
+        st.ema = (0.0, 0.0);
+        return match r.target {
+            AnalogTarget::Mouse => RouteOutput::None,
+            _ => to_stick(r, (0.0, 0.0)),
+        };
+    }
+    // Turning left (yaw +) moves the aim left; tilting up (pitch +) moves it up.
+    let (yaw, pitch) = (
+        gate(yaw, scale::GYRO_NOISE_DPS),
+        gate(pitch, scale::GYRO_NOISE_DPS),
+    );
+    // In tilt mode a stick follows how far the controller is tilted.
+    if let Some((steer, up)) = input.tilt
+        && r.target != AnalogTarget::Mouse
+    {
+        let v = shape_vector((-steer * sx, up * sy), r.deadzone, 1.0, r.curve);
+        return to_stick(r, (v.0 * r.sensitivity, v.1 * r.sensitivity));
+    }
+    match r.target {
+        AnalogTarget::Mouse => {
+            let k = scale::GYRO_MOUSE_PX_PER_DEG * r.sensitivity;
+            let v = smooth(
+                st,
+                (-yaw * k * sx, -pitch * k * r.vertical_ratio * sy),
+                r.smoothing_ms,
+                input.dt,
+            );
+            RouteOutput::Mouse(v.0 * input.dt, v.1 * input.dt)
+        }
+        _ => {
+            let k = r.sensitivity / scale::GYRO_STICK_DPS;
+            let v = smooth(
+                st,
+                (-yaw * k * sx, pitch * k * sy),
+                r.smoothing_ms,
+                input.dt,
+            );
             to_stick(r, v)
         }
-        AnalogSource::Gyro => {
-            let Some((yaw, pitch)) = input.gyro_rates else {
-                return RouteOutput::None;
-            };
-            if !input.gyro_enabled {
-                st.ema = (0.0, 0.0);
-                return match r.target {
-                    AnalogTarget::Mouse => RouteOutput::None,
-                    _ => to_stick(r, (0.0, 0.0)),
-                };
-            }
-            // Turning left (yaw +) moves the aim left; tilting up (pitch +) moves it up.
-            let noise = |v: f32| {
-                if v.abs() < scale::GYRO_NOISE_DPS {
-                    0.0
-                } else {
-                    v
-                }
-            };
-            let (yaw, pitch) = (noise(yaw), noise(pitch));
-            // In tilt mode a stick follows how far the controller is tilted.
-            if let Some((steer, up)) = input.tilt
-                && r.target != AnalogTarget::Mouse
-            {
-                let v = shape_vector((-steer * sx, up * sy), r.deadzone, 1.0, r.curve);
-                return to_stick(r, (v.0 * r.sensitivity, v.1 * r.sensitivity));
-            }
-            match r.target {
-                AnalogTarget::Mouse => {
-                    let k = scale::GYRO_MOUSE_PX_PER_DEG * r.sensitivity;
-                    let v = smooth(
-                        st,
-                        (-yaw * k * sx, -pitch * k * r.vertical_ratio * sy),
-                        r.smoothing_ms,
-                        input.dt,
+    }
+}
+
+/// The touchpad to the mouse (with trackball glide) or a virtual stick.
+fn touch_route(
+    r: &AnalogMapping,
+    st: &mut RouteState,
+    input: &RouteInput,
+    sx: f32,
+    sy: f32,
+) -> RouteOutput {
+    let finger = input.pad.and_then(|p| p.touch[0]).map(|t| (t.x, t.y));
+    match r.target {
+        AnalogTarget::Mouse => {
+            let k = scale::TOUCH_MOUSE_PX_PER_PAD * r.sensitivity;
+            match (finger, st.last_touch) {
+                (Some(f), Some(prev)) => {
+                    st.glide = None;
+                    let d = (
+                        (f.0 - prev.0) * k * sx,
+                        (f.1 - prev.1) * k * r.vertical_ratio * sy,
                     );
-                    RouteOutput::Mouse(v.0 * input.dt, v.1 * input.dt)
+                    st.last_touch = Some(f);
+                    if input.dt > 0.0 {
+                        let v = (d.0 / input.dt, d.1 / input.dt);
+                        st.touch_vel = (
+                            st.touch_vel.0 * TOUCH_VEL_KEEP + v.0 * TOUCH_VEL_NEW,
+                            st.touch_vel.1 * TOUCH_VEL_KEEP + v.1 * TOUCH_VEL_NEW,
+                        );
+                    }
+                    RouteOutput::Mouse(d.0, d.1)
                 }
-                _ => {
-                    let k = r.sensitivity / scale::GYRO_STICK_DPS;
-                    let v = smooth(
-                        st,
-                        (-yaw * k * sx, pitch * k * sy),
-                        r.smoothing_ms,
-                        input.dt,
-                    );
-                    to_stick(r, v)
+                (Some(f), None) => {
+                    st.glide = None;
+                    st.last_touch = Some(f);
+                    st.touch_vel = (0.0, 0.0);
+                    RouteOutput::None
                 }
+                (None, Some(_)) => {
+                    st.last_touch = None;
+                    if r.trackball_friction < 1.0 {
+                        let duration =
+                            scale::TRACKBALL_MAX_MS * (1.0 - r.trackball_friction.clamp(0.0, 1.0));
+                        st.glide = Some(Glide {
+                            vel: st.touch_vel,
+                            since: input.now,
+                            ms: duration,
+                        });
+                    }
+                    RouteOutput::None
+                }
+                (None, None) => match st.glide {
+                    Some(g) => {
+                        let t = input.now.saturating_sub(g.since) as f32;
+                        if t >= g.ms {
+                            st.glide = None;
+                            return RouteOutput::None;
+                        }
+                        let f = 1.0 - t / g.ms;
+                        RouteOutput::Mouse(g.vel.0 * f * input.dt, g.vel.1 * f * input.dt)
+                    }
+                    None => RouteOutput::None,
+                },
             }
         }
-        AnalogSource::Touchpad => {
-            let finger = input.pad.and_then(|p| p.touch[0]).map(|t| (t.x, t.y));
-            match r.target {
-                AnalogTarget::Mouse => {
-                    let k = scale::TOUCH_MOUSE_PX_PER_PAD * r.sensitivity;
-                    match (finger, st.last_touch) {
-                        (Some(f), Some(prev)) => {
-                            st.glide = None;
-                            let d = (
-                                (f.0 - prev.0) * k * sx,
-                                (f.1 - prev.1) * k * r.vertical_ratio * sy,
-                            );
-                            st.last_touch = Some(f);
-                            if input.dt > 0.0 {
-                                let v = (d.0 / input.dt, d.1 / input.dt);
-                                st.touch_vel = (
-                                    st.touch_vel.0 * TOUCH_VEL_KEEP + v.0 * TOUCH_VEL_NEW,
-                                    st.touch_vel.1 * TOUCH_VEL_KEEP + v.1 * TOUCH_VEL_NEW,
-                                );
-                            }
-                            RouteOutput::Mouse(d.0, d.1)
-                        }
-                        (Some(f), None) => {
-                            st.glide = None;
-                            st.last_touch = Some(f);
-                            st.touch_vel = (0.0, 0.0);
-                            RouteOutput::None
-                        }
-                        (None, Some(_)) => {
-                            st.last_touch = None;
-                            if r.trackball_friction < 1.0 {
-                                let duration = scale::TRACKBALL_MAX_MS
-                                    * (1.0 - r.trackball_friction.clamp(0.0, 1.0));
-                                st.glide = Some(Glide {
-                                    vel: st.touch_vel,
-                                    since: input.now,
-                                    ms: duration,
-                                });
-                            }
-                            RouteOutput::None
-                        }
-                        (None, None) => match st.glide {
-                            Some(g) => {
-                                let t = input.now.saturating_sub(g.since) as f32;
-                                if t >= g.ms {
-                                    st.glide = None;
-                                    return RouteOutput::None;
-                                }
-                                let f = 1.0 - t / g.ms;
-                                RouteOutput::Mouse(g.vel.0 * f * input.dt, g.vel.1 * f * input.dt)
-                            }
-                            None => RouteOutput::None,
-                        },
-                    }
-                }
-                _ => {
-                    // Spring mode: finger position relative to the pad centre is the stick.
-                    let v = finger
-                        .map(|(x, y)| ((x - 0.5) * 2.0, (0.5 - y) * 2.0))
-                        .unwrap_or((0.0, 0.0));
-                    let v = shape_vector(v, r.deadzone, 1.0, r.curve);
-                    to_stick(r, (v.0 * r.sensitivity * sx, v.1 * r.sensitivity * sy))
-                }
-            }
+        _ => {
+            // Spring mode: finger position relative to the pad centre is the stick.
+            let v = finger
+                .map(|(x, y)| ((x - 0.5) * 2.0, (0.5 - y) * 2.0))
+                .unwrap_or((0.0, 0.0));
+            let v = shape_vector(v, r.deadzone, 1.0, r.curve);
+            to_stick(r, (v.0 * r.sensitivity * sx, v.1 * r.sensitivity * sy))
         }
     }
 }
