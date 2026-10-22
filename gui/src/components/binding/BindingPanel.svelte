@@ -44,6 +44,7 @@
   import type { Action, Activator, Combo, JumpMode, Mapping, Mode } from '../../lib/types';
   import Segmented, { type SegmentedOption } from '../ui/Segmented.svelte';
   import Chip from '../ui/Chip.svelte';
+  import LayerNote from '../ui/LayerNote.svelte';
   import Toggle from '../ui/Toggle.svelte';
   import ActionParams from './ActionParams.svelte';
   import ActionPicker from './ActionPicker.svelte';
@@ -284,7 +285,7 @@
     </div>
 
     {#if inheritedFrom}
-      <div class="note"><Info size={14} /> {t('binding.inherited')}</div>
+      <LayerNote icon={Info}>{t('binding.inherited')}</LayerNote>
     {/if}
 
     <div class="section-title">{t('binding.actions')}</div>
@@ -592,16 +593,6 @@
   .act-desc strong {
     color: var(--text);
     font-weight: 600;
-  }
-  .note {
-    display: flex;
-    gap: 6px;
-    align-items: center;
-    font-size: var(--fs-s);
-    color: var(--layer-2);
-    background: color-mix(in srgb, var(--layer-2) 10%, transparent);
-    border-radius: var(--radius-s);
-    padding: 6px 8px;
   }
   .section-title {
     margin-top: 6px;
