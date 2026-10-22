@@ -1,4 +1,5 @@
-//! Raw HID controllers XInput cannot see: DualShock 4, DualSense and Nintendo Switch pads.
+//! Raw HID controllers XInput cannot see: DualShock 4, DualSense, Nintendo Switch pads, Steam
+//! controllers and other HID gamepads (read through their report descriptor).
 //!
 //! A scanner thread re-enumerates HID interfaces every couple of seconds and starts one
 //! thread per supported controller. That thread owns the device: it runs the driver's

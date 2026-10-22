@@ -20,7 +20,7 @@ use crate::report::{le_i16, unpack12};
 use crate::{Battery, JoyConSide, Leds, PadFamily};
 
 /// Rumble data for "no vibration" (320 Hz / 160 Hz at amplitude 0).
-pub const NEUTRAL_RUMBLE: [u8; 4] = [0x00, 0x01, 0x40, 0x40];
+const NEUTRAL_RUMBLE: [u8; 4] = [0x00, 0x01, 0x40, 0x40];
 
 const REPLY_TIMEOUT: Duration = Duration::from_millis(100);
 /// Without input for this long a USB pad has been reset (e.g. by Steam): force USB again.
@@ -55,7 +55,7 @@ const SPI_USER_IMU: u32 = 0x8026;
 
 /// Controller type byte (device-info reply / USB status reply).
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum ControllerType {
+enum ControllerType {
     JoyConLeft,
     JoyConRight,
     Pro,
@@ -70,7 +70,7 @@ pub enum ControllerType {
 }
 
 impl ControllerType {
-    pub fn from_byte(b: u8) -> Option<Self> {
+    fn from_byte(b: u8) -> Option<Self> {
         use ControllerType::*;
         Some(match b {
             0x01 => JoyConLeft,
@@ -135,7 +135,7 @@ impl ControllerType {
         }
     }
 
-    pub fn has_imu(self) -> bool {
+    fn has_imu(self) -> bool {
         matches!(
             self,
             ControllerType::JoyConLeft
@@ -160,16 +160,16 @@ impl ControllerType {
 // Report building and matching
 // ---------------------------------------------------------------------------------------
 
-pub fn usb_command(cmd: u8) -> [u8; 2] {
+fn usb_command(cmd: u8) -> [u8; 2] {
     [0x80, cmd]
 }
 
-pub fn is_usb_ack(r: &[u8], cmd: u8) -> bool {
+fn is_usb_ack(r: &[u8], cmd: u8) -> bool {
     r.len() >= 2 && r[0] == 0x81 && r[1] == cmd
 }
 
 /// Output report 0x01: rumble for both actuators plus one subcommand.
-pub fn subcommand_report(counter: u8, rumble: &[u8; 8], sub: u8, args: &[u8]) -> Vec<u8> {
+fn subcommand_report(counter: u8, rumble: &[u8; 8], sub: u8, args: &[u8]) -> Vec<u8> {
     let mut r = Vec::with_capacity(11 + args.len());
     r.extend_from_slice(&[0x01, counter & 0x0F]);
     r.extend_from_slice(rumble);
@@ -186,17 +186,17 @@ pub fn rumble_report(counter: u8, rumble: &[u8; 8]) -> Vec<u8> {
 }
 
 /// Data of an acknowledged reply (input report 0x21) to subcommand `sub`.
-pub fn subcommand_reply(r: &[u8], sub: u8) -> Option<&[u8]> {
+fn subcommand_reply(r: &[u8], sub: u8) -> Option<&[u8]> {
     (r.len() > 15 && r[0] == 0x21 && r[13] & 0x80 != 0 && r[14] == sub).then(|| &r[15..])
 }
 
-pub fn spi_read_args(addr: u32, len: u8) -> [u8; 5] {
+fn spi_read_args(addr: u32, len: u8) -> [u8; 5] {
     let a = addr.to_le_bytes();
     [a[0], a[1], a[2], a[3], len]
 }
 
 /// The flash bytes of an SPI-read reply, if it answers this exact read.
-pub fn spi_data(reply: &[u8], addr: u32, len: u8) -> Option<&[u8]> {
+fn spi_data(reply: &[u8], addr: u32, len: u8) -> Option<&[u8]> {
     let end = 5 + len as usize;
     (reply.len() >= end && reply[..5] == spi_read_args(addr, len)).then(|| &reply[5..end])
 }
@@ -211,13 +211,13 @@ fn six(b: &[u8]) -> [u16; 6] {
 }
 
 /// Left stick: maximum above centre, centre, minimum below centre (x, y each).
-pub fn left_stick_cal(b: &[u8]) -> StickCal {
+fn left_stick_cal(b: &[u8]) -> StickCal {
     let v = six(b);
     StickCal::switch1((v[2], v[3]), (v[0], v[1]), (v[4], v[5]))
 }
 
 /// Right stick: centre, minimum below centre, maximum above centre (x, y each).
-pub fn right_stick_cal(b: &[u8]) -> StickCal {
+fn right_stick_cal(b: &[u8]) -> StickCal {
     let v = six(b);
     StickCal::switch1((v[0], v[1]), (v[4], v[5]), (v[2], v[3]))
 }
@@ -242,7 +242,7 @@ impl ImuCal {
     /// From the 24-byte factory block (accel origin, accel sensitivity, gyro origin, gyro
     /// sensitivity) and the optional user block (magic, accel origin, accel sensitivity,
     /// gyro origin), whose origins win when its magic is set.
-    pub fn from_spi(factory: &[u8], user: Option<&[u8]>) -> ImuCal {
+    fn from_spi(factory: &[u8], user: Option<&[u8]>) -> ImuCal {
         let word = |b: &[u8], i: usize| f32::from(le_i16(b, 2 * i));
         if factory.len() < 24 {
             return Self::DEFAULT;
@@ -272,11 +272,11 @@ impl ImuCal {
         cal
     }
 
-    pub fn accel_g(&self, raw: [i16; 3]) -> [f32; 3] {
+    fn accel_g(&self, raw: [i16; 3]) -> [f32; 3] {
         std::array::from_fn(|i| f32::from(raw[i]) * self.accel_scale[i])
     }
 
-    pub fn gyro_dps(&self, raw: [i16; 3]) -> [f32; 3] {
+    fn gyro_dps(&self, raw: [i16; 3]) -> [f32; 3] {
         std::array::from_fn(|i| (f32::from(raw[i]) - self.gyro_offset[i]) * self.gyro_scale[i])
     }
 }
@@ -345,7 +345,7 @@ pub fn parse_battery(r: &[u8]) -> Option<Battery> {
 }
 
 /// Parse a full report (0x30 / 0x31) into a pad state, with sticks calibrated.
-pub fn parse_full(ty: ControllerType, cal: &mut Calibration, r: &[u8]) -> Option<PadState> {
+fn parse_full(ty: ControllerType, cal: &mut Calibration, r: &[u8]) -> Option<PadState> {
     if r.len() < 49 || !matches!(r[0], 0x30 | 0x31) {
         return None;
     }
@@ -381,7 +381,7 @@ fn amplitude_index(amp: f32) -> u8 {
 }
 
 /// HD rumble data for one actuator: a high band and a low band, both at `amp`.
-pub fn hd_rumble_at(high_hz: f32, low_hz: f32, amp: f32) -> [u8; 4] {
+fn hd_rumble_at(high_hz: f32, low_hz: f32, amp: f32) -> [u8; 4] {
     let code = |f: f32| (32.0 * (f / 10.0).log2()).round() as i32;
     let hf = ((code(high_hz) - 0x60) * 4).clamp(0x04, 0x1FC) as u16;
     let lf = (code(low_hz) - 0x40).clamp(0x01, 0x7F) as u8;
@@ -395,13 +395,13 @@ pub fn hd_rumble_at(high_hz: f32, low_hz: f32, amp: f32) -> [u8; 4] {
 }
 
 /// HD rumble at 320 Hz / 160 Hz.
-pub fn hd_rumble(amp: f32) -> [u8; 4] {
+fn hd_rumble(amp: f32) -> [u8; 4] {
     hd_rumble_at(320.0, 160.0, amp)
 }
 
 /// Rumble data for both actuators. A Pro Controller gets the heavy motor on its left
 /// actuator and the light one on the right; a Joy-Con has a single actuator.
-pub fn rumble_data(ty: ControllerType, r: Rumble) -> [u8; 8] {
+fn rumble_data(ty: ControllerType, r: Rumble) -> [u8; 8] {
     let (left, right) = if ty.joycon().is_some() {
         let v = hd_rumble(r.low.max(r.high));
         (v, v)
@@ -414,8 +414,11 @@ pub fn rumble_data(ty: ControllerType, r: Rumble) -> [u8; 8] {
     out
 }
 
-/// Both motors at rest ([`NEUTRAL_RUMBLE`] twice).
-const NEUTRAL_RUMBLE8: [u8; 8] = [0x00, 0x01, 0x40, 0x40, 0x00, 0x01, 0x40, 0x40];
+/// Both motors at rest.
+const NEUTRAL_RUMBLE8: [u8; 8] = {
+    let n = NEUTRAL_RUMBLE;
+    [n[0], n[1], n[2], n[3], n[0], n[1], n[2], n[3]]
+};
 
 // ---------------------------------------------------------------------------------------
 // Driver
@@ -490,10 +493,6 @@ impl Switch1Driver {
             imu_fix: Every::new(IMU_RETRY),
             now: None,
         }
-    }
-
-    pub fn controller_type(&self) -> ControllerType {
-        self.ty
     }
 
     fn attempts(&self) -> usize {

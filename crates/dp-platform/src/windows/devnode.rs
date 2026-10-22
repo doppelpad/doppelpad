@@ -19,7 +19,7 @@ use windows_sys::core::GUID;
 use super::{from_wide, wide};
 
 /// Device interface class of XUSB (XInput) devices.
-pub const GUID_DEVINTERFACE_XUSB: GUID = GUID::from_u128(0xEC87F1E3_C13B_4100_B5F7_8B84D54260CB);
+const GUID_DEVINTERFACE_XUSB: GUID = GUID::from_u128(0xEC87F1E3_C13B_4100_B5F7_8B84D54260CB);
 
 const CM_DRP_SERVICE: u32 = 0x05;
 const CR_SUCCESS: u32 = 0;

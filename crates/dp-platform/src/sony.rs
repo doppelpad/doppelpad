@@ -1,4 +1,5 @@
-//! Report parsing for Sony DualShock 4 and DualSense controllers.
+//! Sony DualShock 4 and DualSense controllers: input reports, output reports (rumble, light
+//! bar, lights, trigger effects) and the reports of a virtual DualShock 4.
 //!
 //! The report layouts are the publicly documented ones (Linux `hid-playstation`,
 //! SDL `SDL_hidapi_ps4/ps5`). Pure functions, so they are unit-tested on every OS.
@@ -51,7 +52,7 @@ impl SonyModel {
 
     /// Feature report that switches a Bluetooth-connected pad into full reports
     /// (motion + touchpad). Reading it is harmless over USB.
-    pub fn enable_full_reports_feature(self) -> (u8, usize) {
+    fn enable_full_reports_feature(self) -> (u8, usize) {
         match self {
             SonyModel::DualShock4 => (0x02, 37),
             SonyModel::DualSense | SonyModel::DualSenseEdge => (0x05, 41),
@@ -203,7 +204,7 @@ pub fn parse_battery(model: SonyModel, r: &[u8]) -> Option<Battery> {
 
 /// What an output report sets.
 #[derive(Copy, Clone, Debug, Default, PartialEq)]
-pub struct SonyOutput {
+struct SonyOutput {
     pub rumble: Rumble,
     /// `None` leaves the light bar as it is.
     pub lightbar: Option<Rgb>,
@@ -228,7 +229,7 @@ fn per_zone(zones: u16, value: u8) -> u32 {
 }
 
 /// The eleven bytes the DualSense takes for one trigger effect.
-pub fn effect_bytes(e: TriggerEffect) -> [u8; 11] {
+fn effect_bytes(e: TriggerEffect) -> [u8; 11] {
     let mut b = [0u8; 11];
     match e {
         TriggerEffect::Off => b[0] = 0x05,
@@ -340,7 +341,7 @@ fn dualsense_common(c: &mut [u8], o: &SonyOutput) {
 
 /// Build an output report: rumble, light bar and lights. Over Bluetooth `seq` (0–15) counts
 /// DualSense reports.
-pub fn output_report(model: SonyModel, bluetooth: bool, o: &SonyOutput, seq: u8) -> Vec<u8> {
+fn output_report(model: SonyModel, bluetooth: bool, o: &SonyOutput, seq: u8) -> Vec<u8> {
     match (model, bluetooth) {
         (SonyModel::DualShock4, false) => {
             let mut r = vec![0u8; 32];

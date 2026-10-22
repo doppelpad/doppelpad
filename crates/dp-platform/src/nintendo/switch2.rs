@@ -20,8 +20,8 @@ use crate::report::{le_f32, le_i16, le_u32, unpack12};
 use crate::{JoyConSide, Leds, PadFamily};
 
 /// Feature mask: buttons, sticks, IMU and rumble.
-pub const FEATURES: u8 = 0x27;
-pub const INPUT_REPORT: u8 = 0x05;
+const FEATURES: u8 = 0x27;
+const INPUT_REPORT: u8 = 0x05;
 
 const COMMAND_TIMEOUT: Duration = Duration::from_millis(200);
 /// How long to wait for input when another program started the pad.
@@ -40,7 +40,7 @@ pub fn command(cmd: u8, sub: u8, payload: &[u8]) -> Vec<u8> {
 
 /// The start-up sequence the console sends. Only the last command ("start output") is
 /// strictly needed; the second-to-last selects input report 0x05.
-pub fn init_commands(features: u8) -> Vec<Vec<u8>> {
+fn init_commands(features: u8) -> Vec<Vec<u8>> {
     let mut vibration = vec![0x01];
     vibration.extend_from_slice(&[0xFF; 8]);
     vibration.extend_from_slice(&[0x35, 0x00, 0x46, 0x00]);
@@ -60,12 +60,12 @@ pub fn init_commands(features: u8) -> Vec<Vec<u8>> {
     ]
 }
 
-pub fn select_report_command() -> Vec<u8> {
+fn select_report_command() -> Vec<u8> {
     command(0x03, 0x0A, &[INPUT_REPORT, 0, 0, 0])
 }
 
 /// The trailing six bytes are a host address; any value works.
-pub fn start_output_command() -> Vec<u8> {
+fn start_output_command() -> Vec<u8> {
     command(
         0x03,
         0x0D,
@@ -74,25 +74,25 @@ pub fn start_output_command() -> Vec<u8> {
 }
 
 /// Read a 0x40-byte flash block.
-pub fn flash_read_command(addr: u32) -> Vec<u8> {
+fn flash_read_command(addr: u32) -> Vec<u8> {
     let a = addr.to_le_bytes();
     command(0x02, 0x01, &[0, 0, 0, 0, a[0], a[1], a[2], a[3]])
 }
 
 /// Length of a flash-read reply; the block starts at offset 0x10.
-pub const FLASH_REPLY_LEN: usize = 0x50;
+const FLASH_REPLY_LEN: usize = 0x50;
 
-pub fn flash_block(reply: &[u8]) -> Option<&[u8]> {
+fn flash_block(reply: &[u8]) -> Option<&[u8]> {
     reply.get(0x10..FLASH_REPLY_LEN)
 }
 
 /// Player LEDs: bits 0..3 are LEDs 1..4.
-pub fn player_led_command(mask: u8) -> Vec<u8> {
+fn player_led_command(mask: u8) -> Vec<u8> {
     command(0x09, 0x07, &[mask, 0, 0, 0, 0, 0, 0, 0])
 }
 
 /// Nine bytes: neutral x/y, distance to the maximum x/y, distance to the minimum x/y.
-pub fn stick_cal(b: &[u8]) -> StickCal {
+fn stick_cal(b: &[u8]) -> StickCal {
     let (neutral, max, min) = (unpack12(&b[0..3]), unpack12(&b[3..6]), unpack12(&b[6..9]));
     StickCal::fixed(neutral, max, min)
 }
@@ -140,7 +140,7 @@ fn apply_gamecube(s: &mut PadState, r: &[u8], cal: &Calibration) {
 }
 
 /// IMU timestamp of an input report (0 while the IMU is off).
-pub fn imu_timestamp(r: &[u8]) -> u32 {
+fn imu_timestamp(r: &[u8]) -> u32 {
     le_u32(r, 0x2B)
 }
 
@@ -190,7 +190,7 @@ pub fn parse_report(
 
 /// One HD rumble sample: four packed 10-bit little-endian fields (high frequency, high
 /// amplitude, low frequency, low amplitude); amplitudes are 16-bit values shifted by 6.
-pub fn hd_sample(high_freq: u16, high_amp: u16, low_freq: u16, low_amp: u16) -> [u8; 5] {
+fn hd_sample(high_freq: u16, high_amp: u16, low_freq: u16, low_amp: u16) -> [u8; 5] {
     let bits = (u64::from(high_freq) & 0x3FF)
         | ((u64::from(high_amp) >> 6) & 0x3FF) << 10
         | (u64::from(low_freq) & 0x3FF) << 20
@@ -222,7 +222,7 @@ pub fn rumble_report(model: Switch2Model, seq: u8, r: Rumble) -> [u8; 64] {
 }
 
 /// GameCube rumble (a plain motor): 1 = on, 0 = off, 2 = stop.
-pub fn gamecube_rumble_report(seq: u8, state: u8) -> [u8; 64] {
+fn gamecube_rumble_report(seq: u8, state: u8) -> [u8; 64] {
     let mut out = [0u8; 64];
     out[0] = report_id(Switch2Model::GameCube);
     out[1] = 0x50 | (seq & 0x0F);
@@ -311,10 +311,6 @@ impl Switch2Driver {
     pub fn with_retry(mut self, late: LateBulk) -> Self {
         self.late = Some(late);
         self
-    }
-
-    pub fn calibration(&self) -> &Calibration {
-        &self.cal
     }
 
     /// Read the calibration and (re)start output through a vendor interface that became

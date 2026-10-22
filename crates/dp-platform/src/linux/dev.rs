@@ -134,7 +134,8 @@ pub fn check_uinput() -> Result<()> {
         .map_err(uinput_error)
 }
 
-/// uinput names are at most 79 bytes plus NUL; cut at a character boundary.
+/// uinput takes 80-byte names, but the evdev crate asserts `len + 1 < 80`: at most 78 bytes,
+/// cut at a character boundary.
 pub fn uinput_name(name: &str) -> String {
     let mut end = name.len().min(78);
     while !name.is_char_boundary(end) {

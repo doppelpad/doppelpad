@@ -32,7 +32,7 @@ pub fn combine(left: &PadState, right: &PadState) -> PadState {
 
 /// A single Joy-Con held sideways with its rail on top: the left one turned a quarter
 /// anticlockwise, the right one a quarter clockwise.
-pub fn sideways(side: JoyConSide, up: &PadState) -> PadState {
+fn sideways(side: JoyConSide, up: &PadState) -> PadState {
     let mut s = PadState::default();
     let map = |s: &mut PadState, to: PadButton, from: PadButton| s.set(to, up.pressed(from));
     match side {
@@ -73,7 +73,7 @@ pub fn sideways(side: JoyConSide, up: &PadState) -> PadState {
 }
 
 /// Motion of a sideways Joy-Con, from its upright motion.
-pub fn rotate_motion(side: JoyConSide, m: Motion) -> Motion {
+fn rotate_motion(side: JoyConSide, m: Motion) -> Motion {
     let turn = |[x, y, z]: [f32; 3]| match side {
         JoyConSide::Left => [z, y, -x],
         JoyConSide::Right => [-z, y, x],

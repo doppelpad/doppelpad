@@ -112,7 +112,7 @@ const X360_BUTTONS: [(PadButton, u16); 15] = [
     (PadButton::Y, XButtons::Y),
 ];
 
-pub fn to_xgamepad(s: &PadState) -> XGamepad {
+pub(super) fn to_xgamepad(s: &PadState) -> XGamepad {
     let mut raw = 0u16;
     for (b, bit) in X360_BUTTONS {
         if s.pressed(b) {

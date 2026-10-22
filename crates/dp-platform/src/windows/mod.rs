@@ -1,5 +1,6 @@
-//! Windows backends: XInput + raw HID input, ViGEmBus virtual pads, HidHide device
-//! hiding, `SendInput` output, and low-level hook / raw-input capture.
+//! Windows backends: XInput, raw HID and USB (GameCube adapter, Switch 2) input, ViGEmBus
+//! virtual pads, HidHide device hiding, `SendInput` output, low-level hook / raw-input
+//! capture, and the overlay, magnifier, autostart and foreground-window helpers.
 
 pub mod autostart;
 mod bluetooth;
@@ -23,7 +24,6 @@ mod vigem;
 mod xinput;
 
 pub use devnode::physical_xusb_instances;
-pub use hidhide::HidHide;
 pub use magnifier::{Magnifier, MagnifierView};
 pub use osinfo::os_version;
 

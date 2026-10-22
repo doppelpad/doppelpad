@@ -5,7 +5,7 @@
 //!
 //! | Responsibility            | Windows                      | Linux                        | macOS (planned)      |
 //! |---------------------------|------------------------------|------------------------------|----------------------|
-//! | read physical gamepads    | XInput, raw HID (Sony, Nintendo) | evdev (+ DS4/DS5/Switch motion, touchpad) | GameController.framework |
+//! | read physical gamepads    | XInput, raw HID (Sony, Nintendo, Steam, generic), USB (GameCube adapter, Switch 2) | evdev (+ DS4/DS5/Switch motion, touchpad) | GameController.framework |
 //! | hide physical gamepads    | HidHide                      | `EVIOCGRAB`                  | IOHID seize          |
 //! | create virtual gamepads   | ViGEmBus (X360, DS4)         | uinput (X360)                | -                    |
 //! | inject keyboard / mouse   | `SendInput`                  | uinput                       | `CGEventPost`        |
