@@ -5,7 +5,7 @@
   import { open } from '@tauri-apps/plugin-dialog';
   import { confirmAsk } from '../../lib/api';
   import { t } from '../../lib/i18n/index.svelte';
-  import { keyFromEvent } from '../../lib/model/keymap';
+  import { keyFromEvent, keyGroups, keyLabel } from '../../lib/model/keymap';
   import { SIDES, controlLabel } from '../../lib/model/controls';
   import { POWER_COMMANDS, RADIAL_COMMANDS, SIMPLE_COMMANDS } from '../../lib/model/profile';
   import { app } from '../../lib/state/app.svelte';
@@ -25,31 +25,7 @@
     { id: 'commands', icon: Terminal },
   ];
 
-  const GROUPS: { id: string; test: (k: string) => boolean }[] = [
-    { id: 'letters', test: (k) => /^[A-Z]$/.test(k) },
-    { id: 'digits', test: (k) => /^Digit\d$/.test(k) },
-    { id: 'modifiers', test: (k) => /(Ctrl|Shift|Alt|Win|Meta)$/.test(k) },
-    { id: 'function', test: (k) => /^F\d+$/.test(k) },
-    { id: 'navigation', test: (k) => /^(Up|Down|Left|Right|Home|End|PageUp|PageDown|Insert|Delete)$/.test(k) },
-    { id: 'numpad', test: (k) => k.startsWith('Numpad') },
-    { id: 'media', test: (k) => /^(Media|Volume|Browser|Launch)/.test(k) },
-  ];
-
-  function keyLabel(k: string): string {
-    if (/^Digit\d$/.test(k)) return k.slice(5);
-    if (k.startsWith('Numpad')) return 'Num ' + k.slice(6);
-    return k;
-  }
-
-  const keyGroups = $derived.by(() => {
-    const keys = (app.catalog?.keys ?? []).filter((k) => !search || k.toLowerCase().includes(search.toLowerCase()));
-    const groups = new Map<string, string[]>();
-    for (const k of keys) {
-      const g = GROUPS.find((g) => g.test(k))?.id ?? 'other';
-      groups.set(g, [...(groups.get(g) ?? []), k]);
-    }
-    return [...GROUPS.map((g) => g.id), 'other'].filter((g) => groups.has(g)).map((g) => ({ id: g, keys: groups.get(g)! }));
-  });
+  const groups = $derived(keyGroups(app.catalog?.keys ?? [], search));
 
   const MOUSE_BUTTONS: MouseButtonName[] = ['left', 'right', 'middle', 'x1', 'x2'];
   const DIRS: Dir[] = ['up', 'down', 'left', 'right'];
@@ -123,7 +99,7 @@
       <input class="search" placeholder={t('picker.search')} bind:value={search} />
     </div>
     <div class="scroll">
-      {#each keyGroups as g (g.id)}
+      {#each groups as g (g.id)}
         <div class="group">{t(`picker.groups.${g.id}`)}</div>
         <div class="grid">
           {#each g.keys as k (k)}

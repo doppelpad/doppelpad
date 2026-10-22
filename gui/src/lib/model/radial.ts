@@ -67,6 +67,7 @@ import {
 import type { Component } from 'svelte';
 import { t } from '../i18n/index.svelte';
 import type { Profile, RadialMenu, RadialSector } from '../types';
+import { layerIds } from './profile';
 import { dropUndefined, nonEmpty, setOrDrop } from './util';
 
 /** Icons a sector can show, by the name a profile stores. */
@@ -204,4 +205,27 @@ export function removeMenu(p: Profile, i: number): Profile {
       }),
     }));
   return setOrDrop({ ...p, radial_menus }, 'radial_menus', nonEmpty(radial_menus));
+}
+
+/** The most sectors a menu has. */
+export const MAX_SECTORS = 12;
+
+/** Menu `i` with one more sector, labelled with its number (none past `MAX_SECTORS`). */
+export function addSector(p: Profile, i: number): Profile {
+  const m = p.radial_menus?.[i];
+  if (!m || m.sectors.length >= MAX_SECTORS) return p;
+  return updateMenu(p, i, { sectors: [...m.sectors, { label: String(m.sectors.length + 1) }] });
+}
+
+/** Menu `i` without sector `k`; a menu keeps at least one. */
+export function removeSector(p: Profile, i: number, k: number): Profile {
+  const m = p.radial_menus?.[i];
+  if (!m || m.sectors.length <= 1) return p;
+  return updateMenu(p, i, { sectors: m.sectors.filter((_, j) => j !== k) });
+}
+
+/** The first layer other than Main that opens no menu yet, else Main. */
+export function firstFreeLayer(p: Profile): number {
+  const used = new Set((p.radial_menus ?? []).map((m) => m.layer));
+  return layerIds(p).find((l) => l !== 0 && !used.has(l)) ?? 0;
 }

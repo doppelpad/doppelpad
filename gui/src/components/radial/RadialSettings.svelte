@@ -5,7 +5,21 @@
   import { Plus, Trash2, X } from '@lucide/svelte';
   import { t } from '../../lib/i18n/index.svelte';
   import { actionLabel, layerIds } from '../../lib/model/profile';
-  import { RADIAL_ICONS, RING, addMenu, isImageIcon, removeMenu, sectorCentre, sectorPath, updateMenu, updateSector } from '../../lib/model/radial';
+  import {
+    MAX_SECTORS,
+    RADIAL_ICONS,
+    RING,
+    addMenu,
+    addSector,
+    firstFreeLayer,
+    isImageIcon,
+    removeMenu,
+    removeSector,
+    sectorCentre,
+    sectorPath,
+    updateMenu,
+    updateSector,
+  } from '../../lib/model/radial';
   import { app } from '../../lib/state/app.svelte';
   import type { Action, RadialApply, RadialMenu, RadialSelect } from '../../lib/types';
   import ActionPicker from '../binding/ActionPicker.svelte';
@@ -26,14 +40,6 @@
     app.edit((p) => updateMenu(p, i, patch));
   }
 
-  function addSector(i: number, m: RadialMenu) {
-    if (m.sectors.length < 12) setMenu(i, { sectors: [...m.sectors, { label: String(m.sectors.length + 1) }] });
-  }
-
-  function removeSector(i: number, m: RadialMenu, k: number) {
-    if (m.sectors.length > 1) setMenu(i, { sectors: m.sectors.filter((_, j) => j !== k) });
-  }
-
   function addAction(i: number, k: number, a: Action) {
     const s = app.profile?.radial_menus?.[i]?.sectors[k];
     if (s) app.edit((p) => updateSector(p, i, k, { actions: [...(s.actions ?? []), a] }));
@@ -45,9 +51,7 @@
   }
 
   function newMenu() {
-    const used = new Set(menus.map((m) => m.layer));
-    const free = layers.find((l) => !used.has(l)) ?? 0;
-    app.edit((p) => addMenu(p, free));
+    app.edit((p) => addMenu(p, firstFreeLayer(p)));
   }
 </script>
 
@@ -140,7 +144,7 @@
             {/each}
           </select>
           {#if !disabled && n > 1}
-            <button class="icon-btn" title={t('radial.remove_sector')} onclick={() => removeSector(i, m, k)}><Trash2 size={14} /></button>
+            <button class="icon-btn" title={t('radial.remove_sector')} onclick={() => app.edit((p) => removeSector(p, i, k))}><Trash2 size={14} /></button>
           {/if}
           {#if !s.submenu}
             <div class="acts">
@@ -162,8 +166,8 @@
           {/if}
         </div>
       {/each}
-      {#if !disabled && n < 12}
-        <button class="btn add" onclick={() => addSector(i, m)}><Plus size={14} /> {t('radial.add_sector')}</button>
+      {#if !disabled && n < MAX_SECTORS}
+        <button class="btn add" onclick={() => app.edit((p) => addSector(p, i))}><Plus size={14} /> {t('radial.add_sector')}</button>
       {/if}
     </div>
   </section>
