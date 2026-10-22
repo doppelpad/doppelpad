@@ -66,7 +66,8 @@
     "remove": "Entfernen",
     "back": "Zurück",
     "reset": "Auf Standard zurücksetzen",
-    "reveal": "Im Explorer zeigen"
+    "reveal": "Im Explorer zeigen",
+    "hint": "Gut zu wissen"
   },
   "profiles": {
     "export": "Spiel exportieren",
@@ -1393,7 +1394,9 @@
     "errors": "{n} Fehler",
     "warnings": "{n} Warnungen",
     "service": "Warnungen des Remapping-Dienstes",
-    "go": "Hinzeigen"
+    "go": "Hinzeigen",
+    "rescan": "Controller suchen",
+    "rescan_hint": "Jetzt nach Controllern suchen, auch nach denen, die ein anderes Programm bisher belegt hat"
   },
   "osd": {
     "remap_on": "Remapping an",
@@ -1405,7 +1408,9 @@
     "disconnected": "Getrennt",
     "test": "So sehen Meldungen aus.",
     "battery_low": "Akku schwach: {level} %",
-    "battery_critical": "Akku fast leer: {level} %"
+    "battery_critical": "Akku fast leer: {level} %",
+    "steam_input": "Steam läuft",
+    "steam_input_detail": "Tasten doppelt? Steam Input für {game} ausschalten."
   },
   "overlays": {
     "no_mappings": "Auf dieser Ebene ist nichts belegt.",
@@ -1458,14 +1463,16 @@
   },
   "questions": {
     "dont_ask": "Nicht mehr fragen",
-    "title": "Abgeschaltete Rückfragen",
+    "title": "Abgeschaltete Rückfragen und Hinweise",
     "none": "Keine. Rückfragen zu Änderungen, die sich rückgängig machen lassen, bieten „Nicht mehr fragen“ an.",
     "ask_again": "Wieder fragen",
     "ids": {
       "power_command": "Herunterfahren, Neustart, Energiesparen oder Abmelden zu einem Mapping hinzufügen",
       "clear_mappings": "Alle Mappings einer Config löschen",
+      "steam_input": "Der Hinweis auf Steam Input, wenn Steam läuft, während ein Spiel einen virtuellen Controller nutzt",
       "whole_stick_replace": "Richtungen und Routen eines Sticks durch eine Auswahl für den ganzen Stick ersetzen"
-    }
+    },
+    "dont_show": "Nicht mehr anzeigen"
   },
   "lints": {
     "hotkey": "enthält alle Tasten des Controller-Hotkeys {hotkey} ({keys}); der Hotkey nimmt sie, deshalb löst dieses Mapping nie aus, solange Hotkeys an sind"
@@ -1556,5 +1563,8 @@
     "section": "Einstellungen: {name}",
     "restore": "Diese Version wiederherstellen",
     "restored": "Version vom {when} wiederhergestellt. Speichern behält sie, Strg+Z nimmt es zurück."
+  },
+  "hints": {
+    "steam_input": "Steam läuft, während {game} den virtuellen Controller von Doppelpad nutzt. Steam Input kann diesen Controller ebenfalls übernehmen und neu belegen, sodass Tasten doppelt oder anders als gemappt wirken. Passiert das, schalte Steam Input für dieses Spiel aus: in Steam die Eigenschaften des Spiels öffnen, dann Controller, und Steam Input dort deaktivieren."
   }
 }

@@ -18,8 +18,9 @@ use windows_sys::Win32::Devices::HumanInterfaceDevice::{
     GUID_DEVINTERFACE_HID, HID_USAGE_GENERIC_GAMEPAD, HID_USAGE_GENERIC_JOYSTICK,
     HID_USAGE_PAGE_GENERIC, HID_USAGE_PAGE_VENDOR_DEFINED_BEGIN,
 };
+use windows_sys::Win32::Foundation::{ERROR_ACCESS_DENIED, ERROR_SHARING_VIOLATION};
 
-use super::devnode::{InterfaceEntry, enumerate_interfaces, is_vigem_device};
+use super::devnode::{InterfaceEntry, enumerate_interfaces, is_vigem_device, product_name};
 use super::hidio::{HidIo, Wait, Waker};
 use super::hidparse::HidDecoder;
 use crate::generic::{GenericDriver, GenericLayout, RawInput, ReportDecoder};
@@ -365,11 +366,41 @@ impl Scanner {
                 }
                 Err(e) => {
                     tracing::debug!(path = %entry.path, "cannot open HID device: {e}");
+                    if let Some(problem) = busy_problem(&entry, &e) {
+                        self.problems
+                            .lock()
+                            .unwrap()
+                            .insert(entry.path.clone(), problem);
+                    }
                     self.skip.insert(entry.path, now + SKIP_FOREIGN);
                 }
             }
         }
     }
+}
+
+/// What to tell the user about a controller that another program keeps to itself (it cannot
+/// even be opened for reading); `None` for other errors and other devices. Valve devices are
+/// left out: their keyboard and mouse collections always refuse to open.
+fn busy_problem(entry: &InterfaceEntry, e: &std::io::Error) -> Option<String> {
+    let code = u32::try_from(e.raw_os_error()?).ok()?;
+    if !is_busy_code(code) {
+        return None;
+    }
+    let (vid, pid) = crate::holders::ids_in_path(&entry.path)?;
+    let model = sony::model_for(vid, pid)
+        .map(SonyModel::name)
+        .or_else(|| nintendo::model_for(vid, pid).map(|_| "Nintendo controller"))?;
+    let name = product_name(entry.devinst).unwrap_or_else(|| model.to_owned());
+    Some(crate::holders::busy_message(
+        &format!("the {name}"),
+        super::process::likely_holder(),
+    ))
+}
+
+/// Opening failed because another handle excludes ours.
+fn is_busy_code(code: u32) -> bool {
+    code == ERROR_SHARING_VIOLATION || code == ERROR_ACCESS_DENIED
 }
 
 /// Open an interface and decide whether one of our drivers handles it (with the report
@@ -684,6 +715,13 @@ impl GamepadBackend for HidBackend {
 mod tests {
     use super::*;
     use crate::nintendo::Switch2Model;
+
+    #[test]
+    fn busy_codes() {
+        assert!(is_busy_code(ERROR_SHARING_VIOLATION));
+        assert!(is_busy_code(ERROR_ACCESS_DENIED));
+        assert!(!is_busy_code(2), "file not found");
+    }
 
     #[test]
     fn driver_kinds() {

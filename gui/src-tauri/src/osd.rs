@@ -4,7 +4,7 @@
 //! window; the overlay page words it in the app's language. Nothing shows while the main
 //! window has focus (it shows the same state) or in the first seconds after start.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
@@ -13,9 +13,9 @@ use dp_config::library;
 use dp_platform::Battery;
 use dp_service::{LiveState, SharedLive};
 use serde::Serialize;
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Emitter, Manager};
 
-use crate::commands::AppState;
+use crate::commands::{AppState, MAIN_WINDOW};
 use crate::overlay::{self, OverlayKind, Placement};
 use crate::settings::{Corner, OsdSettings};
 
@@ -55,6 +55,10 @@ pub enum Event {
     BatteryCritical {
         name: String,
         level: u8,
+    },
+    /// Steam runs while a game uses a virtual controller: Steam Input may remap it again.
+    SteamInput {
+        game: String,
     },
     /// A sample from the settings dialog.
     Test,
@@ -264,6 +268,53 @@ pub fn notify(app: &AppHandle, event: Event, keep: Option<Duration>) {
     overlay::show_content(app, KIND, placement, &msg);
 }
 
+/// The id of the Steam Input hint among the questions and hints turned off (`silenced`).
+pub const STEAM_HINT: &str = "steam_input";
+/// Event that asks the main window to show a hint.
+const HINT_EVENT: &str = "hint";
+/// The Steam Input note stays this long at least: it needs reading.
+const STEAM_HINT_MIN: Duration = Duration::from_secs(10);
+
+/// A hint for the main window: which one, and the game it is about.
+#[derive(Clone, Debug, Serialize)]
+struct Hint {
+    id: &'static str,
+    game: String,
+}
+
+/// The program in front, when it is a game of the library whose config drives a virtual
+/// controller (Steam Input may take that controller and remap it again).
+fn game_with_virtual_pad(live: &LiveState) -> Option<&str> {
+    (live.auto_active && live.virtual_pad.is_some())
+        .then_some(live.foreground.as_deref())
+        .flatten()
+}
+
+/// Whether to point at Steam Input for `front`: it just came to the front, it was not pointed
+/// out for this program in this run, the hint is not turned off, and Steam runs (asked last:
+/// it lists the processes).
+fn steam_hint_due(
+    front: Option<&str>,
+    before: Option<&str>,
+    hinted: &HashSet<String>,
+    silenced: bool,
+    steam_running: impl FnOnce() -> bool,
+) -> bool {
+    match front {
+        Some(exe) if before != Some(exe) && !silenced && !hinted.contains(exe) => steam_running(),
+        _ => false,
+    }
+}
+
+/// The game's name for the running config, else the program.
+fn game_name(live: &LiveState, exe: &str) -> String {
+    live.profile_path
+        .as_deref()
+        .and_then(|p| Path::new(p).parent())
+        .and_then(|dir| library::read_game(dir).ok())
+        .map_or_else(|| exe.to_owned(), |g| g.meta.name)
+}
+
 /// Hide the message whose time is up. Returns whether one went away.
 fn expire(app: &AppHandle) -> bool {
     let state = app.state::<OsdState>();
@@ -286,13 +337,53 @@ pub(crate) fn watch(app: AppHandle, live: SharedLive) {
     let started = Instant::now();
     let mut seen = View::of(&live.get());
     let mut warned = HashMap::new();
+    let (mut front, mut hinted) = (None::<String>, HashSet::new());
     loop {
         std::thread::sleep(WATCH_INTERVAL);
-        let view = View::of(&live.get());
-        let s = app.state::<AppState>().settings.lock().unwrap().osd.clone();
-        let quiet = !s.enabled
-            || started.elapsed() < STARTUP_QUIET
-            || app.state::<AppState>().main_focused();
+        let state = live.get();
+        let view = View::of(&state);
+        let app_state = app.state::<AppState>();
+        let (s, steam_silenced) = {
+            let settings = app_state.settings.lock().unwrap();
+            (
+                settings.osd.clone(),
+                settings.silenced.iter().any(|id| id == STEAM_HINT),
+            )
+        };
+        let starting = started.elapsed() < STARTUP_QUIET;
+        let quiet = !s.enabled || starting || app_state.main_focused();
+        // The window may not listen yet while the app starts: look again afterwards.
+        if !starting {
+            let now = game_with_virtual_pad(&state);
+            if steam_hint_due(
+                now,
+                front.as_deref(),
+                &hinted,
+                steam_silenced,
+                dp_platform::steam_running,
+            ) && let Some(exe) = now
+            {
+                hinted.insert(exe.to_owned());
+                let game = game_name(&state, exe);
+                tracing::info!(%game, "Steam runs while the game uses a virtual controller");
+                let _ = app.emit_to(
+                    MAIN_WINDOW,
+                    HINT_EVENT,
+                    Hint {
+                        id: STEAM_HINT,
+                        game: game.clone(),
+                    },
+                );
+                if !quiet {
+                    notify(
+                        &app,
+                        Event::SteamInput { game },
+                        Some(s.duration().max(STEAM_HINT_MIN)),
+                    );
+                }
+            }
+            front = now.map(str::to_owned);
+        }
         if view != seen {
             if !quiet {
                 for mut e in events(&seen, &view, &s) {
@@ -354,6 +445,48 @@ pub fn osd_monitors(app: AppHandle) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn steam_hint_once_per_game_with_a_virtual_pad() {
+        let mut live = LiveState {
+            auto_active: true,
+            virtual_pad: Some("xbox360".into()),
+            foreground: Some("game.exe".into()),
+            ..LiveState::default()
+        };
+        assert_eq!(game_with_virtual_pad(&live), Some("game.exe"));
+        let mut hinted = HashSet::new();
+        let due = |front, before, hinted: &HashSet<String>, silenced, steam| {
+            steam_hint_due(front, before, hinted, silenced, || steam)
+        };
+        assert!(due(Some("game.exe"), None, &hinted, false, true));
+        assert!(
+            !due(Some("game.exe"), None, &hinted, false, false),
+            "no Steam"
+        );
+        assert!(
+            !due(Some("game.exe"), None, &hinted, true, true),
+            "turned off"
+        );
+        assert!(
+            !due(Some("game.exe"), Some("game.exe"), &hinted, false, true),
+            "still in front"
+        );
+        hinted.insert("game.exe".to_owned());
+        assert!(!due(Some("game.exe"), None, &hinted, false, true), "once");
+        assert!(due(Some("other.exe"), None, &hinted, false, true));
+        assert!(!due(None, Some("game.exe"), &hinted, false, true));
+
+        live.virtual_pad = None;
+        assert_eq!(
+            game_with_virtual_pad(&live),
+            None,
+            "keyboard and mouse only"
+        );
+        live.virtual_pad = Some("ds4".into());
+        live.auto_active = false;
+        assert_eq!(game_with_virtual_pad(&live), None, "not a library game");
+    }
 
     fn view() -> View {
         View {

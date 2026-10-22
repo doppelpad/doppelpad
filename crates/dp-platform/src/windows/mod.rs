@@ -37,6 +37,13 @@ pub fn foreground_program() -> Option<String> {
     foreground::Foreground.foreground_process()
 }
 
+/// Whether a process with this executable file name runs (any case).
+pub fn program_running(exe: &str) -> bool {
+    process::list()
+        .iter()
+        .any(|(_, name)| name.eq_ignore_ascii_case(exe))
+}
+
 /// The programs that show a window now (see `crate::windowed_programs`).
 pub fn windowed_programs() -> Vec<crate::WindowedProgram> {
     process::windowed()

@@ -19,7 +19,9 @@ use windows_sys::Win32::Devices::HumanInterfaceDevice::GUID_DEVINTERFACE_HID;
 
 use super::devnode::{enumerate_interfaces, usb_device_of};
 use super::hidio::HidIo;
-use super::usb::{endpoint_addrs, transfer_error};
+use super::process;
+use super::usb::{endpoint_addrs, is_busy, transfer_error};
+use crate::holders::busy_message;
 use crate::nintendo::NINTENDO_VID;
 use crate::nintendo::gcadapter::{
     self, ADAPTER_PID, Adapter, PORTS, Port, PortKind, START, rumble_report,
@@ -258,7 +260,7 @@ fn scan(adapters: &Adapters, problems: &Mutex<Vec<String>>) {
         }
     }
     // On WinUSB (as Dolphin needs it).
-    let mut unusable = 0;
+    let (mut unusable, mut busy) = (0, false);
     if let Ok(list) = nusb::list_devices().wait() {
         for info in list.filter(|d| gcadapter::is_adapter(d.vendor_id(), d.product_id())) {
             let instance = info.instance_id().to_string_lossy().into_owned();
@@ -270,13 +272,19 @@ fn scan(adapters: &Adapters, problems: &Mutex<Vec<String>>) {
                 Err(e) => {
                     tracing::debug!("GameCube adapter cannot be opened: {e}");
                     unusable += 1;
+                    busy |= is_busy(&e);
                 }
             }
         }
     }
     let mut p = problems.lock().unwrap();
     p.clear();
-    if unusable > 0 {
+    if busy {
+        p.push(busy_message(
+            "the GameCube adapter",
+            process::likely_holder(),
+        ));
+    } else if unusable > 0 {
         p.push(
             "the GameCube adapter cannot be opened: another program may be using it, or it \
              needs the WinUSB driver (for example installed with Zadig)"

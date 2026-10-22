@@ -55,6 +55,7 @@ permissions = [
   "allow-new-http-token",
   "allow-set-preferred-device",
   "allow-refresh-drivers",
+  "allow-rescan-devices",
   "allow-hotkeys-get",
   "allow-hotkeys-set",
   "allow-hotkeys-pause",

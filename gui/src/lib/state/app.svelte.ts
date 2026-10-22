@@ -56,6 +56,8 @@ interface QuestionRequest {
   message: string;
   /** A question that can be silenced ("Don't ask again"). */
   id?: QuestionId;
+  /** Something to read, not to answer: only OK, and "Don't show again" with an id. */
+  info?: boolean;
   resolve: (ok: boolean) => void;
 }
 
@@ -63,7 +65,7 @@ interface QuestionRequest {
  * Questions that may be silenced: only ones whose change can be undone. Deleting games or
  * configs and discarding unsaved changes always ask.
  */
-export const QUESTION_IDS = ['power_command', 'clear_mappings', 'whole_stick_replace'] as const;
+export const QUESTION_IDS = ['power_command', 'clear_mappings', 'whole_stick_replace', 'steam_input'] as const;
 export type QuestionId = (typeof QUESTION_IDS)[number];
 
 export interface ContextMenuRequest {
@@ -172,6 +174,10 @@ class AppState {
       for (const n of await api.takeNotices()) this.toast(t(`notices.${n}`), 'info');
       // Bundles opened from Explorer: the one the app started with now, later ones as they come.
       await listen<string[]>('open-files', (e) => this.openFiles(e.payload));
+      // Hints the app sends while something happens elsewhere (a game in front).
+      await listen<{ id: QuestionId; game: string }>('hint', (e) =>
+        this.inform(t(`hints.${e.payload.id}`, { game: e.payload.game }), e.payload.id),
+      );
       const opened = await api.takeOpenFiles();
       this.rewasd = await api.rewasdStatus();
       if (this.rewasdRunning) {
@@ -362,6 +368,15 @@ class AppState {
     if (id && this.settings.silenced.includes(id)) return Promise.resolve(true);
     this.question?.resolve(false);
     return new Promise((resolve) => (this.question = { message, id, resolve }));
+  }
+
+  /** Tell something in the app's dialog; with an `id` it offers "Don't show again", and a silenced id shows nothing. */
+  inform(message: string, id?: QuestionId): Promise<void> {
+    if (id && this.settings.silenced.includes(id)) return Promise.resolve();
+    // A question waiting for an answer keeps its place; the hint waits behind it.
+    const waiting = this.question;
+    if (waiting) return new Promise((r) => setTimeout(() => r(this.inform(message, id)), 500));
+    return new Promise((resolve) => (this.question = { message, id, info: true, resolve: () => resolve() }));
   }
 
   /** Stop asking a question (its answer is OK from now on), or (`false`) ask it again. */

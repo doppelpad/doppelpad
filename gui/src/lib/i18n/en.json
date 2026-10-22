@@ -66,7 +66,8 @@
     "remove": "Remove",
     "back": "Back",
     "reset": "Reset to default",
-    "reveal": "Show in Explorer"
+    "reveal": "Show in Explorer",
+    "hint": "Good to know"
   },
   "profiles": {
     "export": "Export game",
@@ -1393,7 +1394,9 @@
     "errors": "{n} errors",
     "warnings": "{n} warnings",
     "service": "Warnings from the remapping service",
-    "go": "Show it"
+    "go": "Show it",
+    "rescan": "Look for controllers",
+    "rescan_hint": "Look for controllers now, also those another program held until now"
   },
   "osd": {
     "remap_on": "Remapping on",
@@ -1405,7 +1408,9 @@
     "disconnected": "Disconnected",
     "test": "Notifications look like this.",
     "battery_low": "Battery low: {level} %",
-    "battery_critical": "Battery critical: {level} %"
+    "battery_critical": "Battery critical: {level} %",
+    "steam_input": "Steam is running",
+    "steam_input_detail": "Buttons act twice? Turn off Steam Input for {game}."
   },
   "overlays": {
     "no_mappings": "Nothing is mapped on this layer.",
@@ -1458,14 +1463,16 @@
   },
   "questions": {
     "dont_ask": "Don't ask again",
-    "title": "Questions you turned off",
+    "title": "Questions and hints you turned off",
     "none": "None. Questions whose change can be undone offer \"Don't ask again\".",
     "ask_again": "Ask again",
     "ids": {
       "power_command": "Adding a shut-down, restart, sleep or sign-out command to a mapping",
       "clear_mappings": "Clearing all mappings of a config",
-      "whole_stick_replace": "Replacing a stick's directions and routes with a whole-stick choice"
-    }
+      "whole_stick_replace": "Replacing a stick's directions and routes with a whole-stick choice",
+      "steam_input": "The note about Steam Input when Steam runs while a game uses a virtual controller"
+    },
+    "dont_show": "Don't show again"
   },
   "lints": {
     "hotkey": "holds every button of the controller hotkey {hotkey} ({keys}); the hotkey takes them, so this mapping never fires while hotkeys are on"
@@ -1556,5 +1563,8 @@
     "section": "settings: {name}",
     "restore": "Restore this version",
     "restored": "Restored the version of {when}. Save to keep it; Ctrl+Z takes it back."
+  },
+  "hints": {
+    "steam_input": "Steam is running while {game} uses Doppelpad's virtual controller. Steam Input may take that controller as well and remap it again, so buttons act twice or not as mapped. If that happens, turn Steam Input off for this game: in Steam, open the game's Properties, then Controller, and choose to disable Steam Input."
   }
 }

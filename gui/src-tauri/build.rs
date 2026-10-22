@@ -53,6 +53,7 @@ const COMMANDS: &[&str] = &[
     "new_http_token",
     "set_preferred_device",
     "refresh_drivers",
+    "rescan_devices",
     "hotkeys_get",
     "hotkeys_set",
     "hotkeys_pause",

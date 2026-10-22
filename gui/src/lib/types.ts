@@ -806,6 +806,7 @@ export type OsdEvent =
   | { kind: 'disconnected'; name: string }
   | { kind: 'battery_low'; name: string; level: number }
   | { kind: 'battery_critical'; name: string; level: number }
+  | { kind: 'steam_input'; game: string }
   | { kind: 'test' };
 
 export type OsdMessage = OsdEvent & { id: number; lang: string; opacity: number; scale: number; corner: Corner };
