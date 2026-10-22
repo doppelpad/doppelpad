@@ -44,6 +44,15 @@ impl SlotSet {
     fn clamp(&mut self) {
         self.active = self.active.min(SLOTS - 1);
     }
+
+    /// Point slots holding files of the library moved from `from` at their new place.
+    fn library_moved(&mut self, from: &Path, to: &Path) {
+        for slot in self.slots.iter_mut().flatten() {
+            if let Some(p) = dp_config::relocate::moved_path(slot, from, to) {
+                *slot = p;
+            }
+        }
+    }
 }
 
 /// TOML has no null, so empty slots are empty strings on disk.
@@ -179,6 +188,15 @@ impl SlotState {
     pub fn save(&self, path: &Path) -> std::io::Result<()> {
         dp_config::save_toml(path, self)
     }
+
+    /// The library moved from `from` to `to`: every slot holding one of its files, shared or
+    /// a controller's own, now holds the same file in its new place.
+    pub fn library_moved(&mut self, from: &Path, to: &Path) {
+        self.shared.library_moved(from, to);
+        for own in self.devices.values_mut() {
+            own.library_moved(from, to);
+        }
+    }
 }
 
 #[cfg(test)]
@@ -227,6 +245,31 @@ mod tests {
             SlotState::load(&path),
             SlotState::default(),
             "corrupt file = defaults"
+        );
+    }
+
+    #[test]
+    fn slots_follow_the_moved_library() {
+        let (from, to) = (Path::new("/old/profiles"), Path::new("/sync/pads"));
+        let mut s = SlotState::default();
+        s.shared.slots[0] = Some(PathBuf::from("/old/profiles/game/a.toml"));
+        s.shared.slots[2] = Some(PathBuf::from("/elsewhere/b.toml"));
+        let mut own = SlotSet::default();
+        own.slots[3] = Some(PathBuf::from("/old/profiles/c.toml"));
+        s.devices.insert("hid:pad".into(), own);
+        s.library_moved(from, to);
+        assert_eq!(
+            s.shared.slots[0],
+            Some(PathBuf::from("/sync/pads/game/a.toml"))
+        );
+        assert_eq!(
+            s.shared.slots[2],
+            Some(PathBuf::from("/elsewhere/b.toml")),
+            "a file outside the library stays"
+        );
+        assert_eq!(
+            s.devices["hid:pad"].slots[3],
+            Some(PathBuf::from("/sync/pads/c.toml"))
         );
     }
 

@@ -10,6 +10,7 @@ import { comboKey, editMappingIn, layerIds, mappingAt, type LayerCopy } from '..
 import { layerLabel } from '../model/labels';
 import { clone } from '../model/util';
 import { isStreamingField, pointer } from '../dom';
+import { movedPath } from '../paths';
 import { History, type EditKey } from './history';
 import { flagsOf, hotkeyClashes, type Flags } from '../model/lints';
 import type { Copied } from '../model/clipboard';
@@ -259,6 +260,21 @@ class AppState {
 
   async refreshLibrary() {
     this.library = await api.libraryScan();
+  }
+
+  /**
+   * The library moved from `from` (`null`: another library is used and nothing moved) to `to`:
+   * the open game and config, unsaved changes included, follow their files.
+   */
+  async libraryMoved(from: string | null, to: string) {
+    if (from) {
+      if (this.gameDir) this.gameDir = movedPath(this.gameDir, from, to);
+      if (this.configPath) this.configPath = movedPath(this.configPath, from, to);
+    } else if (this.configPath && !this.dirty) {
+      this.closeConfig();
+      this.gameDir = null;
+    }
+    await this.refreshLibrary();
   }
 
   /** List the library again and open `path`, a config that was just made. */

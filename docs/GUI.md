@@ -571,6 +571,7 @@ reports a running reWASD.
 |---|---|
 | `%APPDATA%\doppelpad\profiles\<game>\game.toml` | Game name, programs for autodetect, default config |
 | `%APPDATA%\doppelpad\profiles\<game>\<config>.toml` | One profile (the normal TOML format, see [PROFILES.md](PROFILES.md)) |
+| `%APPDATA%\doppelpad\profiles-location.txt` | The folder chosen for games and configs, when it is not the default `profiles` folder (see below) |
 | `%APPDATA%\doppelpad\state.toml` | The four slots, active slot, remap on/off, autodetect |
 | `%APPDATA%\doppelpad\hotkeys.toml` | Controller hotkeys and their hold time (also read by `doppelpad daemon`) |
 | `%APPDATA%\doppelpad\calibration.toml` | Gyro calibration per controller (also used by `doppelpad daemon`) |
@@ -587,6 +588,19 @@ config). **Earlier versions…** in the config's options menu lists them by date
 shows what restoring it would change (mappings added, removed or changed, and the settings
 that differ). **Restore this version** makes it the unsaved draft: *Save* keeps it, Ctrl+Z
 takes it back.
+
+### Configs folder
+
+*Settings → Files → Configs are stored in → Change…* moves the games, configs and layer
+presets to another folder, for example one that a cloud drive keeps in sync. Doppelpad
+copies every file, checks each copy, switches to the new folder (the slots and the open
+config follow their files) and only then removes the old files. The new folder must be empty
+or already hold a Doppelpad library: a folder synced from another computer is used as it is,
+and the current configs then stay where they were. A folder with other files is refused.
+*Reset to default* moves everything back to `%APPDATA%\doppelpad\profiles`. The app, the
+service and the command line all read the choice from `profiles-location.txt`; a moved
+library carries a `.doppelpad-library` file that marks it. The uninstaller never deletes a
+chosen folder outside `%APPDATA%\doppelpad`.
 
 ### Log file
 

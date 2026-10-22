@@ -674,6 +674,28 @@ export interface Library {
   errors: string[];
 }
 
+/** Where the library is (`library_place`). */
+export interface LibraryPlace {
+  dir: string;
+  default: string;
+  is_default: boolean;
+}
+
+/**
+ * What a folder offered for the library holds: `empty` (the library moves there), `library` (a
+ * Doppelpad library, used as it is), `foreign` (other files: refused).
+ */
+export type LibraryTarget = 'empty' | 'library' | 'foreign';
+
+/** The library after `library_move`. */
+export interface LibraryMoved {
+  dir: string;
+  /** The old folder, when the files moved (not when an existing library is used). */
+  moved_from: string | null;
+  /** Old files that could not be removed; their copies are in `dir`. */
+  left_behind: number;
+}
+
 // ----- commands ---------------------------------------------------------------------------
 
 export interface DiagMsg {

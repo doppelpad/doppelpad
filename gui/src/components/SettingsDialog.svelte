@@ -31,6 +31,7 @@
   import DriverSettings from './settings/DriverSettings.svelte';
   import DsuSettings from './settings/DsuSettings.svelte';
   import HotkeySettings from './settings/HotkeySettings.svelte';
+  import LibraryLocation from './settings/LibraryLocation.svelte';
   import OsdSettings from './settings/OsdSettings.svelte';
   import OverlaySettings from './settings/OverlaySettings.svelte';
   import PathRow from './settings/PathRow.svelte';
@@ -51,8 +52,6 @@
   /** The drivers page carries a warning dot while a driver is missing. */
   const driverMissing = $derived(driverStates(app.live).some((d) => !d.state.available));
 
-  let profilesDir = $state('');
-  api.profilesDir().then((d) => (profilesDir = d));
   let logFile = $state('');
   api.logFile().then((f) => (logFile = f));
   /** Read from Windows each time the dialog opens: Task Manager can change it too. */
@@ -181,9 +180,7 @@
         {:else if page === 'drivers'}
           <DriverSettings />
         {:else}
-          <SettingsSection title={t('settings.profiles_dir')}>
-            <PathRow path={profilesDir} revealLabel={t('common.reveal')} />
-          </SettingsSection>
+          <LibraryLocation />
           <SettingsSection title={t('settings.log_file')}>
             <PathRow path={logFile} revealLabel={t('settings.open_log_folder')} />
           </SettingsSection>

@@ -142,7 +142,9 @@ On a Wayland desktop this works for XWayland windows, which includes Proton game
 as the compositor maintains `_NET_ACTIVE_WINDOW` (KWin and Mutter do). Native Wayland
 windows are not detected, because Wayland has no portable "focused window" query.
 
-Profiles live in `~/.config/doppelpad/profiles` (or `$XDG_CONFIG_HOME/doppelpad/profiles`).
+Profiles live in `~/.config/doppelpad/profiles` (or `$XDG_CONFIG_HOME/doppelpad/profiles`),
+unless another folder is named in `profiles-location.txt` next to it (the app's *Settings →
+Files* writes it).
 
 ## Commands
 

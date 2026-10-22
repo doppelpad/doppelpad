@@ -23,7 +23,7 @@ mod tests;
 pub use self::drivers::{DriverState, DriverStatus};
 
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
@@ -337,6 +337,17 @@ impl Runtime {
     /// File of the profile a controller's own session runs.
     pub(crate) fn device_profile_path(&self, id: &DeviceId) -> Option<&PathBuf> {
         self.session(Some(id)).and_then(|s| s.path.as_ref())
+    }
+
+    /// The library moved from `from` to `to`: sessions running one of its files name the file
+    /// in its new place (the profile itself is unchanged, so nothing restarts).
+    pub(crate) fn library_moved(&mut self, from: &Path, to: &Path) {
+        for s in &mut self.sessions {
+            let moved = s.path.as_ref();
+            if let Some(p) = moved.and_then(|p| dp_config::relocate::moved_path(p, from, to)) {
+                s.path = Some(p);
+            }
+        }
     }
 
     pub fn layer(&self) -> u8 {

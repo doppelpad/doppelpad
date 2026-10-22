@@ -11,6 +11,7 @@ use dp_config::Diagnostic;
 use dp_config::bundle::{self, LayerPreset, PresetEntry};
 use dp_config::history;
 use dp_config::library::{self, Game, GameMeta, Library};
+use dp_config::relocate;
 use dp_config::templates::{self, Template};
 use dp_core::control::Control;
 use dp_core::hotkeys::Hotkeys;
@@ -62,7 +63,8 @@ pub struct AppState {
     /// The service's live snapshot, for the threads that watch it.
     pub live: SharedLive,
     pub settings: Mutex<GuiSettings>,
-    pub profiles_dir: PathBuf,
+    /// The library's folder (see [`library_move`]).
+    pub profiles_dir: Mutex<PathBuf>,
     /// Messages for the UI collected before it was ready (e.g. a service takeover).
     pub notices: Mutex<Vec<Notice>>,
     /// Game bundles the app was started with (opened from Explorer), for the UI to import.
@@ -84,6 +86,11 @@ impl AppState {
     /// Run a service command; its success text is for logs and the CLI, not the window.
     pub fn call(&self, cmd: ServiceCmd) -> CmdResult<()> {
         self.service.call(cmd).into_result().map(drop)
+    }
+
+    /// The folder the library is in.
+    pub fn library_dir(&self) -> PathBuf {
+        self.profiles_dir.lock().unwrap().clone()
     }
 
     pub fn main_focused(&self) -> bool {
@@ -186,13 +193,13 @@ pub fn catalog() -> Catalog {
 
 #[tauri::command(async)]
 pub fn library_scan(state: State<AppState>) -> Library {
-    library::scan(&state.profiles_dir)
+    library::scan(&state.library_dir())
 }
 
 #[tauri::command(async)]
 pub fn game_create(app: AppHandle, state: State<AppState>, name: String) -> CmdResult<Game> {
     library_change(&app, || {
-        library::create_game(&state.profiles_dir, &name).map_err(err)
+        library::create_game(&state.library_dir(), &name).map_err(err)
     })
 }
 
@@ -271,7 +278,7 @@ pub fn game_create_from_store(
     cover: Option<PathBuf>,
 ) -> CmdResult<Game> {
     library_change(&app, || {
-        let game = library::create_game(&state.profiles_dir, &name).map_err(err)?;
+        let game = library::create_game(&state.library_dir(), &name).map_err(err)?;
         let mut meta = game.meta.clone();
         meta.processes = program.into_iter().collect();
         library::update_game_meta(&game.dir, &meta).map_err(err)?;
@@ -323,7 +330,7 @@ pub fn game_create_template(
 ) -> CmdResult<Game> {
     let profile = templates::profile(template, &config);
     library_change(&app, || {
-        library::create_game_with(&state.profiles_dir, &name, &profile).map_err(err)
+        library::create_game_with(&state.library_dir(), &name, &profile).map_err(err)
     })
 }
 
@@ -365,19 +372,19 @@ pub fn game_export(dir: PathBuf, out: PathBuf) -> CmdResult<()> {
 #[tauri::command(async)]
 pub fn game_import(app: AppHandle, state: State<AppState>, file: PathBuf) -> CmdResult<Game> {
     library_change(&app, || {
-        bundle::import_game(&state.profiles_dir, &file).map_err(err)
+        bundle::import_game(&state.library_dir(), &file).map_err(err)
     })
 }
 
 #[tauri::command(async)]
 pub fn preset_list(state: State<AppState>) -> Vec<PresetEntry> {
-    bundle::list_presets(&state.profiles_dir)
+    bundle::list_presets(&state.library_dir())
 }
 
 #[tauri::command(async)]
 pub fn preset_save(state: State<AppState>, preset: LayerPreset) -> CmdResult<PathBuf> {
     let _disk = state.disk.lock().unwrap();
-    bundle::save_preset(&state.profiles_dir, &preset).map_err(err)
+    bundle::save_preset(&state.library_dir(), &preset).map_err(err)
 }
 
 #[tauri::command(async)]
@@ -833,9 +840,88 @@ pub fn window_show(app: AppHandle) {
     crate::tray::show_main(&app);
 }
 
+/// Where the library is, and whether that is the default folder.
+#[derive(Serialize)]
+pub struct LibraryPlace {
+    dir: PathBuf,
+    default: PathBuf,
+    is_default: bool,
+}
+
 #[tauri::command]
-pub fn profiles_dir(state: State<AppState>) -> PathBuf {
-    state.profiles_dir.clone()
+pub fn library_place(state: State<AppState>) -> LibraryPlace {
+    let dir = state.library_dir();
+    let default = dp_config::default_profiles_dir();
+    LibraryPlace {
+        is_default: relocate::same_dir(&dir, &default),
+        dir,
+        default,
+    }
+}
+
+/// What a folder offered for the library holds (`empty`: the library moves there; `library`:
+/// it is used as it is; `foreign`: refused), or why the library cannot go there.
+#[tauri::command(async)]
+pub fn library_target(state: State<AppState>, dir: PathBuf) -> CmdResult<relocate::Target> {
+    relocate::check_move(
+        &state.library_dir(),
+        &dir,
+        &dp_config::default_profiles_dir(),
+    )
+    .map_err(err)
+}
+
+#[derive(Serialize)]
+pub struct LibraryMoved {
+    dir: PathBuf,
+    /// The old folder, when the files moved (not when an existing library is used).
+    moved_from: Option<PathBuf>,
+    /// Old files that could not be removed; their copies are in `dir`.
+    left_behind: usize,
+}
+
+/// Move the library to `dir` (missing or empty), or use the Doppelpad library already there;
+/// `None` goes back to the default folder. Files are copied and checked, the new place is
+/// remembered and the service told (slots follow the files), and only then the old files go.
+#[tauri::command(async)]
+pub fn library_move(
+    app: AppHandle,
+    state: State<AppState>,
+    dir: Option<PathBuf>,
+) -> CmdResult<LibraryMoved> {
+    let default = dp_config::default_profiles_dir();
+    let to = dir.unwrap_or_else(|| default.clone());
+    let disk = state.disk.lock().unwrap();
+    let from = state.library_dir();
+    let copied = match relocate::check_move(&from, &to, &default).map_err(err)? {
+        relocate::Target::Foreign => return Err(err(relocate::MoveError::Foreign(to))),
+        relocate::Target::Library => None,
+        relocate::Target::Empty => Some(relocate::copy_library(&from, &to).map_err(err)?),
+    };
+    let choice = (!relocate::same_dir(&to, &default)).then_some(to.as_path());
+    if let Err(e) = relocate::save_choice(&dp_config::config_dir(), choice) {
+        if let Some(c) = copied {
+            c.undo();
+        }
+        return Err(err(e));
+    }
+    let moved_from = copied.as_ref().map(|_| from.clone());
+    if let Err(e) = state.call(ServiceCmd::UseLibrary {
+        dir: to.clone(),
+        moved_from: moved_from.clone(),
+    }) {
+        tracing::warn!("the service did not switch the library: {e}");
+    }
+    *state.profiles_dir.lock().unwrap() = to.clone();
+    let left_behind = copied.map_or(0, relocate::Copied::remove_originals);
+    drop(disk);
+    tracing::info!(from = %from.display(), to = %to.display(), "library moved");
+    crate::tray::refresh(&app);
+    Ok(LibraryMoved {
+        dir: to,
+        moved_from,
+        left_behind,
+    })
 }
 
 /// The app's log file, to attach to bug reports.

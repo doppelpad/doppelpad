@@ -118,6 +118,7 @@ impl Service {
                 self.reload();
                 ServiceReply::Ok(format!("{} profiles", self.loose_profiles()))
             }
+            ServiceCmd::UseLibrary { dir, moved_from } => self.use_library(dir, moved_from),
             ServiceCmd::Shutdown => ServiceReply::Ok("shutting down".into()),
             ServiceCmd::ApplyToSlot { device, slot, path } => {
                 self.apply_to_slot(device, slot, path)
@@ -205,6 +206,30 @@ impl Service {
         self.errors.last = None;
         self.turn_remap_off();
         ServiceReply::Ok("remapping stopped".into())
+    }
+
+    /// Switch to another profiles directory; see [`ServiceCmd::UseLibrary`].
+    fn use_library(&mut self, dir: PathBuf, moved_from: Option<PathBuf>) -> ServiceReply {
+        if let Some(from) = &moved_from {
+            let moved = |p: &mut Option<PathBuf>| {
+                if let Some(n) = p
+                    .as_ref()
+                    .and_then(|p| dp_config::relocate::moved_path(p, from, &dir))
+                {
+                    *p = Some(n);
+                }
+            };
+            moved(&mut self.oneoff);
+            moved(&mut self.auto_active);
+            self.rt.library_moved(from, &dir);
+            self.update_state(|s| s.library_moved(from, &dir));
+        }
+        self.opts.profiles_dir = dir;
+        self.reload();
+        ServiceReply::Ok(format!(
+            "profiles folder: {}",
+            self.opts.profiles_dir.display()
+        ))
     }
 
     /// Put a config into a slot and make that slot active.
