@@ -75,6 +75,16 @@ has the same entries:
 The copy stays while the app runs, so it can be pasted into another config. Pasting and clearing
 can be undone. The macro editor has **Copy steps** and **Paste steps** for whole sequences.
 
+**Swap or mirror controls…** in the layer menu changes the current layer or the whole config in
+one step: *Swap A/B and X/Y* (for example for Nintendo button positions), *Swap the sticks*
+(southpaw), *Swap bumpers and triggers*, or *Mirror left and right* (bumpers, triggers, sticks,
+D-pad and face buttons, Back and Start, paddles and trackpads change sides). Each control does
+what its partner did, with all activators. A button nothing maps takes its own output along
+(an unmapped A becomes a mapping B → A). A stick that only passed through gets a route to the
+other virtual stick, shaped by its deadzone, outer deadzone, anti-deadzone and sensitivity; its
+response curve is not carried over. On a shift layer, a control that does nothing there after
+the swap stops taking *Main*'s mapping over. Ctrl+Z takes a transform back.
+
 ## Find
 
 **Find** (the magnifier in the header, or Ctrl+F) searches the open config across all layers:
