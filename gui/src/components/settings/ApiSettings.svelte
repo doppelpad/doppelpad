@@ -8,6 +8,8 @@
   import { app } from '../../lib/state/app.svelte';
   import type { HttpSettings } from '../../lib/types';
   import Toggle from '../ui/Toggle.svelte';
+  import SettingRow from './SettingRow.svelte';
+  import SettingsSection from './SettingsSection.svelte';
 
   const http = $derived(app.live?.http ?? null);
 
@@ -24,17 +26,14 @@
 </script>
 
 {#if http}
-  <div class="section">
-    <div class="section-title"><span>{t('settings.http.title')}</span></div>
-    <p class="hint">{t('settings.http.hint')}</p>
+  <SettingsSection title={t('settings.http.title')} hint={t('settings.http.hint')}>
     <Toggle checked={http.settings.enabled} label={t('settings.http.enabled')} onchange={(v) => set({ enabled: v })} />
-    <label class="row">
-      <span>{t('settings.dsu.port')}</span>
+    <SettingRow label={t('settings.dsu.port')}>
       <input type="number" min="1" max="65535" value={http.settings.port} onchange={(e) => setPort(e.currentTarget.value)} />
-    </label>
+    </SettingRow>
     <Toggle checked={http.settings.lan} label={t('settings.http.lan')} onchange={(v) => set({ lan: v })} />
     {#if http.settings.token}
-      <div class="row">
+      <div class="token">
         <span>{t('settings.http.token')}</span>
         <code>{http.settings.token}</code>
         <button class="icon-btn" title={t('settings.http.copy')} onclick={copyToken}><Copy size={14} /></button>
@@ -46,30 +45,17 @@
     {:else if http.address}
       <p class="hint">{t('settings.http.status', { address: http.address })}</p>
     {/if}
-  </div>
+  </SettingsSection>
 {/if}
 
 <style>
-  .section {
-    border-top: 1px solid var(--line);
-    padding-top: 12px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
+  input {
+    width: 110px;
   }
-  .hint {
-    margin: 0;
-    color: var(--text-dim);
-    font-size: var(--fs-s);
-  }
-  .row {
+  .token {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-  }
-  .row input {
-    width: 110px;
+    gap: 12px;
   }
   code {
     flex: 1;

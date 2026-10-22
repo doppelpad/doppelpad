@@ -7,6 +7,8 @@
   import { app } from '../../lib/state/app.svelte';
   import type { DsuSettings } from '../../lib/types';
   import Toggle from '../ui/Toggle.svelte';
+  import SettingRow from './SettingRow.svelte';
+  import SettingsSection from './SettingsSection.svelte';
 
   const dsu = $derived(app.live?.dsu ?? null);
 
@@ -21,43 +23,22 @@
 </script>
 
 {#if dsu}
-  <div class="section">
-    <div class="section-title"><span>{t('settings.dsu.title')}</span></div>
-    <p class="hint">{t('settings.dsu.hint')}</p>
+  <SettingsSection title={t('settings.dsu.title')} hint={t('settings.dsu.hint')}>
     <Toggle checked={dsu.settings.enabled} label={t('settings.dsu.enabled')} onchange={(v) => set({ enabled: v })} />
-    <label class="row">
-      <span>{t('settings.dsu.port')}</span>
+    <SettingRow label={t('settings.dsu.port')}>
       <input type="number" min="1" max="65535" value={dsu.settings.port} onchange={(e) => setPort(e.currentTarget.value)} />
-    </label>
+    </SettingRow>
     <Toggle checked={dsu.settings.lan} label={t('settings.dsu.lan')} onchange={(v) => set({ lan: v })} />
     {#if dsu.error}
       <p class="error-text">{dsu.error}</p>
     {:else if dsu.address}
       <p class="hint">{t('settings.dsu.status', { address: dsu.address, n: dsu.clients })}</p>
     {/if}
-  </div>
+  </SettingsSection>
 {/if}
 
 <style>
-  .section {
-    border-top: 1px solid var(--line);
-    padding-top: 12px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-  .hint {
-    margin: 0;
-    color: var(--text-dim);
-    font-size: var(--fs-s);
-  }
-  .row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-  }
-  .row input {
+  input {
     width: 110px;
   }
 </style>

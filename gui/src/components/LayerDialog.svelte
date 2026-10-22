@@ -15,6 +15,8 @@
   } from '../lib/model/profile';
   import { app } from '../lib/state/app.svelte';
   import type { Combo, Unlock } from '../lib/types';
+  import SettingRow from './settings/SettingRow.svelte';
+  import SettingsSection from './settings/SettingsSection.svelte';
   import Dialog from './ui/Dialog.svelte';
   import Toggle from './ui/Toggle.svelte';
 
@@ -35,13 +37,11 @@
 
 <Dialog title={t('layers.settings_title', { layer: app.layerLabel(layer) })} {onclose}>
 
-  <label class="row">
-    <span>{t('layers.name_prompt')}</span>
+  <SettingRow label={t('layers.name_prompt')}>
     <input value={app.layerLabel(layer)} disabled={app.readOnly} onchange={(e) => rename(e.currentTarget.value)} />
-  </label>
+  </SettingRow>
 
-  <label class="row">
-    <span>{t('layers.unlock')}</span>
+  <SettingRow label={t('layers.unlock')}>
     <select
       value={unlock ?? 'none'}
       disabled={app.readOnly}
@@ -52,7 +52,7 @@
     >
       {#each UNLOCKS as u (u)}<option value={u}>{t(`layers.unlock_options.${u}`)}</option>{/each}
     </select>
-  </label>
+  </SettingRow>
   {#if unlock}<p class="hint">{t('layers.unlock_hint')}</p>{/if}
 
   <Toggle
@@ -64,8 +64,7 @@
   <p class="hint">{t(inheritance.inherit ? 'layers.inherit_hint_on' : 'layers.inherit_hint_off')}</p>
 
   {#if inheritance.inherit}
-    <div class="section">
-      <div class="section-title">{t('layers.inherited_list')}</div>
+    <SettingsSection title={t('layers.inherited_list')} shrink>
       {#if triggers.length === 0}
         <p class="hint">{t('layers.inherit_none')}</p>
       {:else}
@@ -84,19 +83,13 @@
           {/each}
         </div>
       {/if}
-    </div>
+    </SettingsSection>
   {/if}
 </Dialog>
 
 <style>
-  .row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-  }
-  .row input,
-  .row select {
+  input:not([type='checkbox']),
+  select {
     flex: 1;
     max-width: 240px;
   }
@@ -104,14 +97,6 @@
     margin: 0;
     color: var(--text-dim);
     font-size: var(--fs-s);
-  }
-  .section {
-    border-top: 1px solid var(--line);
-    padding-top: 12px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    min-height: 0;
   }
   .list {
     display: flex;
