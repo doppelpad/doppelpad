@@ -52,24 +52,24 @@ a fake clock (`engine/tests.rs`).
 
 Pipeline per tick:
 
-1. **Derive controls.** Digital controls come from analog inputs: stick directions use 45°
+1. **Derive controls** (`derive.rs`). Digital controls come from analog inputs: stick directions use 45°
    sectors and a per-stick threshold, and there are trigger pull/full pull, touchpad regions,
    gyro directions, wheel pulses and mouse-motion directions.
-2. **Combos.** A press of a combo member waits up to `combo_window_ms` (50 ms) for the rest of
+2. **Combos** (`combo.rs`). A press of a combo member waits up to `combo_window_ms` (50 ms) for the rest of
    the combo. Larger combos win. When nothing completes, the pending presses are replayed
    with their original timestamps.
 3. **Recognizers** (`recognizer.rs`). One per trigger. They turn edges into
    `Begin`/`End` for single/long/double/triple and run start/release in parallel. A single
    that has to wait for long/double is emitted as a short pulse.
-4. **Activations** (`mod.rs`, `compile.rs`). Each binding is compiled into small programs
+4. **Activations** (`vm.rs`, `compile.rs`). Each binding is compiled into small programs
    (hold, run, turbo pulse). An activation runs its program on a tiny VM that understands
    down/up, analog contributions, waits, hold points, wheel, rumble and commands. Outputs
    are reference-counted, so overlapping mappings never release each other's keys.
-5. **Layers.** Jumps are absolute ("go to layer N"). Hold and toggle shifts compile into a
+5. **Layers** (`layers.rs`). Jumps are absolute ("go to layer N"). Hold and toggle shifts compile into a
    pair of jumps (a jump in, and a return jump in the target layer). The control that caused a jump is
    *jump-owned*: it gets no new press in the target layer, but its release activator fires
    there. Other held controls are re-pressed under the new layer.
-6. **Output.** Unmapped physical controls are mirrored to the virtual pad (with stick and
+6. **Output** (`compose.rs`, `routes.rs`). Unmapped physical controls are mirrored to the virtual pad (with stick and
    trigger shaping), then mapping outputs and analog routes are merged.
 
 ## Runtime (`doppelpad`)
