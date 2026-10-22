@@ -1,0 +1,8 @@
+# Generated: the device drawings, their layouts and preview (generate.mjs, and the template it
+# fills in by text replacement) and the fixtures the
+# Rust tests write and compare byte for byte.
+src/assets/devices/*.svg
+src/assets/devices/layouts/
+src/assets/devices/preview.html
+src/lib/model/fixtures/*.json
+src/assets/devices/preview.template.html
