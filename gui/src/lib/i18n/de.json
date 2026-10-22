@@ -94,6 +94,18 @@
     "restore": "Verkleinern",
     "close": "Schließen"
   },
+  "tray": {
+    "open": "Doppelpad öffnen",
+    "remap": "Remapping aktiv",
+    "autodetect": "Spiele automatisch erkennen",
+    "slot": "Slot",
+    "empty": "leer",
+    "remap_off": "Remapping aus",
+    "no_config": "Keine Config aktiv",
+    "no_controller": "Kein Controller verbunden",
+    "charging": "lädt",
+    "quit": "Beenden"
+  },
   "header": {
     "from_template": "Neu aus Vorlage: {template}",
     "new_config": "Neue Config",

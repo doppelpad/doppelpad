@@ -5,10 +5,12 @@
 //! "turn remapping off" command show here too.
 
 use std::path::Path;
+use std::sync::LazyLock;
 use std::time::Duration;
 
 use dp_platform::Battery;
 use dp_service::{LiveState, SLOTS, ServiceCmd, SharedLive};
+use serde::Deserialize;
 use tauri::image::Image;
 use tauri::menu::{CheckMenuItem, IsMenuItem, Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
@@ -22,46 +24,42 @@ const WATCH_INTERVAL: Duration = Duration::from_millis(100);
 /// Windows keeps 128 UTF-16 units of a tooltip, including the terminating zero.
 const TOOLTIP_MAX: usize = 127;
 
+/// The frontend's catalogs by language, `(language, JSON)` (listed by build.rs).
+const CATALOGS: &[(&str, &str)] = include!(concat!(env!("OUT_DIR"), "/catalogs.rs"));
+
+/// The tray's texts: `tray.*` in the catalogs, whose parity test keeps every language complete.
+#[derive(Debug, Deserialize)]
 struct Texts {
-    open: &'static str,
-    remap: &'static str,
-    autodetect: &'static str,
-    slot: &'static str,
-    empty: &'static str,
-    remap_off: &'static str,
-    no_config: &'static str,
-    no_controller: &'static str,
-    charging: &'static str,
-    quit: &'static str,
+    open: String,
+    remap: String,
+    autodetect: String,
+    slot: String,
+    empty: String,
+    remap_off: String,
+    no_config: String,
+    no_controller: String,
+    charging: String,
+    quit: String,
 }
 
-fn texts(lang: &str) -> Texts {
-    match lang {
-        "de" => Texts {
-            open: "Doppelpad öffnen",
-            remap: "Remapping aktiv",
-            autodetect: "Spiele automatisch erkennen",
-            slot: "Slot",
-            empty: "leer",
-            remap_off: "Remapping aus",
-            no_config: "Keine Config aktiv",
-            no_controller: "Kein Controller verbunden",
-            charging: "lädt",
-            quit: "Beenden",
-        },
-        _ => Texts {
-            open: "Open Doppelpad",
-            remap: "Remapping on",
-            autodetect: "Autodetect games",
-            slot: "Slot",
-            empty: "empty",
-            remap_off: "Remapping off",
-            no_config: "No config active",
-            no_controller: "No controller connected",
-            charging: "charging",
-            quit: "Quit",
-        },
+static TEXTS: LazyLock<Vec<(&str, Texts)>> = LazyLock::new(|| {
+    #[derive(Deserialize)]
+    struct Catalog {
+        tray: Texts,
     }
+    CATALOGS
+        .iter()
+        .map(|&(lang, json)| {
+            let c: Catalog = serde_json::from_str(json).expect("a catalog with a tray section");
+            (lang, c.tray)
+        })
+        .collect()
+});
+
+/// The texts in `lang`, English for a language without a catalog.
+fn texts(lang: &str) -> &'static Texts {
+    let of = |lang: &str| TEXTS.iter().find(|(l, _)| *l == lang).map(|(_, t)| t);
+    of(lang).or_else(|| of("en")).expect("the English catalog")
 }
 
 /// The part of the live state the tray shows.
@@ -168,12 +166,12 @@ fn render(app: &AppHandle) {
     let t = texts(&state.settings.lock().unwrap().language);
 
     let active = view.profile_path.as_deref().map(config_label);
-    let _ = tray.open.set_text(t.open);
-    let status = active.as_deref().unwrap_or(t.no_config);
+    let _ = tray.open.set_text(&t.open);
+    let status = active.as_deref().unwrap_or(&t.no_config);
     let _ = tray.status.set_text(menu_text(status));
-    let _ = tray.remap.set_text(t.remap);
+    let _ = tray.remap.set_text(&t.remap);
     let _ = tray.remap.set_checked(view.remap_on);
-    let _ = tray.autodetect.set_text(t.autodetect);
+    let _ = tray.autodetect.set_text(&t.autodetect);
     let _ = tray.autodetect.set_checked(view.auto_switch);
     for (i, item) in tray.slots.iter().enumerate() {
         let path = view.slots.get(i).cloned().flatten();
@@ -185,7 +183,7 @@ fn render(app: &AppHandle) {
         let _ = item.set_enabled(path.is_some());
         let _ = item.set_checked(path.is_some() && view.remap_on && view.active_slot == i);
     }
-    let _ = tray.quit.set_text(t.quit);
+    let _ = tray.quit.set_text(&t.quit);
 
     if let Some(icon) = app.tray_by_id(TRAY_ID) {
         let image = if view.remap_on {
@@ -197,8 +195,8 @@ fn render(app: &AppHandle) {
         // The menu has the switch; the tooltip says it in words.
         let line = match &active {
             Some(label) => label,
-            None if view.remap_on => t.no_config,
-            None => t.remap_off,
+            None if view.remap_on => &t.no_config,
+            None => &t.remap_off,
         };
         let mut tip = format!("Doppelpad\n{line}");
         if !view.has_controller {
@@ -354,6 +352,15 @@ mod tests {
         let cut = truncate_utf16(&long, 127);
         assert_eq!(cut.encode_utf16().count(), 127);
         assert!(cut.ends_with('…'));
+    }
+
+    #[test]
+    fn the_texts_come_from_every_catalog() {
+        let langs: Vec<&str> = CATALOGS.iter().map(|(l, _)| *l).collect();
+        assert!(langs.contains(&"en") && langs.contains(&"de"), "{langs:?}");
+        assert_eq!(TEXTS.len(), CATALOGS.len());
+        assert_eq!(texts("de").quit, "Beenden");
+        assert_eq!(texts("xx").quit, "Quit", "English for an unknown language");
     }
 
     #[test]
