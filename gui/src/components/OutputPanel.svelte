@@ -11,6 +11,7 @@
   import LightSettings from './LightSettings.svelte';
   import VibrationSettings from './VibrationSettings.svelte';
   import RadialSettings from './radial/RadialSettings.svelte';
+  import NumberField from './ui/NumberField.svelte';
   import Toggle from './ui/Toggle.svelte';
 
   /** Profile-wide timing; mappings can override all but the shortcut window. */
@@ -177,62 +178,50 @@
   <div class="section-title timing-label">{t('output.mouse')}</div>
   <p class="hint">{t('output.mouse_hint')}</p>
   <div class="timing">
-    <label class="field">
-      <span class="fl">{t('output.wheel_repeat')}</span>
-      <input
-        type="number"
-        min="0"
-        max="1000"
-        step="10"
-        value={turn.wheel_repeat_ms}
-        disabled={app.readOnly}
-        onchange={(e) => setTurn('wheel_repeat_ms', e.currentTarget.value)}
-      />
-      <span class="unit">{t('common.ms')}</span>
-    </label>
+    <NumberField
+      label={t('output.wheel_repeat')}
+      value={turn.wheel_repeat_ms}
+      unit={t('common.ms')}
+      min={0}
+      max={1000}
+      step={10}
+      disabled={app.readOnly}
+      onchange={(v) => setTurn('wheel_repeat_ms', v)}
+    />
     {#each ['low', 'med', 'high'] as level, i (level)}
-      <label class="field">
-        <span class="fl">{t(`output.mouse_zone_${level}`)}</span>
-        <input
-          type="number"
-          min="1"
-          step="50"
-          value={mouseZones[i]}
-          disabled={app.readOnly}
-          onchange={(e) => setMouseZone(i, e.currentTarget.value)}
-        />
-        <span class="unit">/s</span>
-      </label>
+      <NumberField
+        label={t(`output.mouse_zone_${level}`)}
+        value={mouseZones[i]}
+        unit="/s"
+        min={1}
+        step={50}
+        disabled={app.readOnly}
+        onchange={(v) => setMouseZone(i, v)}
+      />
     {/each}
   </div>
 
   <div class="section-title timing-label">{t('output.turns')}</div>
   <p class="hint">{t('output.turns_hint')}</p>
   <div class="timing">
-    <label class="field">
-      <span class="fl">{t('output.counts_per_turn')}</span>
-      <input
-        type="number"
-        min="1"
-        step="100"
-        value={turn.counts_per_turn}
-        disabled={app.readOnly}
-        onchange={(e) => setTurn('counts_per_turn', e.currentTarget.value)}
-      />
-    </label>
-    <label class="field">
-      <span class="fl">{t('output.turn_ms')}</span>
-      <input
-        type="number"
-        min="0"
-        max="5000"
-        step="10"
-        value={turn.turn_ms}
-        disabled={app.readOnly}
-        onchange={(e) => setTurn('turn_ms', e.currentTarget.value)}
-      />
-      <span class="unit">{t('common.ms')}</span>
-    </label>
+    <NumberField
+      label={t('output.counts_per_turn')}
+      value={turn.counts_per_turn}
+      min={1}
+      step={100}
+      disabled={app.readOnly}
+      onchange={(v) => setTurn('counts_per_turn', v)}
+    />
+    <NumberField
+      label={t('output.turn_ms')}
+      value={turn.turn_ms}
+      unit={t('common.ms')}
+      min={0}
+      max={5000}
+      step={10}
+      disabled={app.readOnly}
+      onchange={(v) => setTurn('turn_ms', v)}
+    />
   </div>
   <div class="test-turn">
     <button class="btn" onclick={testTurn}><RotateCw size={14} /> {t('output.test_turn')}</button>
@@ -242,51 +231,42 @@
   <div class="section-title timing-label">{t('output.shake')}</div>
   <p class="hint">{t('output.shake_hint')}</p>
   <div class="timing">
-    <label class="field">
-      <span class="fl">{t('output.shake_g')}</span>
-      <input
-        type="number"
-        min="0.5"
-        max="8"
-        step="0.5"
-        value={shake.shake_g}
-        disabled={app.readOnly}
-        onchange={(e) => setShake('shake_g', e.currentTarget.value)}
-      />
-      <span class="unit">g</span>
-    </label>
-    <label class="field">
-      <span class="fl">{t('output.shake_ms')}</span>
-      <input
-        type="number"
-        min="10"
-        max="2000"
-        step="10"
-        value={shake.shake_ms}
-        disabled={app.readOnly}
-        onchange={(e) => setShake('shake_ms', e.currentTarget.value)}
-      />
-      <span class="unit">{t('common.ms')}</span>
-    </label>
+    <NumberField
+      label={t('output.shake_g')}
+      value={shake.shake_g}
+      unit="g"
+      min={0.5}
+      max={8}
+      step={0.5}
+      disabled={app.readOnly}
+      onchange={(v) => setShake('shake_g', v)}
+    />
+    <NumberField
+      label={t('output.shake_ms')}
+      value={shake.shake_ms}
+      unit={t('common.ms')}
+      min={10}
+      max={2000}
+      step={10}
+      disabled={app.readOnly}
+      onchange={(v) => setShake('shake_ms', v)}
+    />
   </div>
 
   <div class="section-title timing-label">{t('output.timing')}</div>
   <p class="hint">{t('output.timing_hint')}</p>
   <div class="timing">
     {#each TIMING as f (f)}
-      <label class="field">
-        <span class="fl">{t(`output.timing_fields.${f}`)}</span>
-        <input
-          type="number"
-          min="0"
-          step="10"
-          value={app.profile?.timing?.[f] ?? ''}
-          placeholder={String(app.catalog?.defaults.timing[f] ?? '')}
-          disabled={app.readOnly}
-          onchange={(e) => setTiming(f, e.currentTarget.value)}
-        />
-        <span class="unit">{t('common.ms')}</span>
-      </label>
+      <NumberField
+        label={t(`output.timing_fields.${f}`)}
+        value={app.profile?.timing?.[f] ?? ''}
+        unit={t('common.ms')}
+        min={0}
+        step={10}
+        placeholder={String(app.catalog?.defaults.timing[f] ?? '')}
+        disabled={app.readOnly}
+        onchange={(v) => setTiming(f, v)}
+      />
     {/each}
   </div>
 
