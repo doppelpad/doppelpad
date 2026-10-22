@@ -102,6 +102,21 @@ pub struct Identity {
     pub notice: Option<String>,
 }
 
+impl Identity {
+    /// A device of `family` called `name`: no Joy-Con side, motion, touchpad, rumble or notice.
+    pub fn new(name: impl Into<String>, family: PadFamily) -> Identity {
+        Identity {
+            name: name.into(),
+            family,
+            joycon: None,
+            has_motion: false,
+            has_touchpad: false,
+            has_rumble: false,
+            notice: None,
+        }
+    }
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum InitError {
     #[error("the controller did not answer")]
@@ -121,7 +136,9 @@ pub trait PadDriver: Send {
     fn parse(&mut self, report: &[u8], now: Instant) -> Option<PadState>;
     /// Periodic output (rumble, keep-alives). Called after every report, timeout and
     /// wake-up, with the rumble the engine currently wants.
-    fn service(&mut self, io: &mut dyn ReportIo, rumble: Rumble) -> io::Result<()>;
+    fn service(&mut self, _io: &mut dyn ReportIo, _rumble: Rumble) -> io::Result<()> {
+        Ok(())
+    }
     /// Whether a controller is behind the interface (a wireless receiver's slot may be
     /// empty); while not, the device is not reported.
     fn connected(&self) -> bool {
@@ -141,7 +158,7 @@ pub trait PadDriver: Send {
     /// The layouts of generic pads (only their driver uses one).
     fn set_layouts(&mut self, _layouts: &Arc<Vec<GenericLayout>>) {}
     /// The unmapped input of the last report, for pads read without a fixed layout.
-    fn raw(&self) -> Option<RawInput> {
+    fn raw(&self) -> Option<Arc<RawInput>> {
         None
     }
     /// Turn the controller off if it can be told to over its own link; `Ok(false)` if not.

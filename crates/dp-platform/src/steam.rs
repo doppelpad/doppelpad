@@ -347,19 +347,16 @@ impl PadDriver for SteamDriver {
             tracing::debug!("cannot ask the Steam receiver for its controller: {e}");
         }
         let deck = self.model == SteamModel::Deck;
+        let name = if deck {
+            "Steam Deck"
+        } else {
+            "Steam Controller"
+        };
         Ok(Identity {
-            name: if deck {
-                "Steam Deck"
-            } else {
-                "Steam Controller"
-            }
-            .to_owned(),
-            family: PadFamily::Xbox,
-            joycon: None,
             has_motion: true,
             has_touchpad: true,
             has_rumble: deck,
-            notice: None,
+            ..Identity::new(name, PadFamily::Xbox)
         })
     }
 

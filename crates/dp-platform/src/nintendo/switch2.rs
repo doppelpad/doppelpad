@@ -344,13 +344,11 @@ impl Switch2Driver {
             }
         };
         Identity {
-            name: name.to_owned(),
-            family,
             joycon,
             has_motion: self.model != Switch2Model::GameCube,
-            has_touchpad: false,
             has_rumble: true,
             notice,
+            ..Identity::new(name, family)
         }
     }
 
