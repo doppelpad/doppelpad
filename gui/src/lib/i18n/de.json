@@ -1478,5 +1478,10 @@
     "mirror_hint": "Für Linkshänder: Schultertasten, Trigger, Sticks, Steuerkreuz und Aktionstasten, Back und Start, Paddles und Trackpads wechseln die Seite.",
     "note": "Bedienelemente ohne Mapping nehmen ihre eigene Ausgabe mit. Ein Stick, der nur durchgereicht wurde, bekommt eine Route zum anderen virtuellen Stick; seine Kennlinie wird nicht übernommen. Strg+Z nimmt es zurück.",
     "done": "{name}: erledigt. Strg+Z macht es rückgängig."
+  },
+  "layer_map": {
+    "title": "Ebenen-Übersicht",
+    "empty": "Diese Config hat noch keine Shift-Ebenen.",
+    "hint": "Jeder Pfeil ist ein Mapping, das die Ebene wechselt: ⇣ solange gedrückt, ⇄ umschalten, → wechseln. Ein Klick auf eine Ebene zeigt sie, auf die Beschriftung eines Pfeils wählt sein Mapping. Orange markiert Ebenen, auf die nichts wechselt, und Wechsel, aus denen nichts zurückführt."
   }
 }
