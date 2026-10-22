@@ -110,7 +110,7 @@ doppelpad clear-slot 2                # or: clear-slot all
 doppelpad remap off                   # remap on brings the active slot back
 doppelpad auto-switch off
 doppelpad stop
-doppelpad shutdown
+doppelpad shutdown                    # the daemon; the desktop app is quit from its tray
 ```
 
 The daemon shares its slots (`state.toml`), controller hotkeys (`hotkeys.toml`) and gyro

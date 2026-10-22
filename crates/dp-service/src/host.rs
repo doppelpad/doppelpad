@@ -22,9 +22,22 @@ use crate::timing::TICK;
 #[derive(Clone, Debug)]
 pub struct HostOptions {
     pub service: ServiceOptions,
-    /// Also answer `doppelpad` CLI requests over the local socket.
-    pub ipc: bool,
+    pub ipc: Ipc,
 }
+
+/// Whether the service answers `doppelpad` CLI requests over the local socket.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum Ipc {
+    Off,
+    /// Every request, `shutdown` included (the daemon).
+    On,
+    /// Every request but `shutdown`: the app hosts the service until it quits.
+    NoShutdown,
+}
+
+/// The answer to `doppelpad shutdown` when the app hosts the service.
+const SHUTDOWN_REFUSED: &str =
+    "the Doppelpad app runs this service; quit the app from its tray icon to stop it";
 
 /// What other threads ask the service thread.
 enum Job {
@@ -175,16 +188,12 @@ pub fn spawn_with(
         }
     };
 
-    let ipc = if opts.ipc {
+    let ipc = if opts.ipc != Ipc::Off {
         let ipc_tx = tx.clone();
         let thread = std::thread::Builder::new()
             .name("dp-ipc".into())
             .spawn(move || {
-                let result =
-                    dp_ipc::serve(|req| match round_trip(&ipc_tx, |rtx| Job::Ipc(req, rtx)) {
-                        Ok(reply) => reply,
-                        Err(e) => e.into(),
-                    });
+                let result = dp_ipc::serve(|req| ipc_answer(&ipc_tx, req, opts.ipc));
                 if let Err(e) = result {
                     tracing::error!("IPC server stopped: {e}");
                 }
@@ -202,6 +211,17 @@ pub fn spawn_with(
     })
 }
 
+/// Answer one IPC request through the service thread.
+fn ipc_answer(tx: &Sender<Job>, req: Request, ipc: Ipc) -> Response {
+    if ipc == Ipc::NoShutdown && req == Request::Shutdown {
+        return Response::error(SHUTDOWN_REFUSED);
+    }
+    match round_trip(tx, |rtx| Job::Ipc(req, rtx)) {
+        Ok(reply) => reply,
+        Err(e) => e.into(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::time::Duration;
@@ -217,7 +237,7 @@ mod tests {
         std::fs::write(&profile, "name = \"P\"\n[output]\nvirtual_pad = \"none\"\n").unwrap();
         let opts = HostOptions {
             service: ServiceOptions::new(dir.path().join("profiles")),
-            ipc: false,
+            ipc: Ipc::Off,
         };
         let h = spawn_with(opts, NullPlatform::platform).unwrap();
         assert!(h.is_running());
@@ -242,13 +262,34 @@ mod tests {
     }
 
     #[test]
+    fn only_the_daemon_stops_on_an_ipc_shutdown() {
+        let dir = tempfile::tempdir().unwrap();
+        let opts = HostOptions {
+            service: ServiceOptions::new(dir.path().join("profiles")),
+            ipc: Ipc::Off,
+        };
+        let h = spawn_with(opts, NullPlatform::platform).unwrap();
+        let refused = ipc_answer(&h.tx, Request::Shutdown, Ipc::NoShutdown);
+        assert_eq!(refused, Response::error(SHUTDOWN_REFUSED));
+        std::thread::sleep(Duration::from_millis(20));
+        assert!(h.is_running(), "the app's service keeps running");
+        let stopped = ipc_answer(&h.tx, Request::Shutdown, Ipc::On);
+        assert!(!matches!(stopped, Response::Error { .. }), "{stopped:?}");
+        let deadline = std::time::Instant::now() + Duration::from_secs(3);
+        while h.is_running() && std::time::Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        assert!(!h.is_running(), "the daemon's service stops");
+    }
+
+    #[test]
     fn start_up_errors_are_reported() {
         let mut service = ServiceOptions::new("profiles".into());
         service.initial_profile = Some("does-not-exist.toml".into());
         let r = spawn_with(
             HostOptions {
                 service,
-                ipc: false,
+                ipc: Ipc::Off,
             },
             NullPlatform::platform,
         );
