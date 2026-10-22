@@ -6,6 +6,7 @@
   import { layerLabel, overlayRows } from '../../lib/model/labels';
   import { overlayContent } from '../../lib/overlay';
   import type { Corner, PadFamily, Profile } from '../../lib/types';
+  import CornerFrame from './CornerFrame.svelte';
 
   type Content = { profile: Profile; layer: number; family: PadFamily | null; lang: string; opacity: number; corner: Corner };
   let content = $state<Content | null>(null);
@@ -27,12 +28,7 @@
 </script>
 
 {#if content}
-  <div
-    class="frame"
-    class:right={content.corner.endsWith('right')}
-    class:bottom={content.corner.startsWith('bottom')}
-    style:opacity={content.opacity / 100}
-  >
+  <CornerFrame corner={content.corner} opacity={content.opacity}>
     <div class="sheet">
       <div class="head">
         <span class="title">{content.profile.name}</span>
@@ -58,24 +54,10 @@
         {#if rows.length > MAX}<p class="more">{t('overlays.more', { n: rows.length - MAX })}</p>{/if}
       {/if}
     </div>
-  </div>
+  </CornerFrame>
 {/if}
 
 <style>
-  .frame {
-    position: fixed;
-    inset: 0;
-    display: flex;
-    align-items: flex-start;
-    justify-content: flex-start;
-    padding: 6px;
-  }
-  .frame.right {
-    justify-content: flex-end;
-  }
-  .frame.bottom {
-    align-items: flex-end;
-  }
   .sheet {
     max-width: 100%;
     max-height: 100%;
