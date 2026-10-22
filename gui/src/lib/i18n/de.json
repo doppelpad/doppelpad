@@ -1314,6 +1314,29 @@
       "x2": "Vorwärts-Taste"
     }
   },
+  "keys": {
+    "esc": "Esc",
+    "print": "Druck",
+    "scroll": "Rollen",
+    "pause": "Pause",
+    "backspace": "Rücktaste",
+    "insert": "Einfg",
+    "home": "Pos1",
+    "page_up": "Bild↑",
+    "num": "Num",
+    "tab": "Tab",
+    "delete": "Entf",
+    "end": "Ende",
+    "page_down": "Bild↓",
+    "caps": "Feststell",
+    "enter": "Enter",
+    "shift": "Umschalt",
+    "ctrl": "Strg",
+    "win": "Win",
+    "alt": "Alt",
+    "alt_gr": "Alt Gr",
+    "menu": "Menü"
+  },
   "diagnostics": {
     "errors": "{n} Fehler",
     "warnings": "{n} Warnungen",
