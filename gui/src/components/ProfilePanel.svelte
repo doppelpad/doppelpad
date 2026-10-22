@@ -182,7 +182,7 @@
   .head {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    gap: 2px;
     flex: none;
     height: 52px;
     padding: 0 12px 0 16px;
@@ -191,7 +191,9 @@
   .head.traffic-lights {
     padding-left: 84px;
   }
+  /* Pushes the buttons to the right edge as one group. */
   .title {
+    margin-right: auto;
     font-size: var(--fs-xs);
     font-weight: 600;
     letter-spacing: 0.08em;
