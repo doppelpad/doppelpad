@@ -9,7 +9,7 @@ type Catalog = Record<string, unknown>;
 export const LANGUAGES = { en: 'English', de: 'Deutsch' } as const;
 export type Language = keyof typeof LANGUAGES;
 
-const catalogs: Record<Language, Catalog> = { en, de };
+export const catalogs: Record<Language, Catalog> = { en, de };
 
 let current = $state<Language>('en');
 

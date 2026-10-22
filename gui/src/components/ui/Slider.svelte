@@ -55,7 +55,7 @@
   <div class="top">
     <span class="label">{label}</span>
     {#if def !== undefined && Math.abs(value - def) > 1e-6 && !disabled}
-      <button class="reset" title={resetLabel ?? t('analog.reset')} onclick={() => onchange(def)}><RotateCcw size={12} /></button>
+      <button class="reset" title={resetLabel ?? t('common.reset')} onclick={() => onchange(def)}><RotateCcw size={12} /></button>
     {/if}
     <span class="value">
       <input

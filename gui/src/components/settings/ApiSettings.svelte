@@ -28,7 +28,7 @@
 {#if http}
   <SettingsSection title={t('settings.http.title')} hint={t('settings.http.hint')}>
     <Toggle checked={http.settings.enabled} label={t('settings.http.enabled')} onchange={(v) => set({ enabled: v })} />
-    <SettingRow label={t('settings.dsu.port')}>
+    <SettingRow label={t('settings.port')}>
       <input type="number" min="1" max="65535" value={http.settings.port} onchange={(e) => setPort(e.currentTarget.value)} />
     </SettingRow>
     <Toggle checked={http.settings.lan} label={t('settings.http.lan')} onchange={(v) => set({ lan: v })} />

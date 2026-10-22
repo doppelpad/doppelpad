@@ -106,7 +106,7 @@
   <div class="actions">
     <button class="btn" onclick={done}>{t('welcome.skip')}</button>
     <span class="grow"></span>
-    {#if step > 0}<button class="btn" onclick={() => (step -= 1)}>{t('identify.back')}</button>{/if}
+    {#if step > 0}<button class="btn" onclick={() => (step -= 1)}>{t('common.back')}</button>{/if}
     {#if step < STEPS.length - 1}
       <button class="btn primary" onclick={() => (step += 1)}>{t('welcome.next')}</button>
     {:else}

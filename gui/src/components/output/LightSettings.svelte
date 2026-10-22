@@ -84,7 +84,7 @@
         min={100}
         max={10000}
         step={100}
-        unit="ms"
+        unit={t('common.ms')}
         {disabled}
         onchange={(v) => set({ period_ms: Math.round(v) })}
       />

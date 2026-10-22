@@ -49,7 +49,7 @@
   }
 
   async function pickImage(i: number, k: number) {
-    const file = await open({ multiple: false, filters: [{ name: 'Image', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'ico'] }] });
+    const file = await open({ multiple: false, filters: [{ name: t('radial.image_filter'), extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'ico'] }] });
     if (typeof file === 'string') app.edit((p) => updateSector(p, i, k, { icon: file }));
   }
 
@@ -108,7 +108,7 @@
     {#if layers.length === 0}<p class="warn">{t('radial.no_layers')}</p>{/if}
 
     <div class="fields">
-      <Slider label={t('radial.delay')} value={m.delay_ms ?? 0} def={def?.delay_ms} min={0} max={1000} step={50} unit="ms" hint={t('radial.delay_hint')} {disabled} onchange={(v) => setMenu(i, { delay_ms: v || undefined })} />
+      <Slider label={t('radial.delay')} value={m.delay_ms ?? 0} def={def?.delay_ms} min={0} max={1000} step={50} unit={t('common.ms')} hint={t('radial.delay_hint')} {disabled} onchange={(v) => setMenu(i, { delay_ms: v || undefined })} />
       <Slider label={t('radial.tint')} value={m.tint ?? 0} def={def?.tint} min={0} max={0.9} step={0.05} scale={100} unit="%" {disabled} onchange={(v) => setMenu(i, { tint: v || undefined })} />
       <Slider label={t('radial.scale')} value={m.scale ?? 1} def={def?.scale} min={0.5} max={2} step={0.1} scale={100} unit="%" hint={t('radial.scale_hint', { px: Math.round(RING * 2 * (m.scale ?? 1)) })} {disabled} onchange={(v) => setMenu(i, { scale: v === 1 ? undefined : v })} />
     </div>
@@ -134,7 +134,7 @@
           >
             <option value="">{t('radial.no_icon')}</option>
             {#if isImageIcon(s.icon)}<option value="__image">{t('radial.image')}</option>{/if}
-            {#each ICONS as name (name)}<option value={name}>{name}</option>{/each}
+            {#each ICONS as name (name)}<option value={name}>{t(`radial.icons.${name}`)}</option>{/each}
             <option value="__file">{t('radial.pick_image')}</option>
           </select>
           <input type="color" value={s.color || DEFAULT_SECTOR_COLOR} aria-label={t('radial.color')} {disabled} onchange={(e) => app.edit((p) => updateSector(p, i, k, { color: e.currentTarget.value }))} />

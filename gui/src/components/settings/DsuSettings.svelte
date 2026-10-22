@@ -25,7 +25,7 @@
 {#if dsu}
   <SettingsSection title={t('settings.dsu.title')} hint={t('settings.dsu.hint')}>
     <Toggle checked={dsu.settings.enabled} label={t('settings.dsu.enabled')} onchange={(v) => set({ enabled: v })} />
-    <SettingRow label={t('settings.dsu.port')}>
+    <SettingRow label={t('settings.port')}>
       <input type="number" min="1" max="65535" value={dsu.settings.port} onchange={(e) => setPort(e.currentTarget.value)} />
     </SettingRow>
     <Toggle checked={dsu.settings.lan} label={t('settings.dsu.lan')} onchange={(v) => set({ lan: v })} />

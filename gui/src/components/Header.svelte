@@ -40,8 +40,8 @@
     if (!app.profile) return;
     const path = await save({
       title: t('sheet.save_title'),
-      defaultPath: `${app.profile.name || 'bindings'}.html`,
-      filters: [{ name: 'HTML', extensions: ['html'] }],
+      defaultPath: `${app.profile.name || t('sheet.default_file')}.html`,
+      filters: [{ name: t('sheet.filter'), extensions: ['html'] }],
     });
     if (!path) return;
     await app.attempt(api.sheetSave(path, bindingsSheet($state.snapshot(app.profile) as Profile, app.family)), t('sheet.saved'));
