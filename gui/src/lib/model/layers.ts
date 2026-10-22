@@ -35,6 +35,62 @@ export function layerEntrances(p: Profile, id: number): LayerEntrance[] {
     .sort((a, b) => a.from - b.from);
 }
 
+/** A layer in the layer map, at its place on the circle (`x`, `y` in -1…1, Main at the top). */
+export interface MapNode {
+  id: number;
+  x: number;
+  y: number;
+}
+
+/** A mapping that changes layer, as an arrow of the layer map. */
+export interface MapEdge extends LayerEntrance {
+  to: number;
+  /** Position of the mapping in `profile.mappings`. */
+  index: number;
+  /** Sideways offset of the arrow's middle, so arrows between the same layers do not overlap. */
+  bend: number;
+}
+
+/**
+ * The layer map: every layer in use on a circle, Main first at the top, and an arrow for each
+ * mapping that changes layer (from the layer it sits on to its target).
+ */
+export function layerGraph(p: Profile, ids: number[]): { nodes: MapNode[]; edges: MapEdge[] } {
+  const n = ids.length;
+  const nodes = ids.map((id, i) => {
+    const a = -Math.PI / 2 + (2 * Math.PI * i) / Math.max(n, 1);
+    return { id, x: n === 1 ? 0 : Math.cos(a), y: n === 1 ? 0 : Math.sin(a) };
+  });
+  const edges: MapEdge[] = [];
+  p.mappings.forEach((m, index) => {
+    const from = m.layer ?? 0;
+    if (!m.jump || m.jump.layer === from) return;
+    edges.push({
+      from,
+      to: m.jump.layer,
+      index,
+      trigger: m.trigger,
+      activator: m.activator ?? 'single',
+      mode: m.jump.mode ?? 'hold',
+      delayMs: m.jump.delay_ms ?? 0,
+      bend: 0,
+    });
+  });
+  // Arrows between the same two layers fan out; the two directions go to opposite sides.
+  const pairs = new Map<string, MapEdge[]>();
+  for (const e of edges) {
+    const key = `${Math.min(e.from, e.to)}-${Math.max(e.from, e.to)}`;
+    pairs.set(key, [...(pairs.get(key) ?? []), e]);
+  }
+  for (const list of pairs.values()) {
+    list.forEach((e, k) => {
+      const spread = (k - (list.length - 1) / 2) * 0.32;
+      e.bend = (e.from < e.to ? 1 : -1) * (spread + (list.length > 1 ? 0 : 0.08));
+    });
+  }
+  return { nodes, edges };
+}
+
 /** Names (or numbers, from 1) of the radial menus a layer opens. */
 export function layerRadialMenus(p: Profile, id: number): string[] {
   return (p.radial_menus ?? []).flatMap((r, i) => (id !== 0 && r.layer === id ? [r.name || String(i + 1)] : []));

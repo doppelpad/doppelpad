@@ -1478,5 +1478,10 @@
     "mirror_hint": "For left hands: bumpers, triggers, sticks, D-pad and face buttons, Back and Start, paddles and trackpads change sides.",
     "note": "Controls nothing maps take their own output along. A stick that only passed through gets a route to the other virtual stick; its response curve is not carried over. Ctrl+Z takes it back.",
     "done": "{name}: done. Ctrl+Z undoes it."
+  },
+  "layer_map": {
+    "title": "Layer map",
+    "empty": "This config has no shift layers yet.",
+    "hint": "Each arrow is a mapping that changes layer: ⇣ while held, ⇄ toggle, → switch. Click a layer to show it, an arrow’s label to select its mapping. Orange marks layers nothing changes to and switches nothing leaves again."
   }
 }
