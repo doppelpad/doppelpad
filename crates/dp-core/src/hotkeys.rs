@@ -34,6 +34,21 @@ pub enum HotkeyAction {
     MappingsOverlay,
 }
 
+impl HotkeyAction {
+    /// Every action with an entry in [`Hotkeys`], in its order.
+    pub const ALL: [HotkeyAction; 9] = [
+        HotkeyAction::Slot(0),
+        HotkeyAction::Slot(1),
+        HotkeyAction::Slot(2),
+        HotkeyAction::Slot(3),
+        HotkeyAction::ToggleRemap,
+        HotkeyAction::StopMacros,
+        HotkeyAction::EmergencyStop,
+        HotkeyAction::PadOverlay,
+        HotkeyAction::MappingsOverlay,
+    ];
+}
+
 /// The hotkey settings. An empty button list disables that hotkey.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
@@ -70,23 +85,29 @@ impl Default for Hotkeys {
 }
 
 impl Hotkeys {
+    /// The buttons of `action`'s hotkey (none when it is off or has no entry).
+    pub fn buttons(&self, action: HotkeyAction) -> &[PadButton] {
+        match action {
+            HotkeyAction::Slot(0) => &self.slot1,
+            HotkeyAction::Slot(1) => &self.slot2,
+            HotkeyAction::Slot(2) => &self.slot3,
+            HotkeyAction::Slot(3) => &self.slot4,
+            HotkeyAction::Slot(_) => &[],
+            HotkeyAction::ToggleRemap => &self.remap,
+            HotkeyAction::StopMacros => &self.stop_macros,
+            HotkeyAction::EmergencyStop => &self.emergency_stop,
+            HotkeyAction::PadOverlay => &self.pad_overlay,
+            HotkeyAction::MappingsOverlay => &self.mappings_overlay,
+        }
+    }
+
     /// Every configured hotkey with its button mask.
-    pub fn entries(&self) -> Vec<(HotkeyAction, u32)> {
-        let slots = [&self.slot1, &self.slot2, &self.slot3, &self.slot4];
-        let mut out: Vec<(HotkeyAction, &Vec<PadButton>)> = slots
+    pub fn entries(&self) -> impl Iterator<Item = (HotkeyAction, u32)> + '_ {
+        HotkeyAction::ALL
             .into_iter()
-            .enumerate()
-            .map(|(i, b)| (HotkeyAction::Slot(i as u8), b))
-            .collect();
-        out.push((HotkeyAction::ToggleRemap, &self.remap));
-        out.push((HotkeyAction::StopMacros, &self.stop_macros));
-        out.push((HotkeyAction::EmergencyStop, &self.emergency_stop));
-        out.push((HotkeyAction::PadOverlay, &self.pad_overlay));
-        out.push((HotkeyAction::MappingsOverlay, &self.mappings_overlay));
-        out.into_iter()
+            .map(|a| (a, self.buttons(a)))
             .filter(|(_, b)| !b.is_empty())
             .map(|(a, b)| (a, PadButton::mask(b)))
-            .collect()
     }
 
     /// Problems with the settings, for the user (empty when they are fine).
@@ -99,7 +120,7 @@ impl Hotkeys {
                 HOLD_MS_RANGE.end()
             ));
         }
-        let entries = self.entries();
+        let entries: Vec<_> = self.entries().collect();
         for (i, (a, mask)) in entries.iter().enumerate() {
             if mask.count_ones() as usize > MAX_BUTTONS {
                 out.push(format!("{a:?}: at most {MAX_BUTTONS} buttons"));
@@ -114,11 +135,18 @@ impl Hotkeys {
     }
 }
 
+/// A complete hotkey being held.
+#[derive(Clone, Debug)]
+struct Held {
+    mask: u32,
+    since: u64,
+    fired: bool,
+}
+
 /// Watches the buttons of the controller in use for hotkeys.
 #[derive(Clone, Debug, Default)]
 pub struct HotkeyDetector {
-    /// Since when each complete hotkey has been held (by mask), and whether it fired.
-    held: Vec<(u32, u64, bool)>,
+    held: Vec<Held>,
     withheld: u32,
 }
 
@@ -129,34 +157,29 @@ impl HotkeyDetector {
 
     /// Feed the current buttons; returns the hotkey that fires now, if any.
     pub fn update(&mut self, hotkeys: &Hotkeys, buttons: u32, now: u64) -> Option<HotkeyAction> {
-        let entries = hotkeys.entries();
-        let complete: Vec<(HotkeyAction, u32)> = entries
-            .iter()
-            .copied()
-            .filter(|(_, m)| buttons & m == *m)
-            .collect();
+        let complete = || hotkeys.entries().filter(move |&(_, m)| buttons & m == m);
         // A hotkey inside a larger complete one does not count.
-        let active: Vec<(HotkeyAction, u32)> = complete
-            .iter()
-            .copied()
-            .filter(|(_, m)| !complete.iter().any(|(_, o)| o != m && o & m == *m))
-            .collect();
-        self.held
-            .retain(|(m, _, _)| active.iter().any(|(_, a)| a == m));
+        let active =
+            || complete().filter(move |&(_, m)| !complete().any(|(_, o)| o != m && o & m == m));
+        self.held.retain(|h| active().any(|(_, m)| m == h.mask));
         let mut fire = None;
-        for (action, mask) in active {
+        for (action, mask) in active() {
             self.withheld |= mask;
-            let i = match self.held.iter().position(|(m, _, _)| *m == mask) {
+            let i = match self.held.iter().position(|h| h.mask == mask) {
                 Some(i) => i,
                 None => {
-                    self.held.push((mask, now, false));
+                    self.held.push(Held {
+                        mask,
+                        since: now,
+                        fired: false,
+                    });
                     self.held.len() - 1
                 }
             };
-            let (_, since, fired) = &mut self.held[i];
+            let h = &mut self.held[i];
             // One per call: another one due now fires on the next tick.
-            if fire.is_none() && !*fired && now >= *since + u64::from(hotkeys.hold_ms) {
-                *fired = true;
+            if fire.is_none() && !h.fired && now >= h.since + u64::from(hotkeys.hold_ms) {
+                h.fired = true;
                 fire = Some(action);
             }
         }
@@ -301,10 +324,14 @@ mod tests {
             slot1: Vec::new(),
             ..Default::default()
         };
-        assert!(
-            !off.entries()
-                .iter()
-                .any(|(a, _)| *a == HotkeyAction::Slot(0))
-        );
+        assert!(!off.entries().any(|(a, _)| a == HotkeyAction::Slot(0)));
+        assert_eq!(hk.entries().count(), 5, "four slots and the emergency stop");
+        for a in HotkeyAction::ALL {
+            assert_eq!(
+                hk.buttons(a).is_empty(),
+                !hk.entries().any(|(e, _)| e == a),
+                "{a:?}"
+            );
+        }
     }
 }

@@ -302,18 +302,18 @@ impl Control {
     }
 
     /// Every digital control derived from a stick: directions (with diagonals) and zones.
-    pub fn of_stick(s: Stick) -> Vec<Control> {
+    pub fn of_stick(s: Stick) -> impl Iterator<Item = Control> {
         let dirs = Dir::ALL.map(|d| Control::StickDir(s, d));
         let zones = Zone::ALL.into_iter().flat_map(move |z| {
             std::iter::once(None)
                 .chain(Dir::ALL.map(Some))
                 .map(move |d| Control::StickZone(s, d, z))
         });
-        dirs.into_iter().chain(zones).collect()
+        dirs.into_iter().chain(zones)
     }
 
     /// Every touchpad control: regions, gestures and the trackpads of a split pad.
-    pub fn of_touchpad() -> Vec<Control> {
+    pub fn of_touchpad() -> impl Iterator<Item = Control> {
         let regions = TouchRegion::ALL.map(Control::Touch);
         let gestures = TouchGesture::ALL.map(Control::Gesture);
         let halves = Half::ALL.into_iter().flat_map(|h| {
@@ -323,27 +323,26 @@ impl Control {
                 .chain([TrackpadPart::Tap, TrackpadPart::Click])
                 .map(move |p| Control::Trackpad(h, p))
         });
-        regions.into_iter().chain(gestures).chain(halves).collect()
+        regions.into_iter().chain(gestures).chain(halves)
     }
 
     /// Every gyro control: directions and zones.
-    pub fn of_gyro() -> Vec<Control> {
+    pub fn of_gyro() -> impl Iterator<Item = Control> {
         let dirs = GyroDir::ALL.map(Control::Gyro);
         let zones = Zone::ALL.into_iter().flat_map(|z| {
             std::iter::once(None)
                 .chain(GyroDir::ALL.map(Some))
                 .map(move |d| Control::GyroZone(d, z))
         });
-        dirs.into_iter().chain(zones).collect()
+        dirs.into_iter().chain(zones)
     }
 
     /// Every digital control derived from a trigger: press, zones and full pull.
-    pub fn of_trigger(t: Trigger) -> Vec<Control> {
+    pub fn of_trigger(t: Trigger) -> impl Iterator<Item = Control> {
         let zones = Zone::ALL.map(|z| Control::TriggerZone(t, z));
         [Control::TriggerPress(t), Control::TriggerFull(t)]
             .into_iter()
             .chain(zones)
-            .collect()
     }
 }
 
