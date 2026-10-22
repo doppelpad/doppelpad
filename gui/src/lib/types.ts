@@ -681,6 +681,8 @@ export interface LibraryPlace {
   dir: string;
   default: string;
   is_default: boolean;
+  /** In portable mode, the folder beside the app that holds everything. */
+  portable: string | null;
 }
 
 /**

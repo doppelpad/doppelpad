@@ -399,6 +399,16 @@ fn doctor() -> Result<()> {
         ok(platform.hider.available())
     );
     drop(platform);
+    match dp_config::portable_dir() {
+        Some(dir) => println!(
+            "portable mode:                  everything in {}",
+            dir.display()
+        ),
+        None => println!(
+            "settings directory:             {}",
+            dp_config::config_dir().display()
+        ),
+    }
     println!(
         "profiles directory:             {}",
         dp_config::profiles_dir().display()

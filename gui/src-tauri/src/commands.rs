@@ -853,6 +853,8 @@ pub struct LibraryPlace {
     dir: PathBuf,
     default: PathBuf,
     is_default: bool,
+    /// In portable mode, the folder beside the app that holds everything.
+    portable: Option<PathBuf>,
 }
 
 #[tauri::command]
@@ -863,6 +865,7 @@ pub fn library_place(state: State<AppState>) -> LibraryPlace {
         is_default: relocate::same_dir(&dir, &default),
         dir,
         default,
+        portable: dp_config::portable_dir().map(Path::to_path_buf),
     }
 }
 

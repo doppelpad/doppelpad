@@ -220,8 +220,12 @@ fn window(app: &AppHandle, kind: OverlayKind) -> tauri::Result<(WebviewWindow, b
         .focusable(false)
         .focused(false)
         .visible(false)
-        .inner_size(1.0, 1.0)
-        .build()?;
+        .inner_size(1.0, 1.0);
+    let w = match crate::webview_data_dir() {
+        Some(dir) => w.data_directory(dir),
+        None => w,
+    }
+    .build()?;
     w.set_ignore_cursor_events(true)?;
     #[cfg(windows)]
     if let Ok(hwnd) = w.hwnd() {

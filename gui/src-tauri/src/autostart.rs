@@ -13,8 +13,12 @@ pub fn started_hidden() -> bool {
     std::env::args().skip(1).any(|a| a == HIDDEN_ARG)
 }
 
-/// Whether the app starts with Windows; `None` where it cannot (not Windows).
+/// Whether the app starts with Windows; `None` where it cannot (not Windows) or should not
+/// (portable mode: the copy may sit on a stick that is not always there).
 pub fn enabled() -> Option<bool> {
+    if dp_config::portable_dir().is_some() {
+        return None;
+    }
     #[cfg(windows)]
     {
         Some(dp_platform::windows::autostart::is_enabled(NAME))
@@ -25,6 +29,11 @@ pub fn enabled() -> Option<bool> {
 
 /// Register this executable to start hidden at sign-in, or remove it.
 pub fn set(on: bool) -> std::io::Result<()> {
+    if on && dp_config::portable_dir().is_some() {
+        return Err(std::io::Error::other(
+            "a portable copy does not start with Windows",
+        ));
+    }
     #[cfg(windows)]
     {
         use dp_platform::windows::autostart;

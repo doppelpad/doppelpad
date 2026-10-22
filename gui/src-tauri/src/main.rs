@@ -46,6 +46,12 @@ fn take_over_running_service(notices: &mut Vec<Notice>) {
     }
 }
 
+/// In portable mode, the browser data of every window (cache, storage) beside the app too;
+/// otherwise the default per-user folder.
+pub(crate) fn webview_data_dir() -> Option<std::path::PathBuf> {
+    dp_config::portable_dir().map(|dir| dir.join("webview"))
+}
+
 /// Create the main window from its config entry, with the title bar drawn by the app:
 /// macOS keeps its native traffic lights over the app's header, Windows and Linux get
 /// no system frame and the header draws its own window buttons. A hidden window still
@@ -58,7 +64,10 @@ fn create_main_window(app: &tauri::App, visible: bool) -> tauri::Result<WebviewW
         .iter()
         .find(|w| w.label == MAIN_WINDOW)
         .expect("main window config");
-    let builder = WebviewWindowBuilder::from_config(app.handle(), config)?.visible(visible);
+    let mut builder = WebviewWindowBuilder::from_config(app.handle(), config)?.visible(visible);
+    if let Some(dir) = webview_data_dir() {
+        builder = builder.data_directory(dir);
+    }
     #[cfg(target_os = "macos")]
     let builder = builder
         .title_bar_style(tauri::TitleBarStyle::Overlay)
