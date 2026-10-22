@@ -1,7 +1,6 @@
 <script lang="ts">
   // "Identify buttons" for a generic pad: asks for one control after another, records the raw
   // input that moves, and saves the result as the layout of this controller model.
-  import { X } from '@lucide/svelte';
   import { untrack } from 'svelte';
   import { api } from '../lib/api';
   import { t } from '../lib/i18n/index.svelte';

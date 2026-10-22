@@ -2,14 +2,10 @@
   "extends": "@tsconfig/svelte/tsconfig.json",
   "compilerOptions": {
     "target": "ES2022",
-    "module": "ESNext",
-    "moduleResolution": "bundler",
-    "strict": true,
     "noUncheckedIndexedAccess": false,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
     "resolveJsonModule": true,
-    "allowImportingTsExtensions": false,
-    "verbatimModuleSyntax": true,
-    "skipLibCheck": true,
     "types": ["vite/client"]
   },
   "include": ["src/**/*.ts", "src/**/*.svelte"]
