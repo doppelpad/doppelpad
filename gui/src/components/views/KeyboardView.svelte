@@ -3,6 +3,7 @@
   // physical key selects it for the binding panel.
   import { keyFromEvent } from '../../lib/model/keymap';
   import { effectiveSummary } from '../../lib/model/labels';
+  import { modalOpen } from '../ui/Dialog.svelte';
   import { app } from '../../lib/state/app.svelte';
 
   interface KeyBox {
@@ -94,7 +95,7 @@
 
   /** A dialog or an open menu owns the keyboard. */
   function overlayOpen(): boolean {
-    return document.querySelector('[role=dialog], [role=menu]') !== null;
+    return modalOpen() || document.querySelector('[role=menu]') !== null;
   }
 
   function onKeydown(e: KeyboardEvent) {

@@ -1,7 +1,7 @@
 <script lang="ts">
   // The welcome guide on first start: drivers, the controller, what it should become, and a
   // first config made from a template (applied right away if wanted).
-  import { CircleAlert, CircleCheck, X } from '@lucide/svelte';
+  import { CircleAlert, CircleCheck } from '@lucide/svelte';
   import { api } from '../lib/api';
   import { t } from '../lib/i18n/index.svelte';
   import { app } from '../lib/state/app.svelte';
@@ -9,6 +9,7 @@
   import { TEMPLATES } from '../lib/model/labels';
   import IdentifyWizard from './IdentifyWizard.svelte';
   import Toggle from './ui/Toggle.svelte';
+  import Dialog from './ui/Dialog.svelte';
 
   const STEPS = ['welcome', 'drivers', 'controller', 'output', 'finish'] as const;
 
@@ -55,112 +56,84 @@
   }
 </script>
 
-<div class="backdrop" role="presentation">
-  <div class="dialog" role="dialog" aria-modal="true" tabindex="-1">
-    <div class="head">
-      <h3>{t(`welcome.${STEPS[step]}.title`)}</h3>
-      <button class="icon-btn" onclick={done} title={t('welcome.skip')}><X size={17} /></button>
-    </div>
+<Dialog
+  title={t(`welcome.${STEPS[step]}.title`)}
+  onclose={done}
+  closeLabel={t('welcome.skip')}
+  width={500}
+  level="guide"
+  backdropClose={false}
+  escapeClose={false}
+>
 
-    {#if STEPS[step] === 'welcome'}
-      <p>{t('welcome.welcome.text')}</p>
-    {:else if STEPS[step] === 'drivers'}
-      <p class="hint">{t('welcome.drivers.text')}</p>
-      {#each drivers as d (d.key)}
-        <div class="row" class:missing={!d.state.available}>
-          {#if d.state.available}<CircleCheck size={15} />{:else}<CircleAlert size={15} />{/if}
-          <span class="grow">{t(`drivers.${d.key}`)}</span>
-          {#if !d.state.available}
-            <button class="btn" onclick={() => app.attempt(api.openDriverPage(d.key))}>
-              {t('drivers.download')}
-            </button>
+  {#if STEPS[step] === 'welcome'}
+    <p>{t('welcome.welcome.text')}</p>
+  {:else if STEPS[step] === 'drivers'}
+    <p class="hint">{t('welcome.drivers.text')}</p>
+    {#each drivers as d (d.key)}
+      <div class="row" class:missing={!d.state.available}>
+        {#if d.state.available}<CircleCheck size={15} />{:else}<CircleAlert size={15} />{/if}
+        <span class="grow">{t(`drivers.${d.key}`)}</span>
+        {#if !d.state.available}
+          <button class="btn" onclick={() => app.attempt(api.openDriverPage(d.key))}>
+            {t('drivers.download')}
+          </button>
+        {/if}
+      </div>
+    {/each}
+    {#if drivers.some((d) => !d.state.available)}<p class="hint">{t('welcome.drivers.after')}</p>{/if}
+  {:else if STEPS[step] === 'controller'}
+    {#if devices.length === 0}
+      <p>{t('welcome.controller.none')}</p>
+    {:else}
+      <p class="hint">{t('welcome.controller.text')}</p>
+      {#each devices as d (d.id)}
+        <div class="row">
+          <CircleCheck size={15} />
+          <span class="grow">{d.name}</span>
+          {#if d.family === 'generic' && d.raw}
+            <button class="btn" onclick={() => (identify = d.id)}>{t('identify.menu')}</button>
           {/if}
         </div>
       {/each}
-      {#if drivers.some((d) => !d.state.available)}<p class="hint">{t('welcome.drivers.after')}</p>{/if}
-    {:else if STEPS[step] === 'controller'}
-      {#if devices.length === 0}
-        <p>{t('welcome.controller.none')}</p>
-      {:else}
-        <p class="hint">{t('welcome.controller.text')}</p>
-        {#each devices as d (d.id)}
-          <div class="row">
-            <CircleCheck size={15} />
-            <span class="grow">{d.name}</span>
-            {#if d.family === 'generic' && d.raw}
-              <button class="btn" onclick={() => (identify = d.id)}>{t('identify.menu')}</button>
-            {/if}
-          </div>
-        {/each}
-      {/if}
-    {:else if STEPS[step] === 'output'}
-      <p class="hint">{t('welcome.output.text')}</p>
-      {#each TEMPLATES as tpl (tpl)}
-        <label class="choice">
-          <input type="radio" name="template" value={tpl} checked={template === tpl} onchange={() => (template = tpl)} />
-          <span>
-            <strong>{t(`welcome.templates.${tpl}`)}</strong>
-            <span class="hint">{t(`welcome.template_hints.${tpl}`)}</span>
-          </span>
-        </label>
-      {/each}
-    {:else}
-      <label class="field">
-        <span>{t('welcome.finish.name')}</span>
-        <input bind:value={name} />
-      </label>
-      <Toggle checked={useNow} label={t('welcome.finish.use_now')} onchange={(v) => (useNow = v)} />
-      {#if needsPad && devices.length === 0 && template !== 'keyboard_mouse'}
-        <p class="hint">{t('welcome.finish.no_pad')}</p>
-      {/if}
     {/if}
+  {:else if STEPS[step] === 'output'}
+    <p class="hint">{t('welcome.output.text')}</p>
+    {#each TEMPLATES as tpl (tpl)}
+      <label class="choice">
+        <input type="radio" name="template" value={tpl} checked={template === tpl} onchange={() => (template = tpl)} />
+        <span>
+          <strong>{t(`welcome.templates.${tpl}`)}</strong>
+          <span class="hint">{t(`welcome.template_hints.${tpl}`)}</span>
+        </span>
+      </label>
+    {/each}
+  {:else}
+    <label class="field">
+      <span>{t('welcome.finish.name')}</span>
+      <input bind:value={name} />
+    </label>
+    <Toggle checked={useNow} label={t('welcome.finish.use_now')} onchange={(v) => (useNow = v)} />
+    {#if needsPad && devices.length === 0 && template !== 'keyboard_mouse'}
+      <p class="hint">{t('welcome.finish.no_pad')}</p>
+    {/if}
+  {/if}
 
-    <div class="actions">
-      <button class="btn" onclick={done}>{t('welcome.skip')}</button>
-      <span class="grow"></span>
-      {#if step > 0}<button class="btn" onclick={() => (step -= 1)}>{t('identify.back')}</button>{/if}
-      {#if step < STEPS.length - 1}
-        <button class="btn primary" onclick={() => (step += 1)}>{t('welcome.next')}</button>
-      {:else}
-        <button class="btn primary" disabled={busy || !name.trim()} onclick={create}>{t('welcome.finish.create')}</button>
-      {/if}
-    </div>
+  <div class="actions">
+    <button class="btn" onclick={done}>{t('welcome.skip')}</button>
+    <span class="grow"></span>
+    {#if step > 0}<button class="btn" onclick={() => (step -= 1)}>{t('identify.back')}</button>{/if}
+    {#if step < STEPS.length - 1}
+      <button class="btn primary" onclick={() => (step += 1)}>{t('welcome.next')}</button>
+    {:else}
+      <button class="btn primary" disabled={busy || !name.trim()} onclick={create}>{t('welcome.finish.create')}</button>
+    {/if}
   </div>
-</div>
+</Dialog>
 
 {#if identify}<IdentifyWizard deviceId={identify} onclose={() => (identify = null)} />{/if}
 
 <style>
-  .backdrop {
-    position: fixed;
-    inset: 0;
-    background: var(--backdrop);
-    display: grid;
-    place-items: center;
-    z-index: var(--z-guide);
-  }
-  .dialog {
-    width: 500px;
-    max-width: calc(100vw - 32px);
-    background: var(--bg-1);
-    border: 1px solid var(--line-strong);
-    border-radius: var(--radius-l);
-    box-shadow: var(--shadow);
-    padding: 18px 20px 20px;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-  }
-  .head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-  h3 {
-    margin: 0;
-    font-size: 16px;
-    font-weight: 600;
-  }
   p {
     margin: 0;
   }
