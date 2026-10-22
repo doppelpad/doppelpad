@@ -2,7 +2,7 @@
   // Controller hotkeys (app settings): record a combo by holding its buttons on the
   // controller and letting go, clear it, or change the hold time.
   import { CircleDot, X } from '@lucide/svelte';
-  import { onDestroy } from 'svelte';
+  import { onDestroy, untrack } from 'svelte';
   import { api } from '../../lib/api';
   import { t } from '../../lib/i18n/index.svelte';
   import { controlLabel } from '../../lib/model/controls';
@@ -26,14 +26,16 @@
   const down = $derived(app.primary ? padButtonsDown(app.primary, app.catalog?.pad_buttons ?? []) : []);
 
   $effect(() => {
-    if (!recording) return;
     const now = down;
-    if (now.length > 0) {
-      const add = now.filter((b) => !seen.includes(b));
-      if (add.length) seen = [...seen, ...add];
-    } else if (seen.length > 0) {
-      finish();
-    }
+    if (!recording) return;
+    untrack(() => {
+      if (now.length > 0) {
+        const add = now.filter((b) => !seen.includes(b));
+        if (add.length) seen = [...seen, ...add];
+      } else if (seen.length > 0) {
+        finish();
+      }
+    });
   });
 
   const label = (buttons: PadButtonName[]) =>
