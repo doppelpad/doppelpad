@@ -64,8 +64,8 @@ only edits profiles and sends commands.
    **Vibration** sets each motor's strength, swaps them and limits how often rumble
    commands go out.
    The **light bar** (DualShock 4, DualSense) is set there as well, for *Main* and per layer:
-   an effect, its colours and the speed. *Settings → Controller lights* sets what the player
-   lights and the DualSense microphone LED show.
+   an effect, its colours and the speed. *Settings → Controllers → Controller lights* sets
+   what the player lights and the DualSense microphone LED show.
    **Radial menus** live there too: the layer that opens each one, what points at a sector
    (a stick, the mouse or commands), when the pointed sector runs, and per sector its label,
    icon (a built-in set or an image file), colour and actions or sub-menu.
@@ -278,7 +278,7 @@ mapping. The remap button in the bottom bar then shows a pause sign, and its too
 over again. Doppelpad also checks which program is in front: if Windows misses telling the
 window that it lost the focus, remapping still resumes about a second after another
 program comes to the front. The log records every pause and resume with its reason.
-*Settings → Keep remapping active while this window is focused* turns this off.
+*Settings → General → Keep remapping active while this window is focused* turns this off.
 
 ## Several controllers
 
@@ -291,7 +291,7 @@ shows its own four slots (the list marks it with a stack icon): *Apply to slot* 
 buttons work on them while that controller is picked, and it runs its own config with its
 own virtual controller while it is connected. The shared slots keep running on the other
 controller. Keyboard and mouse belong to the shared slots' config. The remap button switches
-all of them; *Autodetect* (*Settings → While remapping*) changes the shared slots only. Each
+all of them; *Autodetect* (*Settings → Remapping*) changes the shared slots only. Each
 config hides only its own controller.
 
 *Settings → Controllers* lists every connected device. Untick one (or choose **Ignore this
@@ -325,8 +325,8 @@ On first start a short guide checks the drivers (with download buttons for ViGEm
 HidHide), lists the connected controllers (unknown ones can be identified right there), asks
 what the controller should become (a virtual Xbox or DualShock 4 controller, the desktop, or
 keyboard and mouse as a controller) and creates a first game with a matching config, applied to
-slot 1 if you like. *Settings → Welcome* shows it again. The same templates are in the config
-menu as **New from template: …**.
+slot 1 if you like. *Settings → General → Welcome* shows it again. The same templates are in
+the config menu as **New from template: …**.
 
 To share a game, choose **Export game …** in its menu in the game list: one `.dpgame` file holds
 its settings, every config and its picture. **Import game** (the arrow next to *+*) unpacks such
@@ -336,11 +336,11 @@ layer's menu can **Save as preset …** (its settings, mappings and routes); pre
 appear in every layer menu as **Insert preset: …**, which adds them as a new layer (layer
 switches to layers the config does not have are dropped).
 
-*Settings → Local API (HTTP)* lets stream decks and scripts switch remapping and slots, load
-configs and follow changes; see [API.md](API.md). It is off by default, answers only this PC
-unless the network is allowed, and then only with its token.
+*Settings → Connections → Local API (HTTP)* lets stream decks and scripts switch remapping and
+slots, load configs and follow changes; see [API.md](API.md). It is off by default, answers
+only this PC unless the network is allowed, and then only with its token.
 
-*Settings → While remapping*: Doppelpad keeps the PC awake while a mapping plays input (a
+*Settings → Remapping*: Doppelpad keeps the PC awake while a mapping plays input (a
 macro, a toggle that holds a key); it can pause remapping while the config's game is not in
 front (configs of a game folder, or with program names of their own), and a controller with
 slots of its own can keep its virtual controller, idle, while it is disconnected. On the lock
@@ -348,11 +348,11 @@ screen, at Ctrl+Alt+Del and during administrator prompts remapping always pauses
 everything. While a game with an anti-cheat known to act against automated input is in front
 (Counter-Strike 2, Call of Duty), the warnings bar says so, with the publisher's statement.
 
-*Settings → Motion server (DSU)* lets emulators such as Cemu, Dolphin or Ryujinx read the
-controllers' buttons, sticks and gyro over the DSU (cemuhook) protocol, on port 26760 unless
-you choose another. It is off by default and answers only this PC unless *Reachable from the
-network too* is on. The first four controllers take slots 1–4 and keep them while connected;
-the emulator sees the physical controller, not the remapped output.
+*Settings → Connections → Motion server (DSU)* lets emulators such as Cemu, Dolphin or Ryujinx
+read the controllers' buttons, sticks and gyro over the DSU (cemuhook) protocol, on port 26760
+unless you choose another. It is off by default and answers only this PC unless *Reachable
+from the network too* is on. The first four controllers take slots 1–4 and keep them while
+connected; the emulator sees the physical controller, not the remapped output.
 
 *Keyboard and mouse input* in the config's output settings says which keyboard and mouse
 events its mappings react to: *all* (the default), *physical devices only* (input that other
@@ -368,7 +368,7 @@ little drift do not count). Wired controllers stay on. Its home button turns it 
 
 ## Controller hotkeys
 
-*Settings → Controller hotkeys* sets button combos that work in every config, with
+*Settings → Hotkeys* sets button combos that work in every config, with
 remapping off, and without the window (`doppelpad daemon` reads them too): **Slot 1–4**
 (activates that slot and turns remapping on; empty slots do nothing), **Remapping on/off**,
 **Stop macros** (stops running macros, turbo and toggles and releases what they hold),
@@ -395,9 +395,9 @@ Two overlays show over games, switched on and off by a controller hotkey or a ma
 - the **mappings overlay**, the running config's mappings on the active layer with their
   descriptions, in columns of up to 40 rows (120 rows at most). It follows layer changes.
 
-*Settings → Overlays* picks their corner, the controller's size, both opacities and when the
-controller hides. Like the notifications they let clicks through and never take the focus;
-`doppelpad daemon` shows neither.
+*Settings → Display → Overlays* picks their corner, the controller's size, both opacities and
+when the controller hides. Like the notifications they let clicks through and never take the
+focus; `doppelpad daemon` shows neither.
 
 ## Tray
 
@@ -408,16 +408,16 @@ turns remapping on or off. The right-click menu has:
 - **Open Doppelpad**
 - the active config (*Game › Config*) or *No config active*
 - **Remapping on** and **Autodetect games**, the same switches as the remap button in the
-  bottom bar and *Settings → While remapping → Autodetect*
+  bottom bar and *Settings → Remapping → Autodetect*
 - the four slots with their configs; choosing one activates it and turns remapping on
 - **Quit**
 
 The tray follows every change, whether it comes from the window, from `doppelpad`
 commands, or from a mapping that turns remapping off.
 
-*Settings → Start with Windows, in the tray* (Windows only) starts Doppelpad when you sign
-in, with only the tray icon showing; remapping runs as it was left. The setting is the
-`Doppelpad` entry under `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`, which runs
+*Settings → General → Start with Windows, in the tray* (Windows only) starts Doppelpad when
+you sign in, with only the tray icon showing; remapping runs as it was left. The setting is
+the `Doppelpad` entry under `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`, which runs
 `doppelpad-gui.exe --hidden`. Task Manager's *Startup* tab lists it too, and switching it
 off there shows in the settings. If reWASD runs at sign-in and *When reWASD is running at
 start-up* is set to *Ask*, the window opens to ask.
@@ -428,9 +428,9 @@ Short messages appear over games when remapping goes on or off, another slot or 
 becomes active, the layer changes, a controller connects or disconnects, or a controller's
 battery drops below 40 % or 20 % (once per drop, not while charging). They also show
 while the window is closed to the tray, but not while the window has focus (it shows the same
-state) or in the first seconds after start. *Settings → On-screen notifications* picks the
-events, the monitor and corner, the size, opacity and display time, and whether a layer
-message stays up while the layer is active; *Show a sample* previews them.
+state) or in the first seconds after start. *Settings → Display → On-screen notifications*
+picks the events, the monitor and corner, the size, opacity and display time, and whether a
+layer message stays up while the layer is active; *Show a sample* previews them.
 
 Each message is a small window that stays above other windows, lets clicks through and never
 takes the focus, so it works over windowed and borderless games. Games in exclusive full-screen
@@ -445,10 +445,10 @@ asks for administrator permission, then closes reWASD's programs (asked to close
 terminated after two seconds). Doppelpad then looks for controllers again right away.
 reWASD starts again with Windows or when it is opened.
 
-*Remember my choice* stores the answer; *Settings → When reWASD is running at start-up*
-changes it later (*Ask*, *Quit it*, *Leave it running*) and offers *Quit reWASD* while it
-runs. The setting appears only when reWASD is installed. `doppelpad doctor` also reports a
-running reWASD.
+*Remember my choice* stores the answer; *Settings → General → When reWASD is running at
+start-up* changes it later (*Ask*, *Quit it*, *Leave it running*) and offers *Quit reWASD*
+while it runs. The setting appears only when reWASD is installed. `doppelpad doctor` also
+reports a running reWASD.
 
 ## Files
 
@@ -469,7 +469,7 @@ moves files to the recycle bin.
 ### Log file
 
 When reporting a problem, attach `doppelpad-gui.log` (and the numbered logs of earlier
-runs if the problem happened before the app was last restarted). *Settings → Open log
+runs if the problem happened before the app was last restarted). *Settings → Files → Open log
 folder* shows the files in Explorer. The log starts with the app version, the Windows
 version and whether ViGEmBus and HidHide are available, and it records warnings, the
 controller in use and why it was picked, controllers that went silent and were started
@@ -584,7 +584,7 @@ The setup is not code-signed yet, so Windows SmartScreen warns when it is starte
 
 ## Languages
 
-The UI is available in English and German (*Settings → Language*). Translations live in
-`gui/src/lib/i18n/{en,de}.json`. A test makes sure both files have the same keys and
+The UI is available in English and German (*Settings → General → Language*). Translations live
+in `gui/src/lib/i18n/{en,de}.json`. A test makes sure both files have the same keys and
 placeholders. To add a language, copy `en.json`, translate it and register it in
-`gui/src/lib/i18n/index.svelte.ts`. The tray menu's texts are in `gui/src-tauri/src/tray.rs`.
+`gui/src/lib/i18n/index.svelte.ts`. The tray menu takes its texts from the same files (`tray.*`).

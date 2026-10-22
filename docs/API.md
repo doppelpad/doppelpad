@@ -1,7 +1,7 @@
 # Local HTTP API
 
 Stream decks, macro pads and scripts can drive Doppelpad over HTTP. Turn it on in
-*Settings → Local API (HTTP)*. It is off by default.
+*Settings → Connections → Local API (HTTP)*. It is off by default.
 
 - It listens on `127.0.0.1:26761` (the port can be changed). With *Reachable from the network
   too* it listens on every interface, and then every request needs the token.
