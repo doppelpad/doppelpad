@@ -19,14 +19,14 @@ use crate::runtime::{DriverStatus, Runtime};
 use crate::slots::{PlayerLights, RuntimeOptions, SLOTS, SlotState};
 
 /// How often the foreground application is checked by default.
-pub const FOREGROUND_POLL_MS: u64 = 250;
+const FOREGROUND_POLL_MS: u64 = 250;
 /// How often to check whether the user's desktop takes input.
 const DESKTOP_POLL_MS: u64 = 250;
 /// How often driver availability is re-probed.
 const DRIVER_POLL_MS: u64 = 5000;
 /// How long the editor's focus report is trusted by default although another program is in
 /// front (the foreground check lags behind a focus change).
-pub const GUI_FOCUS_GRACE_MS: u64 = 1000;
+const GUI_FOCUS_GRACE_MS: u64 = 1000;
 
 #[derive(Clone, Debug)]
 pub struct ServiceOptions {
@@ -75,14 +75,14 @@ impl ServiceOptions {
 }
 
 /// A manual gyro calibration samples this long.
-pub const GYRO_CALIBRATION_MS: u64 = 3000;
+const GYRO_CALIBRATION_MS: u64 = 3000;
 /// An automatically updated gyro calibration is saved at most this often.
 const CALIBRATION_SAVE_MS: u64 = 60_000;
 
 /// A test turn starts this long after it is asked for (time to switch to the game) ...
-pub const TEST_TURN_DELAY_MS: u64 = 3000;
+const TEST_TURN_DELAY_MS: u64 = 3000;
 /// ... and takes this long.
-pub const TEST_TURN_MS: u64 = 1000;
+const TEST_TURN_MS: u64 = 1000;
 
 /// Commands beyond the IPC protocol, used by the GUI.
 #[derive(Clone, Debug, PartialEq)]
@@ -397,14 +397,12 @@ impl Service {
             .map(str::to_owned)
     }
 
+    #[cfg(test)]
     pub fn runtime(&self) -> &Runtime {
         &self.rt
     }
 
-    pub fn runtime_mut(&mut self) -> &mut Runtime {
-        &mut self.rt
-    }
-
+    #[cfg(test)]
     pub fn slots(&self) -> &SlotState {
         &self.state
     }
@@ -434,11 +432,6 @@ impl Service {
             .iter()
             .filter(|c| c.error.is_none())
             .count()
-    }
-
-    /// Re-read the profiles directory (after the GUI changed games or configs).
-    pub fn reload_library(&mut self) {
-        self.reload();
     }
 
     /// Config to activate for a foreground executable: a game's default config, else a
@@ -893,7 +886,10 @@ impl Service {
             }
             ServiceCmd::TestTurn { counts } => {
                 self.rt.test_turn(counts, TEST_TURN_DELAY_MS, TEST_TURN_MS);
-                ServiceReply::Ok(format!("turning {counts} counts in 3 s"))
+                ServiceReply::Ok(format!(
+                    "turning {counts} counts in {} s",
+                    TEST_TURN_DELAY_MS / 1000
+                ))
             }
             ServiceCmd::CalibrateGyro { device } => self.with_gyro(device, |rt, id| {
                 let now = rt.now_ms();
@@ -954,7 +950,6 @@ impl Service {
         }
     }
 
-    /// One loop iteration: engine tick, remap-off handling, auto-switch, driver probing.
     /// Run a gyro calibration change for `device`, or the controller in use.
     fn with_gyro(
         &mut self,
@@ -1071,6 +1066,7 @@ impl Service {
         });
     }
 
+    /// One loop iteration: engine tick, remap-off handling, auto-switch, driver probing.
     pub fn tick(&mut self) {
         self.rt.tick();
         if let Some(dsu) = &mut self.dsu {

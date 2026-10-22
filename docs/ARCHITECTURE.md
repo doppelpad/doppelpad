@@ -36,7 +36,8 @@ deterministic.
 | `dp-config` | TOML (de)serialization, validation, JSON profile import, profile directories | none |
 | `dp-platform` | Backend traits; Windows and Linux implementations; null backends elsewhere | yes |
 | `dp-ipc` | `Request`/`Response` protocol and a tiny blocking client/server | local sockets |
-| `doppelpad` | CLI (apply, slots, remap on/off, status, devices), foreground runner, daemon with auto-switching | timer resolution |
+| `dp-service` | The runtime loop, slots, auto-switching, IPC handling, live snapshots, HTTP API and DSU server; shared by the daemon and the GUI | timer resolution |
+| `doppelpad` | CLI (apply, slots, remap on/off, status, devices), foreground runner, daemon | none |
 
 ## The engine (`dp-core::engine`)
 
@@ -72,7 +73,7 @@ Pipeline per tick:
 6. **Output** (`compose.rs`, `routes.rs`). Unmapped physical controls are mirrored to the virtual pad (with stick and
    trigger shaping), then mapping outputs and analog routes are merged.
 
-## Runtime (`doppelpad`)
+## Runtime (`dp-service`)
 
 `Runtime` owns the `Platform` and one *session* per running profile: an `Engine`, its
 virtual pad and its feedback state. The default session plays the shared slots on the
@@ -96,9 +97,20 @@ become one controller (hidden together, rumble split between them), and a Joy-Co
 is turned into a sideways mini pad. Switch 2 controllers stay silent until their USB vendor
 interface is told to start; the HID backend claims that interface next to the HID one.
 
-Threads on Windows:
+Threads on every OS:
 
-- **main:** engine loop at about 1 kHz (`timeBeginPeriod(1)`).
+- **dp-service:** the runtime loop at about 1 kHz (on Windows with `timeBeginPeriod(1)`), in
+  the daemon and in the GUI. The CLI's foreground runner ticks the runtime on its main
+  thread instead.
+- **dp-ipc:** the IPC server, in the daemon and in the GUI host. It answers one request
+  after the other through the runtime thread; `dp-ipc-accept` takes connections and a
+  `dp-ipc-conn` thread reads each request. A client waits for its answer on a
+  `dp-ipc-call` thread (named pipes have no timeouts on Windows).
+- **dp-http** and one **dp-http-conn** per connection: the HTTP API, when it is on.
+- **dp-dsu:** the DSU (cemuhook) motion server, when it is on.
+
+On Windows:
+
 - **one per HID controller:** runs its driver: start-up (for Switch pads the USB handshake,
   calibration reads and report-mode setup), overlapped report reads, rumble pacing and
   keep-alives. `set_rumble` only hands a value over, so the engine never waits on a device.
@@ -107,7 +119,6 @@ Threads on Windows:
   loop by a lock-free filter and a channel.
 - **ViGEm notification thread** per virtual pad: rumble (and the DualShock 4 light bar)
   coming back from games.
-- **IPC thread** (daemon only).
 
 On Linux:
 

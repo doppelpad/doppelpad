@@ -495,7 +495,7 @@ impl Runtime {
     }
 
     /// Runtime on explicit backends (tests use `NullPlatform::platform()`).
-    pub fn with_platform(mut platform: Platform) -> Self {
+    pub(crate) fn with_platform(mut platform: Platform) -> Self {
         let policy = Arc::new(Mutex::new(DevicePolicy::default()));
         let seen = Arc::new(Mutex::new(Vec::new()));
         let inner = std::mem::take(&mut platform.gamepads);
@@ -535,14 +535,14 @@ impl Runtime {
 
     /// True once after a profile turned remapping off with its `remap_off` command or the
     /// emergency-stop hotkey.
-    pub fn take_remap_off_request(&mut self) -> bool {
+    pub(crate) fn take_remap_off_request(&mut self) -> bool {
         std::mem::take(&mut self.remap_off_requested)
     }
 
     /// Pause remapping without unloading the profiles: devices keep being polled, every
     /// output is released and nothing is injected until resumed. Used while the GUI
     /// window has focus, so mapped keys do not land in the editor.
-    pub fn set_suspended(&mut self, on: bool) {
+    pub(crate) fn set_suspended(&mut self, on: bool) {
         if on == self.suspended {
             return;
         }
@@ -560,24 +560,24 @@ impl Runtime {
         }
     }
 
-    pub fn is_suspended(&self) -> bool {
+    pub(crate) fn is_suspended(&self) -> bool {
         self.suspended
     }
 
     /// Prefer this controller for the default session when it is connected.
-    pub fn set_preferred_device(&mut self, id: Option<DeviceId>) {
+    pub(crate) fn set_preferred_device(&mut self, id: Option<DeviceId>) {
         self.preferred = id;
         self.lost = None;
         self.primary = None; // re-pick on the next poll
     }
 
     /// Controller of the default session.
-    pub fn primary_device(&self) -> Option<&DeviceId> {
+    pub(crate) fn primary_device(&self) -> Option<&DeviceId> {
         self.primary.as_ref()
     }
 
     /// Check which optional drivers are usable (this probes the drivers; not for every tick).
-    pub fn drivers(&self) -> DriverStatus {
+    pub(crate) fn drivers(&self) -> DriverStatus {
         DriverStatus {
             virtual_pads: DriverState::from(self.platform.virtual_pads.available()),
             device_hiding: DriverState::from(self.platform.hider.available()),
@@ -597,7 +597,7 @@ impl Runtime {
             .unwrap_or_default()
     }
 
-    pub fn now_ms(&self) -> u64 {
+    pub(crate) fn now_ms(&self) -> u64 {
         self.epoch.elapsed().as_millis() as u64
     }
 
@@ -610,18 +610,13 @@ impl Runtime {
         self.session(None).map(|s| s.engine.profile())
     }
 
-    pub fn profile_path(&self) -> Option<&PathBuf> {
+    pub(crate) fn profile_path(&self) -> Option<&PathBuf> {
         self.session(None).and_then(|s| s.path.as_ref())
     }
 
     /// File of the profile a controller's own session runs.
-    pub fn device_profile_path(&self, id: &DeviceId) -> Option<&PathBuf> {
+    pub(crate) fn device_profile_path(&self, id: &DeviceId) -> Option<&PathBuf> {
         self.session(Some(id)).and_then(|s| s.path.as_ref())
-    }
-
-    /// Whether a controller has a session of its own.
-    pub fn has_device_session(&self, id: &DeviceId) -> bool {
-        self.session(Some(id)).is_some()
     }
 
     pub fn layer(&self) -> u8 {
@@ -629,30 +624,30 @@ impl Runtime {
     }
 
     /// The crosshair the default session shows.
-    pub fn crosshair(&self) -> Option<&Crosshair> {
+    pub(crate) fn crosshair(&self) -> Option<&Crosshair> {
         let s = self.session(None)?;
         s.engine.profile().crosshairs.get(s.crosshair_index()?)
     }
 
     /// Whether the live controller overlay and the mappings overlay are on.
-    pub fn overlays(&self) -> (bool, bool) {
+    pub(crate) fn overlays(&self) -> (bool, bool) {
         (self.pad_overlay, self.mappings_overlay)
     }
 
     /// Ignore the blocked devices and play each group as one controller.
-    pub fn set_device_policy(&mut self, policy: DevicePolicy) {
+    pub(crate) fn set_device_policy(&self, policy: DevicePolicy) {
         *self.policy.lock().unwrap() = policy;
     }
 
     /// Turn wireless controllers off after `after` without input; `None` never does.
-    pub fn set_power_off_after(&mut self, after: Option<Duration>) {
+    pub(crate) fn set_power_off_after(&mut self, after: Option<Duration>) {
         self.power_off_after = after.map(|d| d.as_millis() as u64);
         // Count from now, not from before the timeout was set.
         self.idle.clear();
     }
 
     /// Turn a wireless controller off now; `false` if none of the backends can.
-    pub fn power_off(&mut self, id: &DeviceId) -> bool {
+    pub(crate) fn power_off(&mut self, id: &DeviceId) -> bool {
         let mut done = false;
         for b in &mut self.platform.gamepads {
             done |= b.power_off(id);
@@ -666,7 +661,7 @@ impl Runtime {
     }
 
     /// Keep the computer from sleeping while macros run or toggles hold output.
-    pub fn set_prevent_sleep(&mut self, on: bool) {
+    pub(crate) fn set_prevent_sleep(&mut self, on: bool) {
         self.prevent_sleep = on;
     }
 
@@ -709,7 +704,7 @@ impl Runtime {
     }
 
     /// How generic pads' inputs map to pad controls, by model.
-    pub fn set_layouts(&mut self, layouts: Vec<GenericLayout>) {
+    pub(crate) fn set_layouts(&mut self, layouts: Vec<GenericLayout>) {
         let layouts = Arc::new(layouts);
         for b in &mut self.platform.gamepads {
             b.set_layouts(layouts.clone());
@@ -717,12 +712,12 @@ impl Runtime {
     }
 
     /// Every device the backends report, blocked and grouped ones included.
-    pub fn seen_devices(&self) -> Vec<SeenDevice> {
+    pub(crate) fn seen_devices(&self) -> Vec<SeenDevice> {
         self.seen.lock().unwrap().clone()
     }
 
     /// Show `leds(controller)` on every connected controller, sending only changes.
-    pub fn set_indicators(&mut self, leds: impl Fn(&DeviceId) -> Leds) {
+    pub(crate) fn set_indicators(&mut self, leds: impl Fn(&DeviceId) -> Leds) {
         let ids: Vec<DeviceId> = self.snapshots.iter().map(|s| s.info.id.clone()).collect();
         self.sent_leds.retain(|id, _| ids.contains(id));
         for id in ids {
@@ -737,14 +732,14 @@ impl Runtime {
     }
 
     /// The radial menu the default session shows, and its pointed sector.
-    pub fn radial(&self) -> Option<(&RadialMenu, Option<usize>)> {
+    pub(crate) fn radial(&self) -> Option<(&RadialMenu, Option<usize>)> {
         let s = self.session(None)?;
         let v = s.radial?;
         Some((s.engine.profile().radial_menus.get(v.menu)?, v.pointed))
     }
 
     /// Problems of every session; those of a controller's own session name the controller.
-    pub fn warnings(&self) -> Vec<String> {
+    pub(crate) fn warnings(&self) -> Vec<String> {
         let mut out = Vec::new();
         for s in &self.sessions {
             match &s.owner {
@@ -756,7 +751,7 @@ impl Runtime {
     }
 
     /// Every running session, the default one first.
-    pub fn sessions(&self) -> Vec<SessionInfo> {
+    pub(crate) fn sessions(&self) -> Vec<SessionInfo> {
         self.sessions.iter().map(Session::info).collect()
     }
 
@@ -770,7 +765,7 @@ impl Runtime {
     }
 
     /// Look for controllers now and retry the ones that could not be opened.
-    pub fn rescan_devices(&mut self) {
+    pub(crate) fn rescan_devices(&mut self) {
         for b in &mut self.platform.gamepads {
             b.rescan();
         }
@@ -783,13 +778,13 @@ impl Runtime {
     }
 
     /// Virtual pad of the default session.
-    pub fn virtual_pad(&self) -> Option<VirtualPadKind> {
+    pub(crate) fn virtual_pad(&self) -> Option<VirtualPadKind> {
         self.session(None)
             .and_then(|s| s.vpad.as_ref())
             .map(|v| v.kind())
     }
 
-    pub fn hidden_devices(&self) -> usize {
+    pub(crate) fn hidden_devices(&self) -> usize {
         self.hidden.len()
     }
 
@@ -797,7 +792,7 @@ impl Runtime {
         &self.snapshots
     }
 
-    pub fn platform_mut(&mut self) -> &mut Platform {
+    pub(crate) fn platform_mut(&mut self) -> &mut Platform {
         &mut self.platform
     }
 
@@ -807,7 +802,7 @@ impl Runtime {
     }
 
     /// Activate a profile in a controller's own session (replacing its current one).
-    pub fn apply_device(
+    pub(crate) fn apply_device(
         &mut self,
         id: &DeviceId,
         profile: Profile,
@@ -884,12 +879,12 @@ impl Runtime {
     }
 
     /// Deactivate the default session's profile.
-    pub fn stop_default(&mut self) {
+    pub(crate) fn stop_default(&mut self) {
         self.stop_session(None);
     }
 
     /// Deactivate a controller's own session.
-    pub fn stop_device(&mut self, id: &DeviceId) {
+    pub(crate) fn stop_device(&mut self, id: &DeviceId) {
         self.stop_session(Some(id));
     }
 
@@ -1090,17 +1085,17 @@ impl Runtime {
     }
 
     /// Gyro calibration of every controller seen.
-    pub fn calibration(&self) -> &Calibrator {
+    pub(crate) fn calibration(&self) -> &Calibrator {
         &self.calibration
     }
 
-    pub fn calibration_mut(&mut self) -> &mut Calibrator {
+    pub(crate) fn calibration_mut(&mut self) -> &mut Calibrator {
         &mut self.calibration
     }
 
     /// Send `counts` of horizontal mouse motion over `ms`, starting after `delay_ms` (time to
     /// switch to the game): one full turn when `counts` matches the game.
-    pub fn test_turn(&mut self, counts: f32, delay_ms: u64, ms: u64) {
+    pub(crate) fn test_turn(&mut self, counts: f32, delay_ms: u64, ms: u64) {
         self.test_turn = Some(TestTurn {
             counts,
             start: self.now_ms() + delay_ms,
@@ -1310,23 +1305,23 @@ impl Runtime {
     }
 
     /// The controller hotkeys in effect.
-    pub fn hotkeys(&self) -> &Hotkeys {
+    pub(crate) fn hotkeys(&self) -> &Hotkeys {
         &self.hotkeys
     }
 
-    pub fn set_hotkeys(&mut self, hotkeys: Hotkeys) {
+    pub(crate) fn set_hotkeys(&mut self, hotkeys: Hotkeys) {
         self.hotkeys = hotkeys;
         self.detectors.clear();
     }
 
     /// Ignore hotkeys for a while (the app is recording a new one).
-    pub fn set_hotkeys_paused(&mut self, on: bool) {
+    pub(crate) fn set_hotkeys_paused(&mut self, on: bool) {
         self.hotkeys_paused = on;
     }
 
     /// Hotkeys that fired, with the controller they fired on, that the service has to carry
     /// out (slots, remap toggle).
-    pub fn take_hotkey_actions(&mut self) -> Vec<(DeviceId, HotkeyAction)> {
+    pub(crate) fn take_hotkey_actions(&mut self) -> Vec<(DeviceId, HotkeyAction)> {
         std::mem::take(&mut self.hotkey_actions)
     }
 }
