@@ -1,0 +1,623 @@
+# Linux hardware test checklist
+
+The Linux backend ([LINUX.md](LINUX.md)) compiles and its event mapping is unit-tested, but
+it has not run on real hardware yet. This checklist covers everything that needs a real
+machine, real controllers, a keyboard and a mouse. Results go in the
+[tables at the end](#results).
+
+A person with the hardware can work through it alone, or together with a coding agent (such
+as Claude Code) running on the test machine. In that case the agent runs the commands,
+reads logs and fixes bugs, and the person presses buttons and watches the screen. The first
+test machine is a Steam Deck in desktop mode, so SteamOS has its own notes. Every check also
+works on other distributions.
+
+## How to work through it
+
+- Work on a branch (for example `linux-hardware-test`) and push only that branch. Fixes are
+  reviewed and merged from there.
+- Go in order. [Setup](#0-setup) and [Basics](#1-basics) must pass before the later sections
+  mean anything.
+- For each check, run it and have the person do the physical part. Then compare with
+  **Expected** and fill in its row under [Results](#results): ✅ works, ⚠️ partly, ❌ fails,
+  ➖ skipped (say why). Name the controller and how it was connected (USB, Bluetooth).
+- When a check fails, keep the evidence: the output of `doppelpad --log dp_platform=debug …`
+  and what `evtest` shows for the device node.
+- Fix clear, local bugs right away, one commit per fix. If the bug is in the translation
+  code (`padmap.rs`, `kbmmap.rs`, `x360.rs`, `codes.rs`, `procname.rs`), add a unit test
+  there. Those modules are tested on every OS, so CI keeps the fix.
+- Don't settle design questions alone, such as how to treat Steam's virtual controllers
+  ([section 6](#6-steam)). Write down what you saw and the options in the check's notes, and
+  leave the decision to the maintainer.
+- Before every commit, run what CI runs on Linux, plus formatting and the platform tests,
+  and fix new warnings:
+
+  ```bash
+  cargo fmt --all --check
+  cargo clippy -p dp-platform -p dp-service --all-targets
+  cargo test -p dp-core -p dp-config -p dp-ipc -p dp-service -p dp-platform
+  ```
+
+- Base fixes only on public sources: kernel documentation and headers, and open-source
+  drivers, as listed under [Sources](LINUX.md#sources). See [CLEAN_ROOM.md](CLEAN_ROOM.md).
+- House style:
+  - Commit subjects are short imperative sentences, for example "Skip Steam's virtual
+    controllers".
+  - Comments and docs are plain English.
+  - Doppelpad is unreleased, so don't add compatibility code for data from older
+    development builds.
+- When you are done, update whatever the results confirm: the status note in
+  [LINUX.md](LINUX.md), the 🧪 marks in the README's platform table, and
+  [ROADMAP.md](ROADMAP.md).
+
+> **Getting out of a grab.** Hiding and keyboard/mouse capture grab devices, so a bug can
+> leave you without working input. Ctrl+C in Doppelpad's terminal stops it. Grabs and
+> virtual devices end when the process exits, even with `kill -9`. For sections 4 to 6, keep
+> a second way in: an SSH session from another computer, where `pkill doppelpad` works. On a
+> Steam Deck, holding the power button forces it off as a last resort.
+
+## 0. Setup
+
+### Any distribution
+
+1. Install:
+   - Rust stable, 1.88 or newer, through rustup
+   - a C toolchain and git
+   - `evtest`
+   - `fftest` (package `linuxconsoletools` on Arch, `joystick` on Debian and Ubuntu)
+2. Build with `cargo build --release -p doppelpad`. The binary is `target/release/doppelpad`.
+   Put that folder on `PATH`; the checks call it `doppelpad`.
+3. **Before** setting up access, run `doppelpad doctor` once and keep its output for
+   [L1.2](#1-basics).
+4. Set up access as described in [LINUX.md § Setup](LINUX.md#setup).
+5. Create a folder for test profiles outside the repository, for example `~/dp-test/`. The
+   sections below give each profile's contents.
+
+### Steam Deck (SteamOS)
+
+Work in desktop mode.
+
+- Give the `deck` user a password with `passwd`. `sudo` needs it.
+- The SteamOS system partition is read-only, has no compiler, and is replaced by every
+  update. Don't unlock it to install packages. Build in a Distrobox container instead
+  (SteamOS 3.5 and newer ship Distrobox). The container shares your home folder, so a
+  checkout in `~` is visible on both sides:
+
+  ```bash
+  distrobox create --name dp --image docker.io/library/archlinux:latest
+  distrobox enter dp
+  sudo pacman -Syu --needed base-devel git rustup evtest linuxconsoletools
+  rustup default stable
+  ```
+
+- Where possible, run `doppelpad` on the host, where device access has the fewest surprises.
+  - If the host refuses the binary with `GLIBC_… not found`, the container's glibc is newer
+    than SteamOS's. Run it inside the container then.
+  - If something works on one side but not the other, suspect the container before
+    Doppelpad.
+- Set up access ([LINUX.md § Setup](LINUX.md#setup)) on the host, not in the container. `/etc`
+  and the home folder survive SteamOS updates, so you only do this once.
+- Turn on SSH with `sudo systemctl enable --now sshd`. A second computer can then run
+  commands, and it can stop Doppelpad if input gets stuck.
+- Commands over SSH have no display. For the X11 checks ([section 7](#7-per-game-profiles)
+  and `close_window`), take `DISPLAY` and `XAUTHORITY` from the desktop session:
+  `tr '\0' '\n' < /proc/$(pgrep -x plasmashell)/environ | grep -E '^(DISPLAY|XAUTHORITY)='`.
+
+Before you start, fill in [Test machine](#test-machine).
+
+## 1. Basics
+
+**L1.1 Unit tests run natively.** Run `cargo test -p dp-platform`. CI only compiles this
+crate on Linux, so this is its first native run.
+*Expected:* all tests pass.
+
+**L1.2 Messages without access.** This uses the `doctor` output from setup step 3.
+- *Expected:* the virtual-controller line names `/dev/uinput`. If an event node can't be
+  read, a warning points to the udev rule in docs/LINUX.md. Nothing crashes.
+- On SteamOS, Steam's own udev rules may already give the logged-in user some of this
+  access. Note which lines were already fine.
+
+**L1.3 Doctor.** Run `doppelpad doctor` with access set up.
+*Expected:*
+- The first line names the Doppelpad version, the distribution and the kernel.
+- The virtual-controller line says `ok`.
+- The settings and profiles folders are under `~/.config/doppelpad`.
+- There are no `problem:` lines, and the connected controllers are listed.
+
+The labels still name the Windows drivers ([K1](#known-issues)).
+
+**L1.4 Daemon and IPC.**
+1. In one terminal, run `doppelpad daemon --no-auto-switch`.
+2. In a second terminal, run these in order:
+   - `doppelpad status`
+   - `doppelpad devices`
+   - `doppelpad apply ~/dp-test/virtual.toml` (the profile from
+     [section 3](#3-virtual-controller-and-rumble))
+   - `doppelpad status`
+   - `doppelpad remap off`
+   - `doppelpad remap on`
+   - `doppelpad stop`
+   - `doppelpad shutdown`
+3. Start the daemon again, end it with `kill -9`, and start it once more.
+
+*Expected:*
+- Every command answers.
+- `status` shows the profile and the virtual pad while one is applied.
+- `shutdown` ends the daemon.
+- The daemon starts again without complaining about a leftover socket, also after
+  `kill -9`.
+
+## 2. Controllers
+
+Do L2.1 to L2.5 for every controller you have and record them in the
+[Controllers](#controllers) table. To find a node's kernel driver, run
+`basename $(readlink -f /sys/class/input/eventN/device/device/driver)`.
+
+**L2.1 Detection.** Run `doppelpad devices` (no daemon running).
+*Expected:*
+- The controller appears with its name and an id `evdev:<vendor>:<product>:<key>`. The key is
+  the Bluetooth address, otherwise the USB port, otherwise the event node.
+- Each controller appears once, also when it has separate motion and touchpad nodes
+  (DualShock 4, DualSense, Switch controllers).
+
+**L2.2 Buttons and axes.** Run `doppelpad monitor` and press everything.
+*Expected:*
+- Face buttons go by position, whatever is printed on them: bottom `A`, right `B`, left `X`,
+  top `Y`. On a Nintendo controller, the bottom "B" shows as `A`.
+- Shoulders, stick clicks, `Back`, `Start`, `Guide` and the d-pad each show under their own
+  name.
+- Share, Create, Capture and Mute show as `Misc`. Back paddles show as
+  `PaddleUL` … `PaddleLR`.
+- Sticks go from −1 to +1, with up and right positive, and rest near 0.
+- Triggers go from 0 to 1. On Switch controllers they are digital: 0 or 1.
+- No control is stuck, missing or doubled.
+
+**L2.3 Motion and touchpad.** For DualShock 4, DualSense, Switch Pro and Joy-Con, watch
+`monitor`.
+*Expected:*
+- `gyro(x,y,z)` is in °/s and rests near 0.
+- Nose up gives positive x, and turning left while flat gives positive y. Rolling moves z.
+  A brisk turn reaches a few hundred.
+- `touch(x,y)` runs from 0 to 1, with the origin at the top left. A touchpad click shows as
+  `Touchpad`.
+- Motion and touch belong to the same entry as the buttons, not to a second controller.
+
+**L2.4 Joy-Cons.**
+*Expected:*
+- A single Joy-Con works sideways.
+- A left and a right Joy-Con become one controller. SL and SR become paddles as described in
+  [LINUX.md](LINUX.md#controllers).
+- If joycond runs (`systemctl status joycond`), its combined device is used and nothing
+  appears twice.
+
+**L2.5 Reconnect.** Turn the controller off and on (Bluetooth), or unplug it and plug it back
+in (USB). Do this while `monitor` runs, and again during `doppelpad run`.
+*Expected:*
+- The log shows `evdev controller disconnected` and `connected`.
+- The controller comes back within a few seconds with the same id, and no duplicate entry is
+  left behind.
+- A running profile picks it up again.
+
+**L2.6 The Steam Deck's own controls, with Steam closed.** While Steam runs, it reads the
+Deck's controls itself, and the kernel's gamepad device for them can be missing.
+1. Exit Steam completely (Steam menu → Exit).
+2. Run `doppelpad devices`, then `doppelpad monitor`. Without Steam, the trackpads may stop
+   acting as a mouse; use the touchscreen or an external mouse.
+
+*Expected:* a "Steam Deck" controller (`28de:1205`).
+
+Record which of these work:
+- the buttons
+- L4, R4, L5, R5 (they should become `PaddleUL`, `PaddleUR`, `PaddleLL`, `PaddleLR`, as in
+  [PROFILES.md](PROFILES.md))
+- the trackpads and the gyro
+
+Native Steam Deck support on Linux is still open in the roadmap, so this is groundwork. For
+each control that doesn't arrive, note what `evtest` shows. Starting Steam again, or going
+back to Game Mode, restores the Deck's normal controls.
+
+## 3. Virtual controller and rumble
+
+`~/dp-test/virtual.toml`:
+
+```toml
+name = "Linux test: virtual pad"
+
+[output]
+virtual_pad = "xbox360"
+hide_physical = false
+
+# A arrives as B, so remapping is visible on the virtual pad.
+[[mappings]]
+trigger = "A"
+actions = [{ pad = "B" }]
+
+# LB rumbles the physical controller for 300 ms.
+[[mappings]]
+trigger = "LB"
+actions = [{ rumble = 300, low = 1.0, high = 1.0 }]
+```
+
+**L3.1 The virtual pad exists.** Run `doppelpad run ~/dp-test/virtual.toml`.
+*Expected:* `/proc/bus/input/devices` lists "Microsoft X-Box 360 pad" with `Vendor=045e
+Product=028e` and a `Phys` that starts with `doppelpad/x360-`. Note its `eventN` from the
+`Handlers=` line.
+
+**L3.2 Its input.** Run `evtest` on the virtual pad's node.
+*Expected:*
+- The physical controls are mirrored, and A arrives as B (`BTN_EAST`).
+- Sticks go from −32768 to 32767, and up is negative on `ABS_Y`, as with xpad.
+- Triggers are `ABS_Z` and `ABS_RZ`, from 0 to 255.
+- The d-pad is `ABS_HAT0X` and `ABS_HAT0Y`.
+- Nothing is sent while the controller rests.
+
+**L3.3 Doppelpad ignores its own pad.**
+*Expected:* `doppelpad devices`, run in a second terminal, doesn't list the virtual pad. One
+press gives exactly one press on the virtual pad, with no echo.
+
+**L3.4 Games see an Xbox 360 controller.**
+*Expected:* Steam (Settings → Controller) lists it as an Xbox 360 controller, and a Proton or
+native SDL game reacts to it. How Steam then behaves is [section 6](#6-steam).
+
+**L3.5 Game rumble reaches the controller.** Run `fftest` on the virtual pad's node and play
+the strong and weak rumble effects. `fftest` reports errors for its other effect types, which
+is expected because the pad only has `FF_RUMBLE`. Then try a game with rumble.
+*Expected:*
+- The physical controller rumbles for the length of each effect: strong is the
+  low-frequency motor, weak the high-frequency one.
+- The motors stop afterwards.
+
+**L3.6 Rumble from a mapping.**
+*Expected:* pressing LB rumbles the controller for 300 ms.
+
+**L3.7 Clean stop.** Stop the profile with Ctrl+C, then run it again and end it with
+`kill -9` from another terminal.
+*Expected:* in both cases the virtual pad disappears from `/proc/bus/input/devices` and the
+motors stop.
+
+## 4. Hiding the physical controller
+
+`~/dp-test/hidden.toml` is `virtual.toml` with `hide_physical = true`.
+
+**L4.1 Grab.** Run `doppelpad run ~/dp-test/hidden.toml`, then run `evtest` on the physical
+controller's node.
+*Expected:*
+- `evtest` reports that another process grabbed the device. The same goes for the
+  controller's motion and touchpad nodes.
+- The virtual pad still gets all input.
+
+**L4.2 Release.** Stop with Ctrl+C, and again with `kill -9`.
+*Expected:* in both cases, `evtest` on the physical node gets events again.
+
+**L4.3 Reconnect while hidden.**
+*Expected:* a controller that reconnects while `hidden.toml` runs is grabbed again within a
+few seconds.
+
+**L4.4 hidraw.** Turn Steam Input off for the game (section 6 covers Steam itself). Use a
+PlayStation or Nintendo controller.
+- Check whether the game sees one controller or two.
+- Then add `SDL_JOYSTICK_HIDAPI=0 %command%` to the game's launch options and check again.
+
+*Expected,* as described in [LINUX.md](LINUX.md#hiding): two controllers without the
+variable, one with it. Record which games do this.
+
+## 5. Keyboard and mouse
+
+This section needs a USB or Bluetooth keyboard and mouse. On a Deck, the built-in controls
+reach the desktop only through Steam (L5.8). Keep the second way in from the
+[box above](#how-to-work-through-it) ready.
+
+**L5.1 Output.** Run `doppelpad run profiles/examples/controller-desktop.toml` with a
+controller.
+*Expected:*
+- A "Doppelpad keyboard and mouse" device appears.
+- The right stick moves the cursor smoothly, and RT and LT click.
+- A is Enter, B is Escape, and the d-pad sends arrow keys.
+- The left stick scrolls, faster when pushed all the way. Scrolling is smooth in a browser,
+  which needs the high-resolution wheel.
+- RB opens the window switcher (Alt+Tab), and Start opens the application launcher.
+- A long press on Back tries to start `osk.exe`. That is Windows-only, so expect an error in
+  the log and no crash.
+
+**L5.2 Capture.** Run `doppelpad run profiles/examples/keyboard-mouse-to-xbox.toml`. The
+profile maps Left Ctrl, so stop it with **Right** Ctrl+C or from another terminal.
+*Expected:*
+- Every keyboard and mouse gets a "Doppelpad passthrough: <name>" twin in
+  `/proc/bus/input/devices`.
+- On the virtual pad (`evtest`):
+  - WASD moves the left stick, and the mouse moves the right stick.
+  - Space is A, and the mouse buttons are the triggers.
+  - Wheel up taps Y.
+- In a text editor, mapped keys type nothing. Unmapped keys (K, L, digits) type normally.
+
+**L5.3 A key held at start.** Run `sleep 2; doppelpad run …` and hold a letter key until the
+profile has started.
+*Expected:* capture starts after the key is released (within 5 s), and no key gets stuck.
+
+**L5.4 Release on stop.** Stop with Right Ctrl+C, and once with `pkill -9 doppelpad` (over
+SSH).
+*Expected:* the keyboard and mouse work directly again, and the passthrough devices are
+gone. No key or modifier is stuck.
+
+**L5.5 A keyboard plugged in during capture.**
+*Expected:* it is captured within a few seconds and gets its own passthrough device.
+
+**L5.6 What isn't captured.**
+*Expected:* the touchscreen, touchpads and the power button keep working during capture.
+
+**L5.7 Lock keys.**
+*Expected:* Caps Lock works during capture, but its LED doesn't change, which is a known
+limitation. Record what the LED shows after stopping.
+
+**L5.8 The Deck's controls during capture (Steam running).** Steam turns the trackpads and
+buttons into its own uinput mouse and keyboard, and capture grabs those too.
+*Expected:* the trackpad cursor and the Deck's buttons keep working through the passthrough
+devices. Record anything odd.
+
+## 6. Steam
+
+Steam reads controllers through hidraw and creates its own virtual controllers through uinput
+(Valve's vendor id is `28de`). Doppelpad's backend skips only the devices it created itself
+(`Phys` starting with `doppelpad/`, see `is_own` in
+[dev.rs](../crates/dp-platform/src/linux/dev.rs)). Two things follow:
+- Steam's virtual controllers look like real ones to Doppelpad.
+- `EVIOCGRAB` doesn't hide a controller from Steam, because Steam reads it through hidraw.
+
+SteamOS runs Steam in the background in desktop mode too, so there this is the normal case.
+These checks find out what actually happens. Record the results and the options; don't change
+the behavior yet.
+
+**L6.1 Inventory.** With Steam running, a controller connected and no profile running, run
+`doppelpad devices` and `grep -A5 'Vendor=28de' /proc/bus/input/devices`. Then turn Steam
+Input off for that controller type (Steam → Settings → Controller) and compare.
+*Record:* every Valve device and which of them Doppelpad lists as controllers.
+
+**L6.2 Feedback loop.** Run `virtual.toml` with a physical controller while Steam runs, and
+watch `/proc/bus/input/devices` and the `run` log.
+*Record:*
+- Does Steam create a virtual controller for Doppelpad's pad?
+- Does Doppelpad then pick that one up as a controller?
+- With `evtest` on Doppelpad's pad, does one press of A give one B, or does it repeat,
+  latch or drift?
+
+*Wanted:* no loop.
+
+**L6.3 What a game sees.** Run a Proton game in desktop mode with a physical controller and
+`hidden.toml`. Try three setups:
+- (a) Steam Input on (the default)
+- (b) Steam Input off for this game (game Properties → Controller)
+- (c) Steam Input off for that controller type
+
+For each, record how many controllers the game sees and whether it gets the remapped input.
+*Wanted:* one controller, remapped. The setup that works goes into LINUX.md.
+
+**L6.4 The Deck's controls with Steam running.** With Steam running, the Deck's own controls
+exist only as Steam's virtual controller, if at all.
+*Record:*
+- its name and ids
+- what `doppelpad monitor` shows, including paddles and gyro
+- whether remapping them through Steam's controller is workable, or whether it needs native
+  support ([L2.6](#2-controllers))
+
+## 7. Per-game profiles
+
+**L7.1 Session.**
+*Record:*
+- `echo $XDG_SESSION_TYPE`
+- `echo $DISPLAY`
+- the desktop and its version (`plasmashell --version`)
+
+**L7.2 Foreground names.** Start `doppelpad daemon`. Then run `sleep 3; doppelpad status` and
+switch to another window before it answers. Do this for a terminal, a file manager, a
+browser, a Proton game and a native game.
+*Expected:* `foreground:` shows the program's name, such as `konsole`, `dolphin` or `firefox`.
+For Proton games it shows the Windows executable (`Game.exe`).
+
+**L7.3 Automatic switching.**
+1. Put a profile with `processes = ["<the name from L7.2>"]` into
+   `~/.config/doppelpad/profiles/`.
+2. Run `doppelpad daemon --profile ~/dp-test/virtual.toml`.
+
+*Expected:*
+- Switching to the game applies its profile within about a second (log and `status`).
+- Switching away goes back to `virtual.toml`.
+
+**L7.4 Native Wayland windows** (Wayland sessions only).
+*Expected:* they aren't detected (`foreground: ?`). That is a known limitation. It should stay
+quiet, with no repeated errors in the log.
+
+**L7.5 Game Mode** (optional, over SSH). Switch the Deck to Game Mode, start
+`doppelpad daemon` over SSH, and start a game.
+*Record:*
+- what `status` shows as the foreground
+- whether a virtual pad reaches the game at all
+
+This is exploratory: nothing here is expected to work yet.
+
+## 8. Commands
+
+`~/dp-test/commands.toml`:
+
+```toml
+name = "Linux test: commands"
+
+[output]
+virtual_pad = "none"
+
+[[mappings]]
+trigger = "Y"
+actions = [{ command = "close_window" }]
+
+[[mappings]]
+trigger = "X"
+actions = [{ command = "screenshot" }]
+
+[[mappings]]
+trigger = "A"
+actions = [{ command = { launch = { path = "konsole" } } }]
+
+[[mappings]]
+trigger = "B"
+actions = [{ command = "power_off" }]
+
+[[mappings]]
+trigger = ["LB", "RB", "Start"]
+actions = [{ command = "sleep" }]
+```
+
+**L8.1 `close_window`.** Focus a text editor with unsaved text and press Y.
+*Expected:* the editor asks whether to save, as if its close button had been clicked.
+
+**L8.2 `screenshot`.** Press X.
+*Expected:* the log says screenshots aren't available on Linux, and nothing crashes.
+
+**L8.3 `launch`.** Press A.
+*Expected:* a terminal opens.
+
+**L8.4 `power_off` and other controller settings** ([K2](#known-issues)). Press B on a
+wireless controller. Then run a profile with a `[lightbar]` section on a DualShock 4 or
+DualSense.
+*Record:* what happens (expected: nothing) and whether the log says so or stays silent.
+
+**L8.5 `sleep`.** Ask the person first. Then press LB+RB+Start.
+*Expected:*
+- The machine suspends.
+- After waking, the controllers come back (a Bluetooth controller may need a button press),
+  and the profile keeps working.
+
+**L8.6 Other power commands** (`shutdown`, `restart`, `log_off`, `hibernate`). These are
+optional. Do them last, and only with the person's OK.
+*Expected:* each one runs, or polkit refuses with a message in the log.
+- On a Deck, `log_off` leaves desktop mode for Game Mode.
+- Hibernation is usually not set up.
+
+## 9. Desktop app
+
+The app has never been built on Linux. This section is a smoke test.
+
+1. Install Tauri's Linux dependencies. On Arch (in the container on SteamOS):
+   `sudo pacman -S --needed webkit2gtk-4.1 gtk3 libappindicator-gtk3 librsvg nodejs npm`.
+2. Build:
+
+   ```bash
+   cd gui
+   npm ci
+   npx tauri build --no-bundle
+   ```
+
+   The bundle settings only target the Windows installer, hence `--no-bundle`.
+3. The binary is `target/release/doppelpad-gui`.
+   - On SteamOS, run it inside the container, because it needs the container's WebKitGTK.
+   - Don't run it while `doppelpad daemon` runs: the app hosts the service itself.
+
+**L9.1 Build.**
+*Expected:* it builds without errors.
+
+**L9.2 Window.**
+*Expected:*
+- The window opens with the app's own minimize, maximize and close buttons.
+- Dragging the header moves the window, and double-clicking it maximizes the window.
+
+**L9.3 Controller view.**
+*Expected:* connected controllers are listed, and live input moves the controller drawing.
+
+**L9.4 Apply to a slot.** Apply a profile to slot 1.
+*Expected:*
+- The virtual pad appears as in L3.1, and remapping works.
+- `doppelpad status` in a terminal reaches the app's service.
+
+**L9.5 Tray.**
+*Expected:*
+- Closing the window leaves remapping running, with an icon in the system tray.
+- The tray menu works.
+- Quitting from the tray releases every grab and virtual device.
+
+**L9.6 Log file.**
+*Expected:* the log is in `~/.local/state/doppelpad/logs`.
+
+**L9.7 Overlays.** Try a crosshair and the pad overlay (`pad_overlay`).
+*Record:* whether they show above other windows and above a game.
+
+## Known issues
+
+Found while writing this checklist; fix them along the way.
+
+- **K1:** `doppelpad doctor` labels its driver lines "ViGEmBus" and "HidHide" on Linux too.
+  On Linux they check `/dev/uinput` and grabbing.
+- **K2:** the evdev backend has no controller power-off, light bar, player LEDs or DualSense
+  trigger effects. These use the do-nothing defaults of `GamepadBackend` in
+  `crates/dp-platform/src/lib.rs`. LINUX.md doesn't mention it yet.
+
+## Results
+
+### Test machine
+
+| | |
+|---|---|
+| Machine | |
+| Distribution (`PRETTY_NAME` in `/etc/os-release`) | |
+| Kernel (`uname -r`) | |
+| Desktop and session type | |
+| Steam running | |
+| Doppelpad commit (`git rev-parse --short HEAD`) | |
+| Date | |
+
+### Controllers
+
+Driver = kernel driver of the gamepad node. Columns are the checks.
+
+| Controller | Connection | Driver | L2.1 | L2.2 | L2.3 | L2.5 | L3.5 | L4.1 | Notes |
+|---|---|---|---|---|---|---|---|---|---|
+| | | | | | | | | | |
+
+### Checks
+
+| Check | Result | Notes |
+|---|---|---|
+| L1.1 Unit tests run natively | | |
+| L1.2 Messages without access | | |
+| L1.3 Doctor | | |
+| L1.4 Daemon and IPC | | |
+| L2.1–L2.3, L2.5 | | see [Controllers](#controllers) |
+| L2.4 Joy-Cons | | |
+| L2.6 Steam Deck controls, Steam closed | | |
+| L3.1 Virtual pad exists | | |
+| L3.2 Virtual pad input | | |
+| L3.3 Own pad ignored | | |
+| L3.4 Games see an Xbox 360 controller | | |
+| L3.5 Game rumble | | see [Controllers](#controllers) |
+| L3.6 Rumble from a mapping | | |
+| L3.7 Clean stop | | |
+| L4.1 Grab | | see [Controllers](#controllers) |
+| L4.2 Release | | |
+| L4.3 Reconnect while hidden | | |
+| L4.4 hidraw | | |
+| L5.1 Keyboard/mouse output | | |
+| L5.2 Capture | | |
+| L5.3 Key held at start | | |
+| L5.4 Release on stop | | |
+| L5.5 Keyboard plugged in during capture | | |
+| L5.6 What isn't captured | | |
+| L5.7 Lock keys | | |
+| L5.8 Deck controls during capture | | |
+| L6.1 Inventory | | |
+| L6.2 Feedback loop | | |
+| L6.3 What a game sees | | |
+| L6.4 Deck controls with Steam running | | |
+| L7.1 Session | | |
+| L7.2 Foreground names | | |
+| L7.3 Automatic switching | | |
+| L7.4 Native Wayland windows | | |
+| L7.5 Game Mode | | |
+| L8.1 `close_window` | | |
+| L8.2 `screenshot` | | |
+| L8.3 `launch` | | |
+| L8.4 `power_off`, light bar | | |
+| L8.5 `sleep` | | |
+| L8.6 Other power commands | | |
+| L9.1 App builds | | |
+| L9.2 Window | | |
+| L9.3 Controller view | | |
+| L9.4 Apply to a slot | | |
+| L9.5 Tray | | |
+| L9.6 Log file | | |
+| L9.7 Overlays | | |

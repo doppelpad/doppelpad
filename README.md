@@ -222,7 +222,8 @@ examples in [`profiles/examples/`](profiles/examples).
 | Per-game auto-switching | ✅ | 🧪 X11 / XWayland | planned |
 
 🧪 = implemented and unit-tested, not yet tested on real hardware. Linux setup (udev rule for
-`/dev/uinput` and `/dev/input`) is in [docs/LINUX.md](docs/LINUX.md).
+`/dev/uinput` and `/dev/input`) is in [docs/LINUX.md](docs/LINUX.md), the hardware test
+checklist in [docs/LINUX-TESTING.md](docs/LINUX-TESTING.md).
 
 Everything except `crates/dp-platform` is platform-independent. See
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and [docs/ROADMAP.md](docs/ROADMAP.md).
@@ -238,7 +239,7 @@ crates/dp-ipc        daemon control protocol (local socket, JSON lines)
 crates/dp-service    remapping service shared by daemon and app (slots, auto-switch, live state)
 crates/doppelpad      the `doppelpad` CLI / daemon
 gui                  desktop app (Tauri 2 + Svelte), crate `dp-gui` in gui/src-tauri
-docs                 architecture, profile reference, desktop app, roadmap, Linux setup
+docs                 architecture, profile reference, desktop app, roadmap, Linux setup and tests
 profiles/examples    example profiles
 ```
 

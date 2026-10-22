@@ -12,7 +12,8 @@ Doppelpad runs on Linux with only kernel interfaces. No extra drivers are needed
 | Per-game profiles | X11 / XWayland `_NET_ACTIVE_WINDOW` → `_NET_WM_PID` → `/proc` |
 
 > **Status:** the backend compiles and its event mapping is unit-tested, but it has **not
-> been tested on real hardware yet**. Reports from Linux users are very welcome.
+> been tested on real hardware yet**. Reports from Linux users are very welcome. The
+> [hardware test checklist](LINUX-TESTING.md) lists what to try.
 
 ## Setup
 
@@ -80,7 +81,9 @@ hid-playstation and hid-nintendo create extra nodes, "… Motion Sensors" / "(IM
 
 Rumble uses `FF_RUMBLE`.
 
-Controller ids look like `evdev:/dev/input/event17`, and the device path is what gets hidden.
+Controller ids look like `evdev:054c:0ce6:a0:b1:c2:d3:e4:f5`: vendor and product id, then the
+Bluetooth address, the USB port or the device node, so a controller keeps its id when it
+reconnects. Its event node is what gets hidden.
 
 ### Hiding
 
@@ -165,7 +168,8 @@ X11 window. The `screenshot` command is not available on Linux yet.
 - **Another program holds the device** ("EVIOCGRAB … Device or resource busy"). Only one
   program can grab a device. Stop other remappers (input-remapper, keyd, Steam Input for
   that controller) first.
-- **Debug logging:** `RUST_LOG=dp_platform=debug doppelpad run …`.
+- **Debug logging:** `doppelpad --log dp_platform=debug run …`, or set
+  `DOPPELPAD_LOG=dp_platform=debug`.
 
 ## Sources
 

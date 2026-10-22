@@ -84,7 +84,8 @@ unit-tested but have not run against the real device yet.
 
 1. **Windows**: current focus.
 2. **Linux**: implemented in `dp-platform/src/linux`; compile-checked and unit-tested, not
-   yet tested on real hardware. Setup and limitations are in [LINUX.md](LINUX.md).
+   yet tested on real hardware. Setup and limitations are in [LINUX.md](LINUX.md), the
+   hardware test plan in [LINUX-TESTING.md](LINUX-TESTING.md).
 
    | Responsibility | Status |
    |---|---|
