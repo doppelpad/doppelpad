@@ -243,19 +243,27 @@ fn zone_split(low: f32, max: f32, k: f32) -> f32 {
     low + (max - low) * k
 }
 
-/// Zone thresholds of a stick. Each zone reaches from its threshold to the next
-/// one; `low` is also where the stick leaves its deadzone for digital mappings.
+/// Zone thresholds of a stick or trigger. Each zone reaches from its threshold to the next one;
+/// unset `med`/`high` thresholds split the range above `low` into thirds.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(default, deny_unknown_fields)]
-pub struct StickZones {
-    pub low: ZoneRadius,
-    /// Start of the medium zone (default: a third of the way from `low` to full deflection).
+#[serde(
+    default,
+    deny_unknown_fields,
+    bound(deserialize = "T: Deserialize<'de>, Zones<T>: Default")
+)]
+pub struct Zones<T> {
+    pub low: T,
+    /// Start of the medium zone (default: a third of the way from `low` to the end).
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub med: Option<ZoneRadius>,
-    /// Start of the high zone (default: two thirds of the way from `low` to full deflection).
+    pub med: Option<T>,
+    /// Start of the high zone (default: two thirds of the way from `low` to the end).
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub high: Option<ZoneRadius>,
+    pub high: Option<T>,
 }
+
+/// Zone thresholds of a stick, up to full deflection; `low` is also where the stick leaves
+/// its deadzone for digital mappings.
+pub type StickZones = Zones<ZoneRadius>;
 
 impl Default for StickZones {
     fn default() -> Self {
@@ -341,19 +349,9 @@ impl TriggerConfig {
     }
 }
 
-/// Zone thresholds of a trigger as fractions of a full pull. Each zone reaches from
-/// its threshold to the next one; `low` is also where the digital `LT`/`RT` press.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(default, deny_unknown_fields)]
-pub struct TriggerZones {
-    pub low: f32,
-    /// Start of the medium zone (default: a third of the way from `low` to `full_pull`).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub med: Option<f32>,
-    /// Start of the high zone (default: two thirds of the way from `low` to `full_pull`).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub high: Option<f32>,
-}
+/// Zone thresholds of a trigger as fractions of a pull, up to `full_pull`; `low` is also where
+/// the digital `LT`/`RT` press.
+pub type TriggerZones = Zones<f32>;
 
 impl Default for TriggerZones {
     fn default() -> Self {
