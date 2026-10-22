@@ -11,7 +11,7 @@
   import Toggle from '../ui/Toggle.svelte';
   import CurveEditor from './CurveEditor.svelte';
   import EditorColumns from './EditorColumns.svelte';
-  import LayerNote from './LayerNote.svelte';
+  import AnalogLayerNote from './AnalogLayerNote.svelte';
 
   let { side }: { side: Side } = $props();
 
@@ -60,7 +60,7 @@
   <section class="virtual">
     <div class="section-title">{t('analog.virtual.title')}</div>
     <p class="hint">{t('analog.virtual.hint')}</p>
-    <LayerNote kind="virtual_sticks" sides={[side]} />
+    <AnalogLayerNote kind="virtual_sticks" sides={[side]} />
     <EditorColumns>
       {#snippet controls()}
         <Segmented

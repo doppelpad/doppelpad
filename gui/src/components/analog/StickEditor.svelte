@@ -12,7 +12,7 @@
   import Toggle from '../ui/Toggle.svelte';
   import CurveEditor from './CurveEditor.svelte';
   import EditorColumns from './EditorColumns.svelte';
-  import LayerNote from './LayerNote.svelte';
+  import AnalogLayerNote from './AnalogLayerNote.svelte';
   import StickRing from './StickRing.svelte';
 
   let { side }: { side: Side } = $props();
@@ -41,7 +41,7 @@
 </script>
 
 {#if cfg && def && ref}
-  <LayerNote kind="sticks" sides={[side]} />
+  <AnalogLayerNote kind="sticks" sides={[side]} />
   <EditorColumns>
     {#snippet controls()}
       <Slider
