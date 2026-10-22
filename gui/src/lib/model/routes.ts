@@ -83,13 +83,16 @@ export function layerRoutes(p: Profile, layer: number): RouteRef[] {
 }
 
 /** Common routes offered when adding one. */
+/** Where a flick stick starts turning: the deadzone a new flick route gets. */
+export const FLICK_START = 0.6;
+
 export const ROUTE_PRESETS: { id: string; patch: Partial<AnalogMapping> }[] = [
   { id: 'stick_mouse', patch: { source: 'right_stick', target: 'mouse' } },
   { id: 'gyro_mouse', patch: { source: 'gyro', target: 'mouse' } },
   { id: 'gyro_aim', patch: { source: 'gyro', target: 'right_stick', while_held: ['LT'] } },
   { id: 'mouse_stick', patch: { source: 'mouse', target: 'right_stick' } },
   { id: 'touchpad_mouse', patch: { source: 'touchpad', target: 'mouse' } },
-  { id: 'flick_stick', patch: { source: 'right_stick', target: 'flick', deadzone: 0.6 } },
+  { id: 'flick_stick', patch: { source: 'right_stick', target: 'flick', deadzone: FLICK_START } },
 ];
 
 /** Stick → mouse response presets: the fields they set; sensitivity and the rest stay. */

@@ -6,6 +6,7 @@
   import {
     CURVE_PRESETS,
     MAX_CURVE_POINTS,
+    MIN_SPAN,
     addCurvePoint,
     curvePreset,
     curveToGraph,
@@ -43,7 +44,7 @@
   let dragging = $state<number | null>(null);
 
   const points = $derived(cfg.curve as CurvePoint[]);
-  const outer = $derived(Math.max(cfg.outer, cfg.deadzone + 0.01));
+  const outer = $derived(Math.max(cfg.outer, cfg.deadzone + MIN_SPAN));
   const preset = $derived(curvePreset(points));
 
   const line = $derived.by(() => {

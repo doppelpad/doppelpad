@@ -2,7 +2,7 @@
 // flick stick on a layer. The result is ordinary analog routes and direction mappings.
 
 import { type Side } from './analog';
-import { MOUSE_PRESETS, addRoute, newRoute, routeLayer, sourceOf, targetOf } from './routes';
+import { addRoute, FLICK_START, MOUSE_PRESETS, newRoute, routeLayer, sourceOf, targetOf } from './routes';
 import { CARDINALS, DIAGONALS, SIDES, zoneFamily } from './controls';
 import { activatorOf, comboList, layerOf, newMapping, ownMappings, upsertMapping } from './profile';
 import type { AnalogMapping, Mapping, Profile } from '../types';
@@ -83,7 +83,7 @@ export function setStickGroup(
   );
   const source = SIDES[s].source;
   if (group === 'mouse') return addRoute(out, newRoute(def, layer, { source, target: 'mouse', ...MOUSE_PRESETS.standard }));
-  if (group === 'flick') return addRoute(out, newRoute(def, layer, { source, target: 'flick', deadzone: 0.6 }));
+  if (group === 'flick') return addRoute(out, newRoute(def, layer, { source, target: 'flick', deadzone: FLICK_START }));
   if (group) {
     for (const d of CARDINALS) {
       out = upsertMapping(out, { ...newMapping(layer, SIDES[s].stick + d, 'single'), actions: [{ key: GROUP_KEYS[group][d] }] });

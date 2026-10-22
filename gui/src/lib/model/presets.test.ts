@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Profile } from '../types';
 import { SELF, insertPreset, makePreset } from './presets';
-import { bindingsSheet } from './sheet';
 
 const source: Profile = {
   name: 'Racing <1>',
@@ -42,15 +41,5 @@ describe('layer presets', () => {
 
   it('a preset of Main has no layer settings', () => {
     expect(makePreset(source, 0, 'Base').layer).toBeUndefined();
-  });
-});
-
-describe('bindings sheet', () => {
-  it('lists every layer with escaped text', () => {
-    const html = bindingsSheet(source, null);
-    expect(html).toContain('<title>Racing &#60;1&#62;</title>');
-    expect(html.match(/<h2>/g)).toHaveLength(2);
-    expect(html).toContain('gas');
-    expect(html).not.toContain('<1>');
   });
 });

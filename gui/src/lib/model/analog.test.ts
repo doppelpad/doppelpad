@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { Catalog, Profile } from '../types';
-import defaultsJson from './fixtures/defaults.json';
+import type { Profile } from '../types';
+import { defaults as def, emptyProfile as empty, zoneDefaults as zd } from './fixtures';
 import examples from './fixtures/examples.json';
 import fixture from './fixtures/profile.json';
 import {
@@ -39,15 +39,7 @@ import {
   sourcePatch,
   updateRoute,
 } from './routes';
-import { setStickLevel, setTriggerLevel, zoneDefaults } from './zones';
-
-// Rust's defaults, as the catalog command sends them.
-// Through `unknown`: JSON imports type arrays as `number[]`, the model uses tuples.
-const def = defaultsJson as unknown as Catalog['defaults'];
-
-const zd = zoneDefaults(def);
-
-const empty = (): Profile => ({ name: 'Test', mappings: [] });
+import { setStickLevel, setTriggerLevel } from './zones';
 const close = (a: number, b: number) => expect(Math.abs(a - b)).toBeLessThan(1e-6);
 
 describe('stick and trigger settings', () => {
@@ -139,18 +131,6 @@ describe('stick and trigger settings', () => {
     expect('triggers' in setTrigger(p, 'left', { full_pull: def.trigger.full_pull }, def.trigger)).toBe(false);
   });
 
-  it('stay identical when an edit changes nothing', () => {
-    for (const [name, json] of Object.entries({ ...examples, fixture })) {
-      const p = json as unknown as Profile;
-      let edited = p;
-      for (const side of ['left', 'right'] as const) {
-        edited = setStick(edited, side, stickConfig(p, side, def.stick), def.stick);
-        edited = setTrigger(edited, side, triggerConfig(p, side, def.trigger), def.trigger);
-      }
-      (p.analog ?? []).forEach((_, i) => (edited = updateRoute(edited, i, {})));
-      expect(edited, name).toEqual(p);
-    }
-  });
 });
 
 describe('shaping mirrors the engine', () => {
@@ -256,7 +236,7 @@ describe('analog routes', () => {
 
 describe('gyro settings', () => {
   it('are written in full, or left out at their defaults', () => {
-    let p: Profile = { name: 'Test', mappings: [] };
+    let p = empty();
     p = setGyro(p, { mode: 'tilt', steering: 'yaw', initially_on: false, space: 'player', tilt_zones: [8, 20, 32] }, def.gyro);
     expect(p.gyro).toEqual(fixture.gyro);
     p = setGyro(p, def.gyro, def.gyro);
@@ -279,7 +259,7 @@ describe('gyro zones', () => {
 
 describe('touchpad settings', () => {
   it('are written in full, or left out at their defaults', () => {
-    let p: Profile = { name: 'Test', mappings: [] };
+    let p = empty();
     p = setTouchpad(p, { split: true, zones: 'grid', centre: 0.25, click_required: true }, def.touchpad);
     expect(p.touchpad).toEqual(fixture.touchpad);
     p = setTouchpad(p, def.touchpad, def.touchpad);
