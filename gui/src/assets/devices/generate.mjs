@@ -256,6 +256,15 @@ class Device {
         return `M${P(-0.42, 0)}L${P(0.42, 0)}M${P(0, -0.42)}L${P(0, 0.42)}`;
       case 'home':
         return `M${P(-0.36, 0.4)}L${P(-0.36, -0.06)}L${P(0, -0.4)}L${P(0.36, -0.06)}L${P(0.36, 0.4)}Z`;
+      case 'view': // two overlapping windows, the back one showing above and left of the front one
+        return (
+          `M${P(0.12, -0.1)}L${P(0.12, -0.3)}L${P(-0.36, -0.3)}L${P(-0.36, 0.1)}L${P(-0.12, 0.1)}` +
+          `M${P(-0.12, -0.1)}L${P(0.36, -0.1)}L${P(0.36, 0.3)}L${P(-0.12, 0.3)}Z`
+        );
+      case 'menu':
+        return `M${P(-0.4, -0.25)}L${P(0.4, -0.25)}M${P(-0.4, 0)}L${P(0.4, 0)}M${P(-0.4, 0.25)}L${P(0.4, 0.25)}`;
+      case 'share': // a tray with an arrow out of it
+        return `M${P(-0.5, 0.05)}L${P(-0.5, 0.33)}L${P(0.5, 0.33)}L${P(0.5, 0.05)}M${P(0, 0.17)}L${P(0, -0.33)}M${P(-0.18, -0.15)}L${P(0, -0.33)}L${P(0.18, -0.15)}`;
       case 'arrow-up':
       case 'arrow-right':
       case 'arrow-down':
@@ -355,12 +364,12 @@ class Device {
 
 // ---------------------------------------------------------------- shared parts
 
-/** Analog stick: the opening in the shell, the cap and the cap's dished top. */
-function stick(d, name, side, c, well, cap) {
+/** Analog stick: the opening in the shell, the cap and the cap's dished top (`dish` of the cap). */
+function stick(d, name, side, c, well, cap, dish = 0.74) {
   d.control(
     name,
     d.hitCircle(c, well + 1),
-    [d.circle(c, well), `<g class="stick-cap">${d.circle(c, cap)}${d.circle(c, cap * 0.74, 'stroke-width="1.75" opacity="0.5"')}</g>`],
+    [d.circle(c, well), `<g class="stick-cap">${d.circle(c, cap)}${d.circle(c, cap * dish, 'stroke-width="1.75" opacity="0.5"')}</g>`],
     `data-stick="${side}"`,
   );
 }
@@ -606,12 +615,51 @@ function dualsenseBack({ edge = false } = {}) {
 
 // ---------------------------------------------------------------- Xbox
 
+// Xbox Series-style controller. From the front, LB / RB wrap the top corners (x = -23.4 …
+// -53.5) and the triggers hide behind them; the grips flare out to their widest low down.
 const XBOX_HALF = [
-  [0, 2.2], [-12, 1.6], [-26, 0.5], [-40, 0.6], [-51, 2.8], [-60, 7.5], [-67, 14.5], [-72, 24], [-75, 36],
-  [-76.2, 49], [-75, 62], [-71.5, 76], [-66, 88], [-58.5, 98], [-49, 102.5], [-40, 101], [-33.5, 94], [-30, 84],
-  [-26, 76], [-19, 71.5], [-9.5, 69.8], [0, 69.5],
+  [0, 0], [-12, 0], [-21, 0.05], [-23.4, 0.05, 1], [-25, -0.8], [-26.5, -2.2], [-28.5, -2.9], [-31, -3], [-34, -2.7],
+  [-37, -2.25], [-40, -1.5], [-43, -0.4], [-46, 1.1], [-48.5, 2.8], [-51, 5.3], [-52.6, 7.4], [-53.5, 9.1, 1], [-54.4, 10.6],
+  [-55.6, 12.2], [-57.5, 16], [-59.1, 20], [-61.6, 26], [-63.9, 32], [-66.1, 38], [-68.1, 44], [-70, 50], [-71.7, 56],
+  [-73.3, 62], [-74.7, 68], [-75.7, 74], [-76.3, 80], [-76.2, 85], [-75.5, 89], [-74.2, 93], [-72.6, 96], [-70.4, 98.8],
+  [-67.4, 101.2], [-64, 102.7], [-61, 103.1], [-58.6, 102], [-56.1, 100], [-53.7, 98], [-51.8, 96], [-50, 94], [-47.6, 91],
+  [-45.2, 88], [-42.9, 85], [-40.7, 82], [-38.3, 79], [-35.6, 76.5], [-32.6, 74.4], [-29, 73.4], [-24, 73.05], [-12, 73],
+  [0, 73],
 ];
-const XBOX_LB = [[-19, -3], [-31, -3.4], [-41, -3.2], [-52.8, -0.6], [-62.2, 4.6], [-69.5, 12]];
+/** LB's lower edge from the front, from its outer end inwards. */
+const XBOX_LB_LOWER = [
+  [-52.4, 8.3], [-50, 7.1], [-48, 5.9], [-46, 5], [-44, 4], [-42, 3.3], [-40, 2.6], [-37, 1.9], [-34, 1.3], [-31, 1],
+  [-28, 0.8], [-25.4, 0.6],
+];
+/** Where the bottom face begins, from the centre to the left grip's tip. */
+const XBOX_BOTTOM = [
+  [0, 71], [-14, 71.05], [-26, 71.35], [-30.3, 72], [-33.2, 73.4], [-35.6, 75], [-37.6, 76.4], [-39.6, 78.2], [-41.5, 80.1],
+  [-43.4, 82], [-45.3, 84], [-47.3, 86], [-49.3, 88], [-51.2, 90], [-53.1, 92.2], [-55, 94.5], [-57.6, 97.3], [-59.6, 99.6],
+  [-60.9, 102.4],
+];
+
+/** Back silhouette, seen through from the front: LB on top, LT forming the corner below it. */
+const XBOX_BACK_HALF = [
+  [0, 0], [-12, 0], [-21, 0.1, 1], [-23.6, -0.2], [-25.5, -1.7], [-27.4, -3], [-30, -3.45], [-34, -3.3], [-38, -2.9],
+  [-42, -2.6], [-45, -2.2], [-46.9, -1.1], [-48.3, 0.6], [-49.6, 2.3], [-51, 4], [-53, 6.6], [-54.4, 8.9], [-55.2, 10.9, 1],
+  [-56.4, 12.6], [-57.9, 16], [-59.4, 20], [-61.3, 25], [-63.3, 30], [-65.2, 35], [-67.1, 40], [-68.8, 45], [-70.5, 50],
+  [-71.9, 55], [-73.3, 60], [-74.4, 65], [-75.4, 70], [-76.1, 75], [-76.3, 80], [-75.9, 84], [-75, 87.5], [-73.5, 90.5],
+  [-71.6, 93], [-69.2, 95.3], [-66.4, 97.1], [-63.6, 98.2], [-61.5, 98.2], [-59.4, 97.2], [-57.2, 95.8], [-54.8, 94],
+  [-52.5, 92], [-50.5, 90], [-48.7, 88], [-46.9, 86], [-44.9, 84], [-43.1, 82], [-41.1, 80], [-39, 78], [-36.9, 76],
+  [-34.3, 74], [-31, 72.3], [-27.5, 71.2], [-20, 70.9], [0, 70.9],
+];
+/** LB from behind: its lower edge from where LT meets the outline, over LT's back, inwards. */
+const XBOX_BACK_LB_LOWER = [[-42.5, -2], [-40, -1.5], [-37.6, -0.5], [-35.4, 0.9], [-33.7, 2.3], [-32.3, 3.3], [-30, 3.5], [-25, 3.5], [-21.2, 3.5]];
+/** LT from behind: its lower edge from the outer end to the tip, then its upper edge back under LB. */
+const XBOX_BACK_LT_LOWER = [
+  [-53.4, 11.3], [-51, 11.4], [-49, 11.1], [-47, 10.5], [-45, 9.8], [-43, 9.2], [-41, 8.4], [-39, 7.7], [-37, 6.8],
+  [-35.2, 5.7], [-33.8, 4.6], [-32.6, 3.4], ...XBOX_BACK_LB_LOWER.slice(0, 5).reverse(),
+];
+/** Where the textured grip begins on the back. */
+const XBOX_BACK_SEAM = [
+  [-46.2, 11.3], [-46.2, 18], [-46.5, 25], [-47.2, 32], [-48.4, 38], [-49.8, 44], [-51.3, 50], [-52.8, 56], [-54.3, 62],
+  [-55.9, 68], [-57.4, 74], [-59.1, 80], [-60.5, 86], [-61.5, 92], [-62.2, 97.4],
+];
 
 function xbox() {
   const d = new Device('xbox', {
@@ -622,34 +670,40 @@ function xbox() {
     oy: 236,
   });
   d.outline(fromHalf(XBOX_HALF));
-  d.detail(d.circle([-20, 51], 12.6)); // d-pad dish
+  d.detail(d.spline([[-25.4, 0.6], [-21, 1.45], [-12, 1.25], [0, 1.15], [12, 1.25], [21, 1.45], [25.4, 0.6]])); // the top face between LB and RB
+  d.detail(d.spline([...mirror(XBOX_BOTTOM).reverse(), ...XBOX_BOTTOM.slice(1)]));
+  d.line(d.circle([-20, 51], 12.1)); // the d-pad's disc
 
   // the triggers sit behind the bumpers; the back view has them
-  for (const s of [1, -1]) d.control(s > 0 ? 'LB' : 'RB', d.hit(d.band(flip(XBOX_LB, s), 3.6)), [d.band(flip(XBOX_LB, s), 2.6)]);
-  d.control('Guide', d.hitCircle([0, 11.5], 7.8), [d.circle([0, 11.5], 6.6), d.circle([0, 11.5], 4.6, 'stroke-width="1.75" opacity="0.5"')]);
-  d.control('Back', d.hitCircle([-12.5, 25], 4.8), [d.circle([-12.5, 25], 3.3)]);
-  d.control('Start', d.hitCircle([12.5, 25], 4.8), [d.circle([12.5, 25], 3.3)]);
-  d.control('Misc', d.hit(d.capsule([-2.8, 32.5], [2.8, 32.5], 3.4)), [d.capsule([-2.8, 32.5], [2.8, 32.5], 1.8)]);
-  crossDpad(d, [-20, 51], 4.1, 10.6, 13.4);
-  const face = faceButtons(d, [40, 27], 10, 4.9, ['Y', 'B', 'A', 'X'], 4.4, 6.2);
-  stick(d, 'LS', 'Left', [-40, 27], 13.5, 9.6);
-  stick(d, 'RS', 'Right', [20, 51], 13.5, 9.6);
+  seatedShoulder(d, XBOX_HALF, pointAt(XBOX_HALF, -23.4), pointAt(XBOX_HALF, -53.5), XBOX_LB_LOWER, ['LB', 'RB']);
+  d.control('Guide', d.hitCircle([0, 10.8], 7), [d.circle([0, 10.8], 5.85), d.circle([0, 10.8], 4.1, 'stroke-width="1.75" opacity="0.5"')]);
+  for (const [name, x, glyph] of [['Back', -11.05, 'view'], ['Start', 11.05, 'menu']]) {
+    d.control(name, d.hitCircle([x, 25.9], 4.6), [d.circle([x, 25.9], 3.45), d.path(d.glyph(glyph, [x, 25.9], 4), 'stroke-width="1.75"')]);
+  }
+  d.control('Misc', d.hit(d.capsule([-1.8, 34.2], [1.8, 34.2], 3.4)), [
+    d.capsule([-1.8, 34.2], [1.8, 34.2], 2.4),
+    d.path(d.glyph('share', [0, 34.2], 4), 'stroke-width="1.75"'),
+  ]);
+  crossDpad(d, [-20, 51], 3.75, 10.6, 12.6);
+  const face = faceButtons(d, [39, 26.5], 10.15, 5.3, ['Y', 'B', 'A', 'X'], 4.4, 6.4);
+  stick(d, 'LS', 'Left', [-39, 26.2], 11.2, 9.45, 0.57);
+  stick(d, 'RS', 'Right', [20, 49.1], 11.2, 9.45, 0.57);
 
-  for (const s of [1, -1]) d.label(s > 0 ? 'LB' : 'RB', bandTip(flip(XBOX_LB, s), 2.6, -1), s > 0 ? 'left' : 'right', -12);
-  d.label('LS', [-53.5, 27], 'left', 27);
-  d.label('DpadUp', [-24.1, 44], 'left', 44);
-  d.label('DpadLeft', [-30.6, 51], 'left', 53.5);
-  d.label('DpadDown', [-20, 61.6], 'left', 63);
-  d.label('DpadRight', [-9.8, 54.7], 'left', 72.5, { via: [[-9, 66]] });
-  d.label('Y', [44.9, 17], 'right', 18);
-  d.label('B', [54.9, 27], 'right', 27.5);
-  d.label('X', [34.9, 27], 'right', 37.5, { via: [[52.5, 35.7]] }); // through the gap between B and A
-  d.label('A', onCircle(face.A, 4.9, 45), 'right', 47);
-  d.label('RS', [33.5, 51], 'right', 56.5);
-  d.label('Guide', [0, 4.9], 'top', [0, -44]);
-  d.label('Back', [-12.5, 21.7], 'left', [-16, -24], { via: [[-12.5, -24]] });
-  d.label('Start', [12.5, 21.7], 'right', [16, -24], { via: [[12.5, -24]] });
-  d.label('Misc', [0, 34.3], 'bottom', [0, 110]);
+  for (const s of [1, -1]) d.label(s > 0 ? 'LB' : 'RB', [-48 * s, 2.4], s > 0 ? 'left' : 'right', -12);
+  d.label('LS', [-50.2, 26.2], 'left', 26);
+  d.label('DpadUp', [-23.75, 42.5], 'left', 42.5);
+  d.label('DpadLeft', [-30.6, 51], 'left', 51.5);
+  d.label('DpadDown', [-20, 61.6], 'left', 61);
+  d.label('DpadRight', [-9.6, 54.6], 'left', 70.5, { via: [[-9, 66]] });
+  d.label('Y', onCircle(face.Y, 5.3, -20), 'right', 14.5);
+  d.label('B', [54.5, 26.5], 'right', 25);
+  d.label('X', [34.15, 26.5], 'right', 35.5, { via: [[39.6, 27.1], [48, 35.5]] }); // through the gap between B and A
+  d.label('A', onCircle(face.A, 5.3, 20), 'right', 45);
+  d.label('RS', [31.2, 49.1], 'right', 54.5);
+  d.label('Guide', [0, 4.95], 'top', [0, -44]);
+  d.label('Back', [-11.05, 22.45], 'left', [-16, -24], { via: [[-11.05, -24]] });
+  d.label('Start', [11.05, 22.45], 'right', [16, -24], { via: [[11.05, -24]] });
+  d.label('Misc', [0, 36.6], 'bottom', [0, 110]);
   return d;
 }
 
@@ -665,7 +719,10 @@ function fourPaddles(d, upper, lower, hw, rows) {
   }
 }
 
-/** Xbox back with the battery cover; `elite` adds the four paddles. */
+/**
+ * Xbox back: LB along the top, LT below it forming the corner, the textured grips. The Series
+ * pad has a battery cover; `elite` (built-in battery) has the four paddles instead.
+ */
 function xboxBack({ elite = false } = {}) {
   const d = new Device(elite ? 'xboxEliteBack' : 'xboxBack', {
     title: `Xbox${elite ? ' Elite' : ''}-style controller, back view seen through from the front (left shoulder on the left)`,
@@ -674,17 +731,23 @@ function xboxBack({ elite = false } = {}) {
     ox: 500,
     oy: 236,
   });
-  d.outline(fromHalf(XBOX_HALF));
-  usbPort(d, 5);
-  d.detail(d.poly([[-19, 42, 8], [19, 42, 8], [17, 64, 10], [-17, 64, 10]])); // battery cover
-  backShoulders(d, {
-    bumper: XBOX_LB,
-    bumperHw: 2.6,
-    trigger: [[-27.5, 5, 3], [-55, 8.4, 4], [-63, 22.5, 6], [-30.5, 19, 5]],
-    triggerRow: 22,
-  });
+  d.outline(fromHalf(XBOX_BACK_HALF));
+  for (const s of [1, -1]) d.detail(d.spline(flip(XBOX_BACK_SEAM, s)));
+  d.detail(d.capsule([-3.9, 1.2], [3.9, 1.2], 0.5)); // USB port
+  d.detail(d.capsule([-12.4, 1.2], [-10, 1.2], 0.5)); // pairing button
+  d.detail(d.capsule([-3.6, 54.6], [3.6, 54.6], 0.6)); // expansion port
+  if (!elite) d.detail(d.poly([[-27.8, 3.5], [27.8, 3.5], [27.8, 43.4, 2.5], [-27.8, 43.4, 2.5]])); // battery cover
+
+  const junction = pointAt(XBOX_BACK_HALF, -45);
+  seatedShoulder(d, XBOX_BACK_HALF, pointAt(XBOX_BACK_HALF, -21), junction, XBOX_BACK_LB_LOWER, ['LB', 'RB'], { lowerPad: 0 });
+  seatedShoulder(d, XBOX_BACK_HALF, junction, pointAt(XBOX_BACK_HALF, -55.2), XBOX_BACK_LT_LOWER, ['LT', 'RT'], { lowerPad: 0 });
+  for (const s of [1, -1]) {
+    const side = s > 0 ? 'left' : 'right';
+    d.label(s > 0 ? 'LB' : 'RB', [-31 * s, -3.4], side, -8);
+    d.label(s > 0 ? 'LT' : 'RT', [-51 * s, 4], side, 12);
+  }
   if (elite) {
-    fourPaddles(d, [[-25, 38], [-35, 44], [-43.5, 53.5], [-48.5, 65]], [[-31, 62], [-40, 70.5], [-47, 81], [-50.5, 92]], 3.3, [56, 90]);
+    fourPaddles(d, [[-20, 42], [-29, 46], [-36.5, 52.5], [-41, 60]], [[-38.5, 73], [-45.7, 77.5], [-51.7, 84], [-56.4, 91.5]], 3.3, [62, 93]);
   }
   return d;
 }

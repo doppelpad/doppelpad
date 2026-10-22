@@ -8,9 +8,9 @@ export const xboxBack: DeviceLayout = {
   svg,
   viewBox: [0, 0, 1000, 700],
   controls: [
-    { control: 'LB', anchor: [317.4, 225.7], side: 'left', labelAt: [200, 208.8] },
-    { control: 'LT', anchor: [297.7, 293.3], side: 'left', labelAt: [200, 310.8] },
-    { control: 'RB', anchor: [682.6, 225.7], side: 'right', labelAt: [800, 208.8] },
-    { control: 'RT', anchor: [702.3, 293.3], side: 'right', labelAt: [800, 310.8] },
+    { control: 'LB', anchor: [394.6, 224.4], side: 'left', labelAt: [200, 208.8] },
+    { control: 'LT', anchor: [326.6, 249.6], side: 'left', labelAt: [200, 276.8] },
+    { control: 'RB', anchor: [605.4, 224.4], side: 'right', labelAt: [800, 208.8] },
+    { control: 'RT', anchor: [673.4, 249.6], side: 'right', labelAt: [800, 276.8] },
   ],
 };
