@@ -48,7 +48,7 @@ impl fmt::Display for Diagnostic {
 pub struct Diagnostics(pub Vec<Diagnostic>);
 
 impl Diagnostics {
-    pub fn push(
+    pub(crate) fn push(
         &mut self,
         severity: Severity,
         path: impl Into<String>,

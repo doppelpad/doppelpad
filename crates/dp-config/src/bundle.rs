@@ -14,7 +14,7 @@ use crate::library::{self, Game, GameMeta, LibraryError, Result, io};
 /// Format version of game bundles.
 const BUNDLE_VERSION: u32 = 1;
 /// Folder of the layer presets inside the profiles directory.
-pub const PRESETS_DIR: &str = "presets";
+pub(crate) const PRESETS_DIR: &str = "presets";
 /// Pictures larger than this stay out of a bundle.
 const MAX_IMAGE: u64 = 8 << 20;
 

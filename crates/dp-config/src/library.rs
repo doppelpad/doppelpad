@@ -16,9 +16,8 @@ use crate::{
 };
 
 /// File holding a game's metadata inside its folder.
-pub const GAME_FILE: &str = "game.toml";
+pub(crate) const GAME_FILE: &str = "game.toml";
 /// First line of every file written by Doppelpad (see [`to_toml`]).
-const OUR_HEADER: &str = "# Doppelpad profile";
 
 #[derive(Debug, thiserror::Error)]
 pub enum LibraryError {
@@ -271,7 +270,7 @@ pub fn create_game(root: &Path, name: &str) -> Result<Game> {
 }
 
 /// A new game folder with metadata only (for imports that bring their own configs).
-pub fn create_game_empty(root: &Path, name: &str) -> Result<PathBuf> {
+pub(crate) fn create_game_empty(root: &Path, name: &str) -> Result<PathBuf> {
     std::fs::create_dir_all(root).map_err(io(root))?;
     let dir = unique_path(root, &slugify(name), None);
     std::fs::create_dir(&dir).map_err(io(&dir))?;
@@ -378,7 +377,7 @@ pub fn save_profile_atomic(path: &Path, profile: &Profile) -> Result<()> {
         if Format::detect(path, &existing) == Format::Json {
             return Err(LibraryError::ReadOnly(path.to_path_buf()));
         }
-        if !existing.starts_with(OUR_HEADER) {
+        if !existing.starts_with(crate::PROFILE_HEADER) {
             let bak = crate::store::with_suffix(path, "bak");
             if !bak.exists() {
                 std::fs::copy(path, &bak).map_err(io(&bak))?;
