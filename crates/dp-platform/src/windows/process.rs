@@ -8,6 +8,13 @@ use windows_sys::Win32::System::Threading::{
     OpenProcess, PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION, QueryFullProcessImageNameW,
 };
 
+use windows_sys::Win32::Foundation::{HWND, LPARAM};
+use windows_sys::Win32::UI::WindowsAndMessaging::{
+    EnumWindows, GW_OWNER, GWL_EXSTYLE, GetWindow, GetWindowLongW, GetWindowTextLengthW,
+    GetWindowTextW, GetWindowThreadProcessId, IsWindowVisible, WS_EX_TOOLWINDOW,
+};
+use windows_sys::core::BOOL;
+
 use super::{OwnedHandle, from_wide};
 
 /// Process ID and executable file name (e.g. `steam.exe`) of every running process.
@@ -52,6 +59,63 @@ pub(crate) fn image_path(pid: u32) -> Option<String> {
         )
     };
     (ok != 0).then(|| String::from_utf16_lossy(&buf[..len as usize]))
+}
+
+/// Executable file name and window title of each program with a visible main window (one per
+/// program, the first window found), without this process.
+pub(crate) fn windowed() -> Vec<(String, String)> {
+    let mut windows: Vec<HWND> = Vec::new();
+    // SAFETY: the callback only pushes into `windows`, which outlives the call.
+    unsafe { EnumWindows(Some(collect_window), (&raw mut windows) as LPARAM) };
+    let own = std::process::id();
+    let mut out: Vec<(String, String)> = Vec::new();
+    for hwnd in windows {
+        if !is_main_window(hwnd) {
+            continue;
+        }
+        let mut pid = 0u32;
+        // SAFETY: a window handle from EnumWindows and a valid out-pointer.
+        unsafe { GetWindowThreadProcessId(hwnd, &mut pid) };
+        if pid == 0 || pid == own {
+            continue;
+        }
+        let Some(exe) =
+            image_path(pid).and_then(|p| p.rsplit(['\\', '/']).next().map(str::to_owned))
+        else {
+            continue;
+        };
+        if out.iter().any(|(e, _)| e.eq_ignore_ascii_case(&exe)) {
+            continue;
+        }
+        out.push((exe, window_title(hwnd)));
+    }
+    out
+}
+
+/// A visible, titled top-level window that no other window owns and that is not a tool window.
+fn is_main_window(hwnd: HWND) -> bool {
+    // SAFETY: plain queries on a window handle from EnumWindows.
+    unsafe {
+        IsWindowVisible(hwnd) != 0
+            && GetWindow(hwnd, GW_OWNER).is_null()
+            && (GetWindowLongW(hwnd, GWL_EXSTYLE) as u32 & WS_EX_TOOLWINDOW) == 0
+            && GetWindowTextLengthW(hwnd) > 0
+    }
+}
+
+fn window_title(hwnd: HWND) -> String {
+    let mut buf = [0u16; 256];
+    // SAFETY: valid window handle; the length is the buffer size in characters.
+    let n = unsafe { GetWindowTextW(hwnd, buf.as_mut_ptr(), buf.len() as i32) };
+    String::from_utf16_lossy(&buf[..n.max(0) as usize])
+}
+
+/// `EnumWindows` callback: collect every top-level window.
+unsafe extern "system" fn collect_window(hwnd: HWND, lparam: LPARAM) -> BOOL {
+    // SAFETY: `lparam` is the `&mut Vec<HWND>` passed by `windowed`.
+    let windows = unsafe { &mut *(lparam as *mut Vec<HWND>) };
+    windows.push(hwnd);
+    1
 }
 
 /// Whether a process with this executable file name runs (any case).

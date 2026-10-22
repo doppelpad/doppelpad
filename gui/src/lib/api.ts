@@ -34,6 +34,16 @@ export const api = {
   gameCreate: (name: string) => invoke<Game>('game_create', { name }),
   gameUpdate: (dir: string, meta: GameMeta) => invoke<void>('game_update', { dir, meta }),
   gameDelete: (dir: string) => invoke<void>('game_delete', { dir }),
+  /** Copy a game with its configs and picture (the copy has no programs). */
+  gameDuplicate: (dir: string) => invoke<Game>('game_duplicate', { dir }),
+  /** Copy a picture into the game's folder, or (`null`) remove it. */
+  gameSetPicture: (dir: string, source: string | null) => invoke<GameMeta>('game_set_picture', { dir, source }),
+  /** The game's picture as a `data:` URL. */
+  gamePicture: (dir: string) => invoke<string | null>('game_picture', { dir }),
+  /** Programs with a visible window now. */
+  runningPrograms: () => invoke<{ exe: string; title: string }[]>('running_programs'),
+  /** The executable file name of the program in front. */
+  foregroundProgram: () => invoke<string | null>('foreground_program'),
   gameCreateTemplate: (name: string, config: string, template: Template) =>
     invoke<Game>('game_create_template', { name, config, template }),
   configFromTemplate: (gameDir: string, name: string, template: Template) =>

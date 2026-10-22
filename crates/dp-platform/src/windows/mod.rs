@@ -30,6 +30,20 @@ pub use devnode::physical_xusb_instances;
 pub use magnifier::{Magnifier, MagnifierView};
 pub use osinfo::os_version;
 
+/// The executable file name of the program in front (see `crate::foreground_program`).
+pub fn foreground_program() -> Option<String> {
+    use crate::ForegroundWatcher;
+    foreground::Foreground.foreground_process()
+}
+
+/// The programs that show a window now (see `crate::windowed_programs`).
+pub fn windowed_programs() -> Vec<crate::WindowedProgram> {
+    process::windowed()
+        .into_iter()
+        .map(|(exe, title)| crate::WindowedProgram { exe, title })
+        .collect()
+}
+
 use std::io;
 use std::ptr::null;
 

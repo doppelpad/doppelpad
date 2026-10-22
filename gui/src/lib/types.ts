@@ -639,6 +639,8 @@ export interface GameMeta {
   image?: string;
   default_config?: string;
   order?: number;
+  /** A note about the game, shown under its name. */
+  description?: string;
 }
 
 export interface ConfigEntry {

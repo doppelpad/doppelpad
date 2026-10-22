@@ -522,6 +522,39 @@ impl Platform {
     }
 }
 
+/// A program with a visible window, offered when choosing the programs of a game.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct WindowedProgram {
+    /// Executable file name, e.g. `Game.exe`.
+    pub exe: String,
+    /// Title of its main window.
+    pub title: String,
+}
+
+/// The programs that show a window now (Windows only; empty elsewhere for now).
+pub fn windowed_programs() -> Vec<WindowedProgram> {
+    #[cfg(windows)]
+    {
+        windows::windowed_programs()
+    }
+    #[cfg(not(windows))]
+    {
+        Vec::new()
+    }
+}
+
+/// The executable file name of the program in front (Windows only; `None` elsewhere for now).
+pub fn foreground_program() -> Option<String> {
+    #[cfg(windows)]
+    {
+        windows::foreground_program()
+    }
+    #[cfg(not(windows))]
+    {
+        None
+    }
+}
+
 /// Operating system name and version for logs and bug reports.
 pub fn os_version() -> String {
     #[cfg(windows)]

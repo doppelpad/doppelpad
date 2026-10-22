@@ -62,6 +62,9 @@ pub struct GameMeta {
     /// Position in the list (lower first); games without one follow, sorted by name.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub order: Option<i32>,
+    /// A note about the game, shown under its name.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
 }
 
 /// One config file.
@@ -352,6 +355,84 @@ pub fn create_game_with(root: &Path, name: &str, profile: &Profile) -> Result<Ga
     read_game(&dir)
 }
 
+/// Give a game a picture (copied into its folder as `cover.<ext>`), or (`None`) remove it.
+pub fn set_game_picture(dir: &Path, source: Option<&Path>) -> Result<GameMeta> {
+    let mut meta = read_game(dir)?.meta;
+    // An earlier cover in the folder goes, whatever its extension.
+    if let Some(old) = meta.image.take()
+        && old.starts_with("cover.")
+    {
+        let _ = std::fs::remove_file(dir.join(old));
+    }
+    if let Some(src) = source {
+        let ext = src
+            .extension()
+            .and_then(|e| e.to_str())
+            .map(str::to_ascii_lowercase)
+            .filter(|e| IMAGE_TYPES.iter().any(|(x, _)| x == e))
+            .ok_or_else(|| {
+                LibraryError::Io(src.to_path_buf(), std::io::ErrorKind::InvalidInput.into())
+            })?;
+        let name = format!("cover.{ext}");
+        std::fs::copy(src, dir.join(&name)).map_err(io(src))?;
+        meta.image = Some(name);
+    }
+    write_meta(dir, &meta)?;
+    Ok(meta)
+}
+
+/// Picture file extensions and their media types.
+const IMAGE_TYPES: [(&str, &str); 5] = [
+    ("png", "image/png"),
+    ("jpg", "image/jpeg"),
+    ("jpeg", "image/jpeg"),
+    ("webp", "image/webp"),
+    ("gif", "image/gif"),
+];
+
+/// A game's picture as a `data:` URL for the window, if it has one that is not too large.
+pub fn game_picture(dir: &Path) -> Option<String> {
+    let meta = read_game(dir).ok()?.meta;
+    let path = dir.join(meta.image?);
+    let ext = path.extension()?.to_str()?.to_ascii_lowercase();
+    let mime = IMAGE_TYPES.iter().find(|(x, _)| *x == ext)?.1;
+    if std::fs::metadata(&path).ok()?.len() > crate::bundle::MAX_IMAGE {
+        return None;
+    }
+    let bytes = std::fs::read(&path).ok()?;
+    Some(format!(
+        "data:{mime};base64,{}",
+        crate::bundle::base64(&bytes)
+    ))
+}
+
+/// Copy a game folder with its configs and picture under a new name ("<name> copy"). The copy
+/// gets no programs, so automatic switching keeps choosing the original.
+pub fn duplicate_game(dir: &Path) -> Result<Game> {
+    let game = read_game(dir)?;
+    let name = format!("{} copy", game.meta.name);
+    let root = dir.parent().unwrap_or(Path::new("."));
+    let target = unique_path(root, &slugify(&name), None);
+    std::fs::create_dir(&target).map_err(io(&target))?;
+    for entry in std::fs::read_dir(dir).map_err(io(dir))? {
+        let entry = entry.map_err(io(dir))?;
+        let from = entry.path();
+        if from.is_file() && entry.file_name() != GAME_FILE {
+            let to = target.join(entry.file_name());
+            std::fs::copy(&from, &to).map_err(io(&to))?;
+        }
+    }
+    write_meta(
+        &target,
+        &GameMeta {
+            name,
+            processes: Vec::new(),
+            ..game.meta
+        },
+    )?;
+    read_game(&target)
+}
+
 /// Copy a config next to itself under a new name ("<name> copy").
 pub fn duplicate_config(path: &Path) -> Result<PathBuf> {
     let (mut profile, _) = load(path)?;
@@ -423,6 +504,58 @@ mod tests {
         std::fs::write(dir.join(GAME_FILE), "").unwrap();
         let config = create_config(&dir, "Fast").unwrap();
         assert_eq!(config_label(&config), "unnamed › Fast");
+    }
+
+    #[test]
+    fn duplicate_game_copies_configs_and_picture_without_programs() {
+        let root = tempfile::tempdir().unwrap();
+        let game = create_game(root.path(), "Halo").unwrap();
+        create_config(&game.dir, "Sniper").unwrap();
+        std::fs::write(game.dir.join("cover.png"), b"png").unwrap();
+        let meta = GameMeta {
+            processes: vec!["halo.exe".into()],
+            image: Some("cover.png".into()),
+            description: Some("Campaign".into()),
+            ..game.meta.clone()
+        };
+        update_game_meta(&game.dir, &meta).unwrap();
+
+        let copy = duplicate_game(&game.dir).unwrap();
+        assert_ne!(copy.dir, game.dir);
+        assert_eq!(copy.meta.name, "Halo copy");
+        assert!(copy.meta.processes.is_empty());
+        assert_eq!(copy.meta.image.as_deref(), Some("cover.png"));
+        assert_eq!(copy.meta.description.as_deref(), Some("Campaign"));
+        assert_eq!(copy.configs.len(), 2);
+        assert!(copy.dir.join("cover.png").is_file());
+        // A second copy gets a folder of its own.
+        assert_ne!(duplicate_game(&game.dir).unwrap().dir, copy.dir);
+    }
+
+    #[test]
+    fn game_pictures_are_copied_shown_and_removed() {
+        let root = tempfile::tempdir().unwrap();
+        let game = create_game(root.path(), "Halo").unwrap();
+        let src = root.path().join("art.PNG");
+        std::fs::write(&src, b"\x89PNG").unwrap();
+        let meta = set_game_picture(&game.dir, Some(&src)).unwrap();
+        assert_eq!(meta.image.as_deref(), Some("cover.png"));
+        assert!(game.dir.join("cover.png").is_file());
+        let url = game_picture(&game.dir).unwrap();
+        assert!(url.starts_with("data:image/png;base64,"), "{url}");
+        // Another picture replaces it; none removes it.
+        let jpg = root.path().join("art.jpg");
+        std::fs::write(&jpg, b"jpg").unwrap();
+        set_game_picture(&game.dir, Some(&jpg)).unwrap();
+        assert!(!game.dir.join("cover.png").exists());
+        let meta = set_game_picture(&game.dir, None).unwrap();
+        assert_eq!(meta.image, None);
+        assert!(!game.dir.join("cover.jpg").exists());
+        assert_eq!(game_picture(&game.dir), None);
+        // Not a picture.
+        let txt = root.path().join("notes.txt");
+        std::fs::write(&txt, b"x").unwrap();
+        assert!(set_game_picture(&game.dir, Some(&txt)).is_err());
     }
 
     #[test]

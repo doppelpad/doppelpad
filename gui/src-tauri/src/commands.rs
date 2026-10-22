@@ -203,6 +203,57 @@ pub fn game_delete(app: AppHandle, dir: PathBuf) -> CmdResult<()> {
     library_change(&app, || library::delete_game(&dir).map_err(err))
 }
 
+/// Copy a game with its configs and picture (the copy has no programs).
+#[tauri::command(async)]
+pub fn game_duplicate(app: AppHandle, dir: PathBuf) -> CmdResult<Game> {
+    library_change(&app, || library::duplicate_game(&dir).map_err(err))
+}
+
+/// Give a game a picture (copied into its folder), or (`None`) remove it.
+#[tauri::command(async)]
+pub fn game_set_picture(
+    app: AppHandle,
+    dir: PathBuf,
+    source: Option<PathBuf>,
+) -> CmdResult<GameMeta> {
+    library_change(&app, || {
+        library::set_game_picture(&dir, source.as_deref()).map_err(err)
+    })
+}
+
+/// A game's picture as a `data:` URL, if it has one.
+#[tauri::command(async)]
+pub fn game_picture(dir: PathBuf) -> Option<String> {
+    library::game_picture(&dir)
+}
+
+/// The executable file name of the program in front.
+#[tauri::command(async)]
+pub fn foreground_program() -> Option<String> {
+    dp_platform::foreground_program()
+}
+
+/// A program that shows a window now, offered as a game's program.
+#[derive(Serialize)]
+pub struct RunningProgram {
+    exe: String,
+    title: String,
+}
+
+/// The programs with a visible window, sorted by file name (empty where the OS gives none).
+#[tauri::command(async)]
+pub fn running_programs() -> Vec<RunningProgram> {
+    let mut out: Vec<RunningProgram> = dp_platform::windowed_programs()
+        .into_iter()
+        .map(|p| RunningProgram {
+            exe: p.exe,
+            title: p.title,
+        })
+        .collect();
+    out.sort_by_key(|p| p.exe.to_lowercase());
+    out
+}
+
 /// A new game whose first config (`config`) starts from a template.
 #[tauri::command(async)]
 pub fn game_create_template(
