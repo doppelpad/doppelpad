@@ -113,6 +113,18 @@ fn touch(r: &[u8], at: usize, (w, h): (f32, f32)) -> Option<TouchPoint> {
 }
 
 /// Parse one input report (including its report-ID byte) into a pad state.
+///
+/// Full reports, from the start `c` of their common part (after the report ID, plus two
+/// bytes for a DualShock 4 over Bluetooth and one for a DualSense):
+///
+/// | Field                             | DualShock 4 | DualSense |
+/// |-----------------------------------|-------------|-----------|
+/// | sticks: lx, ly, rx, ry            | 0–3         | 0–3       |
+/// | buttons                           | 4–6         | 7–9       |
+/// | triggers: l2, r2                  | 7–8         | 4–5       |
+/// | gyro, accel (three i16 each)      | 12, 18      | 15, 21    |
+/// | battery (see [`parse_battery`])   | 29          | 52        |
+/// | touch points (four bytes each)    | 34, 38      | 32, 36    |
 pub fn parse_report(model: SonyModel, r: &[u8]) -> Option<PadState> {
     let mut s = PadState::default();
     match (model, r.first()?) {
@@ -183,7 +195,8 @@ pub fn parse_battery(model: SonyModel, r: &[u8]) -> Option<Battery> {
         (_, 0x01) if r.len() < 32 => return None,
         // Low nibble 0–10 (11 on the cable when full), bit 4 the cable.
         (SonyModel::DualShock4, &id @ (0x01 | 0x11)) => {
-            let s = *r.get(if id == 0x11 { 32 } else { 30 })?;
+            let c = if id == 0x11 { 3 } else { 1 };
+            let s = *r.get(c + 29)?;
             let (n, cable) = (s & 0x0F, s & 0x10 != 0);
             return Some(Battery {
                 level: level_from_nibble(n),
@@ -191,7 +204,10 @@ pub fn parse_battery(model: SonyModel, r: &[u8]) -> Option<Battery> {
                 wired: false,
             });
         }
-        (_, &id @ (0x01 | 0x31)) => *r.get(if id == 0x31 { 54 } else { 53 })?,
+        (_, &id @ (0x01 | 0x31)) => {
+            let c = if id == 0x31 { 2 } else { 1 };
+            *r.get(c + 52)?
+        }
         _ => return None,
     };
     // Low nibble 0–10; high nibble 0 discharging, 1 charging, 2 full, others errors.
