@@ -36,12 +36,12 @@
 <style>
   .diag {
     border-bottom: 1px solid var(--line);
-    background: rgba(245, 158, 11, 0.06);
+    background: color-mix(in srgb, var(--warning) 6%, transparent);
     color: var(--warning);
     padding: 6px 16px;
   }
   .diag.error {
-    background: rgba(244, 63, 94, 0.07);
+    background: color-mix(in srgb, var(--danger) 7%, transparent);
     color: var(--danger);
   }
   .summary {

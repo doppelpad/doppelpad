@@ -203,7 +203,7 @@
     gap: 4px;
     font-size: var(--fs-xs);
     color: var(--warning);
-    border: 1px solid rgba(245, 158, 11, 0.4);
+    border: 1px solid color-mix(in srgb, var(--warning) 40%, transparent);
     border-radius: var(--radius-pill);
     padding: 2px 8px;
   }

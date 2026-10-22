@@ -341,8 +341,8 @@
     align-items: center;
     gap: 8px;
     color: var(--warning);
-    background: rgba(245, 158, 11, 0.08);
-    border: 1px solid rgba(245, 158, 11, 0.3);
+    background: color-mix(in srgb, var(--warning) 8%, transparent);
+    border: 1px solid color-mix(in srgb, var(--warning) 30%, transparent);
     border-radius: var(--radius-s);
     padding: 8px 10px;
   }

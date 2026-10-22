@@ -332,7 +332,7 @@
   }
   .chip-x:hover {
     background: var(--danger);
-    color: white;
+    color: var(--on-danger);
   }
   .always,
   .capturing {

@@ -191,7 +191,7 @@
   }
   .game.selected {
     background: var(--accent-soft);
-    border-color: rgba(20, 184, 166, 0.35);
+    border-color: color-mix(in srgb, var(--accent) 35%, transparent);
   }
   .game-main {
     flex: 1;

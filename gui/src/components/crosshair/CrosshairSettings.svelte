@@ -157,7 +157,7 @@
     width: 64px;
     height: 64px;
     border-radius: var(--radius-s);
-    background: repeating-conic-gradient(#3a4250 0% 25%, #262c37 0% 50%) 50% / 16px 16px;
+    background: repeating-conic-gradient(var(--line-strong) 0% 25%, var(--bg-3) 0% 50%) 50% / 16px 16px;
     flex: none;
   }
   .num {

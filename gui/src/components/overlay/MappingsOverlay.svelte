@@ -82,7 +82,7 @@
     overflow: hidden;
     padding: 12px 14px;
     border-radius: var(--radius-l);
-    background: rgba(15, 17, 21, 0.9);
+    background: color-mix(in srgb, var(--bg-0) 90%, transparent);
     border: 1px solid var(--line-strong);
   }
   .head {

@@ -240,7 +240,7 @@
   .tile.active {
     color: var(--accent);
     background: var(--accent-soft);
-    border-color: rgba(20, 184, 166, 0.3);
+    border-color: color-mix(in srgb, var(--accent) 30%, transparent);
   }
   .layers {
     position: relative;

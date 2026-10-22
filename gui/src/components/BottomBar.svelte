@@ -240,7 +240,7 @@
     gap: 3px;
     max-height: 88px;
     overflow-y: auto;
-    background: rgba(245, 158, 11, 0.06);
+    background: color-mix(in srgb, var(--warning) 6%, transparent);
     border-top: 1px solid var(--line);
     font-size: var(--fs-s);
     user-select: text;
@@ -379,7 +379,7 @@
   .slot-pick {
     padding: 0 7px;
     border-radius: 0 var(--radius-s) var(--radius-s) 0;
-    border-left-color: rgba(4, 34, 31, 0.3);
+    border-left-color: color-mix(in srgb, var(--on-accent) 30%, transparent);
   }
   .slots {
     display: flex;
@@ -413,7 +413,7 @@
   .slot.active.failed {
     border-color: var(--warning);
     color: var(--warning);
-    background: rgba(245, 158, 11, 0.12);
+    background: color-mix(in srgb, var(--warning) 12%, transparent);
   }
   .right:has(.apply.ready:hover, .apply.ready:focus-within) .slot.target {
     border-style: solid;

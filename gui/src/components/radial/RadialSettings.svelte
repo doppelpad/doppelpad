@@ -7,6 +7,7 @@
   import { layerIds } from '../../lib/model/profile';
   import { actionLabel } from '../../lib/model/labels';
   import {
+    DEFAULT_SECTOR_COLOR,
     MAX_SECTORS,
     RING,
     addMenu,
@@ -128,7 +129,7 @@
             {#each ICONS as name (name)}<option value={name}>{name}</option>{/each}
             <option value="__file">{t('radial.pick_image')}</option>
           </select>
-          <input type="color" value={s.color || '#14b8a6'} {disabled} onchange={(e) => app.edit((p) => updateSector(p, i, k, { color: e.currentTarget.value }))} />
+          <input type="color" value={s.color || DEFAULT_SECTOR_COLOR} {disabled} onchange={(e) => app.edit((p) => updateSector(p, i, k, { color: e.currentTarget.value }))} />
           <select
             value={s.submenu ?? 0}
             {disabled}
@@ -294,7 +295,7 @@
   }
   .chip-x:hover {
     background: var(--danger);
-    color: white;
+    color: var(--on-danger);
   }
   .add-act {
     display: inline-flex;

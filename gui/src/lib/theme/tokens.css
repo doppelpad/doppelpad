@@ -14,6 +14,8 @@
   --accent-soft: rgba(20, 184, 166, 0.14);
   /* Text and marks on an accent background. */
   --on-accent: #04221f;
+  /* Text on a danger background. */
+  --on-danger: #ffffff;
   --danger: #f43f5e;
   --warning: #f59e0b;
   --ok: #22c55e;
