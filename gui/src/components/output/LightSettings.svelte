@@ -2,13 +2,13 @@
   // The controller's light bar: for Main and, optionally, per layer — a mode, its colours and
   // how fast it animates. DualShock 4 and DualSense show it.
   import { Plus } from '@lucide/svelte';
-  import { t } from '../lib/i18n/index.svelte';
-  import { layerIds, setLight } from '../lib/model/profile';
-  import { app } from '../lib/state/app.svelte';
-  import type { Light, LightMode } from '../lib/types';
-  import RemoveButton from './ui/RemoveButton.svelte';
-  import Slider from './ui/Slider.svelte';
-  import Toggle from './ui/Toggle.svelte';
+  import { t } from '../../lib/i18n/index.svelte';
+  import { layerIds, setLight } from '../../lib/model/profile';
+  import { app } from '../../lib/state/app.svelte';
+  import type { Light, LightMode } from '../../lib/types';
+  import RemoveButton from '../ui/RemoveButton.svelte';
+  import Slider from '../ui/Slider.svelte';
+  import Toggle from '../ui/Toggle.svelte';
 
   const MODES: LightMode[] = ['solid', 'breath', 'rainbow', 'shimmer', 'heartbeat', 'strobe', 'off'];
   const def = $derived(app.catalog?.defaults.light);

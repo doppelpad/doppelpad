@@ -8,8 +8,8 @@
   import { app } from '../lib/state/app.svelte';
   import type { KbmSource, KeyRepeat, Output, VirtualPadType } from '../lib/types';
   import CrosshairSettings from './crosshair/CrosshairSettings.svelte';
-  import LightSettings from './LightSettings.svelte';
-  import VibrationSettings from './VibrationSettings.svelte';
+  import LightSettings from './output/LightSettings.svelte';
+  import VibrationSettings from './output/VibrationSettings.svelte';
   import RadialSettings from './radial/RadialSettings.svelte';
   import NumberField from './ui/NumberField.svelte';
   import Toggle from './ui/Toggle.svelte';
