@@ -19,8 +19,7 @@ use anyhow::Result;
 use dp_core::profile::Profile;
 use dp_ipc::Device;
 use dp_platform::Leds;
-use dp_platform::generic::GenericLayout;
-use dp_platform::groups::{DeviceGroup, DevicePolicy};
+use dp_platform::groups::DevicePolicy;
 
 use crate::dsu::DsuServer;
 use crate::httpapi::HttpApi;
@@ -547,49 +546,4 @@ impl Service {
 /// A reply to a change that took effect but could not be saved.
 fn unsaved_note(reply: &str, error: &str) -> String {
     format!("{reply}; {error}, so the change is lost when Doppelpad restarts")
-}
-
-/// Why a generic pad layout cannot be stored, if it cannot.
-fn layout_problem(l: &GenericLayout) -> Option<String> {
-    let hex4 = |s: &str| s.len() == 4 && s.chars().all(|c| c.is_ascii_hexdigit());
-    let key_ok = l
-        .device
-        .split_once(':')
-        .is_some_and(|(v, p)| hex4(v) && hex4(p));
-    if !key_ok {
-        return Some(format!(
-            "`{}` is not a controller model (vvvv:pppp)",
-            l.device
-        ));
-    }
-    if l.buttons.is_empty() && l.triggers.is_empty() && l.sticks.is_empty() {
-        return Some("the layout maps nothing".into());
-    }
-    None
-}
-
-/// What is wrong with a set of device groups, if anything.
-fn group_problem(groups: &[DeviceGroup]) -> Option<String> {
-    for (i, g) in groups.iter().enumerate() {
-        if g.name.trim().is_empty() {
-            return Some("a device group needs a name".into());
-        }
-        if groups[..i].iter().any(|o| o.name == g.name) {
-            return Some(format!("there are two device groups named {}", g.name));
-        }
-        if g.members.len() < 2 {
-            return Some(format!(
-                "device group {} needs at least two controllers",
-                g.name
-            ));
-        }
-        if let Some(m) = g
-            .members
-            .iter()
-            .find(|m| groups[..i].iter().any(|o| o.members.contains(m)))
-        {
-            return Some(format!("{m} is in two device groups"));
-        }
-    }
-    None
 }

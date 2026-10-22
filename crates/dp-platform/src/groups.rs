@@ -24,6 +24,33 @@ pub struct DeviceGroup {
 }
 
 impl DeviceGroup {
+    /// What is wrong with a set of groups, if anything: each needs a name of its own and at
+    /// least two controllers, and a controller can be in one group only.
+    pub fn problems(groups: &[DeviceGroup]) -> Option<String> {
+        for (i, g) in groups.iter().enumerate() {
+            if g.name.trim().is_empty() {
+                return Some("a device group needs a name".into());
+            }
+            if groups[..i].iter().any(|o| o.name == g.name) {
+                return Some(format!("there are two device groups named {}", g.name));
+            }
+            if g.members.len() < 2 {
+                return Some(format!(
+                    "device group {} needs at least two controllers",
+                    g.name
+                ));
+            }
+            if let Some(m) = g
+                .members
+                .iter()
+                .find(|m| groups[..i].iter().any(|o| o.members.contains(m)))
+            {
+                return Some(format!("{m} is in two device groups"));
+            }
+        }
+        None
+    }
+
     /// The id the group's combined controller goes by.
     pub fn id(&self) -> DeviceId {
         DeviceId(format!("group:{}", self.name))
@@ -300,5 +327,18 @@ mod tests {
             ["path-a", "path-b"],
             "both get hidden"
         );
+    }
+
+    #[test]
+    fn device_groups_need_names_and_distinct_members() {
+        let g = |name: &str, members: &[&str]| DeviceGroup {
+            name: name.into(),
+            members: members.iter().map(|m| m.to_string()).collect(),
+        };
+        assert_eq!(DeviceGroup::problems(&[g("Pair", &["a", "b"])]), None);
+        assert!(DeviceGroup::problems(&[g("", &["a", "b"])]).is_some());
+        assert!(DeviceGroup::problems(&[g("Solo", &["a"])]).is_some());
+        assert!(DeviceGroup::problems(&[g("P", &["a", "b"]), g("P", &["c", "d"])]).is_some());
+        assert!(DeviceGroup::problems(&[g("P", &["a", "b"]), g("Q", &["b", "c"])]).is_some());
     }
 }

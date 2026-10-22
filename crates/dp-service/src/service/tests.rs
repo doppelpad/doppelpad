@@ -60,18 +60,6 @@ impl TestService {
         Service::new(Runtime::with_platform(self.platform), self.opts).unwrap()
     }
 }
-#[test]
-fn device_groups_need_names_and_distinct_members() {
-    let g = |name: &str, members: &[&str]| DeviceGroup {
-        name: name.into(),
-        members: members.iter().map(|m| m.to_string()).collect(),
-    };
-    assert_eq!(group_problem(&[g("Pair", &["a", "b"])]), None);
-    assert!(group_problem(&[g("", &["a", "b"])]).is_some());
-    assert!(group_problem(&[g("Solo", &["a"])]).is_some());
-    assert!(group_problem(&[g("P", &["a", "b"]), g("Q", &["b", "c"])]).is_some());
-}
-
 struct FakeForeground(Arc<Mutex<Option<String>>>);
 
 impl ForegroundWatcher for FakeForeground {
@@ -784,30 +772,6 @@ fn stop_forgets_a_failed_apply() {
     assert!(mentions(&s), "the failure is reported");
     s.handle_ipc(Request::Stop);
     assert!(!mentions(&s), "and forgotten once stopped");
-}
-
-#[test]
-fn layouts_need_a_model_and_a_mapping() {
-    let mut l = GenericLayout {
-        device: "pad".into(),
-        ..Default::default()
-    };
-    assert!(
-        layout_problem(&l)
-            .unwrap()
-            .contains("not a controller model")
-    );
-    l.device = "0079:0006".into();
-    assert_eq!(
-        layout_problem(&l).as_deref(),
-        Some("the layout maps nothing")
-    );
-    l.sticks.push(dp_platform::generic::StickBind {
-        axis: dp_core::pad::Axis::LeftX,
-        from: 0,
-        invert: false,
-    });
-    assert_eq!(layout_problem(&l), None);
 }
 
 #[test]

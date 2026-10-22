@@ -9,7 +9,7 @@ use dp_platform::groups::DeviceGroup;
 
 use super::{
     GYRO_CALIBRATION_MS, Service, ServiceCmd, ServiceReply, TEST_TURN_DELAY_MS, TEST_TURN_MS,
-    group_problem, ipc_devices, layout_problem, load, on_off, unsaved_note,
+    ipc_devices, load, on_off, unsaved_note,
 };
 use crate::dsu::DsuSettings;
 use crate::httpapi::HttpSettings;
@@ -335,7 +335,7 @@ impl Service {
     }
 
     fn set_groups(&mut self, groups: Vec<DeviceGroup>) -> ServiceReply {
-        match group_problem(&groups) {
+        match DeviceGroup::problems(&groups) {
             Some(e) => ServiceReply::Err(e),
             None => {
                 self.state.groups = groups;
@@ -357,7 +357,7 @@ impl Service {
     }
 
     fn set_layout(&mut self, layout: GenericLayout) -> ServiceReply {
-        match layout_problem(&layout) {
+        match layout.problem() {
             Some(e) => ServiceReply::Err(e),
             None => {
                 self.state.layouts.retain(|l| l.device != layout.device);

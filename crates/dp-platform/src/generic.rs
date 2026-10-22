@@ -134,6 +134,26 @@ fn model_key(vid: u16, pid: u16) -> String {
 const PRESS: f32 = 0.5;
 
 impl GenericLayout {
+    /// Why the layout cannot be stored, if it cannot: the model key must read `vvvv:pppp`
+    /// and something must be mapped.
+    pub fn problem(&self) -> Option<String> {
+        let hex4 = |s: &str| s.len() == 4 && s.chars().all(|c| c.is_ascii_hexdigit());
+        let key_ok = self
+            .device
+            .split_once(':')
+            .is_some_and(|(v, p)| hex4(v) && hex4(p));
+        if !key_ok {
+            return Some(format!(
+                "`{}` is not a controller model (vvvv:pppp)",
+                self.device
+            ));
+        }
+        if self.buttons.is_empty() && self.triggers.is_empty() && self.sticks.is_empty() {
+            return Some("the layout maps nothing".into());
+        }
+        None
+    }
+
     /// The pad state this layout makes of `raw`.
     pub fn apply(&self, raw: &RawInput) -> PadState {
         let mut s = PadState::default();
@@ -417,5 +437,22 @@ mod tests {
         );
         let back: GenericLayout = serde_json::from_str(&text).unwrap();
         assert_eq!(back, g);
+    }
+
+    #[test]
+    fn layouts_need_a_model_and_a_mapping() {
+        let mut l = GenericLayout {
+            device: "pad".into(),
+            ..Default::default()
+        };
+        assert!(l.problem().unwrap().contains("not a controller model"));
+        l.device = "0079:0006".into();
+        assert_eq!(l.problem().as_deref(), Some("the layout maps nothing"));
+        l.sticks.push(StickBind {
+            axis: Axis::LeftX,
+            from: 0,
+            invert: false,
+        });
+        assert_eq!(l.problem(), None);
     }
 }
