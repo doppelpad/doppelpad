@@ -1,13 +1,14 @@
 <script lang="ts">
   // The welcome guide on first start: drivers, the controller, what it should become, and a
   // first config made from a template (applied right away if wanted).
-  import { CircleAlert, CircleCheck } from '@lucide/svelte';
+  import { CircleCheck } from '@lucide/svelte';
   import { api } from '../lib/api';
   import { t } from '../lib/i18n/index.svelte';
   import { app } from '../lib/state/app.svelte';
   import type { Template } from '../lib/types';
   import { TEMPLATES } from '../lib/model/labels';
   import IdentifyWizard from './IdentifyWizard.svelte';
+  import DriverList, { driverStates } from './settings/DriverList.svelte';
   import Dialog from './ui/Dialog.svelte';
   import Toggle from './ui/Toggle.svelte';
 
@@ -21,14 +22,7 @@
   let identify = $state<string | null>(null);
 
   const live = $derived(app.live);
-  const drivers = $derived(
-    live
-      ? [
-          { key: 'virtual_pads' as const, state: live.drivers.virtual_pads },
-          { key: 'device_hiding' as const, state: live.drivers.device_hiding },
-        ]
-      : [],
-  );
+  const driverMissing = $derived(driverStates(live).some((d) => !d.state.available));
   const devices = $derived(live?.devices ?? []);
   const needsPad = $derived(template !== 'desktop');
 
@@ -70,18 +64,8 @@
     <p>{t('welcome.welcome.text')}</p>
   {:else if STEPS[step] === 'drivers'}
     <p class="hint">{t('welcome.drivers.text')}</p>
-    {#each drivers as d (d.key)}
-      <div class="row" class:missing={!d.state.available}>
-        {#if d.state.available}<CircleCheck size={15} />{:else}<CircleAlert size={15} />{/if}
-        <span class="grow">{t(`drivers.${d.key}`)}</span>
-        {#if !d.state.available}
-          <button class="btn" onclick={() => app.attempt(api.openDriverPage(d.key))}>
-            {t('drivers.download')}
-          </button>
-        {/if}
-      </div>
-    {/each}
-    {#if drivers.some((d) => !d.state.available)}<p class="hint">{t('welcome.drivers.after')}</p>{/if}
+    <DriverList tone="row" />
+    {#if driverMissing}<p class="hint">{t('welcome.drivers.after')}</p>{/if}
   {:else if STEPS[step] === 'controller'}
     {#if devices.length === 0}
       <p>{t('welcome.controller.none')}</p>
@@ -145,9 +129,6 @@
     display: flex;
     align-items: center;
     gap: 8px;
-  }
-  .row.missing {
-    color: var(--warning);
   }
   .grow {
     flex: 1;

@@ -1,14 +1,17 @@
 <script lang="ts">
-  import { CircleCheck, CircleAlert, FolderOpen, RefreshCw } from '@lucide/svelte';
+  import { RefreshCw } from '@lucide/svelte';
   import { api } from '../lib/api';
   import { LANGUAGES, t } from '../lib/i18n/index.svelte';
   import { app } from '../lib/state/app.svelte';
-  import type { Corner, MappingsOverlaySettings, OsdSettings, PadOverlaySettings, PlayerLights, RewasdChoice } from '../lib/types';
+  import type { MappingsOverlaySettings, OsdSettings, PadOverlaySettings, PlayerLights, RewasdChoice } from '../lib/types';
   import DeviceSettings from './settings/DeviceSettings.svelte';
   import ApiSettings from './settings/ApiSettings.svelte';
   import DsuSettings from './settings/DsuSettings.svelte';
   import RuntimeSettings from './settings/RuntimeSettings.svelte';
   import HotkeySettings from './settings/HotkeySettings.svelte';
+  import CornerSelect from './settings/CornerSelect.svelte';
+  import DriverList from './settings/DriverList.svelte';
+  import PathRow from './settings/PathRow.svelte';
   import SettingRow from './settings/SettingRow.svelte';
   import SettingsSection from './settings/SettingsSection.svelte';
   import Dialog from './ui/Dialog.svelte';
@@ -36,18 +39,8 @@
     onclose();
   }
 
-  const drivers = $derived(
-    app.live
-      ? [
-          { key: 'virtual_pads', state: app.live.drivers.virtual_pads },
-          { key: 'device_hiding', state: app.live.drivers.device_hiding },
-        ]
-      : [],
-  );
-
   const osd = $derived(app.settings.osd);
   const OSD_EVENTS = ['remap', 'slot', 'layer', 'controller', 'battery'] as const;
-  const CORNERS: Corner[] = ['top_left', 'top_right', 'bottom_left', 'bottom_right'];
   let monitors = $state<string[]>([]);
   api.osdMonitors().then((m) => (monitors = m));
 
@@ -151,11 +144,7 @@
           {/each}
         </select>
       </SettingRow>
-      <SettingRow label={t('settings.osd.corner')}>
-        <select value={osd.corner} onchange={(e) => setOsd({ corner: e.currentTarget.value as Corner })}>
-          {#each CORNERS as c (c)}<option value={c}>{t(`settings.osd.corners.${c}`)}</option>{/each}
-        </select>
-      </SettingRow>
+      <CornerSelect value={osd.corner} onchange={(corner) => setOsd({ corner })} />
       <Slider label={t('settings.osd.scale')} value={osd.scale} def={100} min={50} max={200} step={10} unit="%" onchange={(v) => setOsd({ scale: v })} />
       <Slider label={t('settings.osd.opacity')} value={osd.opacity} def={80} min={20} max={100} step={5} unit="%" onchange={(v) => setOsd({ opacity: v })} />
       <Slider label={t('settings.osd.seconds')} value={osd.seconds} def={5} min={1} max={30} step={1} unit="s" onchange={(v) => setOsd({ seconds: v })} />
@@ -188,11 +177,7 @@
 
   <SettingsSection title={t('settings.overlays.title')} hint={t('settings.overlays.hint')}>
     <div class="sub">{t('settings.overlays.pad')}</div>
-    <SettingRow label={t('settings.osd.corner')}>
-      <select value={padOverlay.corner} onchange={(e) => setPadOverlay({ corner: e.currentTarget.value as Corner })}>
-        {#each CORNERS as c (c)}<option value={c}>{t(`settings.osd.corners.${c}`)}</option>{/each}
-      </select>
-    </SettingRow>
+    <CornerSelect value={padOverlay.corner} onchange={(corner) => setPadOverlay({ corner })} />
     <SettingRow label={t('settings.osd.scale')}>
       <select value={padOverlay.size} onchange={(e) => setPadOverlay({ size: Number(e.currentTarget.value) })}>
         {#each PAD_SIZES as s (s)}<option value={s}>{t(`settings.overlays.sizes.${s}`)}</option>{/each}
@@ -211,11 +196,7 @@
       onchange={(v) => setPadOverlay({ hide_after: v })}
     />
     <div class="sub">{t('settings.overlays.mappings')}</div>
-    <SettingRow label={t('settings.osd.corner')}>
-      <select value={mappingsOverlay.corner} onchange={(e) => setMappingsOverlay({ corner: e.currentTarget.value as Corner })}>
-        {#each CORNERS as c (c)}<option value={c}>{t(`settings.osd.corners.${c}`)}</option>{/each}
-      </select>
-    </SettingRow>
+    <CornerSelect value={mappingsOverlay.corner} onchange={(corner) => setMappingsOverlay({ corner })} />
     <Slider label={t('settings.osd.opacity')} value={mappingsOverlay.opacity} def={90} min={20} max={100} step={5} unit="%" onchange={(v) => setMappingsOverlay({ opacity: v })} />
   </SettingsSection>
 
@@ -223,31 +204,15 @@
     {#snippet actions()}
       <button class="icon-btn" title={t('settings.recheck')} onclick={refresh}><RefreshCw size={15} /></button>
     {/snippet}
-    {#each drivers as d (d.key)}
-      <div class="driver" class:missing={!d.state.available} title={d.state.error ?? ''}>
-        {#if d.state.available}<CircleCheck size={15} />{:else}<CircleAlert size={15} />{/if}
-        <span>{t(`drivers.${d.key}`)}</span>
-        {#if !d.state.available}<span class="state">{t('drivers.missing')}</span>{/if}
-      </div>
-    {/each}
+    <DriverList tone="icon" />
   </SettingsSection>
 
   <SettingsSection title={t('settings.profiles_dir')}>
-    <div class="dir">
-      <code>{profilesDir}</code>
-      <button class="icon-btn" title={t('common.reveal')} onclick={() => profilesDir && app.attempt(api.reveal(profilesDir))}>
-        <FolderOpen size={15} />
-      </button>
-    </div>
+    <PathRow path={profilesDir} revealLabel={t('common.reveal')} />
   </SettingsSection>
 
   <SettingsSection title={t('settings.log_file')}>
-    <div class="dir">
-      <code>{logFile}</code>
-      <button class="icon-btn" title={t('settings.open_log_folder')} onclick={() => logFile && app.attempt(api.reveal(logFile))}>
-        <FolderOpen size={15} />
-      </button>
-    </div>
+    <PathRow path={logFile} revealLabel={t('settings.open_log_folder')} />
   </SettingsSection>
 </Dialog>
 
@@ -281,38 +246,5 @@
     margin-top: 4px;
     color: var(--text-dim);
     font-weight: 600;
-  }
-  .driver {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    color: var(--text);
-  }
-  .driver :global(svg) {
-    color: var(--ok);
-  }
-  .driver.missing :global(svg) {
-    color: var(--warning);
-  }
-  .state {
-    margin-left: auto;
-    color: var(--warning);
-    font-size: var(--fs-s);
-  }
-  .dir {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  code {
-    flex: 1;
-    font-family: var(--mono);
-    font-size: var(--fs-s);
-    color: var(--text-dim);
-    background: var(--bg-2);
-    border-radius: var(--radius-s);
-    padding: 6px 8px;
-    overflow-wrap: anywhere;
-    user-select: text;
   }
 </style>
