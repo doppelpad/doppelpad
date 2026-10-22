@@ -9,11 +9,9 @@ use dp_core::pad::{
 
 use super::codes::*;
 pub use crate::nintendo::NINTENDO_VID;
-use crate::nintendo::imu_to_pad;
+use crate::nintendo::{imu_to_pad, pid};
 use crate::sony::{SONY_VID, SonyModel, model_for};
-use crate::{JoyConSide, PadFamily};
-
-pub const MICROSOFT_VID: u16 = 0x045E;
+use crate::{JoyConSide, MICROSOFT_VID, PadFamily};
 
 /// Value range of one absolute axis (`struct input_absinfo`).
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
@@ -67,9 +65,9 @@ pub fn joycon_side(vendor: u16, product: u16, name: &str) -> Option<JoyConSide> 
     if vendor != NINTENDO_VID || !name.contains("Joy-Con") || name.contains("Combined") {
         return None;
     }
-    if name.contains("Left") || (product == 0x2006 && !name.contains("Right")) {
+    if name.contains("Left") || (product == pid::JOYCON_L && !name.contains("Right")) {
         Some(JoyConSide::Left)
-    } else if name.contains("Right") || product == 0x2007 {
+    } else if name.contains("Right") || product == pid::JOYCON_R {
         Some(JoyConSide::Right)
     } else {
         None
@@ -105,7 +103,7 @@ pub fn family_for(vendor: u16, product: u16) -> PadFamily {
         MICROSOFT_VID => PadFamily::Xbox,
         // Joy-Con (L) and joycond's combined Joy-Cons; the right Joy-Con shares its PID with
         // the NES controllers, see [`joycon_side`].
-        NINTENDO_VID if matches!(product, 0x2006 | 0x2008) => PadFamily::JoyCon,
+        NINTENDO_VID if matches!(product, pid::JOYCON_L | pid::JOYCOND_PAIR) => PadFamily::JoyCon,
         NINTENDO_VID => PadFamily::SwitchPro,
         _ => PadFamily::Generic,
     }

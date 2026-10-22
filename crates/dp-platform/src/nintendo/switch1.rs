@@ -10,7 +10,7 @@ use std::time::{Duration, Instant};
 
 use dp_core::pad::{Axis, Motion, PadState, Rumble};
 
-use super::{NINTENDO_VID, StickCal, apply_buttons, imu_to_pad};
+use super::{CAL_MAGIC, FIRST_PLAYER, NINTENDO_VID, StickCal, apply_buttons, imu_to_pad, pid};
 use crate::nintendo::player_mask;
 use crate::padio::{Identity, InitError, PadDriver, ReportIo, RumblePacer, pause};
 use crate::report::{le_i16, unpack12};
@@ -49,7 +49,6 @@ const SPI_FACTORY_STICKS: u32 = 0x603D;
 const SPI_USER_STICKS: u32 = 0x8010;
 const SPI_FACTORY_IMU: u32 = 0x6020;
 const SPI_USER_IMU: u32 = 0x8026;
-const CAL_MAGIC: [u8; 2] = [0xB2, 0xA1];
 
 /// Controller type byte (device-info reply / USB status reply).
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -89,14 +88,14 @@ impl ControllerType {
     /// Type to assume when the pad does not tell (or for the slot of a charging grip).
     pub fn fallback(vid: u16, pid: u16, grip_slot: Option<JoyConSide>) -> Self {
         match (vid, pid) {
-            (NINTENDO_VID, 0x2006) => ControllerType::JoyConLeft,
-            (NINTENDO_VID, 0x200E) if grip_slot == Some(JoyConSide::Left) => {
+            (NINTENDO_VID, pid::JOYCON_L) => ControllerType::JoyConLeft,
+            (NINTENDO_VID, pid::CHARGING_GRIP) if grip_slot == Some(JoyConSide::Left) => {
                 ControllerType::JoyConLeft
             }
-            (NINTENDO_VID, 0x2007 | 0x200E) => ControllerType::JoyConRight,
-            (NINTENDO_VID, 0x2017) => ControllerType::Snes,
-            (NINTENDO_VID, 0x2019) => ControllerType::N64,
-            (NINTENDO_VID, 0x201E) => ControllerType::Genesis,
+            (NINTENDO_VID, pid::JOYCON_R | pid::CHARGING_GRIP) => ControllerType::JoyConRight,
+            (NINTENDO_VID, pid::SNES) => ControllerType::Snes,
+            (NINTENDO_VID, pid::N64) => ControllerType::N64,
+            (NINTENDO_VID, pid::GENESIS) => ControllerType::Genesis,
             (NINTENDO_VID, _) => ControllerType::Pro,
             _ => ControllerType::LicensedPro,
         }
@@ -288,7 +287,7 @@ pub struct Calibration {
 
 impl Default for Calibration {
     fn default() -> Self {
-        let unset = StickCal::switch1((0xFFF, 0xFFF), (0xFFF, 0xFFF), (0xFFF, 0xFFF));
+        let unset = StickCal::switch1_unset();
         Calibration {
             left: unset,
             right: unset,
@@ -435,7 +434,7 @@ pub struct Link {
 
 impl Link {
     fn is_grip(&self) -> bool {
-        (self.vid, self.pid) == (NINTENDO_VID, 0x200E)
+        (self.vid, self.pid) == (NINTENDO_VID, pid::CHARGING_GRIP)
     }
 }
 
@@ -490,7 +489,7 @@ impl Switch1Driver {
             imu_seen: false,
             battery: None,
             player_want: None,
-            player_sent: Some(0x01),
+            player_sent: Some(FIRST_PLAYER),
             imu_lost: false,
             last_imu_fix: None,
             now: None,
@@ -624,7 +623,7 @@ impl Switch1Driver {
         };
         if let Some(ty) = byte.and_then(ControllerType::from_byte) {
             // The N64 controller reports itself as a Pro Controller over USB.
-            self.ty = if ty == ControllerType::Pro && self.link.pid == 0x2019 {
+            self.ty = if ty == ControllerType::Pro && self.link.pid == pid::N64 {
                 ControllerType::N64
             } else {
                 ty
@@ -715,7 +714,7 @@ impl Switch1Driver {
         if self.usb_handshake(io)? {
             self.start_reports(io)?;
             // A reset also put out the player lights.
-            let mask = self.player_want.unwrap_or(0x01);
+            let mask = self.player_want.unwrap_or(FIRST_PLAYER);
             self.subcommand(io, SUB_PLAYER_LEDS, &[mask])?;
             self.player_sent = Some(mask);
         }
@@ -741,7 +740,7 @@ impl PadDriver for Switch1Driver {
             self.load_imu_calibration(io)?;
         }
         self.start_reports(io)?;
-        self.subcommand(io, SUB_PLAYER_LEDS, &[0x01])?;
+        self.subcommand(io, SUB_PLAYER_LEDS, &[FIRST_PLAYER])?;
         if ty.has_home_led() {
             self.subcommand(io, SUB_HOME_LED, &[0x01, 0xF0, 0xF0, 0x00])?;
         }

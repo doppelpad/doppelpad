@@ -23,14 +23,14 @@ use windows_sys::Win32::System::IO::{
 use windows_sys::Win32::System::Threading::CreateEventW;
 
 use super::OwnedHandle;
-use crate::sony::{DS4_REPORT_LEN, Ds4Calibration, Ds4ReportBuilder};
+use crate::sony::{DS4_REPORT_LEN, DS4_V1_PID, Ds4Calibration, Ds4ReportBuilder, SONY_VID};
 use crate::{PlatformError, Result, VirtualPad, VirtualPadFactory, VirtualPadKind};
 
 fn vigem_err(e: vigem_client::Error) -> PlatformError {
     match e {
         vigem_client::Error::BusNotFound => PlatformError::DriverMissing(
             "ViGEmBus",
-            "install it from https://github.com/nefarius/ViGEmBus/releases".into(),
+            format!("install it from {}", crate::VIGEM_RELEASES),
         ),
         other => PlatformError::Other(format!("ViGEmBus: {other}")),
     }
@@ -159,8 +159,6 @@ const IOCTL_DS4_SUBMIT_REPORT: u32 = 0x2A_A80C;
 const IOCTL_DS4_REQUEST_NOTIFICATION: u32 = 0x2A_A810;
 
 const TARGET_TYPE_DUALSHOCK4: i32 = 2;
-const DS4_VID: u16 = 0x054C;
-const DS4_PID: u16 = 0x05C4;
 /// Serial numbers tried when plugging in; the bus refuses ones that are taken.
 const MAX_SERIAL: u32 = 1024;
 
@@ -289,8 +287,8 @@ impl Ds4Pad {
                 size: size_of::<PluginTarget>(),
                 serial: candidate,
                 target_type: TARGET_TYPE_DUALSHOCK4,
-                vendor: DS4_VID,
-                product: DS4_PID,
+                vendor: SONY_VID,
+                product: DS4_V1_PID,
             };
             match bus_request(bus, &event, IOCTL_PLUGIN_TARGET, &mut req, false) {
                 Ok(()) => {

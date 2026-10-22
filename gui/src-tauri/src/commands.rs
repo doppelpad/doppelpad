@@ -188,8 +188,8 @@ pub fn config_from_template(
 #[tauri::command]
 pub fn open_driver_page(driver: String) -> CmdResult<()> {
     let url = match driver.as_str() {
-        "virtual_pads" => "https://github.com/nefarius/ViGEmBus/releases",
-        "device_hiding" => "https://github.com/nefarius/HidHide/releases",
+        "virtual_pads" => dp_platform::VIGEM_RELEASES,
+        "device_hiding" => dp_platform::HIDHIDE_RELEASES,
         _ => return Err(format!("unknown driver {driver}")),
     };
     #[cfg(windows)]

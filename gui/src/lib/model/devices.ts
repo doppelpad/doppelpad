@@ -15,6 +15,7 @@ const SONY = 0x054c;
 const NINTENDO = 0x057e;
 const VALVE = 0x28de;
 
+// The Nintendo ids mirror `nintendo::pid` in crates/dp-platform/src/nintendo/mod.rs.
 const DUALSENSE_EDGE = 0x0df2;
 const SWITCH2_PRO = 0x2069;
 /** Joy-Con 2 (R), Joy-Con 2 (L) and a combined Joy-Con 2 pair. */

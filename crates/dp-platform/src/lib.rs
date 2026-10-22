@@ -34,6 +34,13 @@ pub mod joycon;
 pub mod nintendo;
 mod null;
 pub mod padio;
+
+/// Microsoft's USB vendor id (Xbox controllers).
+pub const MICROSOFT_VID: u16 = 0x045E;
+/// Where the ViGEmBus driver (virtual pads on Windows) is downloaded.
+pub const VIGEM_RELEASES: &str = "https://github.com/nefarius/ViGEmBus/releases";
+/// Where the HidHide driver (hiding devices on Windows) is downloaded.
+pub const HIDHIDE_RELEASES: &str = "https://github.com/nefarius/HidHide/releases";
 pub(crate) mod report;
 pub mod sony;
 pub mod steam;
