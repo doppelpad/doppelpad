@@ -90,7 +90,7 @@
       <label class="color">
         <span>{t('crosshairs.offset')}</span>
         <input type="number" value={f.offset[0]} {disabled} onchange={(e) => offset(i, c, 0, e.currentTarget.value)} />
-        <input type="number" value={f.offset[1]} {disabled} onchange={(e) => offset(i, c, 1, e.currentTarget.value)} />
+        <input type="number" value={f.offset[1]} aria-label={t('crosshairs.offset_y')} {disabled} onchange={(e) => offset(i, c, 1, e.currentTarget.value)} />
         <span class="unit">px</span>
       </label>
     </div>

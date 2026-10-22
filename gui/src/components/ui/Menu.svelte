@@ -48,7 +48,15 @@
 <svelte:window onclick={onWindowClick} onkeydown={(e) => e.key === 'Escape' && (open = false)} />
 
 <div class="menu" bind:this={root}>
-  <button type="button" class="trigger" {title} onclick={() => (open = !open)}>
+  <button
+    type="button"
+    class="trigger"
+    {title}
+    aria-label={title || undefined}
+    aria-haspopup="menu"
+    aria-expanded={open}
+    onclick={() => (open = !open)}
+  >
     {@render trigger()}
   </button>
   {#if open}

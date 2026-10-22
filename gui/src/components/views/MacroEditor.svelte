@@ -228,9 +228,9 @@
           {/if}
           {#if !app.readOnly}
             <span class="tools">
-              <button class="icon-btn" disabled={i === 0} onclick={() => move(i, -1)}><ArrowUp size={14} /></button>
-              <button class="icon-btn" disabled={i === steps.length - 1} onclick={() => move(i, 1)}><ArrowDown size={14} /></button>
-              <button class="icon-btn" onclick={() => setSteps(steps.filter((_, j) => j !== i))}><X size={14} /></button>
+              <button class="icon-btn" title={t('macro.move_up')} disabled={i === 0} onclick={() => move(i, -1)}><ArrowUp size={14} /></button>
+              <button class="icon-btn" title={t('macro.move_down')} disabled={i === steps.length - 1} onclick={() => move(i, 1)}><ArrowDown size={14} /></button>
+              <button class="icon-btn" title={t('common.remove')} onclick={() => setSteps(steps.filter((_, j) => j !== i))}><X size={14} /></button>
             </span>
           {/if}
         </div>

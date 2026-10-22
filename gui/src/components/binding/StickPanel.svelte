@@ -87,7 +87,7 @@
     />
     <figure class="graph">
       <div class="plot">
-        <svg viewBox="0 0 {W} {H}" preserveAspectRatio="none" aria-label={t('binding.response_graph')}>
+        <svg viewBox="0 0 {W} {H}" preserveAspectRatio="none" role="img" aria-label={t('binding.response_graph')}>
           <rect class="dz" x="0" y="0" width={r.deadzone * W} height={H} />
           <rect class="full" x={r.outer * W} y="0" width={(1 - r.outer) * W} height={H} />
           <line class="grid" x1="0" y1={H / 2} x2={W} y2={H / 2} />

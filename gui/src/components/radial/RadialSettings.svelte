@@ -119,10 +119,11 @@
         {@const Icon = s.icon ? RADIAL_ICONS[s.icon] : undefined}
         <div class="sector">
           <span class="snum">{k + 1}</span>
-          <input class="slabel" value={s.label ?? ''} placeholder={t('radial.label')} {disabled} onchange={(e) => app.edit((p) => updateSector(p, i, k, { label: e.currentTarget.value.trim() || undefined }))} />
+          <input class="slabel" value={s.label ?? ''} placeholder={t('radial.label')} aria-label={t('radial.label')} {disabled} onchange={(e) => app.edit((p) => updateSector(p, i, k, { label: e.currentTarget.value.trim() || undefined }))} />
           <span class="icon">{#if Icon}<Icon size={16} />{/if}</span>
           <select
             value={isImageIcon(s.icon) ? '__image' : (s.icon ?? '')}
+            aria-label={t('radial.icon')}
             {disabled}
             title={isImageIcon(s.icon) ? s.icon : ''}
             onchange={(e) => {
@@ -136,7 +137,7 @@
             {#each ICONS as name (name)}<option value={name}>{name}</option>{/each}
             <option value="__file">{t('radial.pick_image')}</option>
           </select>
-          <input type="color" value={s.color || DEFAULT_SECTOR_COLOR} {disabled} onchange={(e) => app.edit((p) => updateSector(p, i, k, { color: e.currentTarget.value }))} />
+          <input type="color" value={s.color || DEFAULT_SECTOR_COLOR} aria-label={t('radial.color')} {disabled} onchange={(e) => app.edit((p) => updateSector(p, i, k, { color: e.currentTarget.value }))} />
           <select
             value={s.submenu ?? 0}
             {disabled}
