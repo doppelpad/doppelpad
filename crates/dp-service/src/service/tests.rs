@@ -810,3 +810,25 @@ fn keep_offline_pads_holds_a_controllers_session() {
     s.tick();
     assert!(owned(&s), "kept while it is away");
 }
+
+#[test]
+fn unrelated_settings_keep_the_idle_time() {
+    let dir = tempfile::tempdir().unwrap();
+    let (t, world) = TestService::fake(dir.path(), &[("p1", PadFamily::DualSense)]);
+    let mut s = t.build();
+    s.handle(ServiceCmd::SetPowerOffAfter(1));
+    s.tick();
+    s.rt.advance_ms(40_000);
+    s.tick();
+    s.handle(ServiceCmd::SetBlocked {
+        id: "another".into(),
+        blocked: true,
+    });
+    s.rt.advance_ms(25_000);
+    s.tick();
+    assert_eq!(
+        world.lock().unwrap().powered_off.len(),
+        1,
+        "the idle minute counts on through the change"
+    );
+}

@@ -127,7 +127,8 @@ impl Service {
             ServiceCmd::SetRemap(on) => self.set_remap(on),
             ServiceCmd::SetSuspended(on) => self.set_suspended(on),
             ServiceCmd::SetPreferredDevice(id) => {
-                self.rt.set_preferred_device(id.map(dp_platform::DeviceId::from));
+                self.rt
+                    .set_preferred_device(id.map(dp_platform::DeviceId::from));
                 ServiceReply::Ok("device preference set".into())
             }
             ServiceCmd::SetAutoSwitch(on) => {
@@ -323,7 +324,7 @@ impl Service {
         if blocked {
             self.state.blocked.push(id);
         }
-        self.apply_device_policy();
+        self.apply_policy();
         self.save_state();
         ServiceReply::Ok(
             if blocked {
@@ -340,7 +341,7 @@ impl Service {
             Some(e) => ServiceReply::Err(e),
             None => {
                 self.state.groups = groups;
-                self.apply_device_policy();
+                self.apply_policy();
                 self.save_state();
                 ServiceReply::Ok("device groups set".into())
             }
@@ -349,7 +350,7 @@ impl Service {
 
     fn set_power_off_after(&mut self, minutes: u32) -> ServiceReply {
         self.state.power_off_after_min = minutes;
-        self.apply_device_policy();
+        self.apply_power_off();
         self.save_state();
         ServiceReply::Ok(match minutes {
             0 => "controllers stay on".into(),
@@ -363,7 +364,7 @@ impl Service {
             None => {
                 self.state.layouts.retain(|l| l.device != layout.device);
                 self.state.layouts.push(layout);
-                self.apply_device_policy();
+                self.apply_layouts();
                 self.save_state();
                 ServiceReply::Ok("layout saved".into())
             }
@@ -410,7 +411,7 @@ impl Service {
 
     fn forget_layout(&mut self, device: String) -> ServiceReply {
         self.state.layouts.retain(|l| l.device != device);
-        self.apply_device_policy();
+        self.apply_layouts();
         self.save_state();
         ServiceReply::Ok("layout removed".into())
     }

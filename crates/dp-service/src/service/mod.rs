@@ -247,7 +247,9 @@ impl Service {
             calibration_save: Every::new(CALIBRATION_SAVE_MS),
             opts,
         };
-        svc.apply_device_policy();
+        svc.apply_policy();
+        svc.apply_layouts();
+        svc.apply_power_off();
         svc.apply_dsu();
         svc.apply_http();
         svc.rt.set_prevent_sleep(svc.state.runtime.prevent_sleep);
@@ -453,12 +455,21 @@ impl Service {
         }
     }
 
-    fn apply_device_policy(&mut self) {
+    /// Blocked devices and device groups.
+    fn apply_policy(&mut self) {
         self.rt.set_device_policy(DevicePolicy {
             blocked: self.state.blocked.clone(),
             groups: self.state.groups.clone(),
         });
+    }
+
+    /// How generic pads' inputs map to pad controls.
+    fn apply_layouts(&mut self) {
         self.rt.set_layouts(self.state.layouts.clone());
+    }
+
+    /// Turning idle controllers off (setting it starts their idle time anew).
+    fn apply_power_off(&mut self) {
         let minutes = self.state.power_off_after_min;
         self.rt.set_power_off_after(
             (minutes > 0).then(|| std::time::Duration::from_secs(u64::from(minutes) * 60)),
