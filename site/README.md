@@ -23,3 +23,5 @@ npm run check
 
 The site makes no third-party requests: the font is bundled (`@fontsource-variable/inter`),
 and there are no analytics and no CDNs. Keep it that way, since the privacy policy says so.
+Inter's license travels with its font files as `/licenses/inter.txt`
+(`src/pages/licenses/inter.txt.ts`, taken from the package), linked in the footer.
