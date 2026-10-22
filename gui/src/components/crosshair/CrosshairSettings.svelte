@@ -27,7 +27,7 @@
   const full = (c: Crosshair) => crosshairConfig(c, def);
 
   function set(i: number, patch: Partial<Crosshair>) {
-    if (app.profile) app.update(updateCrosshair(app.profile, i, patch));
+    app.edit((p) => updateCrosshair(p, i, patch));
   }
 
   function toggleLayer(i: number, c: Crosshair, id: number, on: boolean) {
@@ -56,7 +56,7 @@
       <span class="num">{i + 1}</span>
       <input class="name" value={c.name ?? ''} placeholder={t('crosshairs.name')} {disabled} onchange={(e) => set(i, { name: e.currentTarget.value.trim() || undefined })} />
       {#if !disabled}
-        <button class="icon-btn del" title={t('crosshairs.remove')} onclick={() => app.profile && app.update(removeCrosshair(app.profile, i))}>
+        <button class="icon-btn del" title={t('crosshairs.remove')} onclick={() => app.edit((p) => removeCrosshair(p, i))}>
           <Trash2 size={15} />
         </button>
       {/if}
@@ -125,7 +125,7 @@
 {/each}
 
 {#if !disabled && crosshairs.length < MAX_CROSSHAIRS}
-  <button class="btn add" onclick={() => app.profile && app.update(addCrosshair(app.profile))}>
+  <button class="btn add" onclick={() => app.edit(addCrosshair)}>
     <Plus size={14} />
     {t('crosshairs.add')}
   </button>

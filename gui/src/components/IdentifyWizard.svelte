@@ -3,7 +3,7 @@
   // input that moves, and saves the result as the layout of this controller model.
   import { X } from '@lucide/svelte';
   import { untrack } from 'svelte';
-  import { api, errorText } from '../lib/api';
+  import { api } from '../lib/api';
   import { t } from '../lib/i18n/index.svelte';
   import { controlLabel } from '../lib/model/controls';
   import { STEPS, buildLayout, detect, modelKey, settled, type Hit, type Step } from '../lib/model/identify';
@@ -71,14 +71,9 @@
 
   const found = $derived(hits.filter(Boolean).length);
 
-  async function run(p: Promise<unknown>, done: string) {
-    try {
-      await p;
-      app.toast(done, 'ok');
-      onclose();
-    } catch (e) {
-      app.toast(errorText(e), 'error');
-    }
+  /** Store or forget the layout; the wizard closes when that worked. */
+  async function finish(p: Promise<unknown>, done: string) {
+    if (await app.attempt(p, done)) onclose();
   }
 
   /** Short text of the raw input, so the user sees the pad answer. */
@@ -112,7 +107,7 @@
       <p>{t('identify.intro')}</p>
       <div class="actions">
         {#if known}
-          <button class="btn" onclick={() => run(api.forgetLayout(key), t('identify.forgotten'))}>{t('identify.forget')}</button>
+          <button class="btn" onclick={() => finish(api.forgetLayout(key), t('identify.forgotten'))}>{t('identify.forget')}</button>
         {/if}
         <button class="btn primary" onclick={start}>{t('identify.start')}</button>
       </div>
@@ -128,7 +123,7 @@
       <p>{t('identify.done', { n: found, of: STEPS.length })}</p>
       <div class="actions">
         <button class="btn" onclick={start}>{t('identify.again')}</button>
-        <button class="btn primary" disabled={found === 0} onclick={() => run(api.setLayout(buildLayout(key, hits)), t('identify.saved'))}>
+        <button class="btn primary" disabled={found === 0} onclick={() => finish(api.setLayout(buildLayout(key, hits)), t('identify.saved'))}>
           {t('identify.save')}
         </button>
       </div>

@@ -106,6 +106,7 @@
   // Controller recording follows the live snapshots of the controller in use.
   let padRecording = $state(false);
   let padBefore = new Set<ControlName>();
+  let releasePresses = () => {};
 
   function togglePadRecording() {
     padRecording = !padRecording;
@@ -114,7 +115,8 @@
     padBefore = new Set(app.pressed);
     lastEventAt = 0;
     // Presses must not select controls in the drawing meanwhile.
-    app.pressListener = padRecording ? () => {} : null;
+    if (padRecording) releasePresses = app.capturePresses();
+    else releasePresses();
   }
 
   $effect(() => {
@@ -136,7 +138,7 @@
 
   onDestroy(() => {
     recording = false;
-    if (padRecording) app.pressListener = null;
+    if (padRecording) releasePresses();
   });
 </script>
 

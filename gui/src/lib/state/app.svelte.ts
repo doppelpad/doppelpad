@@ -111,8 +111,8 @@ class AppState {
   prompt = $state<PromptRequest | null>(null);
   copiedLayer = $state.raw<LayerCopy | null>(null);
 
-  /** Listeners for physical controller presses (shortcut recording overrides selection). */
-  pressListener: ((c: ControlName) => void) | null = null;
+  /** Who gets the controller's presses instead of the editor (see `capturePresses`). */
+  private pressListener: ((c: ControlName) => void) | null = null;
   /** Controls held on the primary controller; the drawing highlights exactly these. */
   pressed = $state.raw(new Set<ControlName>());
   private toastId = 0;
@@ -190,19 +190,83 @@ class AppState {
     this.view = sideShowing(drawingsFor(this.primary), this.view, c);
   }
 
-  async setSettings(patch: Partial<GuiSettings>) {
-    const next = { ...this.settings, ...patch };
+  /**
+   * Send the controller's presses to `fn` instead of selecting controls (without `fn` they just
+   * stay away from the editor) until the returned function is called. That call does nothing
+   * once another caller has taken the presses over.
+   */
+  capturePresses(fn: (c: ControlName) => void = () => {}): () => void {
+    this.pressListener = fn;
+    return () => {
+      if (this.pressListener === fn) this.pressListener = null;
+    };
+  }
+
+  /** Await `p`; when it fails, show why, else show `ok` if given. Returns whether it worked. */
+  async attempt(p: Promise<unknown>, ok?: string): Promise<boolean> {
     try {
-      await api.settingsSet(next);
-      this.settings = next;
-      setLanguage(next.language);
+      await p;
     } catch (e) {
       this.toast(errorText(e), 'error');
+      return false;
+    }
+    if (ok) this.toast(ok, 'ok');
+    return true;
+  }
+
+  async setSettings(patch: Partial<GuiSettings>) {
+    const next = { ...this.settings, ...patch };
+    if (await this.attempt(api.settingsSet(next))) {
+      this.settings = next;
+      setLanguage(next.language);
     }
   }
 
   async refreshLibrary() {
     this.library = await api.libraryScan();
+  }
+
+  /** List the library again and open `path`, a config that was just made. */
+  async openCreated(path: string) {
+    await this.refreshLibrary();
+    await this.openConfig(path);
+  }
+
+  /** Open the config `made` resolves to once it is on disk; failures are shown. */
+  createConfig(made: Promise<string>): Promise<boolean> {
+    return this.attempt(made.then((path) => this.openCreated(path)));
+  }
+
+  /** Ask for a name, then make an empty config in the open game and open it. */
+  async newConfig(suggested = '') {
+    const dir = this.gameDir;
+    if (!dir) return;
+    const name = await this.ask(t('header.new_config_name'), suggested);
+    if (name) await this.createConfig(api.configCreate(dir, name));
+  }
+
+  /** List the library again and open `g`, a game that was just made. */
+  async openCreatedGame(g: Game) {
+    await this.refreshLibrary();
+    await this.selectGame(g.dir);
+  }
+
+  /** Make a game called `name` and open it. */
+  createGame(name: string): Promise<boolean> {
+    return this.attempt(
+      api.gameCreate(name).then((g) => this.openCreatedGame(g)),
+      t('notices.game_created', { name }),
+    );
+  }
+
+  /** Unpack a game bundle into a new game and open it. */
+  importGame(file: string): Promise<boolean> {
+    return this.attempt(
+      api.gameImport(file).then(async (g) => {
+        await this.openCreatedGame(g);
+        this.toast(t('profiles.imported', { name: g.meta.name }), 'ok');
+      }),
+    );
   }
 
   /** Quit reWASD so Doppelpad can read the controllers. */
@@ -274,10 +338,15 @@ class AppState {
     }
   }
 
-  /** Replace the draft profile (all edits go through here). */
+  /** Replace the draft profile with one computed from it (all edits go through here). */
   update(p: Profile) {
     if (this.readOnly) return;
     this.profile = p;
+  }
+
+  /** Change the draft profile; nothing happens without one or when it is read-only. */
+  edit(change: (p: Profile) => Profile) {
+    if (this.profile) this.update(change(this.profile));
   }
 
   async save(): Promise<boolean> {
@@ -306,12 +375,8 @@ class AppState {
       return;
     }
     if (this.dirty && !(await this.save())) return;
-    try {
-      await api.applyToSlot(this.applySlot, this.configPath, this.slotSet.device);
-      this.toast(t('remap.applied', { n: this.applySlot + 1 }), 'ok');
-    } catch (e) {
-      this.toast(errorText(e), 'error');
-    }
+    const slot = this.applySlot;
+    await this.attempt(api.applyToSlot(slot, this.configPath, this.slotSet.device), t('remap.applied', { n: slot + 1 }));
   }
 
   /** This layer's mapping for a trigger + activator, else the one inherited from Main. */

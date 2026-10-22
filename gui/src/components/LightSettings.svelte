@@ -21,8 +21,8 @@
   const light = $derived({ ...def, ...own } as Required<Light>);
 
   function set(patch: Partial<Light> | undefined) {
-    if (!app.profile) return;
-    app.update(setLight(app.profile, layer, patch === undefined ? undefined : { ...own, ...patch }));
+
+    app.edit((p) => setLight(p, layer, patch === undefined ? undefined : { ...own, ...patch }));
   }
 
   function setColor(i: number, c: string) {

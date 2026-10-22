@@ -2,7 +2,7 @@
   // The local HTTP API for stream decks and scripts (see docs/API.md): off by default; this
   // computer only unless the network is allowed, and then only with the token.
   import { Copy, RefreshCw } from '@lucide/svelte';
-  import { api, errorText } from '../lib/api';
+  import { api } from '../lib/api';
   import { t } from '../lib/i18n/index.svelte';
   import { app } from '../lib/state/app.svelte';
   import type { HttpSettings } from '../lib/types';
@@ -10,26 +10,15 @@
 
   const http = $derived(app.live?.http ?? null);
 
-  async function run(p: Promise<unknown>) {
-    try {
-      await p;
-      return true;
-    } catch (e) {
-      app.toast(errorText(e), 'error');
-      return false;
-    }
-  }
-
-  const set = (patch: Partial<HttpSettings>) => http && run(api.setHttp({ ...http.settings, ...patch }));
+  const set = (patch: Partial<HttpSettings>) => http && app.attempt(api.setHttp({ ...http.settings, ...patch }));
 
   function setPort(v: string) {
     const port = Number(v);
     if (Number.isInteger(port) && port > 0 && port < 65536) set({ port });
   }
 
-  async function copyToken() {
-    if (!http) return;
-    if (await run(navigator.clipboard.writeText(http.settings.token))) app.toast(t('settings.http.copied'), 'ok');
+  function copyToken() {
+    if (http) app.attempt(navigator.clipboard.writeText(http.settings.token), t('settings.http.copied'));
   }
 </script>
 
@@ -48,7 +37,7 @@
         <span>{t('settings.http.token')}</span>
         <code>{http.settings.token}</code>
         <button class="icon-btn" title={t('settings.http.copy')} onclick={copyToken}><Copy size={14} /></button>
-        <button class="icon-btn" title={t('settings.http.new_token')} onclick={() => run(api.newHttpToken())}><RefreshCw size={14} /></button>
+        <button class="icon-btn" title={t('settings.http.new_token')} onclick={() => app.attempt(api.newHttpToken())}><RefreshCw size={14} /></button>
       </div>
     {/if}
     {#if http.error}

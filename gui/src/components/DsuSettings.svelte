@@ -1,7 +1,7 @@
 <script lang="ts">
   // The DSU ("cemuhook") motion server: emulators read the controllers' buttons, sticks and
   // gyro from it. Off by default; this computer only unless the network is allowed.
-  import { api, errorText } from '../lib/api';
+  import { api } from '../lib/api';
   import { t } from '../lib/i18n/index.svelte';
   import { app } from '../lib/state/app.svelte';
   import type { DsuSettings } from '../lib/types';
@@ -9,13 +9,8 @@
 
   const dsu = $derived(app.live?.dsu ?? null);
 
-  async function set(patch: Partial<DsuSettings>) {
-    if (!dsu) return;
-    try {
-      await api.setDsu({ ...dsu.settings, ...patch });
-    } catch (e) {
-      app.toast(errorText(e), 'error');
-    }
+  function set(patch: Partial<DsuSettings>) {
+    if (dsu) app.attempt(api.setDsu({ ...dsu.settings, ...patch }));
   }
 
   function setPort(v: string) {

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { Download, Ellipsis, FileText, Plus, Radar } from '@lucide/svelte';
   import { open, save } from '@tauri-apps/plugin-dialog';
-  import { api, confirmAsk, errorText } from '../lib/api';
+  import { api, confirmAsk } from '../lib/api';
   import { t } from '../lib/i18n/index.svelte';
   import { app } from '../lib/state/app.svelte';
   import { platform, win } from '../lib/state/window.svelte';
@@ -17,21 +17,13 @@
 
   async function addGame() {
     const name = await app.ask(t('profiles.new_name'));
-    if (!name) return;
-    try {
-      const g = await api.gameCreate(name);
-      await app.refreshLibrary();
-      await app.selectGame(g.dir);
-      app.toast(t('notices.game_created', { name }), 'ok');
-    } catch (e) {
-      app.toast(errorText(e), 'error');
-    }
+    if (name) await app.createGame(name);
   }
 
   async function renameGame(g: Game) {
     const name = await app.ask(t('common.rename'), g.meta.name);
     if (!name) return;
-    await api.gameUpdate(g.dir, { ...g.meta, name }).catch((e) => app.toast(errorText(e), 'error'));
+    await app.attempt(api.gameUpdate(g.dir, { ...g.meta, name }));
     await app.refreshLibrary();
   }
 
@@ -42,7 +34,7 @@
       .split(/[\n,;]/)
       .map((s) => s.trim())
       .filter(Boolean);
-    await api.gameUpdate(g.dir, { ...g.meta, processes }).catch((e) => app.toast(errorText(e), 'error'));
+    await app.attempt(api.gameUpdate(g.dir, { ...g.meta, processes }));
     await app.refreshLibrary();
   }
 
@@ -53,12 +45,7 @@
       filters: [{ name: t('profiles.bundle_filter'), extensions: ['dpgame'] }],
     });
     if (!out) return;
-    try {
-      await api.gameExport(g.dir, out);
-      app.toast(t('profiles.exported', { name: g.meta.name }), 'ok');
-    } catch (e) {
-      app.toast(errorText(e), 'error');
-    }
+    await app.attempt(api.gameExport(g.dir, out), t('profiles.exported', { name: g.meta.name }));
   }
 
   async function importGame() {
@@ -68,29 +55,20 @@
       directory: false,
       filters: [{ name: t('profiles.bundle_filter'), extensions: ['dpgame'] }],
     });
-    if (typeof file !== 'string') return;
-    try {
-      const g = await api.gameImport(file);
-      await app.refreshLibrary();
-      await app.selectGame(g.dir);
-      app.toast(t('profiles.imported', { name: g.meta.name }), 'ok');
-    } catch (e) {
-      app.toast(errorText(e), 'error');
-    }
+    if (typeof file === 'string') await app.importGame(file);
   }
 
   async function deleteGame(g: Game) {
     if (!(await confirmAsk(t('profiles.delete_confirm', { name: g.meta.name })))) return;
-    try {
-      await api.gameDelete(g.dir);
-      if (app.gameDir === g.dir) {
-        app.gameDir = null;
-        app.closeConfig();
-      }
-      await app.refreshLibrary();
-    } catch (e) {
-      app.toast(errorText(e), 'error');
-    }
+    await app.attempt(
+      api.gameDelete(g.dir).then(async () => {
+        if (app.gameDir === g.dir) {
+          app.gameDir = null;
+          app.closeConfig();
+        }
+        await app.refreshLibrary();
+      }),
+    );
   }
 
   function gameIsActive(g: Game): boolean {
@@ -130,7 +108,7 @@
           items={[
             { label: t('common.rename'), onclick: () => renameGame(g) },
             { label: t('profiles.autodetect') + '…', onclick: () => editProcesses(g) },
-            { label: t('common.reveal'), onclick: () => api.reveal(g.dir) },
+            { label: t('common.reveal'), onclick: () => app.attempt(api.reveal(g.dir)) },
             { label: t('profiles.export') + '…', onclick: () => exportGame(g) },
             { separator: true, label: '' },
             { label: t('common.delete'), danger: true, onclick: () => deleteGame(g) },

@@ -13,10 +13,9 @@
   const disabled = $derived(app.readOnly);
 
   function set(patch: Partial<Vibration>) {
-    if (!app.profile) return;
     const next = { ...v, ...patch };
     const same = (Object.keys(def) as (keyof Vibration)[]).every((k) => next[k] === def[k]);
-    app.update(setOrDrop(app.profile, 'vibration', same ? undefined : next));
+    app.edit((p) => setOrDrop(p, 'vibration', same ? undefined : next));
   }
 </script>
 

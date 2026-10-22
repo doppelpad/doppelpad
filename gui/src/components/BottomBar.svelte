@@ -14,7 +14,7 @@
     TriangleAlert,
     X,
   } from '@lucide/svelte';
-  import { api, errorText } from '../lib/api';
+  import { api } from '../lib/api';
   import { t } from '../lib/i18n/index.svelte';
   import { app } from '../lib/state/app.svelte';
   import type { Battery, LiveDevice } from '../lib/types';
@@ -66,21 +66,13 @@
     return lines.join('\n');
   });
 
-  async function run(p: Promise<unknown>) {
-    try {
-      await p;
-    } catch (e) {
-      app.toast(errorText(e), 'error');
-    }
-  }
-
   /** A controller with its own slots shows them; any other one uses (and drives) the shared ones. */
   function pick(d: LiveDevice) {
     if (ownIds.has(d.id)) {
       app.slotDevice = d.id;
     } else {
       app.slotDevice = null;
-      run(api.setPreferredDevice(d.id));
+      app.attempt(api.setPreferredDevice(d.id));
     }
   }
 
@@ -104,18 +96,18 @@
         label: t('devices.own_slots'),
         checked: own,
         onclick: async () => {
-          await run(api.ownSlots(d.id, !own));
+          await app.attempt(api.ownSlots(d.id, !own));
           app.slotDevice = own ? null : d.id;
         },
       },
       // Generic pads: which button is which.
       ...(d.family === 'generic' && d.raw ? [{ label: t('identify.menu'), onclick: () => (identify = d.id) }] : []),
       // Only wireless controllers can be told to turn off.
-      ...(d.battery && !d.battery.wired ? [{ label: t('devices.power_off'), onclick: () => run(api.powerOff(d.id)) }] : []),
+      ...(d.battery && !d.battery.wired ? [{ label: t('devices.power_off'), onclick: () => app.attempt(api.powerOff(d.id)) }] : []),
       // A group's own id cannot be ignored; its members can, in the settings.
       ...(d.id.startsWith('group:')
         ? []
-        : [{ label: t('devices.ignore'), onclick: () => run(api.setBlocked(d.id, true)) }]),
+        : [{ label: t('devices.ignore'), onclick: () => app.attempt(api.setBlocked(d.id, true)) }]),
     ];
   }
 
@@ -159,7 +151,7 @@
       aria-pressed={!!live?.remap_on}
       aria-label={t(live?.remap_on ? 'remap.on' : 'remap.off')}
       title={powerTitle}
-      onclick={() => run(api.setRemap(!live?.remap_on))}
+      onclick={() => app.attempt(api.setRemap(!live?.remap_on))}
     >
       {#if paused}<Pause size={15} />{:else}<Power size={15} />{/if}
     </button>
@@ -223,12 +215,12 @@
             class:active={set.active === i && live?.remap_on && !!slotNames[i]}
             class:failed={set.active === i && live?.remap_on && !!slotNames[i] && !set.session && (set.device === null || !!live?.devices.some((d) => d.id === set.device))}
             title={slotNames[i] ?? t('slots.empty')}
-            onclick={() => run(api.selectSlot(i, set.device))}
+            onclick={() => app.attempt(api.selectSlot(i, set.device))}
           >
             {i + 1}
           </button>
           {#if slotNames[i]}
-            <button class="unload" title={t('slots.unload')} onclick={() => run(api.clearSlot(i, set.device))}><X size={10} /></button>
+            <button class="unload" title={t('slots.unload')} onclick={() => app.attempt(api.clearSlot(i, set.device))}><X size={10} /></button>
           {/if}
         </div>
       {/each}

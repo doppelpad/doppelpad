@@ -98,6 +98,7 @@
     "from_template": "Neu aus Vorlage: {template}",
     "new_config": "Neue Config",
     "new_config_name": "Name der Config",
+    "default_config_name": "Standard",
     "import": "JSON-Profil importieren…",
     "import_title": "JSON-Profil importieren",
     "save": "Speichern",

@@ -30,7 +30,7 @@
   const inherited = (c: Combo) => !inheritance.notInherited.some((x) => sameCombo(x, c));
 
   function rename(name: string) {
-    if (app.profile && name.trim()) app.update(renameLayer(app.profile, layer, name.trim()));
+    if (name.trim()) app.edit((p) => renameLayer(p, layer, name.trim()));
   }
 </script>
 
@@ -55,7 +55,7 @@
         disabled={app.readOnly}
         onchange={(e) => {
           const v = e.currentTarget.value;
-          if (app.profile) app.update(setLayerUnlock(app.profile, layer, v === 'none' ? undefined : (v as Unlock)));
+          app.edit((p) => setLayerUnlock(p, layer, v === 'none' ? undefined : (v as Unlock)));
         }}
       >
         {#each UNLOCKS as u (u)}<option value={u}>{t(`layers.unlock_options.${u}`)}</option>{/each}
@@ -67,7 +67,7 @@
       checked={inheritance.inherit}
       disabled={app.readOnly}
       label={t('layers.inherit')}
-      onchange={(v) => app.profile && app.update(setLayerInherit(app.profile, layer, v))}
+      onchange={(v) => app.edit((p) => setLayerInherit(p, layer, v))}
     />
     <p class="hint">{t(inheritance.inherit ? 'layers.inherit_hint_on' : 'layers.inherit_hint_off')}</p>
 
@@ -85,7 +85,7 @@
                   checked={inherited(c)}
                   disabled={app.readOnly}
                   onchange={(e) =>
-                    app.profile && app.update(setTriggerInherited(app.profile, layer, c, e.currentTarget.checked))}
+                    app.edit((p) => setTriggerInherited(p, layer, c, e.currentTarget.checked))}
                 />
                 <span>{label(c)}</span>
               </label>

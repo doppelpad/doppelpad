@@ -3,7 +3,7 @@
   // controller and letting go, clear it, or change the hold time.
   import { CircleDot, X } from '@lucide/svelte';
   import { onDestroy } from 'svelte';
-  import { api, errorText } from '../lib/api';
+  import { api } from '../lib/api';
   import { t } from '../lib/i18n/index.svelte';
   import { controlLabel } from '../lib/model/controls';
   import { app } from '../lib/state/app.svelte';
@@ -13,10 +13,7 @@
   const MAX_BUTTONS = 4;
 
   let hotkeys = $state<Hotkeys | null>(null);
-  api
-    .hotkeysGet()
-    .then((h) => (hotkeys = h))
-    .catch((e) => app.toast(errorText(e), 'error'));
+  app.attempt(api.hotkeysGet().then((h) => (hotkeys = h)));
 
   let recording = $state<HotkeyField | null>(null);
   /** Buttons pressed since the recording started, in catalog order once saved. */
@@ -44,26 +41,24 @@
     buttons.length ? buttons.map((b) => controlLabel(b, app.family)).join(' + ') : t('hotkeys.none');
 
   async function save(next: Hotkeys) {
-    try {
-      await api.hotkeysSet(next);
-      hotkeys = next;
-    } catch (e) {
-      app.toast(errorText(e), 'error');
-    }
+    if (await app.attempt(api.hotkeysSet(next))) hotkeys = next;
   }
+
+  /** Gives the presses back to the editor. */
+  let releasePresses = () => {};
 
   async function start(field: HotkeyField) {
     await api.hotkeysPause(true).catch(() => {});
     seen = [];
     recording = field;
     // Presses must not select controls in the editor meanwhile.
-    app.pressListener = () => {};
+    releasePresses = app.capturePresses();
   }
 
   async function stop() {
     recording = null;
     seen = [];
-    app.pressListener = null;
+    releasePresses();
     await api.hotkeysPause(false).catch(() => {});
   }
 

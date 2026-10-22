@@ -1,7 +1,7 @@
 <script lang="ts">
   import { ChevronDown, Ellipsis, Save, Settings, Lock } from '@lucide/svelte';
   import { open, save } from '@tauri-apps/plugin-dialog';
-  import { api, confirmAsk, errorText } from '../lib/api';
+  import { api, confirmAsk } from '../lib/api';
   import { t } from '../lib/i18n/index.svelte';
   import { bindingsSheet } from '../lib/model/sheet';
   import { app } from '../lib/state/app.svelte';
@@ -14,30 +14,10 @@
 
   const configName = $derived(app.profile?.name || '—');
 
-  async function newConfig() {
-    if (!app.gameDir) return;
-    const name = await app.ask(t('header.new_config_name'));
-    if (!name) return;
-    try {
-      const path = await api.configCreate(app.gameDir, name);
-      await app.refreshLibrary();
-      await app.openConfig(path);
-    } catch (e) {
-      app.toast(errorText(e), 'error');
-    }
-  }
-
   const TEMPLATES: Template[] = ['virtual_xbox', 'virtual_ds4', 'desktop', 'keyboard_mouse'];
 
-  async function fromTemplate(tpl: Template) {
-    if (!app.gameDir) return;
-    try {
-      const path = await api.configFromTemplate(app.gameDir, t(`welcome.templates.${tpl}`), tpl);
-      await app.refreshLibrary();
-      await app.openConfig(path);
-    } catch (e) {
-      app.toast(errorText(e), 'error');
-    }
+  function fromTemplate(tpl: Template) {
+    if (app.gameDir) app.createConfig(api.configFromTemplate(app.gameDir, t(`welcome.templates.${tpl}`), tpl));
   }
 
   async function importJson() {
@@ -47,15 +27,13 @@
     }
     const source = await open({ title: t('header.import_title'), multiple: false, directory: false });
     if (typeof source !== 'string') return;
-    try {
-      const r = await api.configImport(app.gameDir, source);
-      await app.refreshLibrary();
-      await app.openConfig(r.path);
-      app.toast(t('notices.imported', { name: app.profile?.name ?? '' }), 'ok');
-      for (const d of r.diagnostics.filter((d) => d.severity !== 'info').slice(0, 3)) app.toast(d.message, 'info');
-    } catch (e) {
-      app.toast(errorText(e), 'error');
-    }
+    await app.attempt(
+      api.configImport(app.gameDir, source).then(async (r) => {
+        await app.openCreated(r.path);
+        app.toast(t('notices.imported', { name: app.profile?.name ?? '' }), 'ok');
+        for (const d of r.diagnostics.filter((d) => d.severity !== 'info').slice(0, 3)) app.toast(d.message, 'info');
+      }),
+    );
   }
 
   async function saveSheet() {
@@ -66,47 +44,35 @@
       filters: [{ name: 'HTML', extensions: ['html'] }],
     });
     if (!path) return;
-    try {
-      await api.sheetSave(path, bindingsSheet($state.snapshot(app.profile) as Profile, app.family));
-      app.toast(t('sheet.saved'), 'ok');
-    } catch (e) {
-      app.toast(errorText(e), 'error');
-    }
+    await app.attempt(api.sheetSave(path, bindingsSheet($state.snapshot(app.profile) as Profile, app.family)), t('sheet.saved'));
   }
 
   async function renameConfig() {
     if (!app.profile) return;
     const name = await app.ask(t('header.rename_config'), app.profile.name ?? '');
-    if (name) app.update({ ...app.profile, name });
+    if (name) app.edit((p) => ({ ...p, name }));
   }
 
   async function duplicate() {
     if (!app.configPath) return;
     if (app.dirty && !(await app.save())) return;
-    try {
-      const path = await api.configDuplicate(app.configPath);
-      await app.refreshLibrary();
-      await app.openConfig(path, true);
-    } catch (e) {
-      app.toast(errorText(e), 'error');
-    }
+    await app.createConfig(api.configDuplicate(app.configPath));
   }
 
   async function remove() {
     if (!app.configPath || !(await confirmAsk(t('header.delete_confirm', { name: configName })))) return;
-    try {
-      await api.configDelete(app.configPath);
-      app.closeConfig();
-      await app.refreshLibrary();
-      if (app.gameDir) await app.selectGame(app.gameDir);
-    } catch (e) {
-      app.toast(errorText(e), 'error');
-    }
+    await app.attempt(
+      api.configDelete(app.configPath).then(async () => {
+        app.closeConfig();
+        await app.refreshLibrary();
+        if (app.gameDir) await app.selectGame(app.gameDir);
+      }),
+    );
   }
 
   async function clearMappings() {
     if (!app.profile || !(await confirmAsk(t('header.clear_confirm')))) return;
-    if (app.profile) app.update({ ...app.profile, mappings: [] });
+    app.edit((p) => ({ ...p, mappings: [] }));
   }
 
   const configItems = $derived<MenuItem[]>([
@@ -116,7 +82,7 @@
       onclick: () => app.openConfig(c.path),
     })),
     { separator: true, label: '' },
-    { label: t('header.new_config') + '…', onclick: newConfig, disabled: !app.gameDir },
+    { label: t('header.new_config') + '…', onclick: () => app.newConfig(), disabled: !app.gameDir },
     { label: t('header.import'), onclick: importJson, disabled: !app.gameDir },
     ...TEMPLATES.map((tpl) => ({
       label: t('header.from_template', { template: t(`welcome.templates.${tpl}`) }),
@@ -129,7 +95,7 @@
     { label: t('header.rename_config') + '…', onclick: renameConfig, disabled: !app.profile || app.readOnly },
     { label: t('common.duplicate'), onclick: duplicate, disabled: !app.configPath },
     { label: t('sheet.menu') + '…', onclick: saveSheet, disabled: !app.profile },
-    { label: t('common.reveal'), onclick: () => app.configPath && api.reveal(app.configPath), disabled: !app.configPath },
+    { label: t('common.reveal'), onclick: () => app.configPath && app.attempt(api.reveal(app.configPath)), disabled: !app.configPath },
     { label: t('header.clear_mappings'), onclick: clearMappings, disabled: !app.profile || app.readOnly },
     { separator: true, label: '' },
     { label: t('common.delete'), danger: true, onclick: remove, disabled: !app.configPath },

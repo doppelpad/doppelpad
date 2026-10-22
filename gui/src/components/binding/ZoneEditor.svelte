@@ -93,19 +93,18 @@
   }
 
   function set(level: Level, axis: 'both' | 0 | 1, raw: string) {
-    if (!app.profile) return;
     const n = parseFloat(raw.replace(',', '.'));
     const v = Number.isFinite(n) ? Math.min(Math.max(n, 0), 100) / 100 : undefined;
     const zones = isStick
       ? setStickLevel(stickZones, level, axis, v, defaults)
       : setTriggerLevel(trigger?.zones, level, v);
-    app.update(withZones(app.profile, source, zones, app.layer));
+    app.edit((p) => withZones(p, source, zones, app.layer));
   }
 
   function setSeparate(on: boolean) {
     separate = on;
-    if (!on && app.profile && isElliptic(stickZones)) {
-      app.update(withZones(app.profile, source, setElliptic(stickZones, false), app.layer));
+    if (!on && isElliptic(stickZones)) {
+      app.edit((p) => withZones(p, source, setElliptic(stickZones, false), app.layer));
     }
   }
 

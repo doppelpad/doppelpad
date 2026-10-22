@@ -23,7 +23,7 @@
   let picking = $state<string | null>(null);
 
   function setMenu(i: number, patch: Partial<RadialMenu>) {
-    if (app.profile) app.update(updateMenu(app.profile, i, patch));
+    app.edit((p) => updateMenu(p, i, patch));
   }
 
   function addSector(i: number, m: RadialMenu) {
@@ -36,19 +36,18 @@
 
   function addAction(i: number, k: number, a: Action) {
     const s = app.profile?.radial_menus?.[i]?.sectors[k];
-    if (app.profile && s) app.update(updateSector(app.profile, i, k, { actions: [...(s.actions ?? []), a] }));
+    if (s) app.edit((p) => updateSector(p, i, k, { actions: [...(s.actions ?? []), a] }));
   }
 
   async function pickImage(i: number, k: number) {
     const file = await open({ multiple: false, filters: [{ name: 'Image', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'ico'] }] });
-    if (typeof file === 'string' && app.profile) app.update(updateSector(app.profile, i, k, { icon: file }));
+    if (typeof file === 'string') app.edit((p) => updateSector(p, i, k, { icon: file }));
   }
 
   function newMenu() {
-    if (!app.profile) return;
     const used = new Set(menus.map((m) => m.layer));
     const free = layers.find((l) => !used.has(l)) ?? 0;
-    app.update(addMenu(app.profile, free));
+    app.edit((p) => addMenu(p, free));
   }
 </script>
 
@@ -69,7 +68,7 @@
       <span class="num">{i + 1}</span>
       <input class="name" value={m.name ?? ''} placeholder={t('radial.name')} {disabled} onchange={(e) => setMenu(i, { name: e.currentTarget.value.trim() || undefined })} />
       {#if !disabled}
-        <button class="icon-btn del" title={t('radial.remove')} onclick={() => app.profile && app.update(removeMenu(app.profile, i))}><Trash2 size={15} /></button>
+        <button class="icon-btn del" title={t('radial.remove')} onclick={() => app.edit((p) => removeMenu(p, i))}><Trash2 size={15} /></button>
       {/if}
     </header>
 
@@ -108,7 +107,7 @@
         {@const Icon = s.icon ? RADIAL_ICONS[s.icon] : undefined}
         <div class="sector">
           <span class="snum">{k + 1}</span>
-          <input class="slabel" value={s.label ?? ''} placeholder={t('radial.label')} {disabled} onchange={(e) => app.profile && app.update(updateSector(app.profile, i, k, { label: e.currentTarget.value.trim() || undefined }))} />
+          <input class="slabel" value={s.label ?? ''} placeholder={t('radial.label')} {disabled} onchange={(e) => app.edit((p) => updateSector(p, i, k, { label: e.currentTarget.value.trim() || undefined }))} />
           <span class="icon">{#if Icon}<Icon size={16} />{/if}</span>
           <select
             value={isImageIcon(s.icon) ? '__image' : (s.icon ?? '')}
@@ -117,7 +116,7 @@
             onchange={(e) => {
               const v = e.currentTarget.value;
               if (v === '__file') pickImage(i, k);
-              else if (v !== '__image' && app.profile) app.update(updateSector(app.profile, i, k, { icon: v || undefined }));
+              else if (v !== '__image') app.edit((p) => updateSector(p, i, k, { icon: v || undefined }));
             }}
           >
             <option value="">{t('radial.no_icon')}</option>
@@ -125,14 +124,14 @@
             {#each ICONS as name (name)}<option value={name}>{name}</option>{/each}
             <option value="__file">{t('radial.pick_image')}</option>
           </select>
-          <input type="color" value={s.color || '#14b8a6'} {disabled} onchange={(e) => app.profile && app.update(updateSector(app.profile, i, k, { color: e.currentTarget.value }))} />
+          <input type="color" value={s.color || '#14b8a6'} {disabled} onchange={(e) => app.edit((p) => updateSector(p, i, k, { color: e.currentTarget.value }))} />
           <select
             value={s.submenu ?? 0}
             {disabled}
             title={t('radial.submenu')}
             onchange={(e) => {
               const v = Number(e.currentTarget.value);
-              if (app.profile) app.update(updateSector(app.profile, i, k, { submenu: v || undefined }));
+              app.edit((p) => updateSector(p, i, k, { submenu: v || undefined }));
             }}
           >
             <option value={0}>{t('radial.actions')}</option>
@@ -149,7 +148,7 @@
                 <span class="chip">
                   {actionLabel(a)}
                   {#if !disabled}
-                    <button class="chip-x" title={t('common.remove')} onclick={() => app.profile && app.update(updateSector(app.profile, i, k, { actions: (s.actions ?? []).filter((_, x) => x !== ai) }))}><X size={11} /></button>
+                    <button class="chip-x" title={t('common.remove')} onclick={() => app.edit((p) => updateSector(p, i, k, { actions: (s.actions ?? []).filter((_, x) => x !== ai) }))}><X size={11} /></button>
                   {/if}
                 </span>
               {/each}

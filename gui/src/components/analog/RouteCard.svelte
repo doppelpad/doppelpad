@@ -65,7 +65,7 @@
   const mouseOptions = $derived((app.catalog?.mouse_buttons ?? []).map((b) => `Mouse:${b}`));
 
   function set(patch: Partial<AnalogMapping>) {
-    if (app.profile) app.update(updateRoute(app.profile, index, patch));
+    app.edit((p) => updateRoute(p, index, patch));
   }
 
   function addHeld(c: ControlName) {
@@ -73,19 +73,20 @@
   }
 
   let capturing = $state(false);
+  let releasePresses = () => {};
 
   function startCapture() {
     capturing = true;
-    app.pressListener = (c) => {
+    releasePresses = app.capturePresses((c) => {
       addHeld(c);
       stopCapture();
-    };
+    });
   }
 
   function stopCapture() {
     if (!capturing) return;
     capturing = false;
-    app.pressListener = null;
+    releasePresses();
   }
 
   function onKeydown(e: KeyboardEvent) {
@@ -129,7 +130,7 @@
       </select>
     </label>
     {#if !disabled}
-      <button class="icon-btn del" title={t('analog.routes.delete')} onclick={() => app.profile && app.update(removeRoute(app.profile, index))}>
+      <button class="icon-btn del" title={t('analog.routes.delete')} onclick={() => app.edit((p) => removeRoute(p, index))}>
         <Trash2 size={15} />
       </button>
     {/if}

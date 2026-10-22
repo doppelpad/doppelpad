@@ -15,7 +15,7 @@
 
   function add(patch: Partial<AnalogMapping>) {
     const def = app.catalog?.defaults.analog;
-    if (app.profile && def) app.update(addRoute(app.profile, newRoute(def, app.layer, patch)));
+    if (def) app.edit((p) => addRoute(p, newRoute(def, app.layer, patch)));
   }
 
   const presets = $derived(
@@ -57,7 +57,7 @@
             <span class="when">{t('analog.routes.while_held')}: {ref.route.while_held.map((c) => controlLabelMixed(c, app.family)).join(' + ')}</span>
           {/if}
           {#if !app.readOnly}
-            <button class="btn" onclick={() => app.profile && app.update(overrideRoute(app.profile, ref.index, app.layer))}>
+            <button class="btn" onclick={() => app.edit((p) => overrideRoute(p, ref.index, app.layer))}>
               {t('analog.routes.override')}
             </button>
           {/if}

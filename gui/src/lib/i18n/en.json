@@ -98,6 +98,7 @@
     "from_template": "New from template: {template}",
     "new_config": "New config",
     "new_config_name": "Name of the config",
+    "default_config_name": "Default",
     "import": "Import JSON profile…",
     "import_title": "Import a JSON profile",
     "save": "Save",

@@ -3,7 +3,7 @@
   // centre pose (tilt), which axis steers, whether the gyro starts on, how gyro routes read
   // turning, and where the zones start (for the whole config); and the gyro calibration of
   // the controller in use.
-  import { api, errorText } from '../../lib/api';
+  import { api } from '../../lib/api';
   import { t } from '../../lib/i18n/index.svelte';
   import { gyroConfig, setGyro } from '../../lib/model/analog';
   import { app } from '../../lib/state/app.svelte';
@@ -18,7 +18,7 @@
   const noGyro = $derived(!!app.primary && !app.primary.state.motion);
 
   function set(patch: Partial<GyroSettings>) {
-    if (app.profile && def) app.update(setGyro(app.profile, patch, def));
+    if (def) app.edit((p) => setGyro(p, patch, def));
   }
 
   const LEVELS = ['low', 'med', 'high'] as const;
@@ -27,14 +27,6 @@
   const dev = $derived(app.primary);
   const cal = $derived(dev?.gyro_calibration ?? null);
   const fmt = (v: number) => v.toFixed(2);
-
-  async function run(call: () => Promise<void>) {
-    try {
-      await call();
-    } catch (e) {
-      app.toast(errorText(e), 'error');
-    }
-  }
 
   /** Set one zone threshold, moving the others so they keep increasing. */
   function setZone(i: number, v: number) {
@@ -91,12 +83,12 @@
       <div class="sub">{t('analog.gyro.calibration')}</div>
       <p class="hint">{t('analog.gyro.calibration_hint', { name: dev.name })}</p>
       <div class="cal">
-        <button class="btn" disabled={cal.measuring !== null} onclick={() => run(() => api.gyroCalibrate(dev.id))}>
+        <button class="btn" disabled={cal.measuring !== null} onclick={() => app.attempt(api.gyroCalibrate(dev.id))}>
           {cal.measuring !== null
             ? t('analog.gyro.measuring', { pct: Math.round(cal.measuring * 100) })
             : t('analog.gyro.calibrate')}
         </button>
-        <button class="btn" disabled={cal.measuring !== null} onclick={() => run(() => api.gyroReset(dev.id))}>
+        <button class="btn" disabled={cal.measuring !== null} onclick={() => app.attempt(api.gyroReset(dev.id))}>
           {t('analog.gyro.calibration_reset')}
         </button>
         <span class="bias">{t('analog.gyro.bias', { x: fmt(cal.gyro_bias[0]), y: fmt(cal.gyro_bias[1]), z: fmt(cal.gyro_bias[2]) })}</span>
@@ -109,7 +101,7 @@
       <Toggle
         checked={cal.auto}
         label={t('analog.gyro.auto_calibration')}
-        onchange={(v) => run(() => api.gyroAuto(dev.id, v))}
+        onchange={(v) => app.attempt(api.gyroAuto(dev.id, v))}
       />
       <p class="hint">{t('analog.gyro.auto_calibration_hint')}</p>
     {/if}

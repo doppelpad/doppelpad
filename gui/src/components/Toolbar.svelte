@@ -1,6 +1,6 @@
 <script lang="ts">
   import { Gamepad2, RotateCcw, Keyboard, Mouse, Combine, Cable, Joystick, Plus, Ellipsis, ChevronDown } from '@lucide/svelte';
-  import { api, errorText } from '../lib/api';
+  import { api } from '../lib/api';
   import { t } from '../lib/i18n/index.svelte';
   import { layerColor } from '../lib/theme/layers';
   import { insertPreset, makePreset } from '../lib/model/presets';
@@ -71,7 +71,7 @@
   async function onRename() {
     if (!app.profile || app.layer === 0) return;
     const name = await app.ask(t('layers.name_prompt'), app.layerLabel(app.layer));
-    if (name) app.update(renameLayer(app.profile, app.layer, name));
+    if (name) app.edit((p) => renameLayer(p, app.layer, name));
   }
 
   function onCopy() {
@@ -80,7 +80,8 @@
   }
 
   function onPaste() {
-    if (app.profile && app.copiedLayer) app.update(pasteLayer(app.profile, app.copiedLayer, app.layer));
+    const copied = app.copiedLayer;
+    if (copied) app.edit((p) => pasteLayer(p, copied, app.layer));
   }
 
   let presets = $state<PresetEntry[]>([]);
@@ -95,31 +96,26 @@
     if (!app.profile) return;
     const name = await app.ask(t('layers.preset_name'), app.layerLabel(app.layer));
     if (!name) return;
-    try {
-      await api.presetSave(makePreset($state.snapshot(app.profile) as Profile, app.layer, name));
-      await loadPresets();
-      app.toast(t('layers.preset_saved', { name }), 'ok');
-    } catch (e) {
-      app.toast(errorText(e), 'error');
-    }
+    const preset = makePreset($state.snapshot(app.profile) as Profile, app.layer, name);
+    await app.attempt(api.presetSave(preset).then(loadPresets), t('layers.preset_saved', { name }));
   }
 
   async function onInsertPreset(entry: PresetEntry) {
     if (!app.profile) return;
-    try {
-      const preset = await api.presetLoad(entry.path);
-      const { profile, layer, dropped } = insertPreset(app.profile, preset);
-      app.update(profile);
-      app.layer = layer;
-      if (dropped > 0) app.toast(t('layers.preset_dropped', { n: dropped }), 'info');
-    } catch (e) {
-      app.toast(errorText(e), 'error');
-    }
+    await app.attempt(
+      api.presetLoad(entry.path).then((preset) => {
+        if (!app.profile) return;
+        const { profile, layer, dropped } = insertPreset(app.profile, preset);
+        app.update(profile);
+        app.layer = layer;
+        if (dropped > 0) app.toast(t('layers.preset_dropped', { n: dropped }), 'info');
+      }),
+    );
   }
 
   function onRemove() {
     if (!app.profile || app.layer === 0) return;
-    app.update(removeLayer(app.profile, app.layer));
+    app.edit((p) => removeLayer(p, app.layer));
     app.layer = 0;
   }
 
@@ -130,7 +126,7 @@
     { label: t('layers.rename') + '…', onclick: onRename, disabled: app.layer === 0 },
     { label: t('layers.copy'), onclick: onCopy },
     { label: t('layers.paste'), onclick: onPaste, disabled: !app.copiedLayer },
-    { label: t('layers.clear'), onclick: () => app.profile && app.update(clearLayer(app.profile, app.layer)) },
+    { label: t('layers.clear'), onclick: () => app.edit((p) => clearLayer(p, app.layer)) },
     { separator: true, label: '' },
     { label: t('layers.save_preset') + '…', onclick: onSavePreset, disabled: !app.profile },
     ...presets.map((p) => ({
