@@ -16,6 +16,8 @@ permissions = [
   "allow-game-set-picture",
   "allow-game-picture",
   "allow-foreground-program",
+  "allow-installed-games",
+  "allow-game-create-from-store",
   "allow-game-create-template",
   "allow-config-from-template",
   "allow-open-driver-page",

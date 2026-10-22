@@ -14,6 +14,8 @@ const COMMANDS: &[&str] = &[
     "game_set_picture",
     "game_picture",
     "foreground_program",
+    "installed_games",
+    "game_create_from_store",
     "game_create_template",
     "config_from_template",
     "open_driver_page",

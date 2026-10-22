@@ -229,6 +229,61 @@ pub fn game_picture(dir: PathBuf) -> Option<String> {
     library::game_picture(&dir)
 }
 
+/// A game a local store (Steam, Epic, GOG) has installed.
+#[derive(Serialize)]
+pub struct InstalledGame {
+    store: &'static str,
+    name: String,
+    dir: PathBuf,
+    /// Programs that may be the game's, the likeliest first.
+    programs: Vec<String>,
+    cover: Option<PathBuf>,
+}
+
+/// The games the local stores have installed (their own files only, no network).
+#[tauri::command(async)]
+pub fn installed_games() -> Vec<InstalledGame> {
+    use dp_platform::stores::Store;
+    dp_platform::installed_games()
+        .into_iter()
+        .map(|g| InstalledGame {
+            store: match g.store {
+                Store::Steam => "steam",
+                Store::Epic => "epic",
+                Store::Gog => "gog",
+            },
+            name: g.name,
+            dir: g.dir,
+            programs: g.programs,
+            cover: g.cover,
+        })
+        .collect()
+}
+
+/// A new game from a store's game: its name, the program that switches to it, and its cover.
+#[tauri::command(async)]
+pub fn game_create_from_store(
+    app: AppHandle,
+    state: State<AppState>,
+    name: String,
+    program: Option<String>,
+    cover: Option<PathBuf>,
+) -> CmdResult<Game> {
+    library_change(&app, || {
+        let game = library::create_game(&state.profiles_dir, &name).map_err(err)?;
+        let mut meta = game.meta.clone();
+        meta.processes = program.into_iter().collect();
+        library::update_game_meta(&game.dir, &meta).map_err(err)?;
+        if let Some(cover) = cover.filter(|c| c.is_file()) {
+            // A missing or odd cover leaves the game without a picture.
+            if let Err(e) = library::set_game_picture(&game.dir, Some(&cover)) {
+                tracing::warn!("cannot copy the cover of {name}: {e}");
+            }
+        }
+        library::read_game(&game.dir).map_err(err)
+    })
+}
+
 /// The executable file name of the program in front.
 #[tauri::command(async)]
 pub fn foreground_program() -> Option<String> {

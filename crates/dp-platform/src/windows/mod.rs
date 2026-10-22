@@ -20,6 +20,7 @@ mod process;
 mod registry;
 pub mod rewasd;
 mod sendinput;
+pub mod stores;
 mod switch2;
 mod system;
 mod usb;

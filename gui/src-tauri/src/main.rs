@@ -158,6 +158,8 @@ fn main() {
             commands::game_set_picture,
             commands::game_picture,
             commands::foreground_program,
+            commands::installed_games,
+            commands::game_create_from_store,
             commands::game_create_template,
             commands::config_from_template,
             commands::open_driver_page,

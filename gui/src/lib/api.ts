@@ -42,6 +42,12 @@ export const api = {
   gamePicture: (dir: string) => invoke<string | null>('game_picture', { dir }),
   /** Programs with a visible window now. */
   runningPrograms: () => invoke<{ exe: string; title: string }[]>('running_programs'),
+  /** Games the local stores (Steam, Epic, GOG) have installed. */
+  installedGames: () =>
+    invoke<{ store: 'steam' | 'epic' | 'gog'; name: string; dir: string; programs: string[]; cover: string | null }[]>('installed_games'),
+  /** A new game from a store's game, with its program and cover. */
+  gameCreateFromStore: (name: string, program: string | null, cover: string | null) =>
+    invoke<Game>('game_create_from_store', { name, program, cover }),
   /** The executable file name of the program in front. */
   foregroundProgram: () => invoke<string | null>('foreground_program'),
   gameCreateTemplate: (name: string, config: string, template: Template) =>
