@@ -60,6 +60,29 @@ const MOUSE_VELOCITY_TAU_S: f32 = 0.03;
 /// A shake flips direction this often.
 const SHAKE_FLIP_MS: u64 = 25;
 
+/// What the running actions do to one axis of a virtual stick: the largest push each way
+/// (opposite pushes cancel) and whether an absolute push sets the axis, so that neither the
+/// physical stick nor routes reach it.
+#[derive(Clone, Copy, Debug, Default)]
+struct StickPush {
+    pos: f32,
+    neg: f32,
+    absolute: bool,
+}
+
+impl StickPush {
+    /// The axis after the push, from its value `c` so far.
+    fn apply(self, c: f32) -> f32 {
+        let base = if self.absolute { 0.0 } else { c };
+        let push = if self.pos > 0.0 && self.neg > 0.0 {
+            0.0
+        } else {
+            self.pos - self.neg
+        };
+        (base + push).clamp(-1.0, 1.0)
+    }
+}
+
 /// Where a virtual stick's jitter offset is and when it moves on.
 #[derive(Clone, Copy, Debug, Default)]
 struct JitterState {
@@ -1509,6 +1532,8 @@ impl Engine {
         self.begin(bid, now);
     }
 
+    /// The tick's output: digital events and host requests, then the virtual pad built in
+    /// stages.
     fn compose(&mut self, dt: f32, now: u64) -> Output {
         let mut out = Output {
             layer: self.layer,
@@ -1516,7 +1541,35 @@ impl Engine {
             ..Default::default()
         };
         self.drain_digital(&mut out);
-        // Held wheel actions repeat at the virtual mouse's interval.
+        self.repeat_held_wheels(now);
+        out.wheel = std::mem::take(&mut self.outs.wheel);
+        out.mouse_to = self.outs.mouse_to.take();
+        out.commands = std::mem::take(&mut self.outs.commands);
+        out.rumble = self.outs.rumble.filter(|r| r.until > now).map(|r| r.rumble);
+
+        let radial_stick = self.radial_stick();
+        let mut pad = self.passthrough(radial_stick);
+        // Mapping outputs.
+        for o in self.outs.counts.keys() {
+            if let Out::Pad(b) = o {
+                pad.set(*b, true);
+            }
+        }
+        let absolute = self.mix_analog_actions(&mut pad, &mut out, dt, now);
+        self.spread_turns(&mut out, dt);
+        self.run_routes(&mut pad, &mut out, absolute, radial_stick, dt, now);
+        self.finish_virtual_sticks(&mut pad, now);
+        self.play_touch(&mut pad, now);
+        self.play_shakes(&mut pad, now);
+
+        if self.profile.output.virtual_pad != VirtualPadType::None {
+            out.pad = Some(pad);
+        }
+        out
+    }
+
+    /// Held wheel actions repeat at the virtual mouse's interval.
+    fn repeat_held_wheels(&mut self, now: u64) {
         let every = u64::from(self.profile.virtual_devices.mouse.wheel_repeat_ms);
         for act in &mut self.acts {
             if let Some(w) = &mut act.wheel_held
@@ -1528,82 +1581,84 @@ impl Engine {
                 }
             }
         }
-        out.wheel = std::mem::take(&mut self.outs.wheel);
-        out.mouse_to = self.outs.mouse_to.take();
-        out.commands = std::mem::take(&mut self.outs.commands);
-        out.rumble = self.outs.rumble.filter(|r| r.until > now).map(|r| r.rumble);
+    }
 
-        let table = self.c.layer(self.layer);
-        let routes = &table.routes;
-        let radial_stick = self.radial_stick();
+    /// The physical controls no mapping, route or open menu uses, mirrored.
+    fn passthrough(&self, radial_stick: Option<Stick>) -> PadState {
+        let mut pad = PadState::default();
+        let Some(phys) = self
+            .pad
+            .as_ref()
+            .filter(|_| self.profile.output.passthrough)
+        else {
+            return pad;
+        };
+        let table = self.table();
         let route_consumes = |src: AnalogSource| {
-            routes
+            table
+                .routes
                 .iter()
                 .any(|&i| self.profile.analog[i].source == src && self.profile.analog[i].consume)
         };
-
-        // Mirror unmapped physical controls.
-        let mut pad = PadState::default();
-        if self.profile.output.passthrough
-            && let Some(phys) = &self.pad
-        {
-            let hidden = |c: Control| {
-                table.mapped.contains(&c)
-                    || self.consumed.contains(&c)
-                    || self.pending.iter().any(|(p, _)| *p == c)
-            };
-            // A split pad's clicks come from the touchpad button.
-            let click_used = Half::ALL
-                .iter()
-                .any(|h| hidden(Control::Trackpad(*h, TrackpadPart::Click)));
-            for b in PadButton::ALL {
-                let used = hidden(Control::Button(b)) || (b == PadButton::Touchpad && click_used);
-                if phys.pressed(b) && !used {
-                    pad.set(b, true);
-                }
-            }
-            for s in Stick::ALL {
-                if Control::of_stick(s).any(hidden)
-                    || route_consumes(AnalogSource::from(s))
-                    || radial_stick == Some(s)
-                {
-                    continue;
-                }
-                let cfg = self.sticks().get(s);
-                pad.set_stick(s, shape_stick(orient(phys.stick(s), cfg), cfg));
-            }
-            for t in Trigger::ALL {
-                if Control::of_trigger(t).any(hidden) {
-                    continue;
-                }
-                pad.set_axis(
-                    t.axis(),
-                    shape_trigger(phys.axis(t.axis()), self.triggers().get(t)),
-                );
-            }
-            // A remapped touchpad or gyro no longer reaches the game, like a remapped stick.
-            let touch_used =
-                Control::of_touchpad().any(hidden) || route_consumes(AnalogSource::Touchpad);
-            if !touch_used {
-                pad.touch = phys.touch;
-            }
-            let gyro_used = Control::of_gyro().any(hidden) || route_consumes(AnalogSource::Gyro);
-            if !gyro_used {
-                pad.motion = phys.motion;
+        let hidden = |c: Control| {
+            table.mapped.contains(&c)
+                || self.consumed.contains(&c)
+                || self.pending.iter().any(|(p, _)| *p == c)
+        };
+        // A split pad's clicks come from the touchpad button.
+        let click_used = Half::ALL
+            .iter()
+            .any(|h| hidden(Control::Trackpad(*h, TrackpadPart::Click)));
+        for b in PadButton::ALL {
+            let used = hidden(Control::Button(b)) || (b == PadButton::Touchpad && click_used);
+            if phys.pressed(b) && !used {
+                pad.set(b, true);
             }
         }
-
-        // Mapping outputs.
-        for o in self.outs.counts.keys() {
-            if let Out::Pad(b) = o {
-                pad.set(*b, true);
+        for s in Stick::ALL {
+            if Control::of_stick(s).any(hidden)
+                || route_consumes(AnalogSource::from(s))
+                || radial_stick == Some(s)
+            {
+                continue;
             }
+            let cfg = self.sticks().get(s);
+            pad.set_stick(s, shape_stick(orient(phys.stick(s), cfg), cfg));
         }
+        for t in Trigger::ALL {
+            if Control::of_trigger(t).any(hidden) {
+                continue;
+            }
+            pad.set_axis(
+                t.axis(),
+                shape_trigger(phys.axis(t.axis()), self.triggers().get(t)),
+            );
+        }
+        // A remapped touchpad or gyro no longer reaches the game, like a remapped stick.
+        let touch_used =
+            Control::of_touchpad().any(hidden) || route_consumes(AnalogSource::Touchpad);
+        if !touch_used {
+            pad.touch = phys.touch;
+        }
+        let gyro_used = Control::of_gyro().any(hidden) || route_consumes(AnalogSource::Gyro);
+        if !gyro_used {
+            pad.motion = phys.motion;
+        }
+        pad
+    }
+
+    /// The analog outputs of the running actions: stick pushes, trigger pulls, mouse motion
+    /// and the cursor clip. Returns the stick axes an absolute push sets.
+    fn mix_analog_actions(
+        &self,
+        pad: &mut PadState,
+        out: &mut Output,
+        dt: f32,
+        now: u64,
+    ) -> [[bool; 2]; 2] {
         let mut mouse_v = (0.0f32, 0.0f32);
-        // Per stick and axis, the largest push in each direction (opposite pushes cancel).
-        let mut pushes = [[[0.0f32; 2]; 2]; 2];
-        // Axes that an absolute push sets: neither the physical stick nor routes reach them.
-        let mut absolute = [[false; 2]; 2];
+        // Per stick and axis.
+        let mut pushes = [[StickPush::default(); 2]; 2];
         for act in &self.acts {
             for &(a, since) in &act.analog {
                 match a {
@@ -1611,20 +1666,20 @@ impl Engine {
                         stick: s,
                         x,
                         y,
-                        absolute: abs,
+                        absolute,
                     } => {
-                        if abs {
+                        let [px, py] = &mut pushes[s as usize];
+                        if absolute {
                             let centre = x == 0.0 && y == 0.0;
-                            absolute[s as usize][0] |= centre || x != 0.0;
-                            absolute[s as usize][1] |= centre || y != 0.0;
+                            px.absolute |= centre || x != 0.0;
+                            py.absolute |= centre || y != 0.0;
                         }
                         let vs = self.virtual_stick(s);
                         let held = secs_since(now, since);
-                        for (axis, v, m) in [(0, x, vs.multiplier_x), (1, y, vs.multiplier_y)] {
+                        for (p, v, m) in [(px, x, vs.multiplier_x), (py, y, vs.multiplier_y)] {
                             let reach = v.abs().min(vs.ramp(held, m));
-                            let dir = usize::from(v < 0.0);
-                            let p = &mut pushes[s as usize][axis][dir];
-                            *p = p.max(reach);
+                            let side = if v < 0.0 { &mut p.neg } else { &mut p.pos };
+                            *side = side.max(reach);
                         }
                     }
                     AnalogOut::Trigger(t, v) => {
@@ -1646,7 +1701,16 @@ impl Engine {
             }
         }
         out.mouse_move = (mouse_v.0 * dt, mouse_v.1 * dt);
-        // Turn actions: horizontal mouse motion spread over the turn time.
+        for s in Stick::ALL {
+            let [px, py] = pushes[s as usize];
+            let (cx, cy) = pad.stick(s);
+            pad.set_stick(s, (px.apply(cx), py.apply(cy)));
+        }
+        pushes.map(|axes| axes.map(|p| p.absolute))
+    }
+
+    /// Turn actions: horizontal mouse motion spread over the turn time.
+    fn spread_turns(&mut self, out: &mut Output, dt: f32) {
         let turn = &self.profile.virtual_devices.mouse;
         let secs = turn.turn_ms as f32 / 1000.0;
         for t in &mut self.outs.turns {
@@ -1659,28 +1723,19 @@ impl Engine {
             out.mouse_move.0 += step * turn.counts_per_turn / 360.0;
         }
         self.outs.turns.retain(|t| t.left.abs() > 1e-4);
-        for s in Stick::ALL {
-            let axis = |[pos, neg]: [f32; 2]| {
-                if pos > 0.0 && neg > 0.0 {
-                    0.0
-                } else {
-                    pos - neg
-                }
-            };
-            let [px, py] = pushes[s as usize];
-            let [ax, ay] = absolute[s as usize];
-            let (cx, cy) = pad.stick(s);
-            let base = |c: f32, abs: bool| if abs { 0.0 } else { c };
-            pad.set_stick(
-                s,
-                (
-                    (base(cx, ax) + axis(px)).clamp(-1.0, 1.0),
-                    (base(cy, ay) + axis(py)).clamp(-1.0, 1.0),
-                ),
-            );
-        }
+    }
 
-        // Analog routes.
+    /// The layer's analog routes, added to the mouse motion and the virtual sticks (except
+    /// the axes an absolute push sets).
+    fn run_routes(
+        &mut self,
+        pad: &mut PadState,
+        out: &mut Output,
+        absolute: [[bool; 2]; 2],
+        radial_stick: Option<Stick>,
+        dt: f32,
+        now: u64,
+    ) {
         let input = RouteInput {
             pad: self.pad.as_ref(),
             sticks: self.layer_settings.sticks(&self.profile, self.layer),
@@ -1696,7 +1751,7 @@ impl Engine {
             tilt: (self.profile.gyro.mode == GyroMode::Tilt)
                 .then(|| self.gyro_axes.tilt_deflection()),
         };
-        for &i in routes {
+        for &i in &self.c.layer(self.layer).routes {
             let r = &self.profile.analog[i];
             let pointing = radial_stick.is_some() && r.source.stick() == radial_stick;
             if pointing {
@@ -1722,7 +1777,10 @@ impl Engine {
                 }
             }
         }
-        // The virtual stick's own output curve, over every source.
+    }
+
+    /// The virtual sticks' own output curve over every source, then their jitter.
+    fn finish_virtual_sticks(&mut self, pad: &mut PadState, now: u64) {
         for s in Stick::ALL {
             let curve = &self.virtual_stick(s).curve;
             let (x, y) = pad.stick(s);
@@ -1763,7 +1821,10 @@ impl Engine {
                 ),
             );
         }
-        // A touch action plays its fingers on the virtual touchpad.
+    }
+
+    /// A touch action plays its fingers on the virtual touchpad.
+    fn play_touch(&mut self, pad: &mut PadState, now: u64) {
         if let Some(p) = self.outs.touch {
             if now < p.start + p.ms {
                 let t = now.saturating_sub(p.start) as f32 / p.ms.max(1) as f32;
@@ -1772,7 +1833,10 @@ impl Engine {
                 self.outs.touch = None;
             }
         }
-        // Shakes: a square wave on one accelerometer axis, starting in its direction.
+    }
+
+    /// Shakes: a square wave on one accelerometer axis, starting in its direction.
+    fn play_shakes(&mut self, pad: &mut PadState, now: u64) {
         let motion = &self.profile.virtual_devices.motion;
         let shake_ms = u64::from(motion.shake_ms);
         self.outs.shakes.retain(|(_, t0)| now < t0 + shake_ms);
@@ -1788,11 +1852,6 @@ impl Engine {
             }
             pad.motion = Some(m);
         }
-
-        if self.profile.output.virtual_pad != VirtualPadType::None {
-            out.pad = Some(pad);
-        }
-        out
     }
 
     /// Whether a mapping holds `key` down right now.
