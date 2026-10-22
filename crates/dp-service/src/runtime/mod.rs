@@ -30,6 +30,7 @@ use crossbeam_channel::Receiver;
 use dp_core::control::Control;
 use dp_core::engine::{Engine, Input};
 use dp_core::hotkeys::{HotkeyAction, HotkeyDetector, Hotkeys};
+use dp_core::keys::{Key, MouseButton};
 use dp_core::pad::{PadState, Rumble};
 use dp_core::profile::{AnalogSource, Crosshair, KbmSource, Profile, RadialMenu, VirtualPadType};
 use dp_core::repeat::KeyRepeater;
@@ -59,6 +60,42 @@ pub struct SessionInfo {
     pub profile_path: Option<String>,
     pub layer: u8,
     pub virtual_pad: Option<VirtualPadKind>,
+    /// What the session sends right now, for showing it to the user.
+    pub output: SessionOutput,
+}
+
+/// What a session sends right now: the virtual pad's state and the keys and mouse buttons it holds.
+#[derive(Clone, Debug, Default, PartialEq, Serialize)]
+pub struct SessionOutput {
+    pub pad: Option<PadState>,
+    pub keys: Vec<Key>,
+    pub mouse_buttons: Vec<MouseButton>,
+}
+
+impl SessionOutput {
+    /// Follow one tick's output: the pad state it sends, and keys and buttons going down or up.
+    pub(crate) fn observe(&mut self, out: &dp_core::engine::Output) {
+        if let Some(pad) = out.pad {
+            self.pad = Some(pad);
+        }
+        for &(k, down) in &out.keys {
+            hold(&mut self.keys, k, down);
+        }
+        for &(b, down) in &out.mouse_buttons {
+            hold(&mut self.mouse_buttons, b, down);
+        }
+    }
+}
+
+/// Keep `held` sorted with `x` in it while it is down.
+fn hold<T: Ord>(held: &mut Vec<T>, x: T, down: bool) {
+    match held.binary_search(&x) {
+        Ok(i) if !down => {
+            held.remove(i);
+        }
+        Err(i) if down => held.insert(i, x),
+        _ => {}
+    }
 }
 
 /// Everything needed to run profiles against the real devices.
@@ -447,6 +484,7 @@ impl Runtime {
             clip: None,
             crosshair: CrosshairChoice::default(),
             radial: None,
+            output: SessionOutput::default(),
         };
         for w in &session.warnings {
             tracing::warn!("{w}");
@@ -639,5 +677,34 @@ impl Runtime {
 impl Drop for Runtime {
     fn drop(&mut self) {
         self.stop();
+    }
+}
+
+#[cfg(test)]
+mod output_tests {
+    use super::*;
+    use dp_core::engine::Output;
+
+    #[test]
+    fn output_follows_presses_and_releases() {
+        let mut o = SessionOutput::default();
+        o.observe(&Output {
+            keys: vec![(Key::W, true), (Key::A, true)],
+            mouse_buttons: vec![(MouseButton::Left, true)],
+            pad: Some(PadState::default()),
+            ..Output::default()
+        });
+        assert!(o.keys.len() == 2 && o.keys.contains(&Key::A) && o.keys.contains(&Key::W));
+        assert_eq!(o.mouse_buttons, [MouseButton::Left]);
+        assert!(o.pad.is_some());
+        // A repeated press changes nothing; releases remove.
+        o.observe(&Output {
+            keys: vec![(Key::W, true), (Key::A, false)],
+            mouse_buttons: vec![(MouseButton::Left, false)],
+            ..Output::default()
+        });
+        assert_eq!(o.keys, [Key::W]);
+        assert!(o.mouse_buttons.is_empty());
+        assert!(o.pad.is_some(), "the last pad state stays");
     }
 }

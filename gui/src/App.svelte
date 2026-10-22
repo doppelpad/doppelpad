@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Gamepad2, List, PenTool, StickyNote } from '@lucide/svelte';
+  import { Activity, Gamepad2, List, PenTool, StickyNote } from '@lucide/svelte';
   import { t } from './lib/i18n/index.svelte';
   import { drawingsFor } from './lib/model/devices';
   import { app } from './lib/state/app.svelte';
@@ -9,6 +9,7 @@
   import { runShortcut } from './components/shortcutActions';
   import ShortcutsDialog from './components/ShortcutsDialog.svelte';
   import FindPanel from './components/FindPanel.svelte';
+  import LiveOutput from './components/LiveOutput.svelte';
   import { win } from './lib/state/window.svelte';
   import ProfilePanel from './components/ProfilePanel.svelte';
   import Header from './components/Header.svelte';
@@ -36,6 +37,8 @@
 
   let settingsOpen = $state(false);
   let listMode = $state(false);
+  /** The live output panel is open. */
+  let liveOpen = $state(false);
   /** Views that show what controls do, where notes can stand in for the actions. */
   const CONTROL_VIEWS = new Set(['front', 'back', 'keyboard', 'mouse']);
 
@@ -75,6 +78,15 @@
             <div class="view-tools">
               <button
                 class="icon-btn"
+                class:active={liveOpen}
+                aria-pressed={liveOpen}
+                title={t('live_output.title')}
+                onclick={() => (liveOpen = !liveOpen)}
+              >
+                <Activity size={16} />
+              </button>
+              <button
+                class="icon-btn"
                 class:active={app.settings.show_notes}
                 aria-pressed={app.settings.show_notes}
                 title={t(app.settings.show_notes ? 'views.show_actions' : 'views.show_notes')}
@@ -92,6 +104,7 @@
                 </button>
               {/if}
             </div>
+            {#if liveOpen}<LiveOutput onclose={() => (liveOpen = false)} />{/if}
           {/if}
           {#if app.view === 'output'}
             <OutputPanel />

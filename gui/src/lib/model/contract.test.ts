@@ -18,6 +18,7 @@ import type {
   LiveDsu,
   LiveHttp,
   LiveSession,
+  SessionOutput,
   LiveState,
   MappingsOverlaySettings,
   OsdMessage,
@@ -115,7 +116,9 @@ const session = {
   profile_path: true,
   layer: true,
   virtual_pad: true,
+  output: true,
 } satisfies Keys<LiveSession>;
+const sessionOutput = { pad: true, keys: true, mouse_buttons: true } satisfies Keys<SessionOutput>;
 const radial = { menu: true, pointed: true } satisfies Keys<NonNullable<LiveState['radial']>>;
 
 const guiSettings = {
@@ -192,6 +195,7 @@ const cases: [string, object, object][] = [
   ['DriverState', driverState, l.drivers.virtual_pads],
   ['device_slots', deviceSlots, l.device_slots[0]],
   ['LiveSession', session, l.sessions[0]],
+  ['SessionOutput', sessionOutput, l.sessions[0]!.output],
   ['radial', radial, l.radial],
   ['GuiSettings', guiSettings, contract.gui_settings],
   ['OsdSettings', osdSettings, contract.gui_settings.osd],

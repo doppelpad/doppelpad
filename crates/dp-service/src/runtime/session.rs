@@ -10,7 +10,7 @@ use dp_core::repeat::KeyRepeater;
 use dp_platform::groups::Grouping;
 use dp_platform::{DeviceId, GamepadBackend, Platform, TriggerEffects, VirtualPad};
 
-use super::SessionInfo;
+use super::{SessionInfo, SessionOutput};
 use crate::timing::Every;
 
 /// One profile running against one controller.
@@ -41,6 +41,8 @@ pub(super) struct Session {
     pub(super) crosshair: CrosshairChoice,
     /// The radial menu the engine shows.
     pub(super) radial: Option<RadialView>,
+    /// What the session sends right now (held keys and buttons, the virtual pad).
+    pub(super) output: SessionOutput,
 }
 
 /// The crosshair a session's commands chose (an index), and whether they hid it.
@@ -103,6 +105,7 @@ impl Session {
             profile_path: self.path.as_ref().map(|p| p.display().to_string()),
             layer: self.engine.layer(),
             virtual_pad: self.vpad.as_ref().map(|v| v.kind()),
+            output: self.output.clone(),
         }
     }
 }
@@ -125,6 +128,7 @@ impl Session {
     /// Send a session's keyboard/mouse and virtual pad output.
     pub(super) fn emit(&mut self, platform: &mut Platform, out: &Output, now: u64) {
         self.radial = out.radial;
+        self.output.observe(out);
         if let (Some(vpad), Some(pad)) = (&mut self.vpad, &out.pad)
             && let Err(e) = vpad.update(pad)
         {

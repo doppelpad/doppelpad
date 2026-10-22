@@ -368,6 +368,15 @@ and *Change on this layer* copies one onto the layer, where it replaces Main's.
 The settings are stored as `[sticks.left]`, `[sticks.right]`, `[triggers.left]`,
 `[triggers.right]` and `[[analog]]` in the profile; see [PROFILES.md](PROFILES.md).
 
+## What Doppelpad sends
+
+The pulse button at the top right of the controller, keyboard and mouse views opens a small
+panel with what the running config sends right now: the virtual controller as a drawing (its
+pressed buttons, the stick caps and a bar per trigger), the keys and mouse buttons it holds,
+and the layer. A config can be tried out this way without a game. Remapping pauses while the
+window has the focus (see below); the panel then offers *Keep remapping active while this
+window is focused*. `doppelpad monitor` shows the controller's input in a terminal.
+
 ## Remapping while the window is open
 
 Remapping pauses while the Doppelpad window has keyboard focus. Mapped keys therefore
