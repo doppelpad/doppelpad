@@ -587,11 +587,7 @@ impl<'a> Importer<'a> {
             }
             cfg.zones.med = zone_entry(zones, "med");
             cfg.zones.high = zone_entry(zones, "high");
-            let [low, med, high] = cfg.zone_thresholds();
-            if crate::zone_problem([low.x, med.x, high.x])
-                .or(crate::zone_problem([low.y, med.y, high.y]))
-                .is_some()
-            {
+            if crate::stick_zone_problem(cfg).is_some() {
                 self.diags.warn(
                     format!("{path}.sticks"),
                     "stick zones are out of order; the medium and high zones use their defaults",

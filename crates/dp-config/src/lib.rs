@@ -102,6 +102,19 @@ pub fn load(path: &Path) -> Result<(Profile, Diagnostics), LoadError> {
 pub fn validate(p: &Profile) -> Diagnostics {
     let mut d = Diagnostics::default();
     let declared: Vec<u8> = p.layers.iter().map(|l| l.id).collect();
+    check_layer_ids(&mut d, p);
+    check_mappings(&mut d, p, &declared);
+    check_devices(&mut d, p);
+    check_routes(&mut d, p);
+    check_crosshairs(&mut d, p);
+    check_radial(&mut d, p, &declared);
+    check_feedback(&mut d, p);
+    check_layers(&mut d, p);
+    d
+}
+
+/// Layer 0 is the base layer; every other one is declared once.
+fn check_layer_ids(d: &mut Diagnostics, p: &Profile) {
     for (i, l) in p.layers.iter().enumerate() {
         if l.id == 0 {
             d.error(
@@ -116,6 +129,9 @@ pub fn validate(p: &Profile) -> Diagnostics {
             );
         }
     }
+}
+
+fn check_mappings(d: &mut Diagnostics, p: &Profile, declared: &[u8]) {
     for (i, m) in p.mappings.iter().enumerate() {
         let path = format!("mappings[{i}] ({})", m.trigger);
         if m.trigger.0.len() > 4 {
@@ -171,53 +187,7 @@ pub fn validate(p: &Profile) -> Diagnostics {
             }
         }
         for a in &m.actions {
-            match a {
-                Action::Pause { pause } if *pause > 60_000 => {
-                    d.warn(&path, "pause longer than a minute");
-                }
-                // The engine splits at every break step, whatever its value.
-                Action::Break { r#break: false } => {
-                    d.error(
-                        &path,
-                        "`break = false` would still split the sequence; remove it",
-                    );
-                }
-                Action::Command {
-                    command: Command::Unsupported(name),
-                } => d.warn(
-                    &path,
-                    format!("command `{name}` is not supported and does nothing"),
-                ),
-                Action::Stick { x, y, .. } if x.abs() > 1.0 || y.abs() > 1.0 => {
-                    d.warn(&path, "stick deflection outside [-1, 1] is clamped");
-                }
-                Action::Turn { turn } if !turn.is_finite() || turn.abs() > 3600.0 => {
-                    d.error(&path, "a turn must be within ±3600 degrees");
-                }
-                Action::Touch { ms: Some(ms), .. } if !(10..=10_000).contains(ms) => {
-                    d.error(&path, "a touch gesture takes 10–10000 ms");
-                }
-                Action::MouseTo { mouse_to }
-                    if mouse_to.iter().any(|v| !(0.0..=1.0).contains(v)) =>
-                {
-                    d.error(&path, "mouse_to coordinates must be in [0, 1]");
-                }
-                Action::MouseClip { mouse_clip }
-                    if mouse_clip.iter().any(|v| !(0.0..=1.0).contains(v)) =>
-                {
-                    d.error(&path, "mouse_clip coordinates must be in [0, 1]");
-                }
-                Action::MouseMove { acceleration, .. } if !(0.0..=100.0).contains(acceleration) => {
-                    d.error(&path, "mouse acceleration must be 0–100");
-                }
-                Action::Command {
-                    command: Command::Crosshair(n),
-                } if *n == 0 || *n as usize > p.crosshairs.len() => d.warn(
-                    &path,
-                    format!("there is no crosshair {n}; the command does nothing"),
-                ),
-                _ => {}
-            }
+            check_action(d, &path, a, p);
         }
         if m.actions.len() > 4096 {
             d.error(&path, "macro has more than 4096 steps");
@@ -234,8 +204,60 @@ pub fn validate(p: &Profile) -> Diagnostics {
             ),
         }
     }
-    check_analog(&mut d, "", &p.sticks, &p.triggers, [true; 4]);
-    check_virtual(&mut d, "", &p.virtual_devices.sticks, [true; 2]);
+}
+
+/// The values of one action.
+fn check_action(d: &mut Diagnostics, path: &str, a: &Action, p: &Profile) {
+    match a {
+        Action::Pause { pause } if *pause > 60_000 => {
+            d.warn(path, "pause longer than a minute");
+        }
+        // The engine splits at every break step, whatever its value.
+        Action::Break { r#break: false } => {
+            d.error(
+                path,
+                "`break = false` would still split the sequence; remove it",
+            );
+        }
+        Action::Command {
+            command: Command::Unsupported(name),
+        } => d.warn(
+            path,
+            format!("command `{name}` is not supported and does nothing"),
+        ),
+        Action::Stick { x, y, .. } if x.abs() > 1.0 || y.abs() > 1.0 => {
+            d.warn(path, "stick deflection outside [-1, 1] is clamped");
+        }
+        Action::Turn { turn } if !turn.is_finite() || turn.abs() > 3600.0 => {
+            d.error(path, "a turn must be within ±3600 degrees");
+        }
+        Action::Touch { ms: Some(ms), .. } if !(10..=10_000).contains(ms) => {
+            d.error(path, "a touch gesture takes 10–10000 ms");
+        }
+        Action::MouseTo { mouse_to } if mouse_to.iter().any(|v| !(0.0..=1.0).contains(v)) => {
+            d.error(path, "mouse_to coordinates must be in [0, 1]");
+        }
+        Action::MouseClip { mouse_clip } if mouse_clip.iter().any(|v| !(0.0..=1.0).contains(v)) => {
+            d.error(path, "mouse_clip coordinates must be in [0, 1]");
+        }
+        Action::MouseMove { acceleration, .. } if !(0.0..=100.0).contains(acceleration) => {
+            d.error(path, "mouse acceleration must be 0–100");
+        }
+        Action::Command {
+            command: Command::Crosshair(n),
+        } if *n == 0 || *n as usize > p.crosshairs.len() => d.warn(
+            path,
+            format!("there is no crosshair {n}; the command does nothing"),
+        ),
+        _ => {}
+    }
+}
+
+/// The base layer's sticks, triggers and virtual sticks, the virtual motion and mouse, and
+/// the gyro, touchpad and mouse as sources.
+fn check_devices(d: &mut Diagnostics, p: &Profile) {
+    check_analog(d, "", &p.sticks, &p.triggers, [true; 4]);
+    check_virtual(d, "", &p.virtual_devices.sticks, [true; 2]);
     let motion = &p.virtual_devices.motion;
     if !(motion.shake_g > 0.0 && motion.shake_g <= 8.0) {
         d.error("virtual.motion.shake_g", "must be in (0, 8]");
@@ -243,11 +265,11 @@ pub fn validate(p: &Profile) -> Diagnostics {
     if !VirtualMotion::SHAKE_MS.contains(&motion.shake_ms) {
         d.error("virtual.motion.shake_ms", "must be 10–2000 ms");
     }
-    for (field, [low, med, high]) in [
+    for (field, zones) in [
         ("gyro.motion_zones", p.gyro.motion_zones),
         ("gyro.tilt_zones", p.gyro.tilt_zones),
     ] {
-        if !(low > 0.0 && low < med && med < high) {
+        if !positive_increasing(zones) {
             d.error(field, "low, med and high must be positive and increase");
         }
     }
@@ -261,13 +283,15 @@ pub fn validate(p: &Profile) -> Diagnostics {
     if mouse.turn_ms > 5000 {
         d.error("virtual.mouse.turn_ms", "must be at most 5000 ms");
     }
-    let [low, med, high] = p.mouse.zones;
-    if !(low > 0.0 && low < med && med < high) {
+    if !positive_increasing(p.mouse.zones) {
         d.error(
             "mouse.zones",
             "low, med and high must be positive and increase",
         );
     }
+}
+
+fn check_routes(d: &mut Diagnostics, p: &Profile) {
     for (i, r) in p.analog.iter().enumerate() {
         if !(0.0..1.0).contains(&r.snap) || r.noise_filter < 0.0 || r.acceleration < 0.0 {
             d.error(
@@ -287,10 +311,12 @@ pub fn validate(p: &Profile) -> Diagnostics {
             );
         }
     }
-    check_crosshairs(&mut d, p);
-    check_radial(&mut d, p);
+}
+
+/// The light bar, the vibration and the base layer's trigger effects.
+fn check_feedback(d: &mut Diagnostics, p: &Profile) {
     if let Some(l) = &p.lightbar {
-        check_light(&mut d, "lightbar", l);
+        check_light(d, "lightbar", l);
     }
     let v = &p.vibration;
     if !(0.0..=1.0).contains(&v.left)
@@ -307,19 +333,24 @@ pub fn validate(p: &Profile) -> Diagnostics {
         ("triggers.right", &p.triggers.right),
     ] {
         if let Some(e) = &t.effect {
-            check_effect(&mut d, name, e);
+            check_effect(d, name, e);
         }
     }
+}
+
+/// What the layers change: trigger effects, light bars, then stick, trigger and virtual stick
+/// settings (each over every layer, in that order).
+fn check_layers(d: &mut Diagnostics, p: &Profile) {
     for (i, l) in p.layers.iter().enumerate() {
         for (side, t) in [("left", &l.triggers.left), ("right", &l.triggers.right)] {
             if let Some(e) = &t.effect {
-                check_effect(&mut d, &format!("layers[{i}].triggers.{side}"), e);
+                check_effect(d, &format!("layers[{i}].triggers.{side}"), e);
             }
         }
     }
     for (i, l) in p.layers.iter().enumerate() {
         if let Some(light) = &l.lightbar {
-            check_light(&mut d, &format!("layers[{i}].lightbar"), light);
+            check_light(d, &format!("layers[{i}].lightbar"), light);
         }
     }
     for (i, l) in p.layers.iter().enumerate() {
@@ -333,22 +364,15 @@ pub fn validate(p: &Profile) -> Diagnostics {
         if changed.contains(&true) {
             let sticks = l.sticks.apply(&p.sticks);
             let triggers = l.triggers.apply(&p.triggers);
-            check_analog(
-                &mut d,
-                &format!("layers[{i}]."),
-                &sticks,
-                &triggers,
-                changed,
-            );
+            check_analog(d, &format!("layers[{i}]."), &sticks, &triggers, changed);
         }
         let vs = &l.virtual_devices.sticks;
         let changed = [!vs.left.is_empty(), !vs.right.is_empty()];
         if changed.contains(&true) {
             let sticks = vs.apply(&p.virtual_devices.sticks);
-            check_virtual(&mut d, &format!("layers[{i}]."), &sticks, changed);
+            check_virtual(d, &format!("layers[{i}]."), &sticks, changed);
         }
     }
-    d
 }
 
 /// `#rrggbb`.
@@ -392,8 +416,7 @@ fn check_light(d: &mut Diagnostics, path: &str, l: &Light) {
     }
 }
 
-fn check_radial(d: &mut Diagnostics, p: &Profile) {
-    let declared: Vec<u8> = p.layers.iter().map(|l| l.id).collect();
+fn check_radial(d: &mut Diagnostics, p: &Profile, declared: &[u8]) {
     for (i, m) in p.radial_menus.iter().enumerate() {
         let path = format!("radial_menus[{i}]");
         if m.sectors.is_empty() || m.sectors.len() > 12 {
@@ -521,18 +544,13 @@ fn check_analog(
                 "must be between 1 and 44 degrees",
             );
         }
-        if s.curve
-            .iter()
-            .any(|pt| !(0.0..=1.0).contains(&pt[0]) || !(0.0..=1.0).contains(&pt[1]))
-        {
+        if !curve_in_range(&s.curve) {
             d.error(
                 format!("{prefix}sticks.{name}.curve"),
                 "points must be in [0, 1]",
             );
         }
-        let [low, med, high] = s.zone_thresholds();
-        let problem = zone_problem([low.x, med.x, high.x]).or(zone_problem([low.y, med.y, high.y]));
-        if let Some(msg) = problem {
+        if let Some(msg) = stick_zone_problem(s) {
             d.error(format!("{prefix}sticks.{name}.zones"), msg);
         }
     }
@@ -567,10 +585,7 @@ fn check_virtual(d: &mut Diagnostics, prefix: &str, sticks: &VirtualSticks, whic
                 d.error(path(field), "must be between 0.1 and 5");
             }
         }
-        if s.curve
-            .iter()
-            .any(|pt| !(0.0..=1.0).contains(&pt[0]) || !(0.0..=1.0).contains(&pt[1]))
-        {
+        if !curve_in_range(&s.curve) {
             d.error(path("curve"), "points must be in [0, 1]");
         }
         let j = &s.jitter;
@@ -590,6 +605,24 @@ fn check_virtual(d: &mut Diagnostics, prefix: &str, sticks: &VirtualSticks, whic
             );
         }
     }
+}
+
+/// Every curve point is in [0, 1].
+fn curve_in_range(curve: &[[f32; 2]]) -> bool {
+    curve
+        .iter()
+        .all(|pt| (0.0..=1.0).contains(&pt[0]) && (0.0..=1.0).contains(&pt[1]))
+}
+
+/// Low, medium and high thresholds above 0 that increase.
+fn positive_increasing([low, med, high]: [f32; 3]) -> bool {
+    low > 0.0 && low < med && med < high
+}
+
+/// What is wrong with a stick's effective zones, across or along.
+fn stick_zone_problem(s: &StickConfig) -> Option<&'static str> {
+    let [low, med, high] = s.zone_thresholds();
+    zone_problem([low.x, med.x, high.x]).or(zone_problem([low.y, med.y, high.y]))
 }
 
 /// What is wrong with a control's effective low, medium and high zone thresholds.
@@ -772,6 +805,57 @@ while_held = ["LT", "Mouse:Right"]
         );
         let ok = src.replace("false", "true");
         assert!(!validate(&parse_toml(&ok).unwrap()).has_errors());
+    }
+
+    /// Diagnostics come in a fixed order: layer ids, mappings, devices, routes, crosshairs,
+    /// radial menus, feedback, then what the layers change.
+    #[test]
+    fn validation_reports_in_a_fixed_order() {
+        let src = r#"
+[vibration]
+left = 2.0
+
+[virtual.motion]
+shake_g = 9.0
+
+[[layers]]
+id = 0
+
+[[layers]]
+id = 1
+lightbar = { colors = ["red"] }
+
+[[mappings]]
+trigger = "A"
+random_ms = 20000
+
+[[analog]]
+source = "mouse"
+target = "right_stick"
+snap = 2.0
+
+[[crosshairs]]
+opacity = 2.0
+
+[[radial_menus]]
+layer = 0
+"#;
+        let d = validate(&parse_toml(src).unwrap());
+        let mut paths: Vec<&str> = d.iter().map(|x| x.path.as_str()).collect();
+        paths.dedup();
+        assert_eq!(
+            paths,
+            [
+                "layers[0]",
+                "mappings[0] (A)",
+                "virtual.motion.shake_g",
+                "analog[0]",
+                "crosshairs[0]",
+                "radial_menus[0]",
+                "vibration",
+                "layers[1].lightbar"
+            ]
+        );
     }
 
     #[test]
