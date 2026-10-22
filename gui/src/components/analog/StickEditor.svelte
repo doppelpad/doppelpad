@@ -9,6 +9,7 @@
   import { app } from '../../lib/state/app.svelte';
   import type { StickConfig } from '../../lib/types';
   import Slider from '../ui/Slider.svelte';
+  import { PCT, sliderHint, type SliderSpec } from '../ui/sliderSpec';
   import Toggle from '../ui/Toggle.svelte';
   import CurveEditor from './CurveEditor.svelte';
   import EditorColumns from './EditorColumns.svelte';
@@ -23,6 +24,16 @@
   const main = $derived(app.profile && def ? stickConfig(app.profile, side, def) : null);
   const ref = $derived(app.layer === 0 ? def : main);
   const resetLabel = $derived(app.layer === 0 ? undefined : t('analog.layer.reset_field'));
+  type StickField = 'deadzone' | 'outer' | 'anti_deadzone' | 'sensitivity' | 'rotation' | 'direction_width';
+  /** The plain sliders, in order; the direction threshold comes before the direction width. */
+  const SLIDERS: [StickField, SliderSpec][] = [
+    ['deadzone', { min: 0, max: 0.9, step: 0.01, ...PCT, hint: true }],
+    ['outer', { min: 0.1, max: 1, step: 0.01, ...PCT, hint: true }],
+    ['anti_deadzone', { min: 0, max: 0.9, step: 0.01, ...PCT, hint: true }],
+    ['sensitivity', { min: 0.1, max: 3, step: 0.05, unit: '×' }],
+    ['rotation', { min: -180, max: 180, step: 1, unit: '°', hint: true }],
+    ['direction_width', { min: 5, max: 40, step: 0.5, unit: '°', hint: true }],
+  ];
   const disabled = $derived(app.readOnly);
 
   const zoneDefaults = $derived(zoneDefaultsOf(app.catalog?.defaults));
@@ -44,100 +55,39 @@
   <AnalogLayerNote kind="sticks" sides={[side]} />
   <EditorColumns>
     {#snippet controls()}
-      <Slider
-        label={t('analog.stick.deadzone')}
-        value={cfg.deadzone}
-        def={ref.deadzone}
-        {resetLabel}
-        min={0}
-        max={0.9}
-        step={0.01}
-        scale={100}
-        unit="%"
-        hint={t('analog.stick.deadzone_hint')}
-        {disabled}
-        onchange={(v) => set({ deadzone: v })}
-      />
-      <Slider
-        label={t('analog.stick.outer')}
-        value={cfg.outer}
-        def={ref.outer}
-        {resetLabel}
-        min={0.1}
-        max={1}
-        step={0.01}
-        scale={100}
-        unit="%"
-        hint={t('analog.stick.outer_hint')}
-        {disabled}
-        onchange={(v) => set({ outer: v })}
-      />
-      <Slider
-        label={t('analog.stick.anti_deadzone')}
-        value={cfg.anti_deadzone}
-        def={ref.anti_deadzone}
-        {resetLabel}
-        min={0}
-        max={0.9}
-        step={0.01}
-        scale={100}
-        unit="%"
-        hint={t('analog.stick.anti_deadzone_hint')}
-        {disabled}
-        onchange={(v) => set({ anti_deadzone: v })}
-      />
-      <Slider
-        label={t('analog.stick.sensitivity')}
-        value={cfg.sensitivity}
-        def={ref.sensitivity}
-        {resetLabel}
-        min={0.1}
-        max={3}
-        step={0.05}
-        unit="×"
-        {disabled}
-        onchange={(v) => set({ sensitivity: v })}
-      />
-      <Slider
-        label={t('analog.stick.rotation')}
-        value={cfg.rotation}
-        def={ref.rotation}
-        {resetLabel}
-        min={-180}
-        max={180}
-        step={1}
-        unit="°"
-        hint={t('analog.stick.rotation_hint')}
-        {disabled}
-        onchange={(v) => set({ rotation: v })}
-      />
-      <Slider
-        label={t('analog.stick.direction_threshold')}
-        value={zones.x[0]}
-        def={stickThresholds(ref.zones, zoneDefaults).x[0]}
-        {resetLabel}
-        min={0.05}
-        max={0.95}
-        step={0.01}
-        scale={100}
-        unit="%"
-        hint={t(ellipticLow ? 'analog.stick.direction_threshold_elliptic' : 'analog.stick.direction_threshold_hint')}
-        disabled={disabled || ellipticLow}
-        onchange={(v) => set({ zones: setStickLevel(cfg.zones, 'low', 'both', v, zoneDefaults) })}
-      />
-      <Slider
-        label={t('analog.stick.direction_width')}
-        value={cfg.direction_width}
-        def={ref.direction_width}
-        {resetLabel}
-        min={5}
-        max={40}
-        step={0.5}
-        unit="°"
-        hint={t('analog.stick.direction_width_hint')}
-        {disabled}
-        onchange={(v) => set({ direction_width: v })}
-      />
+      {#snippet threshold()}
+        <Slider
+          label={t('analog.stick.direction_threshold')}
+          value={zones.x[0]}
+          def={stickThresholds(ref.zones, zoneDefaults).x[0]}
+          {resetLabel}
+          min={0.05}
+          max={0.95}
+          step={0.01}
+          scale={100}
+          unit="%"
+          hint={t(ellipticLow ? 'analog.stick.direction_threshold_elliptic' : 'analog.stick.direction_threshold_hint')}
+          disabled={disabled || ellipticLow}
+          onchange={(v) => set({ zones: setStickLevel(cfg.zones, 'low', 'both', v, zoneDefaults) })}
+        />
+      {/snippet}
+      {#each SLIDERS as [f, s] (f)}
+        {#if f === 'direction_width'}{@render threshold()}{/if}
+        <Slider
+          label={t(`analog.stick.${f}`)}
+          value={cfg[f]}
+          def={ref[f]}
+          {resetLabel}
+          min={s.min}
+          max={s.max}
+          step={s.step}
+          scale={s.scale}
+          unit={s.unit}
+          hint={sliderHint('analog.stick', f, s)}
+          {disabled}
+          onchange={(v) => set({ [f]: v })}
+        />
+      {/each}
       <div class="toggles">
         <Toggle checked={cfg.invert_x} {disabled} label={t('analog.stick.invert_x')} onchange={(v) => set({ invert_x: v })} />
         <Toggle checked={cfg.invert_y} {disabled} label={t('analog.stick.invert_y')} onchange={(v) => set({ invert_y: v })} />
