@@ -62,6 +62,8 @@ const COMMANDS: &[&str] = &[
     "profiles_dir",
     "log_file",
     "take_notices",
+    "update_check",
+    "update_install",
     "overlay_ready",
     "osd_test",
     "osd_monitors",

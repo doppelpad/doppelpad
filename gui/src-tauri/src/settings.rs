@@ -31,6 +31,8 @@ pub struct GuiSettings {
     pub hook_buttons: bool,
     /// What to do when reWASD runs as the app starts (it keeps the controllers to itself).
     pub rewasd_at_start: RewasdChoice,
+    /// Ask GitHub for a newer version at start-up.
+    pub check_updates: bool,
     /// On-screen notifications over games.
     pub osd: OsdSettings,
     /// The live controller overlay.
@@ -166,6 +168,7 @@ impl Default for GuiSettings {
             stay_live: false,
             hook_buttons: true,
             rewasd_at_start: RewasdChoice::Ask,
+            check_updates: true,
             osd: OsdSettings::default(),
             pad_overlay: PadOverlaySettings::default(),
             mappings_overlay: MappingsOverlaySettings::default(),

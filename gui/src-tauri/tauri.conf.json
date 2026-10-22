@@ -40,11 +40,22 @@
       "../../LICENSE-MIT": "LICENSE-MIT",
       "../../LICENSE-APACHE": "LICENSE-APACHE"
     },
+    "createUpdaterArtifacts": true,
     "windows": {
       "nsis": {
         "installMode": "perMachine",
         "installerHooks": "installer/hooks.nsh",
         "languages": ["English", "German"]
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "REPLACE_WITH_THE_UPDATER_PUBLIC_KEY",
+      "endpoints": ["https://github.com/doppelpad/doppelpad/releases/latest/download/latest.json"],
+      "requireSignedVersion": true,
+      "windows": {
+        "installMode": "passive"
       }
     }
   }

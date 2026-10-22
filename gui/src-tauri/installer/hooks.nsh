@@ -7,9 +7,14 @@
 ;   setups are embedded, unpacked to $PLUGINSDIR and run silently. A checkbox on the
 ;   welcome page, on by default, turns this off.
 ; - Never removes the drivers on uninstall: other programs may use them.
+; - Asks a running `doppelpad daemon` to stop before replacing or removing doppelpad.exe.
 ;
 ; Command line: /S (silent) and /P (passive) install missing drivers too, /NODRIVERS skips
 ; them. Updates (/UPDATE) never touch drivers.
+;
+; Updates: the app downloads the setup, stops its remapping service (which shows hidden
+; controllers again) and exits, then the setup runs with /P /UPDATE /R: no pages, no
+; drivers, and the app starts again when it is done (Tauri's template, .onInstSuccess).
 ;
 ; Build inputs, both ignored by git and prepared by `beforeBundleCommand`:
 ;   drivers\  driver setups and drivers.nsh (scripts/fetch-drivers.mjs)
@@ -244,8 +249,39 @@ Function DpInstallDrivers
   Pop $0
 FunctionEnd
 
+; Asks a running `doppelpad daemon` to stop, as `doppelpad shutdown` does, so it shows hidden
+; controllers again and unplugs its virtual ones, and waits up to three seconds for it to
+; exit. CheckIfAppIsRunning then closes whatever still runs. The app refuses the request (it
+; quits from its tray); before an update it has stopped its service and exited already.
+; A macro, not a function: functions in this file are compiled before Tauri's template adds
+; the folder of its plugin (nsis_tauri_utils).
+!macro DP_STOP_DAEMON
+  Push $0
+  Push $1
+  ${If} ${FileExists} "$INSTDIR\doppelpad.exe"
+    nsExec::Exec '"$INSTDIR\doppelpad.exe" shutdown'
+    Pop $0
+    ${If} $0 == 0
+      StrCpy $1 0
+      ${Do}
+        nsis_tauri_utils::FindProcess "doppelpad.exe"
+        Pop $0
+        ${If} $0 <> 0 ; gone
+        ${OrIf} $1 >= 30
+          ${ExitDo}
+        ${EndIf}
+        Sleep 100
+        IntOp $1 $1 + 1
+      ${Loop}
+    ${EndIf}
+  ${EndIf}
+  Pop $1
+  Pop $0
+!macroend
+
 !macro NSIS_HOOK_PREINSTALL
   ; The CLI may be running as `doppelpad daemon`.
+  !insertmacro DP_STOP_DAEMON
   !insertmacro CheckIfAppIsRunning "$INSTDIR\doppelpad.exe" "doppelpad"
   File "/oname=$INSTDIR\doppelpad.exe" "${DP_PAYLOAD}\bin\doppelpad.exe"
 !macroend
@@ -255,6 +291,7 @@ FunctionEnd
 !macroend
 
 !macro NSIS_HOOK_PREUNINSTALL
+  !insertmacro DP_STOP_DAEMON
   !insertmacro CheckIfAppIsRunning "$INSTDIR\doppelpad.exe" "doppelpad"
   Delete "$INSTDIR\doppelpad.exe"
 !macroend

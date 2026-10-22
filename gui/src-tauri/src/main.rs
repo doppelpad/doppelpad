@@ -16,6 +16,7 @@ mod settings;
 #[cfg(test)]
 mod tests;
 mod tray;
+mod updates;
 
 use std::sync::atomic::{AtomicBool, AtomicU64};
 use std::sync::{Arc, Mutex};
@@ -75,6 +76,7 @@ fn main() {
             tray::show_main(app);
         }))
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             logging::init();
             tracing::info!(
@@ -105,6 +107,7 @@ fn main() {
             });
             app.manage(overlay::Overlays::default());
             app.manage(osd::OsdState::default());
+            app.manage(updates::PendingUpdate::default());
             tray::create(app.handle())?;
             overlay::spawn_watcher(app.handle(), "osd", osd::watch)?;
             overlay::spawn_watcher(app.handle(), "crosshair", crosshair::watch)?;
@@ -192,6 +195,8 @@ fn main() {
             commands::profiles_dir,
             commands::log_file,
             commands::take_notices,
+            updates::update_check,
+            updates::update_install,
             overlay::overlay_ready,
             osd::osd_test,
             osd::osd_monitors,

@@ -1159,6 +1159,23 @@
     "declined": "reWASD keeps running: the administrator prompt was declined.",
     "quit_failed": "Could not quit reWASD completely: {error}"
   },
+  "updates": {
+    "section": "Updates",
+    "hint": "Doppelpad asks GitHub for the newest version. GitHub sees your IP address, as with any download. An update is installed only when you agree.",
+    "auto": "Check for updates automatically",
+    "version": "Version {version}",
+    "check_now": "Check now",
+    "checking": "Checking…",
+    "downloading_percent": "Downloading… {percent} %",
+    "up_to_date": "Doppelpad is up to date.",
+    "check_failed": "Could not check for updates: {error}",
+    "title": "Update available",
+    "available": "Doppelpad {version} is out (you have {current}). Installing closes Doppelpad and pauses remapping for a moment. Windows asks for administrator permission, then Doppelpad starts again.",
+    "install": "Install and restart",
+    "later": "Later",
+    "downloading": "Downloading the update…",
+    "install_failed": "The update was not installed: {error}"
+  },
   "notices": {
     "service-takeover": "A running Doppelpad background service was stopped — this app now handles remapping.",
     "saved": "Saved",

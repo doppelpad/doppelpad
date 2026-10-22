@@ -25,6 +25,7 @@ import type {
   RewasdStatus,
   RuntimeOptions,
   Template,
+  UpdateInfo,
 } from './types';
 
 export const api = {
@@ -113,6 +114,18 @@ export const api = {
   profilesDir: () => invoke<string>('profiles_dir'),
   logFile: () => invoke<string>('log_file'),
   takeNotices: () => invoke<Notice[]>('take_notices'),
+
+  /** Ask the update endpoints (GitHub) for a newer version; `null` when this one is the newest. */
+  updateCheck: () => invoke<UpdateInfo | null>('update_check'),
+  /**
+   * Download the update the last check found, check its signature and install it. The app stops
+   * remapping and exits, the setup starts it again; the promise settles only when that failed.
+   */
+  updateInstall(onProgress: (percent: number) => void) {
+    const channel = new Channel<number>();
+    channel.onmessage = onProgress;
+    return invoke<void>('update_install', { onProgress: channel });
+  },
 };
 
 /** Error text from a rejected command. */

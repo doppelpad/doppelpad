@@ -64,6 +64,8 @@ permissions = [
   "allow-profiles-dir",
   "allow-log-file",
   "allow-take-notices",
+  "allow-update-check",
+  "allow-update-install",
   "allow-overlay-ready",
   "allow-osd-test",
   "allow-osd-monitors",

@@ -78,6 +78,7 @@ unit-tested but have not run against the real device yet.
 | First-run guide and config templates (virtual Xbox, virtual DualShock 4, desktop, keyboard/mouse) | ✅ |
 | Sharing: games as `.dpgame` bundles, printable bindings sheet, layer presets | ✅ |
 | Installer | ✅ Windows setup (NSIS) that installs missing ViGEmBus/HidHide; ⏳ code signing, test on a clean Windows install |
+| Updates from GitHub Releases: check at start-up (can be turned off) and *Check now*, signed setups, release workflow for version tags | ✅ (⏳ updater key, first release, update between two published versions) |
 
 ## Platforms
 
