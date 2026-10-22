@@ -3,12 +3,14 @@
   // controller and letting go, clear it, or change the hold time.
   import { CircleDot, X } from '@lucide/svelte';
   import { onDestroy } from 'svelte';
-  import { api } from '../lib/api';
-  import { t } from '../lib/i18n/index.svelte';
-  import { controlLabel } from '../lib/model/controls';
-  import { padButtonsDown } from '../lib/model/devices';
-  import { app } from '../lib/state/app.svelte';
-  import type { HotkeyField, Hotkeys, PadButtonName } from '../lib/types';
+  import { api } from '../../lib/api';
+  import { t } from '../../lib/i18n/index.svelte';
+  import { controlLabel } from '../../lib/model/controls';
+  import { padButtonsDown } from '../../lib/model/devices';
+  import { app } from '../../lib/state/app.svelte';
+  import type { HotkeyField, Hotkeys, PadButtonName } from '../../lib/types';
+  import SettingRow from './SettingRow.svelte';
+  import SettingsSection from './SettingsSection.svelte';
 
   const FIELDS: HotkeyField[] = ['slot1', 'slot2', 'slot3', 'slot4', 'remap', 'stop_macros', 'emergency_stop', 'pad_overlay', 'mappings_overlay'];
   const MAX_BUTTONS = 4;
@@ -83,12 +85,9 @@
   });
 </script>
 
-<div class="section">
-  <div class="section-title"><span>{t('hotkeys.title')}</span></div>
-  <p class="hint">{t('hotkeys.hint')}</p>
+<SettingsSection title={t('hotkeys.title')} hint={t('hotkeys.hint')}>
   {#if hotkeys}
-    <label class="row">
-      <span>{t('hotkeys.hold_ms')}</span>
+    <SettingRow label={t('hotkeys.hold_ms')}>
       <span class="hold">
         <input
           type="number"
@@ -100,7 +99,7 @@
         />
         {t('common.ms')}
       </span>
-    </label>
+    </SettingRow>
     {#each FIELDS as f (f)}
       {@const rec = recording === f}
       <div class="hk">
@@ -130,27 +129,9 @@
       </div>
     {/each}
   {/if}
-</div>
+</SettingsSection>
 
 <style>
-  .section {
-    border-top: 1px solid var(--line);
-    padding-top: 12px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-  .hint {
-    margin: 0;
-    color: var(--text-dim);
-    font-size: var(--fs-s);
-  }
-  .row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-  }
   .hold {
     display: flex;
     align-items: center;

@@ -2,10 +2,12 @@
   // Which controllers Doppelpad uses: devices it ignores completely, and groups of controllers
   // that act as one (one profile, one set of slots). Only connected devices can be grouped.
   import { Plus, Trash2 } from '@lucide/svelte';
-  import { api } from '../lib/api';
-  import { t } from '../lib/i18n/index.svelte';
-  import { app } from '../lib/state/app.svelte';
-  import type { DeviceGroup } from '../lib/types';
+  import { api } from '../../lib/api';
+  import { t } from '../../lib/i18n/index.svelte';
+  import { app } from '../../lib/state/app.svelte';
+  import type { DeviceGroup } from '../../lib/types';
+  import SettingRow from './SettingRow.svelte';
+  import SettingsSection from './SettingsSection.svelte';
 
   const live = $derived(app.live);
   const seen = $derived(live?.seen_devices ?? []);
@@ -33,9 +35,7 @@
   }
 </script>
 
-<div class="section">
-  <div class="section-title"><span>{t('devices.settings.title')}</span></div>
-  <p class="hint">{t('devices.settings.hint')}</p>
+<SettingsSection title={t('devices.settings.title')} hint={t('devices.settings.hint')}>
   {#each [...seen, ...[...blocked].filter((id) => !seen.some((d) => d.id === id)).map((id) => ({ id, name: id }))] as d (d.id)}
     <label class="dev">
       <input type="checkbox" checked={!blocked.has(d.id)} onchange={(e) => app.attempt(api.setBlocked(d.id, !e.currentTarget.checked))} />
@@ -73,30 +73,17 @@
     <p class="hint">{t('devices.settings.group_hint')}</p>
   {/if}
 
-  <label class="idle">
-    <span>{t('devices.settings.power_off_after')}</span>
+  <SettingRow label={t('devices.settings.power_off_after')}>
     <select value={powerOffAfter} onchange={(e) => app.attempt(api.setPowerOffAfter(Number(e.currentTarget.value)))}>
       {#each IDLE_MINUTES.includes(powerOffAfter) ? IDLE_MINUTES : [...IDLE_MINUTES, powerOffAfter] as m (m)}
         <option value={m}>{m === 0 ? t('devices.settings.never') : t('devices.settings.minutes', { n: m })}</option>
       {/each}
     </select>
-  </label>
+  </SettingRow>
   <p class="hint">{t('devices.settings.power_off_hint')}</p>
-</div>
+</SettingsSection>
 
 <style>
-  .section {
-    border-top: 1px solid var(--line);
-    padding-top: 12px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-  .hint {
-    margin: 0;
-    color: var(--text-dim);
-    font-size: var(--fs-s);
-  }
   .dev,
   .pick {
     display: flex;
@@ -136,13 +123,6 @@
     padding: 10px;
     border: 1px dashed var(--line-strong);
     border-radius: var(--radius-m);
-  }
-  .idle {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    margin-top: 4px;
   }
   .new .btn {
     align-self: flex-start;

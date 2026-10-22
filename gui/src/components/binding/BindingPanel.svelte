@@ -38,6 +38,7 @@
   import ActionParams from './ActionParams.svelte';
   import ActionPicker from './ActionPicker.svelte';
   import ActivatorIcon from './ActivatorIcon.svelte';
+  import MsInput from './MsInput.svelte';
   import ZoneEditor from './ZoneEditor.svelte';
 
   let picking = $state(false);
@@ -336,28 +337,21 @@
         {#if mode === 'turbo'}
           <label class="inline">
             {t('binding.period')}
-            <input
-              type="number"
-              min="10"
-              step="10"
-              value={shown?.turbo_ms ?? ''}
+            <MsInput
+              value={shown?.turbo_ms}
               placeholder={String(timing.turbo_ms ?? '')}
-              onchange={(e) => setTiming('turbo_ms', e.currentTarget.value)}
+              min={10}
+              onchange={(v) => setTiming('turbo_ms', v)}
             />
-            {t('common.ms')}
           </label>
           <label class="inline" title={t('binding.random_hint')}>
             {t('binding.random')}
-            <input
-              type="number"
-              min="0"
-              max="10000"
-              step="10"
-              value={shown?.random_ms ?? ''}
+            <MsInput
+              value={shown?.random_ms}
               placeholder="0"
-              onchange={(e) => edit((m) => (m.random_ms = num(e.currentTarget.value) || undefined))}
+              max={10000}
+              onchange={(v) => edit((m) => (m.random_ms = num(v) || undefined))}
             />
-            {t('common.ms')}
           </label>
         {/if}
       </div>
@@ -406,16 +400,13 @@
         {#if shown.jump.mode === 'switch' || shown.jump.delay_ms}
           <label class="inline">
             {t('binding.jump_delay')}
-            <input
-              type="number"
-              min="0"
-              step="50"
-              value={shown.jump.delay_ms ?? ''}
+            <MsInput
+              value={shown.jump.delay_ms}
               placeholder="0"
+              step={50}
               disabled={readOnly}
-              onchange={(e) => edit((m) => m.jump && (m.jump = { ...m.jump, delay_ms: num(e.currentTarget.value) }))}
+              onchange={(v) => edit((m) => m.jump && (m.jump = { ...m.jump, delay_ms: num(v) }))}
             />
-            {t('common.ms')}
           </label>
           {#if shown.jump.delay_ms}
             <label class="inline" title={t('binding.jump_postpone_hint')}>
@@ -450,16 +441,12 @@
         {#each timingFields as f (f)}
           <label class="inline">
             <span class="tl">{t(`binding.timing.${f}`)}</span>
-            <input
-              type="number"
-              min="0"
-              step="10"
-              value={shown?.[f] ?? ''}
+            <MsInput
+              value={shown?.[f]}
               placeholder={String(timing[f] ?? '')}
               disabled={readOnly}
-              onchange={(e) => setTiming(f, e.currentTarget.value)}
+              onchange={(v) => setTiming(f, v)}
             />
-            {t('common.ms')}
           </label>
         {/each}
       </div>
@@ -723,10 +710,6 @@
     color: var(--text-dim);
     font-size: var(--fs-s);
     margin-left: auto;
-  }
-  .inline input:not([type='checkbox']) {
-    width: 72px;
-    padding: 4px 6px;
   }
   .macro {
     align-self: flex-start;
