@@ -3,10 +3,19 @@
   // vibration, with presets and the raw bytes for experiments. On a layer, "as on Main"
   // follows Main and "off" turns Main's effect off.
   import { t } from '../../lib/i18n/index.svelte';
+  import {
+    EFFECT_KINDS,
+    EFFECT_PRESETS,
+    effectHex,
+    freshEffect,
+    parseEffectHex,
+    sameEffect,
+    withEffectStart,
+    type EffectKind,
+  } from '../../lib/model/triggerEffect';
   import type { TriggerEffect } from '../../lib/types';
   import Slider from '../ui/Slider.svelte';
 
-  type Kind = TriggerEffect['kind'];
   let {
     effect,
     onlayer,
@@ -15,40 +24,17 @@
   }: { effect: TriggerEffect | undefined; onlayer: boolean; disabled?: boolean; onchange: (e: TriggerEffect | undefined) => void } =
     $props();
 
-  const KINDS: Kind[] = ['resistance', 'weapon', 'vibration', 'off', 'raw'];
-  const FRESH: Record<Kind, TriggerEffect> = {
-    off: { kind: 'off' },
-    resistance: { kind: 'resistance', start: 0, strength: 4 },
-    weapon: { kind: 'weapon', start: 4, end: 6, strength: 8 },
-    vibration: { kind: 'vibration', start: 0, amplitude: 4, frequency: 20 },
-    raw: { kind: 'raw', bytes: [0x05, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
-  };
-  const PRESETS: { id: string; effect: TriggerEffect }[] = [
-    { id: 'soft', effect: { kind: 'resistance', start: 0, strength: 2 } },
-    { id: 'medium', effect: { kind: 'resistance', start: 0, strength: 4 } },
-    { id: 'hard', effect: { kind: 'resistance', start: 0, strength: 7 } },
-    { id: 'half', effect: { kind: 'resistance', start: 5, strength: 6 } },
-    { id: 'rifle', effect: { kind: 'weapon', start: 4, end: 6, strength: 8 } },
-    { id: 'pulse', effect: { kind: 'vibration', start: 0, amplitude: 4, frequency: 10 } },
-    { id: 'rumble', effect: { kind: 'vibration', start: 0, amplitude: 6, frequency: 40 } },
-  ];
-
   function pick(v: string) {
-    onchange(v === '' ? undefined : FRESH[v as Kind]);
+    onchange(v === '' ? undefined : freshEffect(v as EffectKind));
   }
 
   function set(patch: Record<string, number>) {
     if (effect) onchange({ ...effect, ...patch } as TriggerEffect);
   }
 
-  const hex = (bytes: number[]) => bytes.map((b) => b.toString(16).padStart(2, '0')).join(' ');
-
   function setRaw(text: string) {
-    const bytes = text
-      .trim()
-      .split(/[\s,]+/)
-      .map((h) => parseInt(h, 16));
-    if (bytes.length === 11 && bytes.every((b) => Number.isInteger(b) && b >= 0 && b <= 255)) onchange({ kind: 'raw', bytes });
+    const bytes = parseEffectHex(text);
+    if (bytes) onchange({ kind: 'raw', bytes });
   }
 </script>
 
@@ -57,13 +43,13 @@
     <span>{t('analog.trigger.effect')}</span>
     <select value={effect?.kind ?? ''} {disabled} onchange={(e) => pick(e.currentTarget.value)}>
       <option value="">{t(onlayer ? 'analog.trigger.effect_main' : 'analog.trigger.effect_none')}</option>
-      {#each KINDS as k (k)}<option value={k}>{t(`analog.trigger.effects.${k}`)}</option>{/each}
+      {#each EFFECT_KINDS as k (k)}<option value={k}>{t(`analog.trigger.effects.${k}`)}</option>{/each}
     </select>
   </label>
   {#if !disabled}
     <div class="presets">
-      {#each PRESETS as p (p.id)}
-        <button class="chip" class:active={JSON.stringify(p.effect) === JSON.stringify(effect)} onclick={() => onchange(p.effect)}>
+      {#each EFFECT_PRESETS as p (p.id)}
+        <button class="chip" class:active={sameEffect(p.effect, effect)} onclick={() => onchange(p.effect)}>
           {t(`analog.trigger.presets.${p.id}`)}
         </button>
       {/each}
@@ -79,7 +65,7 @@
       scale={10}
       unit="%"
       {disabled}
-      onchange={(v) => set(effect?.kind === 'weapon' ? { start: v, end: Math.max(v + 1, effect.end) } : { start: v })}
+      onchange={(v) => effect && onchange(withEffectStart(effect, v))}
     />
   {/if}
   {#if effect?.kind === 'weapon'}
@@ -105,7 +91,7 @@
   {#if effect?.kind === 'raw'}
     <label class="row">
       <span>{t('analog.trigger.effect_bytes')}</span>
-      <input class="raw" value={hex(effect.bytes)} {disabled} onchange={(e) => setRaw(e.currentTarget.value)} />
+      <input class="raw" value={effectHex(effect.bytes)} {disabled} onchange={(e) => setRaw(e.currentTarget.value)} />
     </label>
   {/if}
   <p class="hint">{t('analog.trigger.effect_hint')}</p>

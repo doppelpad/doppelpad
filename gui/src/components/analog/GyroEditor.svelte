@@ -5,7 +5,8 @@
   // the controller in use.
   import { api } from '../../lib/api';
   import { t } from '../../lib/i18n/index.svelte';
-  import { gyroConfig, setGyro } from '../../lib/model/analog';
+  import { gyroConfig, setGyro, setGyroZone } from '../../lib/model/analog';
+  import { LEVELS } from '../../lib/model/zones';
   import { app } from '../../lib/state/app.svelte';
   import type { GyroSettings } from '../../lib/types';
   import Slider from '../ui/Slider.svelte';
@@ -21,22 +22,13 @@
     if (def) app.edit((p) => setGyro(p, patch, def));
   }
 
-  const LEVELS = ['low', 'med', 'high'] as const;
-
   /** Calibration belongs to the controller in use, not to the config; it applies at once. */
   const dev = $derived(app.primary);
   const cal = $derived(dev?.gyro_calibration ?? null);
   const fmt = (v: number) => v.toFixed(2);
 
-  /** Set one zone threshold, moving the others so they keep increasing. */
   function setZone(i: number, v: number) {
-    if (!cfg) return;
-    const key = tilt ? 'tilt_zones' : 'motion_zones';
-    const z = [...cfg[key]] as [number, number, number];
-    z[i] = v;
-    for (let j = i + 1; j < 3; j++) z[j] = Math.max(z[j], z[j - 1] + 1);
-    for (let j = i - 1; j >= 0; j--) z[j] = Math.min(z[j], z[j + 1] - 1);
-    set({ [key]: z.map((x) => Math.max(x, 0.5)) as [number, number, number] });
+    if (def) app.edit((p) => setGyroZone(p, i, v, def));
   }
 </script>
 

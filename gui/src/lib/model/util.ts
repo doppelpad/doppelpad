@@ -31,6 +31,18 @@ export function setOrDrop<T extends object, K extends keyof T>(o: T, k: K, v: T[
   return out;
 }
 
+/**
+ * `values` with `values[i]` set to `v` and the others moved as little as needed to keep the
+ * list rising by at least `gap` (zone thresholds, speed steps).
+ */
+export function setRising<T extends number[]>(values: T, i: number, v: number, gap = 1): T {
+  const out = [...values] as T;
+  out[i] = v;
+  for (let j = i + 1; j < out.length; j++) out[j] = Math.max(out[j], out[j - 1] + gap);
+  for (let j = i - 1; j >= 0; j--) out[j] = Math.min(out[j], out[j + 1] - gap);
+  return out;
+}
+
 /** A TCP/UDP port number typed by the user, or `null` when it is not one. */
 export function parsePort(raw: string): number | null {
   const port = Number(raw);

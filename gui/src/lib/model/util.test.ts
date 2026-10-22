@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Mapping, Profile } from '../types';
 import { declaredLayer, patchLayer, setVirtualDevice } from './layers';
 import { tidyMapping } from './profile';
-import { clamp, clone, dropUndefined, nonEmpty, roundTo, sameJson, setOrDrop } from './util';
+import { clamp, clone, dropUndefined, nonEmpty, parsePort, roundTo, sameJson, setOrDrop, setRising } from './util';
 
 describe('model utilities', () => {
   it('clamps and rounds', () => {
@@ -33,6 +33,16 @@ describe('model utilities', () => {
     expect(nonEmpty({})).toBeUndefined();
     expect(nonEmpty([])).toBeUndefined();
     expect(nonEmpty([1])).toEqual([1]);
+  });
+
+  it('keeps a list rising around the value set', () => {
+    expect(setRising([200, 1000, 3000], 1, 5000)).toEqual([200, 5000, 5001]);
+    expect(setRising([200, 1000, 3000], 1, 100)).toEqual([99, 100, 3000]);
+    expect(setRising([1, 2, 3], 0, 2.5, 0.5)).toEqual([2.5, 3, 3.5]);
+  });
+
+  it('reads port numbers', () => {
+    expect(['8080', '0', '65536', 'x', '80.5'].map(parsePort)).toEqual([8080, null, null, null, null]);
   });
 
   it('tidies every unset mapping field', () => {

@@ -24,6 +24,7 @@ import {
   setStick,
   setTrigger,
   setGyro,
+  setGyroZone,
   setTouchpad,
   setVirtualStick,
   shapeStick,
@@ -258,6 +259,19 @@ describe('gyro settings', () => {
     expect(p.gyro).toEqual(fixture.gyro);
     p = setGyro(p, def.gyro, def.gyro);
     expect('gyro' in p).toBe(false);
+  });
+});
+
+describe('gyro zones', () => {
+  it('keep rising, at least 0.5, in the mode the gyro is in', () => {
+    let p = setGyroZone(empty(), 0, 0.2, def.gyro);
+    expect(p.gyro?.motion_zones?.[0]).toBe(0.5);
+    p = setGyroZone(p, 2, 1, def.gyro);
+    expect(p.gyro?.motion_zones).toEqual([0.5, 0.5, 1]);
+    p = setGyro(p, { mode: 'tilt' }, def.gyro);
+    p = setGyroZone(p, 1, 40, def.gyro);
+    expect(p.gyro?.tilt_zones?.[1]).toBe(40);
+    expect(p.gyro?.tilt_zones?.[2]).toBeGreaterThanOrEqual(41);
   });
 });
 
