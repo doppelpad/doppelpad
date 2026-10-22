@@ -43,8 +43,8 @@
     return Math.min(Math.hypot(x, y), 1);
   });
 
-  function applyPreset(p: MousePreset) {
-    if (profile && index >= 0) app.update(updateRoute(profile, index, MOUSE_PRESETS[p]));
+  function applyPreset(preset: MousePreset) {
+    if (index >= 0) app.edit((p) => updateRoute(p, index, MOUSE_PRESETS[preset]));
   }
 </script>
 

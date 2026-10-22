@@ -27,7 +27,7 @@
   const resetLabel = $derived(app.layer === 0 ? undefined : t('analog.layer.reset_field'));
 
   function set(side: Side, patch: Partial<TriggerConfig>) {
-    if (app.profile && def) app.update(setTrigger(app.profile, side, patch, def, app.layer));
+    if (def) app.edit((p) => setTrigger(p, side, patch, def, app.layer));
   }
 
   const pct = (v: number) => `${(Math.min(1, Math.max(0, v)) * 100).toFixed(1)}%`;

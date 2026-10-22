@@ -2,7 +2,7 @@
   // Which controllers Doppelpad uses: devices it ignores completely, and groups of controllers
   // that act as one (one profile, one set of slots). Only connected devices can be grouped.
   import { Plus, Trash2 } from '@lucide/svelte';
-  import { api, errorText } from '../lib/api';
+  import { api } from '../lib/api';
   import { t } from '../lib/i18n/index.svelte';
   import { app } from '../lib/state/app.svelte';
   import type { DeviceGroup } from '../lib/types';
@@ -22,19 +22,8 @@
   /** Idle timeouts offered, in minutes; 0 never turns controllers off. */
   const IDLE_MINUTES = [0, 5, 10, 15, 20, 30, 45, 60];
 
-  /** Await a command; on failure show why. `true` when it worked. */
-  async function run(p: Promise<unknown>): Promise<boolean> {
-    try {
-      await p;
-      return true;
-    } catch (e) {
-      app.toast(errorText(e), 'error');
-      return false;
-    }
-  }
-
   function setGroups(next: DeviceGroup[]) {
-    return run(api.setGroups(next));
+    return app.attempt(api.setGroups(next));
   }
 
   async function create() {
@@ -49,7 +38,7 @@
   <p class="hint">{t('devices.settings.hint')}</p>
   {#each [...seen, ...[...blocked].filter((id) => !seen.some((d) => d.id === id)).map((id) => ({ id, name: id }))] as d (d.id)}
     <label class="dev">
-      <input type="checkbox" checked={!blocked.has(d.id)} onchange={(e) => run(api.setBlocked(d.id, !e.currentTarget.checked))} />
+      <input type="checkbox" checked={!blocked.has(d.id)} onchange={(e) => app.attempt(api.setBlocked(d.id, !e.currentTarget.checked))} />
       <span class="name">{d.name}</span>
       {#if blocked.has(d.id)}<span class="tag">{t('devices.settings.ignored')}</span>{/if}
     </label>
@@ -86,7 +75,7 @@
 
   <label class="idle">
     <span>{t('devices.settings.power_off_after')}</span>
-    <select value={powerOffAfter} onchange={(e) => run(api.setPowerOffAfter(Number(e.currentTarget.value)))}>
+    <select value={powerOffAfter} onchange={(e) => app.attempt(api.setPowerOffAfter(Number(e.currentTarget.value)))}>
       {#each IDLE_MINUTES.includes(powerOffAfter) ? IDLE_MINUTES : [...IDLE_MINUTES, powerOffAfter] as m (m)}
         <option value={m}>{m === 0 ? t('devices.settings.never') : t('devices.settings.minutes', { n: m })}</option>
       {/each}

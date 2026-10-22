@@ -42,7 +42,7 @@
   const live = $derived(raw && cfg ? Math.hypot(...orient(raw, cfg)) : null);
 
   function set(patch: Partial<StickConfig>) {
-    if (app.profile && def) app.update(setStick(app.profile, side, patch, def, app.layer));
+    if (def) app.edit((p) => setStick(p, side, patch, def, app.layer));
   }
 </script>
 

@@ -1,7 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { Gamepad2, List, PenTool } from '@lucide/svelte';
-  import { api, errorText } from './lib/api';
   import { t } from './lib/i18n/index.svelte';
   import { drawingsFor } from './lib/model/devices';
   import { app } from './lib/state/app.svelte';
@@ -46,18 +45,6 @@
     }
   }
 
-  async function newConfig() {
-    if (!app.gameDir) return;
-    const name = await app.ask(t('header.new_config_name'), 'Default');
-    if (!name) return;
-    try {
-      const path = await api.configCreate(app.gameDir, name);
-      await app.refreshLibrary();
-      await app.openConfig(path, true);
-    } catch (e) {
-      app.toast(errorText(e), 'error');
-    }
-  }
 </script>
 
 <svelte:window onkeydown={onKeydown} />
@@ -108,7 +95,7 @@
         <Gamepad2 size={56} strokeWidth={1.2} />
         {#if app.gameDir}
           <p>{t('header.no_config')}</p>
-          <button class="btn primary" onclick={newConfig}>{t('header.new_config')}</button>
+          <button class="btn primary" onclick={() => app.newConfig(t('header.default_config_name'))}>{t('header.new_config')}</button>
         {:else}
           <p>{t('header.no_selection')}</p>
         {/if}

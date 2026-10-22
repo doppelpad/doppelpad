@@ -2,7 +2,7 @@
   // The welcome guide on first start: drivers, the controller, what it should become, and a
   // first config made from a template (applied right away if wanted).
   import { CircleAlert, CircleCheck, X } from '@lucide/svelte';
-  import { api, errorText } from '../lib/api';
+  import { api } from '../lib/api';
   import { t } from '../lib/i18n/index.svelte';
   import { app } from '../lib/state/app.svelte';
   import type { Template } from '../lib/types';
@@ -37,23 +37,21 @@
 
   async function create() {
     busy = true;
-    try {
-      const g = await api.gameCreateTemplate(name.trim(), t(`welcome.templates.${template}`), template);
-      await app.refreshLibrary();
-      // Opens the new game's config, unless the user keeps unsaved edits of the open one.
-      await app.selectGame(g.dir);
-      const path = g.configs[0]?.path;
-      if (path && useNow && app.gameDir === g.dir) {
-        await api.applyToSlot(0, path);
-        await api.setRemap(true);
-      }
-      app.toast(t('welcome.created', { name: g.meta.name }), 'ok');
-      done();
-    } catch (e) {
-      app.toast(errorText(e), 'error');
-    } finally {
-      busy = false;
-    }
+    const made = api.gameCreateTemplate(name.trim(), t(`welcome.templates.${template}`), template);
+    await app.attempt(
+      made.then(async (g) => {
+        // Opens the new game's config, unless the user keeps unsaved edits of the open one.
+        await app.openCreatedGame(g);
+        const path = g.configs[0]?.path;
+        if (path && useNow && app.gameDir === g.dir) {
+          await api.applyToSlot(0, path);
+          await api.setRemap(true);
+        }
+        app.toast(t('welcome.created', { name: g.meta.name }), 'ok');
+        done();
+      }),
+    );
+    busy = false;
   }
 </script>
 
@@ -73,7 +71,7 @@
           {#if d.state.available}<CircleCheck size={15} />{:else}<CircleAlert size={15} />{/if}
           <span class="grow">{t(`drivers.${d.key}`)}</span>
           {#if !d.state.available}
-            <button class="btn" onclick={() => api.openDriverPage(d.key).catch((e) => app.toast(errorText(e), 'error'))}>
+            <button class="btn" onclick={() => app.attempt(api.openDriverPage(d.key))}>
               {t('drivers.download')}
             </button>
           {/if}

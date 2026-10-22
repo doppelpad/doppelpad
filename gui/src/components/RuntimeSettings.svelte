@@ -1,6 +1,6 @@
 <script lang="ts">
   // How remapping fits in with the rest of the system: sleep, focus, disconnects.
-  import { api, errorText } from '../lib/api';
+  import { api } from '../lib/api';
   import { t } from '../lib/i18n/index.svelte';
   import { app } from '../lib/state/app.svelte';
   import type { RuntimeOptions } from '../lib/types';
@@ -8,22 +8,11 @@
 
   const options = $derived(app.live?.runtime ?? null);
 
-  async function set(patch: Partial<RuntimeOptions>) {
-    if (!options) return;
-    try {
-      await api.setRuntimeOptions({ ...options, ...patch });
-    } catch (e) {
-      app.toast(errorText(e), 'error');
-    }
+  function set(patch: Partial<RuntimeOptions>) {
+    if (options) app.attempt(api.setRuntimeOptions({ ...options, ...patch }));
   }
 
-  async function setAutoSwitch(on: boolean) {
-    try {
-      await api.setAutoSwitch(on);
-    } catch (e) {
-      app.toast(errorText(e), 'error');
-    }
-  }
+  const setAutoSwitch = (on: boolean) => app.attempt(api.setAutoSwitch(on));
 </script>
 
 {#if options}

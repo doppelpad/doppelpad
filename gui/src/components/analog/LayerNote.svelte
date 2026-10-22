@@ -14,10 +14,10 @@
   });
 
   function reset() {
-    let p = app.profile;
-    if (!p) return;
-    for (const s of sides) p = resetLayerPart(p, app.layer, kind, s);
-    app.update(p);
+    app.edit((p) => {
+      for (const s of sides) p = resetLayerPart(p, app.layer, kind, s);
+      return p;
+    });
   }
 </script>
 

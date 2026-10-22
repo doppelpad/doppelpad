@@ -1,6 +1,6 @@
 <script lang="ts">
   import { Gamepad2, Keyboard, RotateCw, TriangleAlert } from '@lucide/svelte';
-  import { api, errorText } from '../lib/api';
+  import { api } from '../lib/api';
   import { t } from '../lib/i18n/index.svelte';
   import { setProfileTiming, setVirtualDevice, type TimingField } from '../lib/model/profile';
   import { setOrDrop } from '../lib/model/util';
@@ -19,8 +19,8 @@
   const REPEATS = ['native', 'fast', 'slow', 'off', 'custom'] as const;
 
   function setRepeat(r: KeyRepeat) {
-    if (!app.profile) return;
-    app.update(setVirtualDevice(app.profile, 'keyboard', r === 'native' ? undefined : { repeat: r }));
+
+    app.edit((p) => setVirtualDevice(p, 'keyboard', r === 'native' ? undefined : { repeat: r }));
   }
 
   /** How the game turns with mouse motion: flick stick and turn actions. */
@@ -28,12 +28,11 @@
   const turn = $derived({ ...TURN, ...app.profile?.virtual?.mouse });
 
   function setTurn(field: keyof typeof TURN, raw: string) {
-    if (!app.profile) return;
     const n = Math.round(Number(raw.replace(',', '.')));
     const ok = field === 'counts_per_turn' ? n > 0 : n >= 0 && n <= 5000;
     const next = { ...turn, [field]: Number.isFinite(n) && ok ? n : TURN[field] };
     const isDefault = (Object.keys(TURN) as (keyof typeof TURN)[]).every((k) => next[k] === TURN[k]);
-    app.update(setVirtualDevice(app.profile, 'mouse', isDefault ? undefined : next));
+    app.edit((p) => setVirtualDevice(p, 'mouse', isDefault ? undefined : next));
   }
 
   const KBM_SOURCES: KbmSource[] = ['all', 'physical', 'scripts'];
@@ -43,42 +42,32 @@
   const mouseZones = $derived(app.profile?.mouse?.zones ?? MOUSE_ZONES);
 
   function setMouseZone(i: number, raw: string) {
-    if (!app.profile) return;
     const n = Math.round(Number(raw));
     if (!Number.isFinite(n) || n <= 0) return;
     const z = [...mouseZones] as [number, number, number];
     z[i] = n;
     for (let j = i + 1; j < 3; j++) z[j] = Math.max(z[j], z[j - 1] + 1);
     for (let j = i - 1; j >= 0; j--) z[j] = Math.min(z[j], z[j + 1] - 1);
-    app.update(setOrDrop(app.profile, 'mouse', z.every((v, j) => v === MOUSE_ZONES[j]) ? undefined : { zones: z }));
+    app.edit((p) => setOrDrop(p, 'mouse', z.every((v, j) => v === MOUSE_ZONES[j]) ? undefined : { zones: z }));
   }
 
-  async function testTurn() {
-    try {
-      await api.testTurn(turn.counts_per_turn);
-      app.toast(t('output.test_turn_started'), 'ok');
-    } catch (e) {
-      app.toast(errorText(e), 'error');
-    }
-  }
+  const testTurn = () => app.attempt(api.testTurn(turn.counts_per_turn), t('output.test_turn_started'));
 
   /** Shake actions: strength and length (the virtual controller's accelerometer). */
   const SHAKE = { shake_g: 2, shake_ms: 150 };
   const shake = $derived({ ...SHAKE, ...app.profile?.virtual?.motion });
 
   function setShake(field: keyof typeof SHAKE, raw: string) {
-    if (!app.profile) return;
     const n = Number(raw.replace(',', '.'));
     const v = field === 'shake_ms' ? Math.round(n) : n;
     const next = { ...shake, [field]: Number.isFinite(v) && v > 0 ? v : SHAKE[field] };
     const isDefault = next.shake_g === SHAKE.shake_g && next.shake_ms === SHAKE.shake_ms;
-    app.update(setVirtualDevice(app.profile, 'motion', isDefault ? undefined : next));
+    app.edit((p) => setVirtualDevice(p, 'motion', isDefault ? undefined : next));
   }
 
   function setTiming(field: TimingField, raw: string) {
-    if (!app.profile) return;
     const n = parseInt(raw, 10);
-    app.update(setProfileTiming(app.profile, field, Number.isFinite(n) && n >= 0 ? n : undefined));
+    app.edit((p) => setProfileTiming(p, field, Number.isFinite(n) && n >= 0 ? n : undefined));
   }
 
   const out = $derived<Required<Output>>({
@@ -89,8 +78,7 @@
   const drivers = $derived(app.live?.drivers);
 
   function set(patch: Partial<Output>) {
-    if (!app.profile) return;
-    app.update({ ...app.profile, output: { ...(app.profile.output ?? {}), ...patch } });
+    app.edit((p) => ({ ...p, output: { ...(p.output ?? {}), ...patch } }));
   }
 
   const PADS: { id: VirtualPadType; icon: typeof Gamepad2 }[] = [
@@ -153,7 +141,7 @@
       checked={app.profile?.layer_change?.repress ?? true}
       disabled={app.readOnly}
       label={t('output.repress')}
-      onchange={(v) => app.profile && app.update({ ...app.profile, layer_change: v ? undefined : { repress: false } })}
+      onchange={(v) => app.edit((p) => ({ ...p, layer_change: v ? undefined : { repress: false } }))}
     />
     <p class="hint">{t('output.repress_hint')}</p>
   </div>
@@ -165,7 +153,7 @@
       disabled={app.readOnly}
       onchange={(e) => {
         const v = e.currentTarget.value as KbmSource;
-        if (app.profile) app.update({ ...app.profile, kbm_source: v === 'all' ? undefined : v });
+        app.edit((p) => ({ ...p, kbm_source: v === 'all' ? undefined : v }));
       }}
     >
       {#each KBM_SOURCES as s (s)}<option value={s}>{t(`output.kbm_sources.${s}`)}</option>{/each}

@@ -137,8 +137,8 @@
         m.jump = undefined;
         m.mode = 'hold';
       }, true);
-    } else if (profile && combo) {
-      app.update(removeMapping(profile, app.layer, combo, app.activator));
+    } else if (combo) {
+      app.edit((p) => removeMapping(p, app.layer, combo, app.activator));
     }
   }
 
@@ -494,7 +494,7 @@
     {/if}
 
     {#if own && !readOnly}
-      <button class="btn danger" onclick={() => profile && combo && app.update(removeMapping(profile, app.layer, combo, app.activator))}>
+      <button class="btn danger" onclick={() => combo && app.edit((p) => removeMapping(p, app.layer, combo, app.activator))}>
         <Trash2 size={14} /> {t('binding.delete')}
       </button>
     {/if}

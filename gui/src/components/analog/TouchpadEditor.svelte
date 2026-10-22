@@ -14,7 +14,7 @@
   const disabled = $derived(app.readOnly);
 
   function set(patch: Partial<TouchpadSettings>) {
-    if (app.profile && def) app.update(setTouchpad(app.profile, patch, def));
+    if (def) app.edit((p) => setTouchpad(p, patch, def));
   }
 </script>
 

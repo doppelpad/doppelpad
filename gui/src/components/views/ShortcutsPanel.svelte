@@ -33,14 +33,16 @@
     else if (picking.length < MAX) picking = [...picking, c];
   }
 
+  let releasePresses = () => {};
+
   function start() {
     picking = [];
-    app.pressListener = (c) => toggle(c);
+    releasePresses = app.capturePresses((c) => toggle(c));
   }
 
   function stop() {
     picking = null;
-    app.pressListener = null;
+    releasePresses();
   }
 
   function confirmShortcut() {
@@ -51,11 +53,10 @@
   }
 
   function remove(trigger: Combo) {
-    if (!app.profile) return;
-    app.update({
-      ...app.profile,
-      mappings: app.profile.mappings.filter((m) => !((m.layer ?? 0) === app.layer && sameCombo(m.trigger, trigger))),
-    });
+    app.edit((p) => ({
+      ...p,
+      mappings: p.mappings.filter((m) => !((m.layer ?? 0) === app.layer && sameCombo(m.trigger, trigger))),
+    }));
     if (app.selected && sameCombo(app.selected, trigger)) app.select(null);
   }
 

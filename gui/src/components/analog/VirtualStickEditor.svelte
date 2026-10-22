@@ -25,7 +25,7 @@
   const instant = $derived(!!cfg && cfg.speed === 0 && cfg.acceleration === 0 && cfg.initial >= cfg.max);
 
   function set(patch: Partial<VirtualStick>) {
-    if (app.profile && def) app.update(setVirtualStick(app.profile, side, patch, def, app.layer));
+    if (def) app.edit((p) => setVirtualStick(p, side, patch, def, app.layer));
   }
 
   const PATTERNS = ['circle', 'square', 'cross'] as const;

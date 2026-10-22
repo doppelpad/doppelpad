@@ -1,6 +1,6 @@
 <script lang="ts">
   import { CircleCheck, CircleAlert, FolderOpen, RefreshCw, X } from '@lucide/svelte';
-  import { api, errorText } from '../lib/api';
+  import { api } from '../lib/api';
   import { LANGUAGES, t } from '../lib/i18n/index.svelte';
   import { app } from '../lib/state/app.svelte';
   import type { Corner, MappingsOverlaySettings, OsdSettings, PadOverlaySettings, PlayerLights, RewasdChoice } from '../lib/types';
@@ -23,11 +23,7 @@
   api.autostartGet().then((on) => (autostart = on));
 
   async function setAutostart(on: boolean) {
-    try {
-      await api.autostartSet(on);
-    } catch (e) {
-      app.toast(errorText(e), 'error');
-    }
+    await app.attempt(api.autostartSet(on));
     autostart = await api.autostartGet();
   }
 
@@ -58,13 +54,7 @@
 
   const PLAYER_LIGHTS: PlayerLights[] = ['while_remapping', 'always', 'off'];
 
-  async function setLights(player: PlayerLights, mic: boolean) {
-    try {
-      await api.setLights(player, mic);
-    } catch (e) {
-      app.toast(errorText(e), 'error');
-    }
-  }
+  const setLights = (player: PlayerLights, mic: boolean) => app.attempt(api.setLights(player, mic));
 
   const padOverlay = $derived(app.settings.pad_overlay);
   const mappingsOverlay = $derived(app.settings.mappings_overlay);
@@ -78,13 +68,7 @@
     app.setSettings({ mappings_overlay: { ...mappingsOverlay, ...patch } });
   }
 
-  async function refresh() {
-    try {
-      await api.refreshDrivers();
-    } catch (e) {
-      app.toast(errorText(e), 'error');
-    }
-  }
+  const refresh = () => app.attempt(api.refreshDrivers());
 </script>
 
 <svelte:window onkeydown={(e) => e.key === 'Escape' && onclose()} />
@@ -150,7 +134,7 @@
     <div class="section">
       <div class="section-head">
         <span>{t('settings.osd.title')}</span>
-        <button class="btn" disabled={!osd.enabled} onclick={() => api.osdTest()}>{t('settings.osd.test')}</button>
+        <button class="btn" disabled={!osd.enabled} onclick={() => app.attempt(api.osdTest())}>{t('settings.osd.test')}</button>
       </div>
       <p class="hint">{t('settings.osd.hint')}</p>
       <Toggle checked={osd.enabled} label={t('settings.osd.enabled')} onchange={(v) => setOsd({ enabled: v })} />
@@ -277,7 +261,7 @@
       <div class="section-head"><span>{t('settings.profiles_dir')}</span></div>
       <div class="dir">
         <code>{profilesDir}</code>
-        <button class="icon-btn" title={t('common.reveal')} onclick={() => profilesDir && api.reveal(profilesDir)}>
+        <button class="icon-btn" title={t('common.reveal')} onclick={() => profilesDir && app.attempt(api.reveal(profilesDir))}>
           <FolderOpen size={15} />
         </button>
       </div>
@@ -287,7 +271,7 @@
       <div class="section-head"><span>{t('settings.log_file')}</span></div>
       <div class="dir">
         <code>{logFile}</code>
-        <button class="icon-btn" title={t('settings.open_log_folder')} onclick={() => logFile && api.reveal(logFile)}>
+        <button class="icon-btn" title={t('settings.open_log_folder')} onclick={() => logFile && app.attempt(api.reveal(logFile))}>
           <FolderOpen size={15} />
         </button>
       </div>
