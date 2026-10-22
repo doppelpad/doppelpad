@@ -190,6 +190,16 @@ pub struct Rumble {
     pub high: f32,
 }
 
+impl Rumble {
+    /// Rumble from 8-bit motor speeds: the large (low-frequency) and the small motor.
+    pub fn from_motors_u8(large: u8, small: u8) -> Rumble {
+        Rumble {
+            low: unit_from_u8(large),
+            high: unit_from_u8(small),
+        }
+    }
+}
+
 /// Colour of a controller's light bar (DualShock 4, DualSense).
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Rgb {
@@ -229,6 +239,24 @@ pub fn axis_from_i16(v: i16) -> f32 {
     } else {
         f32::from(v) / 32767.0
     }
+}
+
+/// `v` (0–1) as 0–255, rounded (trigger values).
+#[inline]
+pub fn unit_to_u8_round(v: f32) -> u8 {
+    (v.clamp(0.0, 1.0) * 255.0).round() as u8
+}
+
+/// 0–255 as 0–1.
+#[inline]
+pub fn unit_from_u8(v: u8) -> f32 {
+    f32::from(v) / 255.0
+}
+
+/// `v` (0–1) as 0–65535, truncated (motor speeds).
+#[inline]
+pub fn unit_to_u16_trunc(v: f32) -> u16 {
+    (v.clamp(0.0, 1.0) * 65535.0) as u16
 }
 
 /// Convert `[-1, 1]` to a signed 16-bit raw axis, clamping.

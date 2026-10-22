@@ -103,7 +103,6 @@ fn trigger(pressed: bool) -> f32 {
     if pressed { 1.0 } else { 0.0 }
 }
 
-/// Unpack two 12-bit values from three bytes (`x = b0 | b1.lo << 8`, `y = b1.hi | b2 << 4`).
 /// Player lights for player `n` (1–4) the way the console lights them: LED 1, LEDs 1–2,
 /// 1–3, all four; 0 turns them off.
 pub fn player_mask(n: u8) -> u8 {
@@ -113,10 +112,15 @@ pub fn player_mask(n: u8) -> u8 {
     }
 }
 
-pub fn unpack12(b: &[u8]) -> (u16, u16) {
-    let x = u16::from(b[0]) | ((u16::from(b[1]) & 0x0F) << 8);
-    let y = (u16::from(b[1]) >> 4) | (u16::from(b[2]) << 4);
-    (x, y)
+/// GameCube triggers end at about this raw value ...
+const GC_TRIGGER_END: f32 = 232.0;
+/// ... and rest at most at this one (higher readings at rest are taken as this).
+const GC_TRIGGER_ZERO_MAX: u8 = 200;
+
+/// A GameCube trigger's pull (0–1) from its raw value and its raw value at rest.
+pub(crate) fn gc_trigger(v: u8, zero: u8) -> f32 {
+    let zero = f32::from(zero.min(GC_TRIGGER_ZERO_MAX));
+    ((f32::from(v) - zero) / (GC_TRIGGER_END - zero)).clamp(0.0, 1.0)
 }
 
 /// Calibration of one stick axis: raw centre and the raw distance to each end.
@@ -287,13 +291,6 @@ mod tests {
         apply_buttons(&mut s, 0x20, 0, 0x10);
         assert!(s.pressed(PadButton::PaddleLR), "right SL");
         assert!(s.pressed(PadButton::PaddleLL), "left SR");
-    }
-
-    #[test]
-    fn unpack_12bit() {
-        assert_eq!(unpack12(&[0x00, 0x08, 0x80]), (0x800, 0x800));
-        assert_eq!(unpack12(&[0xFF, 0x0F, 0x00]), (0xFFF, 0x000));
-        assert_eq!(unpack12(&[0x34, 0x12, 0xAB]), (0x234, 0xAB1));
     }
 
     #[test]

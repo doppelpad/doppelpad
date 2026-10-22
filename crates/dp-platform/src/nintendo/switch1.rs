@@ -10,9 +10,10 @@ use std::time::{Duration, Instant};
 
 use dp_core::pad::{Axis, Motion, PadState, Rumble};
 
-use super::{NINTENDO_VID, StickCal, apply_buttons, imu_to_pad, unpack12};
+use super::{NINTENDO_VID, StickCal, apply_buttons, imu_to_pad};
 use crate::nintendo::player_mask;
 use crate::padio::{Identity, InitError, PadDriver, ReportIo, RumblePacer, pause};
+use crate::report::{le_i16, unpack12};
 use crate::{Battery, JoyConSide, Leds, PadFamily};
 
 /// Rumble data for "no vibration" (320 Hz / 160 Hz at amplitude 0).
@@ -240,7 +241,7 @@ impl ImuCal {
     /// sensitivity) and the optional user block (magic, accel origin, accel sensitivity,
     /// gyro origin), whose origins win when its magic is set.
     pub fn from_spi(factory: &[u8], user: Option<&[u8]>) -> ImuCal {
-        let word = |b: &[u8], i: usize| f32::from(i16::from_le_bytes([b[2 * i], b[2 * i + 1]]));
+        let word = |b: &[u8], i: usize| f32::from(le_i16(b, 2 * i));
         if factory.len() < 24 {
             return Self::DEFAULT;
         }
@@ -300,10 +301,6 @@ impl Default for Calibration {
 // Input
 // ---------------------------------------------------------------------------------------
 
-fn i16le(r: &[u8], at: usize) -> i16 {
-    i16::from_le_bytes([r[at], r[at + 1]])
-}
-
 /// Average of the three IMU frames of a full report, in our axes. `None` while the IMU
 /// sends nothing (all-zero accelerometer).
 fn parse_motion(ty: ControllerType, cal: &ImuCal, r: &[u8]) -> Option<Motion> {
@@ -314,8 +311,8 @@ fn parse_motion(ty: ControllerType, cal: &ImuCal, r: &[u8]) -> Option<Motion> {
     let mut gyro = [0.0f32; 3];
     for frame in 0..3 {
         let at = 13 + frame * 12;
-        let a = cal.accel_g([i16le(r, at), i16le(r, at + 2), i16le(r, at + 4)]);
-        let g = cal.gyro_dps([i16le(r, at + 6), i16le(r, at + 8), i16le(r, at + 10)]);
+        let a = cal.accel_g([le_i16(r, at), le_i16(r, at + 2), le_i16(r, at + 4)]);
+        let g = cal.gyro_dps([le_i16(r, at + 6), le_i16(r, at + 8), le_i16(r, at + 10)]);
         for i in 0..3 {
             accel[i] += a[i] / 3.0;
             gyro[i] += g[i] / 3.0;
@@ -902,6 +899,7 @@ mod tests {
 
     use super::*;
     use crate::padio::testing::ScriptIo;
+    use crate::report::{le_u32, pack12};
 
     const MS: Duration = Duration::from_millis(1);
 
@@ -918,7 +916,7 @@ mod tests {
                 let data: Vec<u8> = match sub {
                     0x02 => vec![0x04, 0x33, ty, 0x02, 1, 2, 3, 4, 5, 6, 0x01, 0x01],
                     0x10 => {
-                        let addr = u32::from_le_bytes([w[11], w[12], w[13], w[14]]);
+                        let addr = le_u32(w, 11);
                         let len = w[15];
                         let Some(bytes) = spi.get(&addr) else {
                             return Vec::new();
@@ -959,14 +957,6 @@ mod tests {
                 id => 0x1000 | u16::from(id),
             })
             .collect()
-    }
-
-    fn pack(a: u16, b: u16) -> [u8; 3] {
-        [
-            a as u8,
-            ((a >> 8) as u8 & 0x0F) | ((b as u8 & 0x0F) << 4),
-            (b >> 4) as u8,
-        ]
     }
 
     #[test]
@@ -1020,15 +1010,15 @@ mod tests {
         let mut user = vec![0u8; 22];
         user[..2].copy_from_slice(&CAL_MAGIC);
         // Left: max above (1000, 1000), centre (2000, 2000), min below (1000, 1000).
-        user[2..5].copy_from_slice(&pack(1000, 1000));
-        user[5..8].copy_from_slice(&pack(2000, 2000));
-        user[8..11].copy_from_slice(&pack(1000, 1000));
+        user[2..5].copy_from_slice(&pack12(1000, 1000));
+        user[5..8].copy_from_slice(&pack12(2000, 2000));
+        user[8..11].copy_from_slice(&pack12(1000, 1000));
         let mut spi = HashMap::new();
         spi.insert(SPI_USER_STICKS, user);
         let mut factory = vec![0u8; 18];
-        factory[9..12].copy_from_slice(&pack(1800, 1900)); // right centre
-        factory[12..15].copy_from_slice(&pack(500, 500)); // right min below
-        factory[15..18].copy_from_slice(&pack(600, 600)); // right max above
+        factory[9..12].copy_from_slice(&pack12(1800, 1900)); // right centre
+        factory[12..15].copy_from_slice(&pack12(500, 500)); // right min below
+        factory[15..18].copy_from_slice(&pack12(600, 600)); // right max above
         spi.insert(SPI_FACTORY_STICKS, factory);
         let mut io = ScriptIo::new(fake_pad(0x03, spi));
         let mut d = Switch1Driver::new(link(true, 0x2009));
@@ -1076,8 +1066,8 @@ mod tests {
     fn full_report() -> Vec<u8> {
         let mut r = vec![0u8; 49];
         r[0] = 0x30;
-        r[6..9].copy_from_slice(&pack(2048, 2048));
-        r[9..12].copy_from_slice(&pack(2048, 2048));
+        r[6..9].copy_from_slice(&pack12(2048, 2048));
+        r[9..12].copy_from_slice(&pack12(2048, 2048));
         r
     }
 
@@ -1087,7 +1077,7 @@ mod tests {
         let mut r = full_report();
         r[3] = 0x08; // A
         r[5] = 0x80; // ZL
-        r[6..9].copy_from_slice(&pack(4095, 2048)); // left stick right
+        r[6..9].copy_from_slice(&pack12(4095, 2048)); // left stick right
         // All frames: accel z = +1 g (device up), gyro y = +14.2842 raw/°/s × 10.
         for f in 0..3 {
             let at = 13 + f * 12;

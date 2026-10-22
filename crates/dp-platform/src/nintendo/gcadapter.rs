@@ -3,7 +3,7 @@
 
 use dp_core::pad::{Axis, PadButton, PadState};
 
-use super::NINTENDO_VID;
+use super::{NINTENDO_VID, gc_trigger};
 
 pub const ADAPTER_PID: u16 = 0x0337;
 pub const PORTS: usize = 4;
@@ -46,19 +46,13 @@ pub struct Adapter {
 
 /// Raw stick counts from the centre to the edge.
 const STICK_RANGE: f32 = 100.0;
-/// GameCube triggers end at about this value.
-const TRIGGER_END: f32 = 232.0;
 
 fn stick(v: u8, origin: u8) -> f32 {
     ((f32::from(v) - f32::from(origin)) / STICK_RANGE).clamp(-1.0, 1.0)
 }
 
 fn trigger(v: u8, origin: u8, click: bool) -> f32 {
-    if click {
-        return 1.0;
-    }
-    let zero = f32::from(origin.min(200));
-    ((f32::from(v) - zero) / (TRIGGER_END - zero)).clamp(0.0, 1.0)
+    if click { 1.0 } else { gc_trigger(v, origin) }
 }
 
 fn port_state(b: &[u8], o: &Origin) -> PadState {

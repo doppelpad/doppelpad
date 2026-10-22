@@ -3,7 +3,9 @@
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use dp_core::pad::{Axis, PadButton, PadState, Rumble, axis_from_i16};
+use dp_core::pad::{
+    Axis, PadButton, PadState, Rumble, axis_from_i16, unit_from_u8, unit_to_u16_trunc,
+};
 use windows_sys::Win32::System::LibraryLoader::{GetProcAddress, LoadLibraryW};
 
 use super::wide;
@@ -206,8 +208,8 @@ fn convert(g: &XInputGamepad) -> PadState {
     s.set_axis(Axis::LeftY, axis_from_i16(g.thumb_ly));
     s.set_axis(Axis::RightX, axis_from_i16(g.thumb_rx));
     s.set_axis(Axis::RightY, axis_from_i16(g.thumb_ry));
-    s.set_axis(Axis::LeftTrigger, f32::from(g.left_trigger) / 255.0);
-    s.set_axis(Axis::RightTrigger, f32::from(g.right_trigger) / 255.0);
+    s.set_axis(Axis::LeftTrigger, unit_from_u8(g.left_trigger));
+    s.set_axis(Axis::RightTrigger, unit_from_u8(g.right_trigger));
     s
 }
 
@@ -261,8 +263,8 @@ impl GamepadBackend for XInputBackend {
             return;
         };
         let mut v = XInputVibration {
-            left: (rumble.low.clamp(0.0, 1.0) * 65535.0) as u16,
-            right: (rumble.high.clamp(0.0, 1.0) * 65535.0) as u16,
+            left: unit_to_u16_trunc(rumble.low),
+            right: unit_to_u16_trunc(rumble.high),
         };
         // SAFETY: valid pointer to XINPUT_VIBRATION.
         unsafe { set_state(slot, &mut v) };

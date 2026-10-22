@@ -11,6 +11,7 @@ use std::time::{Duration, Instant};
 use dp_core::pad::{Axis, Motion, PadButton, PadState, Rumble, TouchPoint, axis_from_i16};
 
 use crate::padio::{Identity, InitError, PadDriver, ReportIo, RumblePacer};
+use crate::report::{le_i16, le_u16};
 use crate::{Battery, PadFamily};
 
 pub const VALVE_VID: u16 = 0x28DE;
@@ -87,14 +88,6 @@ fn settings(values: &[(u8, u16)]) -> [u8; 65] {
     command(CMD_SET_SETTINGS, &payload)
 }
 
-fn i16_at(d: &[u8], at: usize) -> i16 {
-    i16::from_le_bytes([d[at], d[at + 1]])
-}
-
-fn u16_at(d: &[u8], at: usize) -> u16 {
-    u16::from_le_bytes([d[at], d[at + 1]])
-}
-
 /// The payload without the report-ID byte Windows puts in front.
 fn payload(report: &[u8]) -> Option<&[u8]> {
     let d = match report.first() {
@@ -106,8 +99,8 @@ fn payload(report: &[u8]) -> Option<&[u8]> {
 
 /// A pad position as a touch point in its half of a shared surface, y from the top.
 fn pad_point(d: &[u8], at: usize, right: bool) -> TouchPoint {
-    let x = (f32::from(i16_at(d, at)) / 65536.0 + 0.5).clamp(0.0, 1.0);
-    let y = (0.5 - f32::from(i16_at(d, at + 2)) / 65536.0).clamp(0.0, 1.0);
+    let x = (f32::from(le_i16(d, at)) / 65536.0 + 0.5).clamp(0.0, 1.0);
+    let y = (0.5 - f32::from(le_i16(d, at + 2)) / 65536.0).clamp(0.0, 1.0);
     TouchPoint {
         x: if right { 0.5 + x * 0.5 } else { x * 0.5 },
         y,
@@ -115,7 +108,7 @@ fn pad_point(d: &[u8], at: usize, right: bool) -> TouchPoint {
 }
 
 fn motion(d: &[u8], accel_at: usize, gyro_at: usize, deck: bool) -> Motion {
-    let v = |at: usize| f32::from(i16_at(d, at));
+    let v = |at: usize| f32::from(le_i16(d, at));
     let (ax, ay, az) = (v(accel_at), v(accel_at + 2), v(accel_at + 4));
     let (gx, gy, gz) = (v(gyro_at), v(gyro_at + 2), v(gyro_at + 4));
     // The controller's z points out of its face and y away from the player.
@@ -197,7 +190,7 @@ fn parse_controller(d: &[u8], last: &mut Shared) -> PadState {
             last.stick = (0.0, 0.0);
         }
     } else {
-        last.stick = (axis_from_i16(i16_at(d, 16)), axis_from_i16(i16_at(d, 18)));
+        last.stick = (axis_from_i16(le_i16(d, 16)), axis_from_i16(le_i16(d, 18)));
         if !both {
             last.left_pad = None;
         }
@@ -208,8 +201,8 @@ fn parse_controller(d: &[u8], last: &mut Shared) -> PadState {
     // No right stick: the right pad stands in for it.
     if b10 & 0x10 != 0 {
         s.touch[1] = Some(pad_point(d, 20, true));
-        s.set_axis(Axis::RightX, axis_from_i16(i16_at(d, 20)));
-        s.set_axis(Axis::RightY, axis_from_i16(i16_at(d, 22)));
+        s.set_axis(Axis::RightX, axis_from_i16(le_i16(d, 20)));
+        s.set_axis(Axis::RightY, axis_from_i16(le_i16(d, 22)));
     }
     s.motion = Some(motion(d, 28, 34, false));
     s
@@ -242,11 +235,11 @@ fn parse_deck(d: &[u8]) -> PadState {
     s.motion = Some(motion(d, 24, 30, true));
     s.set_axis(
         Axis::LeftTrigger,
-        (f32::from(u16_at(d, 44)) / 32767.0).min(1.0),
+        (f32::from(le_u16(d, 44)) / 32767.0).min(1.0),
     );
     s.set_axis(
         Axis::RightTrigger,
-        (f32::from(u16_at(d, 46)) / 32767.0).min(1.0),
+        (f32::from(le_u16(d, 46)) / 32767.0).min(1.0),
     );
     for (axis, at) in [
         (Axis::LeftX, 48),
@@ -254,7 +247,7 @@ fn parse_deck(d: &[u8]) -> PadState {
         (Axis::RightX, 52),
         (Axis::RightY, 54),
     ] {
-        s.set_axis(axis, axis_from_i16(i16_at(d, at)));
+        s.set_axis(axis, axis_from_i16(le_i16(d, at)));
     }
     s
 }
