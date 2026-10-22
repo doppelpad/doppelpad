@@ -31,7 +31,8 @@ use self::analog::{
     zone_at,
 };
 use self::compile::{
-    AnalogOut, BindingId, Compiled, LayerTable, MaskId, Out, Policy, Step, StopRule, compile,
+    AnalogOut, BindingId, Compiled, JumpTarget, LayerTable, MaskId, Out, Policy, Step, StopRule,
+    compile,
 };
 use self::gyro::{GyroAxes, GyroState};
 use self::recognizer::{RecEvent, Recognizer};
@@ -169,13 +170,61 @@ struct Activation {
     owned: Vec<Out>,
     /// Analog outputs held by the program, with the time each one started.
     analog: Vec<(AnalogOut, u64)>,
-    jump_at: Option<(u64, u8)>,
+    jump_at: Option<DelayedJump>,
     /// The program waits for the delayed jump (postponed actions).
     deferred: bool,
     /// Which segment of a sequence with break steps this activation plays.
     segment: usize,
-    /// A wheel action this held activation repeats: direction, notches, since, repeats sent.
-    wheel_held: Option<(WheelDir, f32, u64, u64)>,
+    /// A wheel action this held activation repeats.
+    wheel_held: Option<HeldWheel>,
+}
+
+impl Activation {
+    /// Release everything it holds and stop.
+    fn finish(&mut self, outs: &mut Outputs) {
+        outs.release_all(&mut self.owned);
+        self.analog.clear();
+        self.finished = true;
+    }
+}
+
+/// A layer jump some time after the activation began.
+#[derive(Clone, Copy, Debug)]
+struct DelayedJump {
+    at: u64,
+    layer: u8,
+}
+
+/// A wheel action that a held activation repeats.
+#[derive(Clone, Copy, Debug)]
+struct HeldWheel {
+    dir: WheelDir,
+    notches: f32,
+    since: u64,
+    /// Repeats sent so far.
+    sent: u64,
+}
+
+/// Rumble a mapping plays, until when.
+#[derive(Clone, Copy, Debug)]
+struct TimedRumble {
+    rumble: Rumble,
+    until: u64,
+}
+
+/// A turn action in progress, in degrees.
+#[derive(Clone, Copy, Debug)]
+struct Turn {
+    total: f32,
+    left: f32,
+}
+
+/// A gesture playing on the virtual touchpad.
+#[derive(Clone, Copy, Debug)]
+struct TouchPlay {
+    gesture: TouchGesture,
+    start: u64,
+    ms: u64,
 }
 
 /// Reference-counted output state shared by all activations.
@@ -185,15 +234,14 @@ struct Outputs {
     events: Vec<(Out, bool)>,
     wheel: Vec<(WheelDir, f32)>,
     commands: Vec<Command>,
-    rumble: Option<(Rumble, u64)>,
+    rumble: Option<TimedRumble>,
     /// Random numbers for jitter and random repeat waits.
     rng: Rng,
     /// Accelerometer shakes and when each started.
     shakes: Vec<(ShakeAxis, u64)>,
-    /// Turn actions in progress: total and remaining degrees.
-    turns: Vec<(f32, f32)>,
-    /// A gesture playing on the virtual touchpad: which, since when, how long.
-    touch: Option<(TouchGesture, u64, u64)>,
+    /// Turn actions in progress.
+    turns: Vec<Turn>,
+    touch: Option<TouchPlay>,
     /// An absolute cursor move to send.
     mouse_to: Option<(f32, f32)>,
 }
@@ -305,7 +353,12 @@ fn step(act: &mut Activation, program: &[Step], outs: &mut Outputs, until: u64) 
             Step::Wheel(d, n) => {
                 outs.wheel.push((*d, *n));
                 if act.policy == Policy::Hold {
-                    act.wheel_held = Some((*d, *n, t, 0));
+                    act.wheel_held = Some(HeldWheel {
+                        dir: *d,
+                        notches: *n,
+                        since: t,
+                        sent: 0,
+                    });
                 }
             }
             Step::Wait(ms) => {
@@ -315,28 +368,35 @@ fn step(act: &mut Activation, program: &[Step], outs: &mut Outputs, until: u64) 
             }
             Step::HoldPoint => {
                 if act.ended {
-                    outs.release_all(&mut act.owned);
-                    act.analog.clear();
-                    act.finished = true;
+                    act.finish(outs);
                 }
                 break;
             }
             Step::Rumble { ms, low, high } => {
-                outs.rumble = Some((
-                    Rumble {
+                outs.rumble = Some(TimedRumble {
+                    rumble: Rumble {
                         low: *low,
                         high: *high,
                     },
-                    t + u64::from(*ms),
-                ));
+                    until: t + u64::from(*ms),
+                });
             }
             Step::Command(c) => outs.commands.push(c.clone()),
             Step::Shake(axis) => {
                 outs.shakes.retain(|(a, _)| a != axis);
                 outs.shakes.push((*axis, t));
             }
-            Step::Turn(deg) => outs.turns.push((*deg, *deg)),
-            Step::Touch(g, ms) => outs.touch = Some((*g, t, u64::from(*ms))),
+            Step::Turn(deg) => outs.turns.push(Turn {
+                total: *deg,
+                left: *deg,
+            }),
+            Step::Touch(g, ms) => {
+                outs.touch = Some(TouchPlay {
+                    gesture: *g,
+                    start: t,
+                    ms: u64::from(*ms),
+                });
+            }
             Step::MouseTo(x, y) => outs.mouse_to = Some((*x, *y)),
         }
         act.pc += 1;
@@ -349,6 +409,64 @@ struct WheelPulse {
     active_until: Option<u64>,
 }
 
+/// The stick, trigger and virtual stick settings of the layers that change them.
+struct LayerSettings {
+    analog: HashMap<u8, (Sticks, Triggers)>,
+    virtual_sticks: HashMap<u8, VirtualSticks>,
+}
+
+impl LayerSettings {
+    fn new(p: &Profile) -> LayerSettings {
+        let analog = p
+            .layers
+            .iter()
+            .filter(|l| l.sticks != Default::default() || l.triggers != Default::default())
+            .map(|l| {
+                let sticks = l.sticks.apply(&p.sticks);
+                (l.id, (sticks, l.triggers.apply(&p.triggers)))
+            })
+            .collect();
+        let virtual_sticks = p
+            .layers
+            .iter()
+            .filter(|l| l.virtual_devices.sticks != Default::default())
+            .map(|l| {
+                (
+                    l.id,
+                    l.virtual_devices.sticks.apply(&p.virtual_devices.sticks),
+                )
+            })
+            .collect();
+        LayerSettings {
+            analog,
+            virtual_sticks,
+        }
+    }
+
+    /// Whether `layer` has stick or trigger settings of its own.
+    fn changes_analog(&self, layer: u8) -> bool {
+        self.analog.contains_key(&layer)
+    }
+
+    /// Stick settings of `layer`.
+    fn sticks<'a>(&'a self, base: &'a Profile, layer: u8) -> &'a Sticks {
+        self.analog.get(&layer).map_or(&base.sticks, |(s, _)| s)
+    }
+
+    /// Trigger settings of `layer`.
+    fn triggers<'a>(&'a self, base: &'a Profile, layer: u8) -> &'a Triggers {
+        self.analog.get(&layer).map_or(&base.triggers, |(_, t)| t)
+    }
+
+    /// Virtual stick settings of `layer`.
+    fn virtual_stick<'a>(&'a self, base: &'a Profile, layer: u8, s: Stick) -> &'a VirtualStick {
+        self.virtual_sticks
+            .get(&layer)
+            .unwrap_or(&base.virtual_devices.sticks)
+            .get(s)
+    }
+}
+
 /// The remapping engine for one profile.
 pub struct Engine {
     profile: Profile,
@@ -359,8 +477,8 @@ pub struct Engine {
     started: bool,
 
     pad: Option<PadState>,
-    keys_down: HashSet<Key>,
-    mouse_down: HashSet<MouseButton>,
+    /// Keys and mouse buttons held down.
+    kbm_down: HashSet<Control>,
     taps: Vec<Control>,
     wheel: [WheelPulse; 4],
     mouse_counts: (f32, f32),
@@ -376,10 +494,7 @@ pub struct Engine {
     gestures: GestureTracker,
     gesture_until: Vec<(Control, u64)>,
     mouse_diagonals: bool,
-    /// Effective stick and trigger settings of the layers that change them.
-    layer_analog: HashMap<u8, (Sticks, Triggers)>,
-    /// Virtual stick settings of layers that change them.
-    layer_virtual: HashMap<u8, VirtualSticks>,
+    layer_settings: LayerSettings,
     /// Jitter offset of each virtual stick.
     jitter: [JitterState; 2],
 
@@ -422,29 +537,8 @@ impl Engine {
             .filter(|(_, m)| m.len() == 1)
             .map(|(i, m)| (m[0], i))
             .collect();
-        let route_state = vec![RouteState::default(); c.routes.len()];
-        let layer_analog = profile
-            .layers
-            .iter()
-            .filter(|l| l.sticks != Default::default() || l.triggers != Default::default())
-            .map(|l| {
-                let sticks = l.sticks.apply(&profile.sticks);
-                (l.id, (sticks, l.triggers.apply(&profile.triggers)))
-            })
-            .collect();
-        let layer_virtual = profile
-            .layers
-            .iter()
-            .filter(|l| l.virtual_devices.sticks != Default::default())
-            .map(|l| {
-                (
-                    l.id,
-                    l.virtual_devices
-                        .sticks
-                        .apply(&profile.virtual_devices.sticks),
-                )
-            })
-            .collect();
+        let route_state = vec![RouteState::default(); profile.analog.len()];
+        let layer_settings = LayerSettings::new(&profile);
         let gyro_enabled = profile.gyro.initially_on;
         let touch_diagonals = uses(
             &profile,
@@ -462,8 +556,7 @@ impl Engine {
             now: 0,
             started: false,
             pad: None,
-            keys_down: HashSet::new(),
-            mouse_down: HashSet::new(),
+            kbm_down: HashSet::new(),
             taps: Vec::new(),
             wheel: Default::default(),
             mouse_counts: (0.0, 0.0),
@@ -475,8 +568,7 @@ impl Engine {
             gestures: GestureTracker::default(),
             gesture_until: Vec::new(),
             mouse_diagonals,
-            layer_analog,
-            layer_virtual,
+            layer_settings,
             jitter: Default::default(),
             prev_controls: HashSet::new(),
             cur_controls: HashSet::new(),
@@ -501,24 +593,18 @@ impl Engine {
 
     /// Stick settings of the active layer.
     fn sticks(&self) -> &Sticks {
-        self.layer_analog
-            .get(&self.layer)
-            .map_or(&self.profile.sticks, |(s, _)| s)
+        self.layer_settings.sticks(&self.profile, self.layer)
     }
 
     /// Virtual stick settings of the active layer.
     fn virtual_stick(&self, s: Stick) -> &VirtualStick {
-        self.layer_virtual
-            .get(&self.layer)
-            .unwrap_or(&self.profile.virtual_devices.sticks)
-            .get(s)
+        self.layer_settings
+            .virtual_stick(&self.profile, self.layer, s)
     }
 
     /// Trigger settings of the active layer.
     fn triggers(&self) -> &Triggers {
-        self.layer_analog
-            .get(&self.layer)
-            .map_or(&self.profile.triggers, |(_, t)| t)
+        self.layer_settings.triggers(&self.profile, self.layer)
     }
 
     /// The trigger effects of the active layer, left then right.
@@ -576,29 +662,9 @@ impl Engine {
         let mut downs: HashSet<Control> = HashSet::new();
         for e in events {
             match *e {
-                KbmEvent::Key { key, down } => {
-                    let c = Control::Key(key);
-                    if down {
-                        self.keys_down.insert(key);
-                        downs.insert(c);
-                    } else {
-                        self.keys_down.remove(&key);
-                        if downs.remove(&c) && !self.prev_controls.contains(&c) {
-                            self.taps.push(c);
-                        }
-                    }
-                }
+                KbmEvent::Key { key, down } => self.kbm_edge(Control::Key(key), down, &mut downs),
                 KbmEvent::MouseButton { button, down } => {
-                    let c = Control::Mouse(button);
-                    if down {
-                        self.mouse_down.insert(button);
-                        downs.insert(c);
-                    } else {
-                        self.mouse_down.remove(&button);
-                        if downs.remove(&c) && !self.prev_controls.contains(&c) {
-                            self.taps.push(c);
-                        }
-                    }
+                    self.kbm_edge(Control::Mouse(button), down, &mut downs);
                 }
                 KbmEvent::MouseMove { dx, dy } => {
                     self.mouse_counts.0 += dx as f32;
@@ -611,6 +677,19 @@ impl Engine {
         }
         self.taps.sort();
         self.taps.dedup();
+    }
+
+    /// A key or mouse button went down or up; `downs` went down during this tick.
+    fn kbm_edge(&mut self, c: Control, down: bool, downs: &mut HashSet<Control>) {
+        if down {
+            self.kbm_down.insert(c);
+            downs.insert(c);
+        } else {
+            self.kbm_down.remove(&c);
+            if downs.remove(&c) && !self.prev_controls.contains(&c) {
+                self.taps.push(c);
+            }
+        }
     }
 
     /// Stick and trigger controls under the current layer's settings.
@@ -699,8 +778,7 @@ impl Engine {
                 gyro::controls(&self.profile.gyro, axes, set);
             }
         }
-        set.extend(self.keys_down.iter().map(|k| Control::Key(*k)));
-        set.extend(self.mouse_down.iter().map(|b| Control::Mouse(*b)));
+        set.extend(self.kbm_down.iter().copied());
 
         for dir in [
             WheelDir::Up,
@@ -861,6 +939,26 @@ impl Engine {
 
     // ----- masks and recognizers -----------------------------------------------------
 
+    /// Forget mask `m`'s press pattern without events.
+    fn reset_rec(&mut self, m: MaskId) {
+        if let Some(r) = self.recs.get_mut(&m) {
+            r.reset();
+        }
+    }
+
+    /// Forget mask `m`'s press pattern and end what it activated.
+    fn drop_mask(&mut self, m: MaskId, t: u64) {
+        self.reset_rec(m);
+        self.end_mask_activations(m, t);
+    }
+
+    /// Feed mask `m`'s recognizer with `f` and handle the events it emits.
+    fn feed_rec(&mut self, m: MaskId, f: impl FnOnce(&mut Recognizer, &mut Vec<RecEvent>)) {
+        let mut ev = Vec::new();
+        f(self.recs.entry(m).or_default(), &mut ev);
+        self.handle_events(m, ev);
+    }
+
     fn plain_press(&mut self, c: Control, t: u64) {
         if let Some(&m) = self.table().plain.get(&c) {
             self.mask_press(m, t);
@@ -881,9 +979,7 @@ impl Engine {
         let Some(cfg) = self.table().rec.get(&m).copied() else {
             return;
         };
-        let mut ev = Vec::new();
-        self.recs.entry(m).or_default().press(t, &cfg, &mut ev);
-        self.handle_events(m, ev);
+        self.feed_rec(m, |r, ev| r.press(t, &cfg, ev));
     }
 
     fn mask_release(&mut self, m: MaskId, t: u64) {
@@ -893,33 +989,20 @@ impl Engine {
             if let Some(cfg) = self.table().rec.get(&m).copied()
                 && cfg.release
             {
-                let rec = self.recs.entry(m).or_default();
-                rec.reset();
-                let mut ev = Vec::new();
-                rec.release(t, &cfg, &mut ev);
-                self.handle_events(m, ev);
+                self.feed_rec(m, |r, ev| {
+                    r.reset();
+                    r.release(t, &cfg, ev);
+                });
             }
             return;
         }
         if self.stale.remove(&m) {
-            if let Some(r) = self.recs.get_mut(&m) {
-                r.reset();
-            }
-            self.end_mask_activations(m, t);
+            self.drop_mask(m, t);
             return;
         }
         match self.table().rec.get(&m).copied() {
-            Some(cfg) => {
-                let mut ev = Vec::new();
-                self.recs.entry(m).or_default().release(t, &cfg, &mut ev);
-                self.handle_events(m, ev);
-            }
-            None if was_down => {
-                if let Some(r) = self.recs.get_mut(&m) {
-                    r.reset();
-                }
-                self.end_mask_activations(m, t);
-            }
+            Some(cfg) => self.feed_rec(m, |r, ev| r.release(t, &cfg, ev)),
+            None if was_down => self.drop_mask(m, t),
             None => {}
         }
     }
@@ -934,16 +1017,10 @@ impl Engine {
         ids.sort();
         for m in ids {
             let Some(cfg) = self.table().rec.get(&m).copied() else {
-                if let Some(r) = self.recs.get_mut(&m) {
-                    r.reset();
-                }
+                self.reset_rec(m);
                 continue;
             };
-            let mut ev = Vec::new();
-            if let Some(r) = self.recs.get_mut(&m) {
-                r.poll(now, &cfg, &mut ev);
-            }
-            self.handle_events(m, ev);
+            self.feed_rec(m, |r, ev| r.poll(now, &cfg, ev));
         }
     }
 
@@ -967,20 +1044,12 @@ impl Engine {
                         })
                         .unwrap_or_default();
                     for b in bids {
-                        self.begin(b, m, kind, t);
+                        self.begin(b, t);
                     }
                 }
                 RecEvent::End(kind, t) => {
                     self.advance(t);
-                    let ids: Vec<ActId> = self
-                        .acts
-                        .iter()
-                        .filter(|a| a.mask == m && a.kind == kind && !a.ended && !a.latched)
-                        .map(|a| a.id)
-                        .collect();
-                    for id in ids {
-                        self.end_activation(id, t);
-                    }
+                    self.end_activations_where(t, |a| a.mask == m && a.kind == kind);
                 }
             }
         }
@@ -988,8 +1057,9 @@ impl Engine {
 
     // ----- activations ---------------------------------------------------------------
 
-    fn begin(&mut self, bid: BindingId, m: MaskId, kind: Activator, t: u64) {
+    fn begin(&mut self, bid: BindingId, t: u64) {
         let b = &self.c.bindings[bid];
+        let (m, kind) = (b.mask, b.activator);
         let policy = b.policy;
         let mode = b.mode;
         let jump = b.jump;
@@ -997,10 +1067,7 @@ impl Engine {
             if let Some(id) = self.toggles.remove(&bid)
                 && self.acts.iter().any(|a| a.id == id && !a.finished)
             {
-                if let Some(a) = self.acts.iter_mut().find(|a| a.id == id) {
-                    a.latched = false;
-                }
-                self.end_activation(id, t);
+                self.end_toggle(id, t);
                 return;
             }
         } else if matches!(
@@ -1045,11 +1112,15 @@ impl Engine {
             segment,
             wheel_held: None,
         };
-        if let Some((target, Some(delay), postpone)) = jump
+        if let Some(JumpTarget {
+            layer,
+            delay_ms: Some(delay),
+            postpone,
+        }) = jump
             && delay > 0
         {
             let at = t + u64::from(delay);
-            act.jump_at = Some((at, target));
+            act.jump_at = Some(DelayedJump { at, layer });
             if postpone {
                 act.deferred = true;
                 act.wait_until = at;
@@ -1066,10 +1137,10 @@ impl Engine {
         if mode == Mode::Toggle {
             self.toggles.insert(bid, id);
         }
-        if let Some((target, delay, _)) = jump
-            && delay.is_none_or(|d| d == 0)
+        if let Some(j) = jump
+            && j.delay_ms.is_none_or(|d| d == 0)
         {
-            self.switch_layer(target, Some(m), t);
+            self.switch_layer(j.layer, Some(m), t);
         }
     }
 
@@ -1092,11 +1163,7 @@ impl Engine {
             | Policy::Loop {
                 stop: StopRule::Immediate,
                 ..
-            } => {
-                self.outs.release_all(&mut act.owned);
-                act.analog.clear();
-                act.finished = true;
-            }
+            } => act.finish(&mut self.outs),
             Policy::Loop {
                 stop: StopRule::FinishRun,
                 ..
@@ -1108,16 +1175,29 @@ impl Engine {
         }
     }
 
-    fn end_mask_activations(&mut self, m: MaskId, t: u64) {
+    /// End the running activations that `which` picks (latched toggles keep running).
+    fn end_activations_where(&mut self, t: u64, which: impl Fn(&Activation) -> bool) {
         let ids: Vec<ActId> = self
             .acts
             .iter()
-            .filter(|a| a.mask == m && !a.ended && !a.latched)
+            .filter(|a| !a.ended && !a.latched && which(a))
             .map(|a| a.id)
             .collect();
         for id in ids {
             self.end_activation(id, t);
         }
+    }
+
+    fn end_mask_activations(&mut self, m: MaskId, t: u64) {
+        self.end_activations_where(t, |a| a.mask == m);
+    }
+
+    /// End toggle activation `id` even though it is latched.
+    fn end_toggle(&mut self, id: ActId, t: u64) {
+        if let Some(a) = self.acts.iter_mut().find(|a| a.id == id) {
+            a.latched = false;
+        }
+        self.end_activation(id, t);
     }
 
     /// Run every activation's program up to `t` and fire due delayed jumps.
@@ -1126,19 +1206,19 @@ impl Engine {
         for act in &mut self.acts {
             let program = self.c.bindings[act.binding].program(act.segment);
             step(act, program, &mut self.outs, t);
-            if let Some((at, target)) = act.jump_at
-                && at <= t
+            if let Some(j) = act.jump_at
+                && j.at <= t
             {
                 act.jump_at = None;
                 act.deferred = false;
                 if !act.ended {
-                    jumps.push((target, act.mask, at));
+                    jumps.push((j, act.mask));
                 }
             }
         }
         self.acts.retain(|a| !a.finished);
-        for (target, mask, at) in jumps {
-            self.switch_layer(target, Some(mask), at);
+        for (j, mask) in jumps {
+            self.switch_layer(j.layer, Some(mask), j.at);
         }
     }
 
@@ -1155,13 +1235,10 @@ impl Engine {
         let mut latched: Vec<ActId> = self.toggles.drain().map(|(_, id)| id).collect();
         latched.sort_unstable();
         for id in latched {
-            if let Some(a) = self.acts.iter_mut().find(|a| a.id == id) {
-                a.latched = false;
-            }
-            self.end_activation(id, t);
+            self.end_toggle(id, t);
         }
-        let analog_differs =
-            self.layer_analog.contains_key(&self.layer) || self.layer_analog.contains_key(&target);
+        let analog_differs = self.layer_settings.changes_analog(self.layer)
+            || self.layer_settings.changes_analog(target);
         self.layer = target;
         self.layer_changed = true;
         // Stick and trigger controls follow the new layer's thresholds at once: what the
@@ -1196,9 +1273,7 @@ impl Engine {
             && self.mask_down.contains(&m)
         {
             self.jump_owned.insert(m);
-            if let Some(r) = self.recs.get_mut(&m) {
-                r.reset();
-            }
+            self.reset_rec(m);
         }
         // Everything else that is held is re-pressed under the new layer.
         let mut held: Vec<MaskId> = self
@@ -1220,10 +1295,7 @@ impl Engine {
             if !repress && held.contains(&m) {
                 continue;
             }
-            if let Some(r) = self.recs.get_mut(&m) {
-                r.reset();
-            }
-            self.end_mask_activations(m, t);
+            self.drop_mask(m, t);
         }
         if !repress {
             self.stale.extend(held);
@@ -1347,15 +1419,7 @@ impl Engine {
                 Command::GyroOff => self.gyro_enabled = false,
                 Command::ResetTilt => self.gyro.reset(),
                 Command::SwitchGyroAxis => self.gyro.switch_axis(),
-                Command::RadialNext
-                | Command::RadialPrev
-                | Command::RadialUp
-                | Command::RadialDown
-                | Command::RadialLeft
-                | Command::RadialRight
-                | Command::RadialApply
-                | Command::RadialBack => self.radial_command(&c, now),
-                _ => {}
+                _ => self.radial_command(&c, now),
             }
             done.push(c);
             if done.len() < MAX_COMMANDS_PER_TICK {
@@ -1419,6 +1483,7 @@ impl Engine {
         self.profile.radial_menus.get(r.root())?.select.stick()
     }
 
+    /// Run a radial menu command (others do nothing here).
     fn radial_command(&mut self, c: &Command, now: u64) {
         let Some(r) = &mut self.radial else {
             return;
@@ -1463,12 +1528,15 @@ impl Engine {
 
     /// Play a sector's actions once.
     fn run_radial(&mut self, run: radial::RadialRun, now: u64) {
-        let radial::RadialRun::Sector { menu, sector } = run;
-        let Some(&bid) = self.c.radial.get(menu).and_then(|ids| ids.get(sector)) else {
+        let Some(&bid) = self
+            .c
+            .radial
+            .get(run.menu)
+            .and_then(|ids| ids.get(run.sector))
+        else {
             return;
         };
-        let mask = self.c.bindings[bid].mask;
-        self.begin(bid, mask, Activator::Single, now);
+        self.begin(bid, now);
     }
 
     fn compose(&mut self, dt: f32, now: u64) -> Output {
@@ -1481,23 +1549,19 @@ impl Engine {
         // Held wheel actions repeat at the virtual mouse's interval.
         let every = u64::from(self.profile.virtual_devices.mouse.wheel_repeat_ms);
         for act in &mut self.acts {
-            if let Some((d, n, since, sent)) = &mut act.wheel_held
-                && let Some(due) = now.saturating_sub(*since).checked_div(every)
+            if let Some(w) = &mut act.wheel_held
+                && let Some(due) = now.saturating_sub(w.since).checked_div(every)
             {
-                while *sent < due {
-                    self.outs.wheel.push((*d, *n));
-                    *sent += 1;
+                while w.sent < due {
+                    self.outs.wheel.push((w.dir, w.notches));
+                    w.sent += 1;
                 }
             }
         }
         out.wheel = std::mem::take(&mut self.outs.wheel);
         out.mouse_to = self.outs.mouse_to.take();
         out.commands = std::mem::take(&mut self.outs.commands);
-        out.rumble = self
-            .outs
-            .rumble
-            .filter(|(_, until)| *until > now)
-            .map(|(r, _)| r);
+        out.rumble = self.outs.rumble.filter(|r| r.until > now).map(|r| r.rumble);
 
         let table = self.c.layer(self.layer);
         let routes = &table.routes;
@@ -1505,7 +1569,7 @@ impl Engine {
         let route_consumes = |src: AnalogSource| {
             routes
                 .iter()
-                .any(|&i| self.c.routes[i].source == src && self.c.routes[i].consume)
+                .any(|&i| self.profile.analog[i].source == src && self.profile.analog[i].consume)
         };
 
         // Mirror unmapped physical controls.
@@ -1573,7 +1637,12 @@ impl Engine {
         for act in &self.acts {
             for &(a, since) in &act.analog {
                 match a {
-                    AnalogOut::Stick(s, x, y, abs) => {
+                    AnalogOut::Stick {
+                        stick: s,
+                        x,
+                        y,
+                        absolute: abs,
+                    } => {
                         if abs {
                             let centre = x == 0.0 && y == 0.0;
                             absolute[s as usize][0] |= centre || x != 0.0;
@@ -1610,16 +1679,16 @@ impl Engine {
         // Turn actions: horizontal mouse motion spread over the turn time.
         let turn = &self.profile.virtual_devices.mouse;
         let secs = turn.turn_ms as f32 / 1000.0;
-        for (total, left) in &mut self.outs.turns {
+        for t in &mut self.outs.turns {
             let max_step = if secs > 0.0 {
-                total.abs() * dt / secs
+                t.total.abs() * dt / secs
             } else {
                 f32::INFINITY
             };
-            let step = take_toward_zero(left, max_step);
+            let step = take_toward_zero(&mut t.left, max_step);
             out.mouse_move.0 += step * turn.counts_per_turn / 360.0;
         }
-        self.outs.turns.retain(|(_, left)| left.abs() > 1e-4);
+        self.outs.turns.retain(|t| t.left.abs() > 1e-4);
         for s in Stick::ALL {
             let axis = |[pos, neg]: [f32; 2]| {
                 if pos > 0.0 && neg > 0.0 {
@@ -1644,10 +1713,7 @@ impl Engine {
         // Analog routes.
         let input = RouteInput {
             pad: self.pad.as_ref(),
-            sticks: self
-                .layer_analog
-                .get(&self.layer)
-                .map_or(&self.profile.sticks, |(s, _)| s),
+            sticks: self.layer_settings.sticks(&self.profile, self.layer),
             mouse: self.mouse_counts,
             dt,
             now,
@@ -1661,7 +1727,7 @@ impl Engine {
                 .then(|| self.gyro_axes.tilt_deflection()),
         };
         for &i in routes {
-            let r = &self.c.routes[i];
+            let r = &self.profile.analog[i];
             let pointing = radial_stick.is_some() && r.source.stick() == radial_stick;
             if pointing {
                 self.route_state[i] = RouteState::default();
@@ -1728,10 +1794,10 @@ impl Engine {
             );
         }
         // A touch action plays its fingers on the virtual touchpad.
-        if let Some((g, start, ms)) = self.outs.touch {
-            if now < start + ms {
-                let t = now.saturating_sub(start) as f32 / ms.max(1) as f32;
-                pad.touch = touch::output_fingers(g, t);
+        if let Some(p) = self.outs.touch {
+            if now < p.start + p.ms {
+                let t = now.saturating_sub(p.start) as f32 / p.ms.max(1) as f32;
+                pad.touch = touch::output_fingers(p.gesture, t);
             } else {
                 self.outs.touch = None;
             }

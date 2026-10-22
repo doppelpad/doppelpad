@@ -26,9 +26,9 @@ pub(super) struct GyroState {
 /// in motion mode or degrees from the centre in tilt mode.
 #[derive(Copy, Clone, Debug, Default, PartialEq)]
 pub(super) struct GyroAxes {
-    pub pitch: f32,
-    pub steer: f32,
-    pub lean: f32,
+    pub(super) pitch: f32,
+    pub(super) steer: f32,
+    pub(super) lean: f32,
 }
 
 impl GyroAxes {
