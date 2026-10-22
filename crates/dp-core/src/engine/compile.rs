@@ -536,7 +536,7 @@ fn make_binding(
     }
     if m.trigger.0.iter().any(|c| c.is_momentary()) && matches!(mode, Mode::Toggle) {
         warnings.push(format!(
-            "{}: toggle on a wheel trigger behaves like hold",
+            "{}: toggle on a wheel trigger switches on with one notch and off with the next, as single presses",
             m.trigger
         ));
         activator = Activator::Single;
