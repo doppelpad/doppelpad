@@ -5,7 +5,6 @@ use dp_core::profile::Command;
 use dp_platform::{DeviceId, PowerAction};
 
 use super::Runtime;
-use super::session::emit;
 
 /// One full in-game turn sent as mouse motion, so the user can check `counts_per_turn`.
 #[derive(Clone, Copy, Debug)]
@@ -85,7 +84,7 @@ impl Runtime {
                 let now = self.now_ms();
                 for s in &mut self.sessions {
                     let out = s.engine.release_all();
-                    emit(s, &mut self.platform, &out, now);
+                    s.emit(&mut self.platform, &out, now);
                 }
                 if let Err(e) = self.platform.system.power(action) {
                     tracing::warn!("{action:?} failed: {e}");
@@ -109,8 +108,8 @@ impl Runtime {
             | Command::RadialRight
             | Command::RadialApply
             | Command::RadialBack => {}
-            Command::PadOverlay => self.pad_overlay = !self.pad_overlay,
-            Command::MappingsOverlay => self.mappings_overlay = !self.mappings_overlay,
+            Command::PadOverlay => self.overlays.pad = !self.overlays.pad,
+            Command::MappingsOverlay => self.overlays.mappings = !self.overlays.mappings,
             Command::PowerOff => {
                 if let Some(id) = self.sessions.get(i).and_then(|s| s.device.clone()) {
                     self.power_off(&id);
@@ -131,18 +130,20 @@ impl Runtime {
     /// Run the hotkey detectors on every controller and withhold the buttons of complete
     /// hotkeys from the engines (in `pad_buf`).
     pub(super) fn detect_hotkeys(&mut self, now: u64) -> Vec<(DeviceId, HotkeyAction)> {
-        if self.hotkeys_paused || self.suspended {
-            self.detectors.clear();
+        if self.hotkeys.paused || self.suspended {
+            self.hotkeys.detectors.clear();
             return Vec::new();
         }
         let mut fired = Vec::new();
         for (s, pad) in self.snapshots.iter().zip(&mut self.pad_buf) {
             let id = &s.info.id;
-            if !self.detectors.contains_key(id) {
-                self.detectors.insert(id.clone(), HotkeyDetector::default());
+            if !self.hotkeys.detectors.contains_key(id) {
+                self.hotkeys
+                    .detectors
+                    .insert(id.clone(), HotkeyDetector::default());
             }
-            let d = self.detectors.get_mut(id).expect("inserted above");
-            if let Some(a) = d.update(&self.hotkeys, pad.buttons, now) {
+            let d = self.hotkeys.detectors.get_mut(id).expect("inserted above");
+            if let Some(a) = d.update(&self.hotkeys.set, pad.buttons, now) {
                 fired.push((id.clone(), a));
             }
             pad.buttons &= !d.withheld();
@@ -152,22 +153,22 @@ impl Runtime {
 
     /// The controller hotkeys in effect.
     pub(crate) fn hotkeys(&self) -> &Hotkeys {
-        &self.hotkeys
+        &self.hotkeys.set
     }
 
     pub(crate) fn set_hotkeys(&mut self, hotkeys: Hotkeys) {
-        self.hotkeys = hotkeys;
-        self.detectors.clear();
+        self.hotkeys.set = hotkeys;
+        self.hotkeys.detectors.clear();
     }
 
     /// Ignore hotkeys for a while (the app is recording a new one).
     pub(crate) fn set_hotkeys_paused(&mut self, on: bool) {
-        self.hotkeys_paused = on;
+        self.hotkeys.paused = on;
     }
 
     /// Hotkeys that fired, with the controller they fired on, that the service has to carry
     /// out (slots, remap toggle).
     pub(crate) fn take_hotkey_actions(&mut self) -> Vec<(DeviceId, HotkeyAction)> {
-        std::mem::take(&mut self.hotkey_actions)
+        std::mem::take(&mut self.hotkeys.actions)
     }
 }

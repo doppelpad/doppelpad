@@ -38,9 +38,9 @@ fn moved(then: &PadState, now: &PadState) -> bool {
 impl Runtime {
     /// Turn wireless controllers off after `after` without input; `None` never does.
     pub(crate) fn set_power_off_after(&mut self, after: Option<Duration>) {
-        self.power_off_after = after.map(|d| d.as_millis() as u64);
+        self.power.off_after = after.map(|d| d.as_millis() as u64);
         // Count from now, not from before the timeout was set.
-        self.idle.clear();
+        self.power.idle.clear();
     }
 
     /// Turn a wireless controller off now; `false` if none of the backends can.
@@ -56,24 +56,25 @@ impl Runtime {
 
     /// Keep the computer from sleeping while macros run or toggles hold output.
     pub(crate) fn set_prevent_sleep(&mut self, on: bool) {
-        self.prevent_sleep = on;
+        self.power.prevent_sleep = on;
     }
 
     pub(super) fn keep_awake(&mut self) {
-        let busy = self.prevent_sleep
+        let busy = self.power.prevent_sleep
             && !self.suspended
             && self.sessions.iter().any(|s| s.engine.emulating());
-        if busy != self.awake {
-            self.awake = busy;
+        if busy != self.power.awake {
+            self.power.awake = busy;
             self.platform.system.keep_awake(busy);
         }
     }
 
     /// Turn off the controllers that had no input for the idle timeout.
     pub(super) fn watch_idle(&mut self, now: u64) {
-        self.idle
+        self.power
+            .idle
             .retain(|id, _| self.snapshots.iter().any(|s| &s.info.id == id));
-        let Some(after) = self.power_off_after else {
+        let Some(after) = self.power.off_after else {
             return;
         };
         let mut off = Vec::new();
@@ -83,10 +84,10 @@ impl Runtime {
                 reference: s.state,
                 tried: false,
             };
-            if !self.idle.contains_key(&s.info.id) {
-                self.idle.insert(s.info.id.clone(), fresh);
+            if !self.power.idle.contains_key(&s.info.id) {
+                self.power.idle.insert(s.info.id.clone(), fresh);
             }
-            let e = self.idle.get_mut(&s.info.id).expect("inserted above");
+            let e = self.power.idle.get_mut(&s.info.id).expect("inserted above");
             if moved(&e.reference, &s.state) {
                 *e = fresh;
             } else if !e.tried && now.saturating_sub(e.since) >= after {

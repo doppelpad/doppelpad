@@ -44,7 +44,7 @@ use serde::Serialize;
 use self::commands::TestTurn;
 use self::echo::Echo;
 use self::idle::Idle;
-use self::session::{CrosshairChoice, Session, emit, feedback, quiet, rumble_gap_ms};
+use self::session::{CrosshairChoice, Session, rumble_gap_ms};
 use crate::calibration::Calibrator;
 use crate::timing::{Clock, Every};
 
@@ -69,44 +69,75 @@ pub struct Runtime {
     pads: Grouping,
     /// The default session (if any) comes first.
     sessions: Vec<Session>,
-    filter: Arc<CaptureFilter>,
-    kbm_rx: Option<Receiver<KbmEvent>>,
-    kbm_buf: Vec<KbmEvent>,
+    kbm: KbmInput,
     clock: Clock,
     snapshots: Vec<PadSnapshot>,
     /// The ids of `snapshots`, kept to notice a changed device list without allocating.
     device_ids: Vec<DeviceId>,
     /// The pad states of `snapshots` as the engines get them (hotkey buttons withheld).
     pad_buf: Vec<PadState>,
-    /// The controller of the default session.
-    primary: Option<DeviceId>,
-    /// The controller picked in the app for the default session.
-    preferred: Option<DeviceId>,
-    /// The controller the default session used until it went away (unplugged, reset, or
-    /// taken by a session of its own). The session goes back to it when it is free again.
-    lost: Option<DeviceId>,
+    /// Which controller the default session reads.
+    binding: DefaultBinding,
     hidden: Vec<String>,
     echo: Option<Echo>,
     suspended: bool,
     remap_off_requested: bool,
-    hotkeys: Hotkeys,
-    detectors: HashMap<DeviceId, HotkeyDetector>,
-    hotkeys_paused: bool,
-    hotkey_actions: Vec<(DeviceId, HotkeyAction)>,
+    hotkeys: HotkeyState,
     /// A calibration turn: counts to send, start, length and how much was sent.
     test_turn: Option<TestTurn>,
     /// Gyro bias per controller, taken off before anything reads the rates.
     calibration: Calibrator,
-    /// The live controller overlay and the mappings overlay are on.
-    pad_overlay: bool,
-    mappings_overlay: bool,
+    overlays: Overlays,
     /// Player lights and microphone LED last sent, per controller.
     sent_leds: HashMap<DeviceId, Leds>,
+    power: PowerState,
+}
+
+/// Captured keyboard and mouse input.
+struct KbmInput {
+    /// Which inputs other applications do not see.
+    filter: Arc<CaptureFilter>,
+    rx: Option<Receiver<KbmEvent>>,
+    /// This tick's events.
+    buf: Vec<KbmEvent>,
+}
+
+/// Which controller the default session reads.
+#[derive(Default)]
+struct DefaultBinding {
+    /// The controller in use.
+    primary: Option<DeviceId>,
+    /// The controller picked in the app.
+    preferred: Option<DeviceId>,
+    /// The controller in use until it went away (unplugged, reset, or taken by a session of
+    /// its own). The session goes back to it when it is free again.
+    lost: Option<DeviceId>,
+}
+
+/// The controller hotkeys.
+#[derive(Default)]
+struct HotkeyState {
+    set: Hotkeys,
+    detectors: HashMap<DeviceId, HotkeyDetector>,
+    paused: bool,
+    /// Fired hotkeys the service carries out.
+    actions: Vec<(DeviceId, HotkeyAction)>,
+}
+
+/// The live controller overlay and the mappings overlay.
+#[derive(Default)]
+struct Overlays {
+    pad: bool,
+    mappings: bool,
+}
+
+/// Sleep and idle power-off.
+struct PowerState {
     /// Keep the computer awake while a mapping plays output, and whether it is held awake.
     prevent_sleep: bool,
     awake: bool,
     /// Turn wireless controllers off after this long without input.
-    power_off_after: Option<u64>,
+    off_after: Option<u64>,
     idle: HashMap<DeviceId, Idle>,
 }
 
@@ -138,33 +169,31 @@ impl Runtime {
             platform,
             pads,
             sessions: Vec::new(),
-            filter: CaptureFilter::new(),
-            kbm_rx: None,
-            kbm_buf: Vec::new(),
+            kbm: KbmInput {
+                filter: CaptureFilter::new(),
+                rx: None,
+                buf: Vec::new(),
+            },
             clock: Clock::new(),
             snapshots: Vec::new(),
             device_ids: Vec::new(),
             pad_buf: Vec::new(),
-            primary: None,
-            preferred: None,
-            lost: None,
+            binding: DefaultBinding::default(),
             hidden: Vec::new(),
             echo: None,
             suspended: false,
             remap_off_requested: false,
-            hotkeys: Hotkeys::default(),
-            detectors: HashMap::new(),
-            hotkeys_paused: false,
+            hotkeys: HotkeyState::default(),
             test_turn: None,
             calibration: Calibrator::default(),
-            hotkey_actions: Vec::new(),
-            pad_overlay: false,
-            mappings_overlay: false,
+            overlays: Overlays::default(),
             sent_leds: HashMap::new(),
-            prevent_sleep: true,
-            awake: false,
-            power_off_after: None,
-            idle: HashMap::new(),
+            power: PowerState {
+                prevent_sleep: true,
+                awake: false,
+                off_after: None,
+                idle: HashMap::new(),
+            },
         }
     }
 
@@ -186,12 +215,12 @@ impl Runtime {
             let now = self.now_ms();
             for s in &mut self.sessions {
                 let out = s.engine.release_all();
-                emit(s, &mut self.platform, &out, now);
-                quiet(s, &mut self.pads);
+                s.emit(&mut self.platform, &out, now);
+                s.quiet(&mut self.pads);
             }
-            self.filter.set_enabled(false);
+            self.kbm.filter.set_enabled(false);
         } else {
-            self.filter.set_enabled(!self.sessions.is_empty());
+            self.kbm.filter.set_enabled(!self.sessions.is_empty());
         }
     }
 
@@ -252,7 +281,7 @@ impl Runtime {
 
     /// Whether the live controller overlay and the mappings overlay are on.
     pub(crate) fn overlays(&self) -> (bool, bool) {
-        (self.pad_overlay, self.mappings_overlay)
+        (self.overlays.pad, self.overlays.mappings)
     }
 
     /// How generic pads' inputs map to pad controls, by model.
@@ -424,8 +453,8 @@ impl Runtime {
         let mut s = self.sessions.remove(i);
         let out = s.engine.release_all();
         let now = self.now_ms();
-        emit(&mut s, &mut self.platform, &out, now);
-        quiet(&mut s, &mut self.pads);
+        s.emit(&mut self.platform, &out, now);
+        s.quiet(&mut self.pads);
         tracing::info!(profile = %s.engine.profile().name, device = ?s.owner, "profile stopped");
         drop(s); // unplugs the virtual pad
         self.sessions_changed();
@@ -442,9 +471,9 @@ impl Runtime {
         };
         self.pads.ignore_virtual(&ignore);
         let capture = self.sessions.iter().any(|s| s.needs_capture);
-        if capture && self.kbm_rx.is_none() {
-            match self.platform.kbm_capture.start(self.filter.clone()) {
-                Ok(rx) => self.kbm_rx = Some(rx),
+        if capture && self.kbm.rx.is_none() {
+            match self.platform.kbm_capture.start(self.kbm.filter.clone()) {
+                Ok(rx) => self.kbm.rx = Some(rx),
                 Err(e) => {
                     if let Some(s) = self.sessions.iter_mut().find(|s| s.needs_capture) {
                         s.warnings
@@ -452,12 +481,13 @@ impl Runtime {
                     }
                 }
             }
-        } else if !capture && self.kbm_rx.is_some() {
+        } else if !capture && self.kbm.rx.is_some() {
             self.platform.kbm_capture.stop();
-            self.kbm_rx = None;
+            self.kbm.rx = None;
         }
         self.update_filter();
-        self.filter
+        self.kbm
+            .filter
             .set_enabled(!self.sessions.is_empty() && !self.suspended);
         self.bind_sessions();
         self.sync_hiding();
@@ -469,22 +499,23 @@ impl Runtime {
     }
 
     fn update_filter(&self) {
-        self.filter.clear();
-        self.filter.set_source(KbmSource::All);
+        self.kbm.filter.clear();
+        self.kbm.filter.set_source(KbmSource::All);
         let Some(i) = self.kbm_session() else { return };
-        self.filter
+        self.kbm
+            .filter
             .set_source(self.sessions[i].engine.profile().kbm_source);
         let m = self.sessions[i].engine.mutes();
         for k in m.keys {
-            self.filter.set_key(k, true);
+            self.kbm.filter.set_key(k, true);
         }
         for b in m.mouse_buttons {
-            self.filter.set_mouse_button(b, true);
+            self.kbm.filter.set_mouse_button(b, true);
         }
         for w in m.wheel {
-            self.filter.set_wheel(w, true);
+            self.kbm.filter.set_wheel(w, true);
         }
-        self.filter.set_mouse_move(m.mouse_move);
+        self.kbm.filter.set_mouse_move(m.mouse_move);
     }
 
     /// Gyro calibration of every controller seen.
@@ -503,9 +534,9 @@ impl Runtime {
         self.poll_devices(now);
         self.watch_idle(now);
         self.keep_awake();
-        self.kbm_buf.clear();
-        if let Some(rx) = &self.kbm_rx {
-            self.kbm_buf.extend(rx.try_iter());
+        self.kbm.buf.clear();
+        if let Some(rx) = &self.kbm.rx {
+            self.kbm.buf.extend(rx.try_iter());
         }
         self.pad_buf.clear();
         self.pad_buf.extend(self.snapshots.iter().map(|s| s.state));
@@ -529,9 +560,9 @@ impl Runtime {
                     self.remap_off_requested = true;
                     return;
                 }
-                HotkeyAction::PadOverlay => self.pad_overlay = !self.pad_overlay,
-                HotkeyAction::MappingsOverlay => self.mappings_overlay = !self.mappings_overlay,
-                other => self.hotkey_actions.push((id, other)),
+                HotkeyAction::PadOverlay => self.overlays.pad = !self.overlays.pad,
+                HotkeyAction::MappingsOverlay => self.overlays.mappings = !self.overlays.mappings,
+                other => self.hotkeys.actions.push((id, other)),
             }
         }
         if self.suspended {
@@ -546,7 +577,7 @@ impl Runtime {
                 Some(self.pad_buf[i])
             });
             let kbm: &[KbmEvent] = if Some(i) == kbm_session {
-                &self.kbm_buf
+                &self.kbm.buf
             } else {
                 &[]
             };
@@ -555,8 +586,8 @@ impl Runtime {
                 pad: pad.as_ref(),
                 kbm,
             });
-            emit(s, &mut self.platform, &out, now);
-            feedback(s, &mut self.pads, out.rumble, now);
+            s.emit(&mut self.platform, &out, now);
+            s.feedback(&mut self.pads, out.rumble, now);
             if s.owner.is_none()
                 && let Some(echo) = &mut self.echo
             {

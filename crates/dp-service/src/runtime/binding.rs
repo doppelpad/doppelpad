@@ -8,14 +8,14 @@ use super::Runtime;
 impl Runtime {
     /// Prefer this controller for the default session when it is connected.
     pub(crate) fn set_preferred_device(&mut self, id: Option<DeviceId>) {
-        self.preferred = id;
-        self.lost = None;
-        self.primary = None; // re-pick on the next poll
+        self.binding.preferred = id;
+        self.binding.lost = None;
+        self.binding.primary = None; // re-pick on the next poll
     }
 
     /// Controller of the default session.
     pub(crate) fn primary_device(&self) -> Option<&DeviceId> {
-        self.primary.as_ref()
+        self.binding.primary.as_ref()
     }
 
     /// Ignore the blocked devices and play each group as one controller.
@@ -74,40 +74,40 @@ impl Runtime {
         let owned = |id: &DeviceId| self.sessions.iter().any(|s| s.owner.as_ref() == Some(id));
         let is_free = |p: &&DeviceId| self.device_ids.contains(p) && !owned(p);
         let first_free = || self.device_ids.iter().find(|id| !owned(id));
-        let (primary, reason) = if let Some(p) = self.preferred.as_ref().filter(is_free) {
+        let (primary, reason) = if let Some(p) = self.binding.preferred.as_ref().filter(is_free) {
             (Some(p), "picked in the app")
-        } else if let Some(p) = self.lost.as_ref().filter(is_free) {
+        } else if let Some(p) = self.binding.lost.as_ref().filter(is_free) {
             (Some(p), "the controller in use before is back")
-        } else if let Some(p) = self.primary.as_ref().filter(is_free) {
+        } else if let Some(p) = self.binding.primary.as_ref().filter(is_free) {
             (Some(p), "still connected")
-        } else if self.primary.is_some() {
+        } else if self.binding.primary.is_some() {
             let reason = "the controller in use went away or has its own profile";
             (first_free(), reason)
         } else {
             (first_free(), "first free controller")
         };
         let primary = primary.cloned();
-        if primary != self.primary {
+        if primary != self.binding.primary {
             match &primary {
                 Some(p) => tracing::info!(device = %p, reason, "using controller"),
                 None => tracing::info!(reason, "no controller in use"),
             }
-            if self.lost.is_none()
-                && let Some(old) = &self.primary
+            if self.binding.lost.is_none()
+                && let Some(old) = &self.binding.primary
                 && !is_free(&old)
             {
-                self.lost = Some(old.clone());
+                self.binding.lost = Some(old.clone());
             }
-            if primary.is_some() && primary == self.lost {
-                self.lost = None;
+            if primary.is_some() && primary == self.binding.lost {
+                self.binding.lost = None;
             }
-            self.primary = primary;
+            self.binding.primary = primary;
         }
         let mut changed = false;
         for s in &mut self.sessions {
             let device = match &s.owner {
                 Some(id) => self.device_ids.contains(id).then_some(id),
-                None => self.primary.as_ref(),
+                None => self.binding.primary.as_ref(),
             };
             if device != s.device.as_ref() {
                 s.device = device.cloned();
@@ -134,12 +134,20 @@ impl Runtime {
                 .extend(self.snapshots.iter().map(|s| s.info.id.clone()));
         }
         let ids = &self.device_ids;
-        let primary_lost = self.primary.as_ref().is_some_and(|p| !ids.contains(p));
-        let preferred_back = self.preferred.is_some() && self.preferred != self.primary;
-        let rebound = (devices_changed || primary_lost || preferred_back || self.primary.is_none())
-            && self.bind_sessions();
+        let primary_lost = self
+            .binding
+            .primary
+            .as_ref()
+            .is_some_and(|p| !ids.contains(p));
+        let preferred_back =
+            self.binding.preferred.is_some() && self.binding.preferred != self.binding.primary;
+        let rebound =
+            (devices_changed || primary_lost || preferred_back || self.binding.primary.is_none())
+                && self.bind_sessions();
         if devices_changed {
-            self.detectors.retain(|id, _| self.device_ids.contains(id));
+            self.hotkeys
+                .detectors
+                .retain(|id, _| self.device_ids.contains(id));
         }
         // A session on another controller must hide that one instead.
         if devices_changed || rebound {
