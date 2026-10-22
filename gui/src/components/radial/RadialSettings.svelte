@@ -4,7 +4,8 @@
   import { open } from '@tauri-apps/plugin-dialog';
   import { Plus, Trash2, X } from '@lucide/svelte';
   import { t } from '../../lib/i18n/index.svelte';
-  import { actionLabel, layerIds } from '../../lib/model/profile';
+  import { layerIds } from '../../lib/model/profile';
+  import { actionLabel } from '../../lib/model/labels';
   import {
     MAX_SECTORS,
     RADIAL_ICONS,

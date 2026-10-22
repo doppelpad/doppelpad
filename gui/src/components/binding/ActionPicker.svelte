@@ -8,7 +8,7 @@
   import { keyFromEvent, keyGroups, keyLabel } from '../../lib/model/keymap';
   import { parseNonNegInt } from '../../lib/model/numbers';
   import { SIDES, controlLabel } from '../../lib/model/controls';
-  import { POWER_COMMANDS, RADIAL_COMMANDS, SIMPLE_COMMANDS } from '../../lib/model/profile';
+  import { POWER_COMMANDS, RADIAL_COMMANDS, SIMPLE_COMMANDS } from '../../lib/model/labels';
   import { app } from '../../lib/state/app.svelte';
   import type { Action, Dir, MouseButtonName, PadButtonName, ShakeAxis, StickName, TouchOutput, TriggerName } from '../../lib/types';
 

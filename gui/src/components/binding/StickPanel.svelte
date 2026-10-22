@@ -5,7 +5,14 @@
   import { X } from '@lucide/svelte';
   import { t } from '../../lib/i18n/index.svelte';
   import { layerColor } from '../../lib/theme/layers';
-  import { MOUSE_PRESETS, mousePresetOf, mouseResponse, updateRoute, type MousePreset, type Side } from '../../lib/model/analog';
+  import { type Side } from '../../lib/model/analog';
+  import {
+    MOUSE_PRESETS,
+    mousePresetOf,
+    mouseResponse,
+    updateRoute,
+    type MousePreset,
+  } from '../../lib/model/routes';
   import { STICK_GROUPS, stickGroupOf, stickRouteIndex } from '../../lib/model/stickgroups';
   import { SIDES } from '../../lib/model/controls';
   import { stickAxes } from '../../lib/model/devices';

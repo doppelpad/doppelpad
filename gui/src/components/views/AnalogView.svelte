@@ -2,7 +2,7 @@
   // Analog settings: shaping of each stick and of the triggers (for the whole config, or what
   // the current layer changes) and the analog routes of the current layer.
   import { t } from '../../lib/i18n/index.svelte';
-  import { layerRoutes } from '../../lib/model/analog';
+  import { layerRoutes } from '../../lib/model/routes';
   import { app, type AnalogTab } from '../../lib/state/app.svelte';
   import GyroEditor from '../analog/GyroEditor.svelte';
   import RouteEditor from '../analog/RouteEditor.svelte';

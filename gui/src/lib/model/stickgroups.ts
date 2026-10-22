@@ -1,7 +1,8 @@
 // Whole-stick mappings: one choice that makes a stick a mouse, WASD, the arrow keys or a
 // flick stick on a layer. The result is ordinary analog routes and direction mappings.
 
-import { MOUSE_PRESETS, addRoute, newRoute, routeLayer, sourceOf, targetOf, type Side } from './analog';
+import { type Side } from './analog';
+import { MOUSE_PRESETS, addRoute, newRoute, routeLayer, sourceOf, targetOf } from './routes';
 import { CARDINALS, DIAGONALS, SIDES, zoneFamily } from './controls';
 import { activatorOf, comboList, layerOf, newMapping, ownMappings, upsertMapping } from './profile';
 import type { AnalogMapping, Mapping, Profile } from '../types';

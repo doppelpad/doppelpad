@@ -1,8 +1,7 @@
 // Pure helpers for editing a Profile in the GUI. They mirror the engine's rules
 // (one binding per layer + trigger + activator, inheritance from the base layer).
 
-import { has, t } from '../i18n/index.svelte';
-import { replaceLayerRoutes, routeLayer } from './analog';
+import { replaceLayerRoutes, routeLayer } from './routes';
 import { parseControl, type Dir8 } from './controls';
 import { declaredLayer, patchLayer } from './layers';
 import { clone, dropUndefined, nonEmpty, sameJson, setOrDrop } from './util';
@@ -353,74 +352,6 @@ export function shortcutMembers(p: Profile, layer: number): Set<ControlName> {
   return s;
 }
 
-// ----- labels -------------------------------------------------------------------------------
-
-const ARROWS: Record<string, string> = { up: '↑', down: '↓', left: '←', right: '→' };
-
-/** Commands that end the session or put the computer to sleep: the editor asks first. */
-export const POWER_COMMANDS = ['shutdown', 'restart', 'sleep', 'hibernate', 'log_off'] as const;
-
-/** Commands without arguments, in the order the action picker lists them. */
-export const SIMPLE_COMMANDS = [
-  'remap_off',
-  'toggle_gyro',
-  'gyro_on',
-  'gyro_off',
-  'reset_tilt',
-  'switch_gyro_axis',
-  'screenshot',
-  'close_window',
-  'pad_overlay',
-  'mappings_overlay',
-  'power_off',
-] as const;
-
-/** Commands that steer an open radial menu. */
-export const RADIAL_COMMANDS = [
-  'radial_next',
-  'radial_prev',
-  'radial_up',
-  'radial_down',
-  'radial_left',
-  'radial_right',
-  'radial_apply',
-  'radial_back',
-] as const;
-
-/** Short text for one action, e.g. "Space", "Mouse L", "Pad A", "L-stick ↑", "Pause 50 ms". */
-export function actionLabel(a: Action): string {
-  if ('key' in a) return a.key + pressSuffix(a.action);
-  if ('pad' in a) return t('labels.pad', { name: a.pad }) + pressSuffix(a.action);
-  if ('mouse' in a) return t('labels.mouse', { name: t(`labels.mouse_button.${a.mouse}`) }) + pressSuffix(a.action);
-  if ('wheel' in a) return t('labels.wheel', { dir: ARROWS[a.wheel] ?? a.wheel });
-  if ('stick' in a) {
-    const dir = a.y > 0.5 ? '↑' : a.y < -0.5 ? '↓' : a.x < -0.5 ? '←' : a.x > 0.5 ? '→' : '•';
-    return t(`labels.${a.stick}_stick`, { dir }) + pressSuffix(a.action);
-  }
-  if ('trigger' in a) return `${a.trigger === 'left' ? 'LT' : 'RT'}${a.value !== undefined && a.value < 1 ? ` ${Math.round(a.value * 100)}%` : ''}`;
-  if ('mouse_move' in a) return t('labels.mouse_move', { dir: ARROWS[a.mouse_move] ?? a.mouse_move });
-  if ('pause' in a) return `${a.pause} ms`;
-  if ('rumble' in a) return t('labels.rumble', { ms: a.rumble });
-  if ('shake' in a) return t('picker.shake_axis', { axis: a.shake.toUpperCase() });
-  if ('turn' in a) return t('labels.turn', { deg: `${a.turn > 0 ? '+' : ''}${a.turn}` });
-  if ('touch' in a) return t('labels.touch', { gesture: t(`picker.touch_out.${a.touch}`).toLowerCase() });
-  if ('mouse_to' in a) return t('labels.mouse_to', { x: Math.round(a.mouse_to[0] * 100), y: Math.round(a.mouse_to[1] * 100) });
-  if ('mouse_clip' in a) return t('labels.mouse_clip');
-  if ('break' in a) return '⦀';
-  if ('command' in a) {
-    const c = a.command;
-    if (typeof c === 'string' && has(`labels.commands.${c}`)) return t(`labels.commands.${c}`);
-    if (typeof c === 'object' && 'launch' in c) return t('labels.launch', { name: c.launch.path.split(/[\\/]/).pop() ?? '' });
-    if (typeof c === 'object' && 'crosshair' in c) return t('labels.crosshair', { n: c.crosshair });
-    if (typeof c === 'object' && 'unsupported' in c) return c.unsupported;
-  }
-  return '?';
-}
-
-function pressSuffix(p?: string): string {
-  return p === 'down' ? ' ▼' : p === 'up' ? ' ▲' : '';
-}
-
 /** Number of segments the break steps cut a sequence into (at least one). */
 export function segmentCount(actions: Action[]): number {
   let n = 0;
@@ -432,20 +363,6 @@ export function segmentCount(actions: Action[]): number {
     } else open = true;
   }
   return Math.max(1, n + (open ? 1 : 0));
-}
-
-/** Short summary of a mapping's outputs ("Ctrl + C", "Turbo Mouse left", "→ Shift 1"). */
-export function mappingSummary(m: Mapping, layerLabel: (id: number) => string): string {
-  const acts = (m.actions ?? []).filter((a) => !('pause' in a));
-  let s = acts.slice(0, 3).map(actionLabel).join(' + ');
-  if (acts.length > 3) s += ' …';
-  const mode = modeOf(m);
-  if (mode === 'turbo') s = `⚡ ${s}`;
-  if (mode === 'toggle') s = `⇄ ${s}`;
-  if (isMacroMode(mode)) s = `▶ ${s}`;
-  if (m.jump) s = s ? `${s} · → ${layerLabel(m.jump.layer)}` : `→ ${layerLabel(m.jump.layer)}`;
-  if (!s) s = '⊘';
-  return s;
 }
 
 /** The light bar of `layer` (0: the profile's own), or `undefined` to drop it. */

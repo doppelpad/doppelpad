@@ -14,7 +14,7 @@
     targetOf,
     updateRoute,
     type RouteField,
-  } from '../../lib/model/analog';
+  } from '../../lib/model/routes';
   import { controlLabel, controlLabelMixed } from '../../lib/model/controls';
   import { keyFromEvent } from '../../lib/model/keymap';
   import { app } from '../../lib/state/app.svelte';

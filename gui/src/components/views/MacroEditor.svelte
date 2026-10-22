@@ -6,11 +6,11 @@
   import { onDestroy } from 'svelte';
   import { t } from '../../lib/i18n/index.svelte';
   import { layerColor } from '../../lib/theme/layers';
-  import { comboLabel } from '../../lib/model/labels';
+  import { actionLabel, comboLabel } from '../../lib/model/labels';
   import { keyFromEvent } from '../../lib/model/keymap';
   import { recordedSteps } from '../../lib/model/actions';
   import { parseNonNegInt } from '../../lib/model/numbers';
-  import { actionLabel, modeOf, segmentCount } from '../../lib/model/profile';
+  import { modeOf, segmentCount } from '../../lib/model/profile';
   import { app } from '../../lib/state/app.svelte';
   import type { Action, ControlName, Mapping, Mode, Press } from '../../lib/types';
   import ActionParams from '../binding/ActionParams.svelte';

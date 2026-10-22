@@ -1,9 +1,9 @@
 // A bindings sheet: every layer's mappings and analog routes as one printable HTML page.
 import { t } from '../i18n/index.svelte';
 import type { PadFamily, Profile } from '../types';
-import { sourceOf, targetOf } from './analog';
-import { comboLabel, layerLabel } from './labels';
-import { comboKey, layerIds, mappingSummary } from './profile';
+import { sourceOf, targetOf } from './routes';
+import { comboLabel, layerLabel, mappingSummary } from './labels';
+import { comboKey, layerIds } from './profile';
 
 const escape = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
