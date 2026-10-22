@@ -13,13 +13,14 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
-use dp_core::pad::{Axis, PadButton, PadState, Rgb, Rumble, axis_to_i16, unit_to_u8_round};
+use dp_core::pad::{Axis, PadState, Rgb, Rumble, axis_to_i16, unit_to_u8_round};
 use vigem_client::{Client, TargetId, XButtons, XGamepad, Xbox360Wired};
 use windows_sys::Win32::Foundation::{ERROR_ACCESS_DENIED, ERROR_OPERATION_ABORTED, HANDLE};
 use windows_sys::Win32::System::IO::{CancelIoEx, DeviceIoControl};
 
 use super::OwnedHandle;
 use super::overlapped::{self, EventReset, run_overlapped};
+use super::xinput::XUSB_BUTTONS;
 use crate::sony::{DS4_REPORT_LEN, DS4_V1_PID, Ds4Calibration, Ds4ReportBuilder, SONY_VID};
 use crate::{PlatformError, Result, VirtualPad, VirtualPadFactory, VirtualPadKind};
 
@@ -91,27 +92,9 @@ struct X360Pad {
     rumble: Arc<Mutex<Option<Rumble>>>,
 }
 
-const X360_BUTTONS: [(PadButton, u16); 15] = [
-    (PadButton::DpadUp, XButtons::UP),
-    (PadButton::DpadDown, XButtons::DOWN),
-    (PadButton::DpadLeft, XButtons::LEFT),
-    (PadButton::DpadRight, XButtons::RIGHT),
-    (PadButton::Start, XButtons::START),
-    (PadButton::Back, XButtons::BACK),
-    (PadButton::LS, XButtons::LTHUMB),
-    (PadButton::RS, XButtons::RTHUMB),
-    (PadButton::LB, XButtons::LB),
-    (PadButton::RB, XButtons::RB),
-    (PadButton::Guide, XButtons::GUIDE),
-    (PadButton::A, XButtons::A),
-    (PadButton::B, XButtons::B),
-    (PadButton::X, XButtons::X),
-    (PadButton::Y, XButtons::Y),
-];
-
 pub(super) fn to_xgamepad(s: &PadState) -> XGamepad {
     let mut raw = 0u16;
-    for (b, bit) in X360_BUTTONS {
+    for (b, bit) in XUSB_BUTTONS {
         if s.pressed(b) {
             raw |= bit;
         }

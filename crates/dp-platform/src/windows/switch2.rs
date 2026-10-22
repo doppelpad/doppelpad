@@ -10,12 +10,13 @@ use std::io;
 use std::time::Duration;
 
 use nusb::descriptors::TransferType;
-use nusb::transfer::{Buffer, Bulk, Direction, In, Out, TransferError};
+use nusb::transfer::{Buffer, Bulk, In, Out};
 use nusb::{Endpoint, ErrorKind, Interface, MaybeFuture};
 use windows_sys::Win32::Foundation::ERROR_ACCESS_DENIED;
 
 use super::devnode::usb_device_of;
 use super::process;
+use super::usb::{endpoint_addrs, transfer_error};
 use crate::nintendo::switch2::Switch2Driver;
 use crate::nintendo::{NINTENDO_VID, Switch2Model};
 use crate::padio::{self, BulkIo, BulkRetry, PadDriver};
@@ -92,15 +93,6 @@ struct VendorBulk {
     _interface: Interface,
 }
 
-fn transfer_error(e: TransferError) -> io::Error {
-    let kind = match e {
-        TransferError::Cancelled => io::ErrorKind::TimedOut,
-        TransferError::Disconnected => io::ErrorKind::NotConnected,
-        _ => io::ErrorKind::Other,
-    };
-    io::Error::new(kind, e)
-}
-
 impl BulkIo for VendorBulk {
     fn command(&mut self, cmd: &[u8], reply_len: usize, timeout: Duration) -> io::Result<Vec<u8>> {
         self.out
@@ -163,17 +155,7 @@ fn open_vendor_bulk(hid_devinst: u32) -> Result<VendorBulk, OpenError> {
         .claim_interface(number)
         .wait()
         .map_err(|e| open_error(&e))?;
-    let (mut out_addr, mut in_addr) = (0x02, 0x82);
-    if let Some(desc) = interface.descriptor() {
-        for ep in desc.endpoints() {
-            if ep.transfer_type() == TransferType::Bulk {
-                match ep.direction() {
-                    Direction::Out => out_addr = ep.address(),
-                    Direction::In => in_addr = ep.address(),
-                }
-            }
-        }
-    }
+    let (out_addr, in_addr) = endpoint_addrs(&interface, TransferType::Bulk, (0x02, 0x82));
     let out = interface
         .endpoint::<Bulk, Out>(out_addr)
         .map_err(|e| open_error(&e))?;

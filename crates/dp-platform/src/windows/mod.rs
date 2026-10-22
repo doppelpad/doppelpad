@@ -22,6 +22,7 @@ pub mod rewasd;
 mod sendinput;
 mod switch2;
 mod system;
+mod usb;
 mod vigem;
 mod xinput;
 

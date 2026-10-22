@@ -57,23 +57,23 @@ const RESCAN: Duration = Duration::from_secs(1);
 const BATTERY_EVERY: Duration = Duration::from_secs(10);
 const BATTERY_DEVTYPE_GAMEPAD: u8 = 0;
 
-// XInput button bits.
-const BUTTONS: [(u16, PadButton); 15] = [
-    (0x0001, PadButton::DpadUp),
-    (0x0002, PadButton::DpadDown),
-    (0x0004, PadButton::DpadLeft),
-    (0x0008, PadButton::DpadRight),
-    (0x0010, PadButton::Start),
-    (0x0020, PadButton::Back),
-    (0x0040, PadButton::LS),
-    (0x0080, PadButton::RS),
-    (0x0100, PadButton::LB),
-    (0x0200, PadButton::RB),
-    (0x0400, PadButton::Guide),
-    (0x1000, PadButton::A),
-    (0x2000, PadButton::B),
-    (0x4000, PadButton::X),
-    (0x8000, PadButton::Y),
+/// XUSB button bits, as XInput reports them and the virtual Xbox 360 pad sends them.
+pub(super) const XUSB_BUTTONS: [(PadButton, u16); 15] = [
+    (PadButton::DpadUp, 0x0001),
+    (PadButton::DpadDown, 0x0002),
+    (PadButton::DpadLeft, 0x0004),
+    (PadButton::DpadRight, 0x0008),
+    (PadButton::Start, 0x0010),
+    (PadButton::Back, 0x0020),
+    (PadButton::LS, 0x0040),
+    (PadButton::RS, 0x0080),
+    (PadButton::LB, 0x0100),
+    (PadButton::RB, 0x0200),
+    (PadButton::Guide, 0x0400),
+    (PadButton::A, 0x1000),
+    (PadButton::B, 0x2000),
+    (PadButton::X, 0x4000),
+    (PadButton::Y, 0x8000),
 ];
 
 pub struct XInputBackend {
@@ -201,7 +201,7 @@ fn battery(info: XInputBatteryInformation) -> Option<Battery> {
 
 fn convert(g: &XInputGamepad) -> PadState {
     let mut s = PadState::default();
-    for (bit, b) in BUTTONS {
+    for (b, bit) in XUSB_BUTTONS {
         s.set(b, g.buttons & bit != 0);
     }
     s.set_axis(Axis::LeftX, axis_from_i16(g.thumb_lx));
@@ -320,6 +320,30 @@ mod tests {
         assert_eq!(s.axis(Axis::LeftY), -1.0);
     }
 
+    /// The table's bits are the ones the ViGEm client names.
+    #[test]
+    fn xusb_bits_match_vigem() {
+        use vigem_client::XButtons;
+        let named = [
+            XButtons::UP,
+            XButtons::DOWN,
+            XButtons::LEFT,
+            XButtons::RIGHT,
+            XButtons::START,
+            XButtons::BACK,
+            XButtons::LTHUMB,
+            XButtons::RTHUMB,
+            XButtons::LB,
+            XButtons::RB,
+            XButtons::GUIDE,
+            XButtons::A,
+            XButtons::B,
+            XButtons::X,
+            XButtons::Y,
+        ];
+        assert_eq!(XUSB_BUTTONS.map(|(_, bit)| bit), named);
+    }
+
     /// What the virtual Xbox 360 pad sends reads back as the same state.
     #[test]
     fn virtual_pad_round_trips() {
@@ -335,8 +359,7 @@ mod tests {
                 thumb_ry: g.thumb_ry,
             })
         };
-        assert_eq!(BUTTONS.len(), 15);
-        for (bit, b) in BUTTONS {
+        for (b, bit) in XUSB_BUTTONS {
             let mut s = PadState::default();
             s.set(b, true);
             assert_eq!(
