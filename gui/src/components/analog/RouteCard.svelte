@@ -21,21 +21,22 @@
   import type { AnalogMapping, AnalogSource, AnalogTarget, ControlName } from '../../lib/types';
   import Chip from '../ui/Chip.svelte';
   import Slider from '../ui/Slider.svelte';
+  import { PCT, sliderHint, type SliderSpec } from '../ui/sliderSpec';
   import Toggle from '../ui/Toggle.svelte';
 
   /** `fixedSource`: shown for one source (a whole stick), so the source cannot change here. */
   let { index, route, fixedSource = false }: { index: number; route: AnalogMapping; fixedSource?: boolean } = $props();
 
   type SliderField = Exclude<RouteField, 'consume' | 'spring'>;
-  const SLIDERS: Record<SliderField, { min: number; max: number; step: number; scale?: number; unit?: string; hint?: boolean }> = {
+  const SLIDERS: Record<SliderField, SliderSpec> = {
     curve: { min: 0.2, max: 4, step: 0.05, hint: true },
-    deadzone: { min: 0, max: 0.9, step: 0.01, scale: 100, unit: '%' },
-    outer: { min: 0.5, max: 1, step: 0.01, scale: 100, unit: '%', hint: true },
-    anti_deadzone: { min: 0, max: 0.9, step: 0.01, scale: 100, unit: '%', hint: true },
+    deadzone: { min: 0, max: 0.9, step: 0.01, ...PCT },
+    outer: { min: 0.5, max: 1, step: 0.01, ...PCT, hint: true },
+    anti_deadzone: { min: 0, max: 0.9, step: 0.01, ...PCT, hint: true },
     smoothing_ms: { min: 0, max: 100, step: 1, unit: 'ms' },
     decay_ms: { min: 0, max: 500, step: 5, unit: 'ms', hint: true },
-    trackball_friction: { min: 0, max: 1, step: 0.01, scale: 100, unit: '%', hint: true },
-    snap: { min: 0, max: 0.5, step: 0.01, scale: 100, unit: '%', hint: true },
+    trackball_friction: { min: 0, max: 1, step: 0.01, ...PCT, hint: true },
+    snap: { min: 0, max: 0.5, step: 0.01, ...PCT, hint: true },
     noise_filter: { min: 0, max: 20, step: 1, hint: true },
     acceleration: { min: 0, max: 4, step: 0.1, unit: '×/s', hint: true },
   };
@@ -182,7 +183,7 @@
         step={s.step}
         scale={s.scale}
         unit={s.unit}
-        hint={flick && f === 'deadzone' ? t('analog.routes.flick_threshold_hint') : s.hint ? t(`analog.routes.${f}_hint`) : ''}
+        hint={flick && f === 'deadzone' ? t('analog.routes.flick_threshold_hint') : sliderHint('analog.routes', f, s)}
         {disabled}
         onchange={(v) => set({ [f]: v })}
       />

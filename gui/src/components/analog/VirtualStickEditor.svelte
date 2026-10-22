@@ -8,6 +8,7 @@
   import type { Jitter, VirtualStick } from '../../lib/types';
   import Segmented from '../ui/Segmented.svelte';
   import Slider from '../ui/Slider.svelte';
+  import { PCT, sliderHint, type SliderSpec } from '../ui/sliderSpec';
   import Toggle from '../ui/Toggle.svelte';
   import CurveEditor from './CurveEditor.svelte';
   import EditorColumns from './EditorColumns.svelte';
@@ -17,6 +18,16 @@
 
   /** The format's ramp: start at about a fifth, then grow and speed up. */
   const RAMP: Partial<VirtualStick> = { initial: 0.21, speed: 1, acceleration: 0.5 };
+  type VirtualField = 'initial' | 'max' | 'speed' | 'acceleration' | 'multiplier_x' | 'multiplier_y';
+  /** The plain sliders, in order. */
+  const SLIDERS: [VirtualField, SliderSpec][] = [
+    ['initial', { min: 0, max: 1, step: 0.01, ...PCT, hint: true }],
+    ['max', { min: 0.05, max: 1, step: 0.01, ...PCT, hint: true }],
+    ['speed', { min: 0, max: 4, step: 0.05, unit: '/s', hint: true }],
+    ['acceleration', { min: 0, max: 4, step: 0.05, unit: '/s²' }],
+    ['multiplier_x', { min: 0.1, max: 5, step: 0.1, unit: '×' }],
+    ['multiplier_y', { min: 0.1, max: 5, step: 0.1, unit: '×', hint: 'analog.virtual.multiplier_hint' }],
+  ];
 
   const def = $derived(app.catalog?.defaults.virtual_stick);
   const stickDef = $derived(app.catalog?.defaults.stick);
@@ -74,84 +85,22 @@
           {disabled}
           onchange={(v) => set(v === 'instant' ? { initial: 1, max: 1, speed: 0, acceleration: 0 } : RAMP)}
         />
-        <Slider
-          label={t('analog.virtual.initial')}
-          value={cfg.initial}
-          def={ref.initial}
-          {resetLabel}
-          min={0}
-          max={1}
-          step={0.01}
-          scale={100}
-          unit="%"
-          hint={t('analog.virtual.initial_hint')}
-          {disabled}
-          onchange={(v) => set({ initial: v })}
-        />
-        <Slider
-          label={t('analog.virtual.max')}
-          value={cfg.max}
-          def={ref.max}
-          {resetLabel}
-          min={0.05}
-          max={1}
-          step={0.01}
-          scale={100}
-          unit="%"
-          hint={t('analog.virtual.max_hint')}
-          {disabled}
-          onchange={(v) => set({ max: v })}
-        />
-        <Slider
-          label={t('analog.virtual.speed')}
-          value={cfg.speed}
-          def={ref.speed}
-          {resetLabel}
-          min={0}
-          max={4}
-          step={0.05}
-          unit="/s"
-          hint={t('analog.virtual.speed_hint')}
-          {disabled}
-          onchange={(v) => set({ speed: v })}
-        />
-        <Slider
-          label={t('analog.virtual.acceleration')}
-          value={cfg.acceleration}
-          def={ref.acceleration}
-          {resetLabel}
-          min={0}
-          max={4}
-          step={0.05}
-          unit="/s²"
-          {disabled}
-          onchange={(v) => set({ acceleration: v })}
-        />
-        <Slider
-          label={t('analog.virtual.multiplier_x')}
-          value={cfg.multiplier_x}
-          def={ref.multiplier_x}
-          {resetLabel}
-          min={0.1}
-          max={5}
-          step={0.1}
-          unit="×"
-          {disabled}
-          onchange={(v) => set({ multiplier_x: v })}
-        />
-        <Slider
-          label={t('analog.virtual.multiplier_y')}
-          value={cfg.multiplier_y}
-          def={ref.multiplier_y}
-          {resetLabel}
-          min={0.1}
-          max={5}
-          step={0.1}
-          unit="×"
-          hint={t('analog.virtual.multiplier_hint')}
-          {disabled}
-          onchange={(v) => set({ multiplier_y: v })}
-        />
+        {#each SLIDERS as [f, s] (f)}
+          <Slider
+            label={t(`analog.virtual.${f}`)}
+            value={cfg[f]}
+            def={ref[f]}
+            {resetLabel}
+            min={s.min}
+            max={s.max}
+            step={s.step}
+            scale={s.scale}
+            unit={s.unit}
+            hint={sliderHint('analog.virtual', f, s)}
+            {disabled}
+            onchange={(v) => set({ [f]: v })}
+          />
+        {/each}
         <div class="jitter">
           <Toggle checked={jit.enabled} {disabled} label={t('analog.virtual.jitter')} onchange={(v) => setJitter({ enabled: v })} />
           <p class="hint">{t('analog.virtual.jitter_hint')}</p>
