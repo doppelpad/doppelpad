@@ -1461,5 +1461,22 @@
     "pressing": "Mappings that press {key}",
     "all": "Search everything instead",
     "who_presses": "Which mappings press this key?"
+  },
+  "transforms": {
+    "menu": "Swap or mirror controls",
+    "title": "Swap or mirror controls",
+    "scope": "Where",
+    "this_layer": "This layer ({layer})",
+    "whole_config": "Whole config",
+    "face": "Swap A/B and X/Y",
+    "face_hint": "Each face button does what its neighbour did, for example for Nintendo button positions.",
+    "sticks": "Swap the sticks",
+    "sticks_hint": "Southpaw: each stick does what the other one did, with its directions and routes.",
+    "bumpers_triggers": "Swap bumpers and triggers",
+    "bumpers_triggers_hint": "LB does what LT did and the other way round, the same on the right. Trigger zones stay.",
+    "mirror": "Mirror left and right",
+    "mirror_hint": "For left hands: bumpers, triggers, sticks, D-pad and face buttons, Back and Start, paddles and trackpads change sides.",
+    "note": "Controls nothing maps take their own output along. A stick that only passed through gets a route to the other virtual stick; its response curve is not carried over. Ctrl+Z takes it back.",
+    "done": "{name}: done. Ctrl+Z undoes it."
   }
 }

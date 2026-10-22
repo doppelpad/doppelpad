@@ -9,6 +9,7 @@
   import type { PresetEntry, Profile } from '../lib/types';
   import LayerDialog from './LayerDialog.svelte';
   import LayerTip from './LayerTip.svelte';
+  import TransformDialog from './TransformDialog.svelte';
   import Menu from './ui/Menu.svelte';
 
   type Tile = { id: View; icon: typeof Gamepad2; label: string; title?: string };
@@ -26,6 +27,8 @@
   ]);
 
   const layers = $derived(app.profile ? layerIds(app.profile) : [0]);
+  /** The layout transforms dialog is open. */
+  let transformOpen = $state(false);
 
   /** The layer chip whose tooltip shows, and where (below the chip). */
   let tip = $state<{ layer: number; x: number; y: number } | null>(null);
@@ -153,6 +156,7 @@
     { label: t('layers.copy'), onclick: onCopy },
     { label: t('layers.paste'), onclick: onPaste, disabled: !app.copiedLayer },
     { label: t('layers.clear'), onclick: () => app.edit((p) => clearLayer(p, app.layer)) },
+    { label: t('transforms.menu') + '…', onclick: () => (transformOpen = true), disabled: !app.profile || app.readOnly },
     { separator: true, label: '' },
     { label: t('layers.save_preset') + '…', onclick: onSavePreset, disabled: !app.profile },
     ...presets.map((p) => ({
@@ -226,6 +230,8 @@
 </div>
 
 {#if tip}<LayerTip layer={tip.layer} x={tip.x} y={tip.y} id={tipId} />{/if}
+
+{#if transformOpen}<TransformDialog onclose={() => (transformOpen = false)} />{/if}
 
 {#if layerDialog !== null}
   <LayerDialog layer={layerDialog} onclose={() => (layerDialog = null)} />
