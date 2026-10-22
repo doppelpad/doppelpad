@@ -142,7 +142,8 @@ class AppState {
     for (const c of now) {
       if (!this.pressed.has(c)) this.onPhysicalPress(c);
     }
-    this.pressed = now;
+    // Live state comes many times a second; only a change of the held controls is news.
+    if (now.size !== this.pressed.size || [...now].some((c) => !this.pressed.has(c))) this.pressed = now;
   }
 
   private onPhysicalPress(c: ControlName) {

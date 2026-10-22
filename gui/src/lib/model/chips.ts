@@ -50,8 +50,6 @@ export interface ChipView {
   selectedKey: string;
   /** The whole stick the side panel shows. */
   stick: Side | null;
-  /** Controls held on the controller in use. */
-  pressed: Set<ControlName>;
   layerLabel: (id: number) => string;
 }
 
@@ -62,7 +60,6 @@ export interface Chip {
   mapped: boolean;
   inherited: boolean;
   selected: boolean;
-  pressed: boolean;
   combo: boolean;
 }
 
@@ -116,8 +113,6 @@ export function buildChips(controls: LayoutControl[], v: ChipView): Chip[] {
     let summary = own?.text ?? '';
     let mapped = !!own;
     let selected = v.selectedKey === c;
-    // The held controls are also what press-to-select reacts to, so highlight and selection agree.
-    let isPressed = v.pressed.has(c);
     // Stick chips also show the directions and zones, trigger chips the zones.
     const parts: string[] = [];
     // A whole-stick route comes first: it is what the stick mostly does.
@@ -129,7 +124,6 @@ export function buildChips(controls: LayoutControl[], v: ChipView): Chip[] {
       const s = summaryOf(r.c);
       if (s) parts.push(`${r.tag} ${s.text}`);
       if (v.selectedKey === r.c) selected = true;
-      if (v.pressed.has(r.c)) isPressed = true;
     }
     if (parts.length) {
       summary = [own ? `● ${own.text}` : '', ...parts].filter(Boolean).join('  ');
@@ -143,10 +137,24 @@ export function buildChips(controls: LayoutControl[], v: ChipView): Chip[] {
       mapped,
       inherited: !!own?.inherited,
       selected,
-      pressed: isPressed,
       combo: combos.has(c),
     };
   });
+}
+
+/**
+ * The drawn controls held on the controller in use: by themselves or through a control their
+ * chip stands for (a stick's directions). Kept apart from the summaries, which do not change
+ * with every press.
+ */
+export function pressedChips(controls: LayoutControl[], pressed: Set<ControlName>): Set<ControlName> {
+  const out = new Set<ControlName>();
+  if (pressed.size === 0) return out;
+  for (const { control: c } of controls) {
+    // The held controls are also what press-to-select reacts to, so highlight and selection agree.
+    if (pressed.has(c) || related(c).some((r) => pressed.has(r.c))) out.add(c);
+  }
+  return out;
 }
 
 /** The gyro chip: what the gyro directions do, and whether one of them is selected. */
