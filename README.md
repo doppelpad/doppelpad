@@ -62,6 +62,10 @@ The binary is `target/release/doppelpad.exe`. Both the MSVC and the GNU toolchai
 because `windows-sys` needs `dlltool`/`as` to create import libraries and `windres` compiles
 the version information of `doppelpad.exe`.
 
+GitHub Actions (`.github/workflows/ci.yml`) checks every push to `main` and every pull
+request: formatting, clippy and all tests on Windows (MSVC), the frontend's tests, types and
+formatting, and on Linux the platform layer, the service and the platform-neutral tests.
+
 ## Desktop app
 
 `doppelpad-gui` is a graphical editor and tray service. It has a game list, a controller,

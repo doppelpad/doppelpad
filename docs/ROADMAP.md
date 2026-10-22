@@ -95,7 +95,7 @@ unit-tested but have not run against the real device yet.
    | Keyboard/mouse capture | ✅ per-device grab + uinput passthrough; keyboard LEDs not mirrored yet |
    | Foreground app | ✅ X11 / XWayland; ⏳ native Wayland (compositor-specific protocols) |
    | Power commands, close window | ✅ `systemctl` / `loginctl`, EWMH |
-   | Not on Linux yet | screenshots, battery levels, turning controllers off, Steam controllers, generic-pad layouts, GameCube adapter, keep-awake and lock-screen pause; overlays untested |
+   | Not on Linux yet | screenshots, battery levels, turning controllers off, Steam controllers, generic-pad layouts, GameCube adapter, keep-awake and lock-screen pause, device problems (missing permissions) in the app's warnings — only logged; overlays untested |
    | Hardware testing | ⏳ needed |
 
    It requires a udev rule for `/dev/uinput` and the input devices.

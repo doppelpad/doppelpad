@@ -1,0 +1,62 @@
+# The checks every change passes before it lands (CLEANUP-AGENT.md §0.8 without the local paths):
+# Windows builds, lints and tests everything, the GUI's frontend included; Linux checks the
+# platform layer and the service and runs the tests that do not need Windows.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  # Warnings fail the build, as in the local check.
+  RUSTFLAGS: -D warnings
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: gui/package-lock.json
+      - name: Frontend dependencies
+        working-directory: gui
+        run: npm ci
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --workspace --all-targets
+      - run: cargo test --workspace
+      # The GUI crate is not a default member.
+      - run: cargo test -p dp-gui
+      - name: Frontend tests
+        working-directory: gui
+        run: npm test
+      - name: Frontend type check
+        working-directory: gui
+        run: npm run check
+      - name: Frontend formatting
+        working-directory: gui
+        run: npm run format:check
+
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo check -p dp-platform -p dp-service
+      - run: cargo clippy -p dp-platform -p dp-service --all-targets
+      - run: cargo test -p dp-core -p dp-config -p dp-ipc -p dp-service
