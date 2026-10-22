@@ -1,14 +1,14 @@
 ---
 // The site operator's details from src/lib/operator.ts: `fields` as lines, or with `notice`
-// the warning that some are still placeholders.
+// the warning that some are still placeholders. Optional fields left empty are left out.
 import { Aside } from '@astrojs/starlight/components';
-import { FIELDS, OPERATOR, missingFields } from '../lib/operator';
+import { FIELDS, OPERATOR, isOptional, missingFields, type Field } from '../lib/operator';
 
 interface Props {
   lang: 'de' | 'en';
-  fields?: (keyof typeof FIELDS)[];
+  fields?: Field[];
   /** Label per field, e.g. "E-Mail:". */
-  labels?: Partial<Record<keyof typeof FIELDS, string>>;
+  labels?: Partial<Record<Field, string>>;
   notice?: boolean;
 }
 
@@ -17,7 +17,8 @@ const missing = missingFields();
 if (notice && missing.length > 0) {
   console.warn(`[legal] ${Astro.url.pathname}: placeholders left in src/lib/operator.ts: ${missing.join(', ')}`);
 }
-const placeholder = (k: keyof typeof FIELDS) => `[${lang === 'de' ? 'Platzhalter' : 'Placeholder'}: ${FIELDS[k][lang]}]`;
+const shown = fields.filter((k) => OPERATOR[k] || !isOptional(k));
+const placeholder = (k: Field) => `[${lang === 'de' ? 'Platzhalter' : 'Placeholder'}: ${FIELDS[k][lang]}]`;
 ---
 
 {
@@ -30,9 +31,9 @@ const placeholder = (k: keyof typeof FIELDS) => `[${lang === 'de' ? 'Platzhalter
   )
 }
 {
-  fields.length > 0 && (
+  shown.length > 0 && (
     <p class="operator">
-      {fields.map((k, i) => (
+      {shown.map((k, i) => (
         <>
           {i > 0 && <br />}
           {labels[k] && `${labels[k]} `}
