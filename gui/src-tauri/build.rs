@@ -1,7 +1,79 @@
 use std::{env, fs, path::MAIN_SEPARATOR, path::PathBuf};
 
+/// The commands main.rs registers. Tauri makes an `allow-<command>` permission of each, which
+/// the capabilities grant per window: the editor all of them (permissions/editor.toml), the
+/// overlays only what their pages call. A test checks this list against main.rs.
+const COMMANDS: &[&str] = &[
+    "catalog",
+    "library_scan",
+    "game_create",
+    "game_update",
+    "game_delete",
+    "game_create_template",
+    "config_from_template",
+    "open_driver_page",
+    "game_export",
+    "game_import",
+    "preset_list",
+    "preset_save",
+    "preset_load",
+    "sheet_save",
+    "config_load",
+    "config_save",
+    "config_create",
+    "config_duplicate",
+    "config_delete",
+    "config_import",
+    "reveal",
+    "apply_to_slot",
+    "select_slot",
+    "clear_slot",
+    "own_slots",
+    "set_remap",
+    "set_auto_switch",
+    "set_lights",
+    "set_blocked",
+    "set_groups",
+    "set_power_off_after",
+    "power_off",
+    "set_layout",
+    "forget_layout",
+    "set_dsu",
+    "set_runtime_options",
+    "set_http",
+    "new_http_token",
+    "set_preferred_device",
+    "refresh_drivers",
+    "hotkeys_get",
+    "hotkeys_set",
+    "hotkeys_pause",
+    "test_turn",
+    "gyro_calibrate",
+    "gyro_auto",
+    "gyro_reset",
+    "rewasd_status",
+    "rewasd_quit",
+    "live_subscribe",
+    "settings_get",
+    "settings_set",
+    "autostart_get",
+    "autostart_set",
+    "window_show",
+    "profiles_dir",
+    "log_file",
+    "take_notices",
+    "overlay_ready",
+    "osd_test",
+    "osd_monitors",
+];
+
 fn main() {
-    tauri_build::build();
+    let app = tauri_build::AppManifest::new()
+        .commands(COMMANDS)
+        .permissions_path_pattern("./permissions/*.toml");
+    if let Err(e) = tauri_build::try_build(tauri_build::Attributes::new().app_manifest(app)) {
+        panic!("{e:#}");
+    }
     shadow_gcc_default_manifest();
 }
 
