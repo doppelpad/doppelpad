@@ -35,14 +35,56 @@ pub fn spawn_watcher(
     Ok(())
 }
 
-pub fn label(kind: &str) -> String {
+/// The overlay windows, each showing a page of `overlay.html`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum OverlayKind {
+    Osd,
+    Crosshair,
+    Radial,
+    Pad,
+    Mappings,
+}
+
+impl OverlayKind {
+    const ALL: [OverlayKind; 5] = [
+        OverlayKind::Osd,
+        OverlayKind::Crosshair,
+        OverlayKind::Radial,
+        OverlayKind::Pad,
+        OverlayKind::Mappings,
+    ];
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            OverlayKind::Osd => "osd",
+            OverlayKind::Crosshair => "crosshair",
+            OverlayKind::Radial => "radial",
+            OverlayKind::Pad => "pad",
+            OverlayKind::Mappings => "mappings",
+        }
+    }
+
+    /// The kind of the overlay window labelled `label`.
+    pub fn from_label(label: &str) -> Option<OverlayKind> {
+        let name = label.strip_prefix("overlay-")?;
+        Self::ALL.into_iter().find(|k| k.as_str() == name)
+    }
+}
+
+impl std::fmt::Display for OverlayKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+pub fn label(kind: OverlayKind) -> String {
     format!("overlay-{kind}")
 }
 
 /// What each overlay page shows, kept for a page that is still loading.
 #[derive(Default)]
 pub struct Overlays {
-    pages: Mutex<HashMap<String, Page>>,
+    pages: Mutex<HashMap<OverlayKind, Page>>,
 }
 
 #[derive(Default)]
@@ -58,7 +100,7 @@ pub fn present(
     app: &AppHandle,
     w: &WebviewWindow,
     created: bool,
-    kind: &str,
+    kind: OverlayKind,
     content: &impl Serialize,
 ) {
     let Ok(value) = serde_json::to_value(content) else {
@@ -67,7 +109,7 @@ pub fn present(
     let ready = {
         let state = app.state::<Overlays>();
         let mut pages = state.pages.lock().unwrap();
-        let page = pages.entry(kind.to_owned()).or_default();
+        let page = pages.entry(kind).or_default();
         if created {
             page.ready = false;
         }
@@ -82,8 +124,8 @@ pub fn present(
 }
 
 /// Hide the overlay of `kind` and forget what it showed.
-pub fn dismiss(app: &AppHandle, kind: &str) {
-    if let Some(page) = app.state::<Overlays>().pages.lock().unwrap().get_mut(kind) {
+pub fn dismiss(app: &AppHandle, kind: OverlayKind) {
+    if let Some(page) = app.state::<Overlays>().pages.lock().unwrap().get_mut(&kind) {
         page.content = None;
     }
     if let Some(w) = app.get_webview_window(&label(kind)) {
@@ -94,7 +136,7 @@ pub fn dismiss(app: &AppHandle, kind: &str) {
 /// An overlay page has loaded: it gets what it should show, if anything, and then shows.
 #[tauri::command]
 pub fn overlay_ready(window: WebviewWindow, state: State<Overlays>) -> Option<Value> {
-    let kind = window.label().strip_prefix("overlay-")?.to_owned();
+    let kind = OverlayKind::from_label(window.label())?;
     let content = {
         let mut pages = state.pages.lock().unwrap();
         let page = pages.entry(kind).or_default();
@@ -109,7 +151,7 @@ pub fn overlay_ready(window: WebviewWindow, state: State<Overlays>) -> Option<Va
 
 /// The overlay window of `kind`, created hidden on first use. Returns whether it was created
 /// now (its page is still loading).
-pub fn window(app: &AppHandle, kind: &str) -> tauri::Result<(WebviewWindow, bool)> {
+pub fn window(app: &AppHandle, kind: OverlayKind) -> tauri::Result<(WebviewWindow, bool)> {
     let label = label(kind);
     if let Some(w) = app.get_webview_window(&label) {
         return Ok((w, false));

@@ -24,16 +24,16 @@ use std::time::Duration;
 use dp_service::{HostOptions, ServiceOptions};
 use tauri::{Manager, WebviewWindow, WebviewWindowBuilder, WindowEvent};
 
-use crate::commands::AppState;
+use crate::commands::{AppState, MAIN_WINDOW, Notice};
 use crate::settings::GuiSettings;
 
 /// If a `doppelpad daemon` (or another instance) already serves remapping, ask it to stop
 /// so this app can take over the devices.
-fn take_over_running_service(notices: &mut Vec<String>) {
+fn take_over_running_service(notices: &mut Vec<Notice>) {
     if dp_ipc::call(&dp_ipc::Request::Status).is_ok() {
         let _ = dp_ipc::call(&dp_ipc::Request::Shutdown);
         std::thread::sleep(Duration::from_millis(400));
-        notices.push("service-takeover".into());
+        notices.push(Notice::ServiceTakeover);
     }
 }
 
@@ -47,7 +47,7 @@ fn create_main_window(app: &tauri::App, visible: bool) -> tauri::Result<WebviewW
         .app
         .windows
         .iter()
-        .find(|w| w.label == "main")
+        .find(|w| w.label == MAIN_WINDOW)
         .expect("main window config");
     let builder = WebviewWindowBuilder::from_config(app.handle(), config)?.visible(visible);
     #[cfg(target_os = "macos")]
@@ -109,7 +109,7 @@ fn main() {
                     // Closing hides to the tray; remapping keeps running.
                     WindowEvent::CloseRequested { api, .. } => {
                         api.prevent_close();
-                        if let Some(w) = app_handle.get_webview_window("main") {
+                        if let Some(w) = app_handle.get_webview_window(MAIN_WINDOW) {
                             let _ = w.hide();
                         }
                         // A hidden window has no focus, whether or not Windows reports it.
@@ -134,13 +134,11 @@ fn main() {
             commands::preset_list,
             commands::preset_save,
             commands::preset_load,
-            commands::preset_delete,
             commands::sheet_save,
             commands::config_load,
             commands::config_save,
             commands::config_create,
             commands::config_duplicate,
-            commands::config_rename,
             commands::config_delete,
             commands::config_import,
             commands::reveal,

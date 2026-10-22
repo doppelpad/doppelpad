@@ -11,9 +11,7 @@ use std::path::{Path, PathBuf};
 use dp_core::profile::Profile;
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    Diagnostics, Format, LoadError, compat, is_profile_file, load, load_with_format, to_toml,
-};
+use crate::{Diagnostics, Format, LoadError, compat, is_profile_file, load, to_toml};
 
 /// File holding a game's metadata inside its folder.
 pub(crate) const GAME_FILE: &str = "game.toml";
@@ -347,17 +345,6 @@ pub fn duplicate_config(path: &Path) -> Result<PathBuf> {
     Ok(target)
 }
 
-/// Rename a config. Only the profile's name changes, never the file name, so slots and
-/// other references to the path stay valid.
-pub fn rename_config(path: &Path, name: &str) -> Result<()> {
-    let (mut profile, _, format) = load_with_format(path)?;
-    if format == Format::Json {
-        return Err(LibraryError::ReadOnly(path.to_path_buf()));
-    }
-    profile.name = name.to_owned();
-    save_profile_atomic(path, &profile)
-}
-
 /// Move a config file to the recycle bin.
 pub fn delete_config(path: &Path) -> Result<()> {
     trash(path)
@@ -502,12 +489,13 @@ mod tests {
     }
 
     #[test]
-    fn rename_keeps_path_and_duplicate_copies() {
+    fn duplicate_copies_under_a_new_name() {
         let root = tempfile::tempdir().unwrap();
         let game = create_game(root.path(), "G").unwrap();
         let path = game.configs[0].path.clone();
-        rename_config(&path, "Aggressive").unwrap();
-        assert_eq!(load(&path).unwrap().0.name, "Aggressive");
+        let (mut profile, _) = load(&path).unwrap();
+        profile.name = "Aggressive".into();
+        save_profile_atomic(&path, &profile).unwrap();
         let copy = duplicate_config(&path).unwrap();
         assert_ne!(copy, path);
         assert_eq!(load(&copy).unwrap().0.name, "Aggressive copy");
@@ -526,7 +514,6 @@ mod tests {
         );
         assert_eq!(err.to_string(), text);
         assert_eq!(std::fs::read_to_string(&path).unwrap(), JSON);
-        assert_eq!(rename_config(&path, "Other").unwrap_err().to_string(), text);
         assert_eq!(std::fs::read_to_string(&path).unwrap(), JSON);
         assert_eq!(
             std::fs::read_dir(root.path()).unwrap().count(),

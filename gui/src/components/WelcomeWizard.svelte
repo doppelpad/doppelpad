@@ -23,8 +23,8 @@
   const drivers = $derived(
     live
       ? [
-          { key: 'virtual_pads', state: live.drivers.virtual_pads },
-          { key: 'device_hiding', state: live.drivers.device_hiding },
+          { key: 'virtual_pads' as const, state: live.drivers.virtual_pads },
+          { key: 'device_hiding' as const, state: live.drivers.device_hiding },
         ]
       : [],
   );

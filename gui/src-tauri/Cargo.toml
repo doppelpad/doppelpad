@@ -16,7 +16,7 @@ dp-config.workspace = true
 dp-ipc.workspace = true
 dp-platform.workspace = true
 dp-service.workspace = true
-anyhow.workspace = true
+
 serde.workspace = true
 serde_json.workspace = true
 tracing.workspace = true

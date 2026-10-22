@@ -6,6 +6,7 @@ import { t } from './i18n/index.svelte';
 import type {
   Catalog,
   DiagMsg,
+  Driver,
   DsuSettings,
   DeviceGroup,
   Game,
@@ -18,6 +19,7 @@ import type {
   Library,
   LiveState,
   LoadedConfig,
+  Notice,
   PlayerLights,
   PresetEntry,
   Profile,
@@ -37,20 +39,18 @@ export const api = {
     invoke<Game>('game_create_template', { name, config, template }),
   configFromTemplate: (gameDir: string, name: string, template: Template) =>
     invoke<string>('config_from_template', { gameDir, name, template }),
-  openDriverPage: (driver: string) => invoke<void>('open_driver_page', { driver }),
+  openDriverPage: (driver: Driver) => invoke<void>('open_driver_page', { driver }),
   gameExport: (dir: string, out: string) => invoke<void>('game_export', { dir, out }),
   gameImport: (file: string) => invoke<Game>('game_import', { file }),
   presetList: () => invoke<PresetEntry[]>('preset_list'),
   presetSave: (preset: LayerPreset) => invoke<string>('preset_save', { preset }),
   presetLoad: (path: string) => invoke<LayerPreset>('preset_load', { path }),
-  presetDelete: (path: string) => invoke<void>('preset_delete', { path }),
   sheetSave: (path: string, html: string) => invoke<void>('sheet_save', { path, html }),
 
   configLoad: (path: string) => invoke<LoadedConfig>('config_load', { path }),
   configSave: (path: string, profile: Profile) => invoke<DiagMsg[]>('config_save', { path, profile }),
   configCreate: (gameDir: string, name: string) => invoke<string>('config_create', { gameDir, name }),
   configDuplicate: (path: string) => invoke<string>('config_duplicate', { path }),
-  configRename: (path: string, name: string) => invoke<void>('config_rename', { path, name }),
   configDelete: (path: string) => invoke<void>('config_delete', { path }),
   configImport: (gameDir: string, source: string) =>
     invoke<{ path: string; diagnostics: DiagMsg[] }>('config_import', { gameDir, source }),
@@ -58,25 +58,25 @@ export const api = {
 
   /** `device`: that controller's own slots instead of the shared ones. */
   applyToSlot: (slot: number, path: string, device: string | null = null) =>
-    invoke<string>('apply_to_slot', { slot, path, device }),
-  selectSlot: (slot: number, device: string | null = null) => invoke<string>('select_slot', { slot, device }),
-  clearSlot: (slot: number, device: string | null = null) => invoke<string>('clear_slot', { slot, device }),
+    invoke<void>('apply_to_slot', { slot, path, device }),
+  selectSlot: (slot: number, device: string | null = null) => invoke<void>('select_slot', { slot, device }),
+  clearSlot: (slot: number, device: string | null = null) => invoke<void>('clear_slot', { slot, device }),
   /** Give a controller slots of its own, or let it use the shared ones again. */
-  ownSlots: (device: string, on: boolean) => invoke<string>('own_slots', { device, on }),
-  setRemap: (on: boolean) => invoke<string>('set_remap', { on }),
-  setAutoSwitch: (on: boolean) => invoke<string>('set_auto_switch', { on }),
-  setPreferredDevice: (id: string | null) => invoke<string>('set_preferred_device', { id }),
-  refreshDrivers: () => invoke<string>('refresh_drivers'),
+  ownSlots: (device: string, on: boolean) => invoke<void>('own_slots', { device, on }),
+  setRemap: (on: boolean) => invoke<void>('set_remap', { on }),
+  setAutoSwitch: (on: boolean) => invoke<void>('set_auto_switch', { on }),
+  setPreferredDevice: (id: string | null) => invoke<void>('set_preferred_device', { id }),
+  refreshDrivers: () => invoke<void>('refresh_drivers'),
   hotkeysGet: () => invoke<Hotkeys>('hotkeys_get'),
-  hotkeysSet: (hotkeys: Hotkeys) => invoke<string>('hotkeys_set', { hotkeys }),
+  hotkeysSet: (hotkeys: Hotkeys) => invoke<void>('hotkeys_set', { hotkeys }),
   /** Pause the hotkeys while recording a new one. */
-  hotkeysPause: (on: boolean) => invoke<string>('hotkeys_pause', { on }),
+  hotkeysPause: (on: boolean) => invoke<void>('hotkeys_pause', { on }),
   /** One full in-game turn of `counts` mouse counts, 3 s from now (calibration). */
-  testTurn: (counts: number) => invoke<string>('test_turn', { counts }),
+  testTurn: (counts: number) => invoke<void>('test_turn', { counts }),
   /** Gyro calibration of a controller (`null`: the controller in use). */
-  gyroCalibrate: (device: string | null) => invoke<string>('gyro_calibrate', { device }),
-  gyroAuto: (device: string | null, on: boolean) => invoke<string>('gyro_auto', { device, on }),
-  gyroReset: (device: string | null) => invoke<string>('gyro_reset', { device }),
+  gyroCalibrate: (device: string | null) => invoke<void>('gyro_calibrate', { device }),
+  gyroAuto: (device: string | null, on: boolean) => invoke<void>('gyro_auto', { device, on }),
+  gyroReset: (device: string | null) => invoke<void>('gyro_reset', { device }),
   /** `null` when reWASD is not installed. */
   rewasdStatus: () => invoke<RewasdStatus | null>('rewasd_status'),
   /** `false` when the user declined the administrator prompt. */
@@ -93,18 +93,18 @@ export const api = {
   settingsSet: (settings: GuiSettings) => invoke<void>('settings_set', { settings }),
   /** Show a sample on-screen notification. */
   /** What the player lights and the microphone LED show. */
-  setLights: (player: PlayerLights, mic: boolean) => invoke<string>('set_lights', { player, mic }),
+  setLights: (player: PlayerLights, mic: boolean) => invoke<void>('set_lights', { player, mic }),
   /** Ignore a device completely, or use it again. */
-  setBlocked: (id: string, blocked: boolean) => invoke<string>('set_blocked', { id, blocked }),
-  setGroups: (groups: DeviceGroup[]) => invoke<string>('set_groups', { groups }),
-  setPowerOffAfter: (minutes: number) => invoke<string>('set_power_off_after', { minutes }),
-  powerOff: (id: string) => invoke<string>('power_off', { id }),
-  setLayout: (layout: GenericLayout) => invoke<string>('set_layout', { layout }),
-  forgetLayout: (device: string) => invoke<string>('forget_layout', { device }),
-  setDsu: (settings: DsuSettings) => invoke<string>('set_dsu', { settings }),
-  setHttp: (settings: HttpSettings) => invoke<string>('set_http', { settings }),
-  newHttpToken: () => invoke<string>('new_http_token'),
-  setRuntimeOptions: (options: RuntimeOptions) => invoke<string>('set_runtime_options', { options }),
+  setBlocked: (id: string, blocked: boolean) => invoke<void>('set_blocked', { id, blocked }),
+  setGroups: (groups: DeviceGroup[]) => invoke<void>('set_groups', { groups }),
+  setPowerOffAfter: (minutes: number) => invoke<void>('set_power_off_after', { minutes }),
+  powerOff: (id: string) => invoke<void>('power_off', { id }),
+  setLayout: (layout: GenericLayout) => invoke<void>('set_layout', { layout }),
+  forgetLayout: (device: string) => invoke<void>('forget_layout', { device }),
+  setDsu: (settings: DsuSettings) => invoke<void>('set_dsu', { settings }),
+  setHttp: (settings: HttpSettings) => invoke<void>('set_http', { settings }),
+  newHttpToken: () => invoke<void>('new_http_token'),
+  setRuntimeOptions: (options: RuntimeOptions) => invoke<void>('set_runtime_options', { options }),
   osdTest: () => invoke<void>('osd_test'),
   /** Sizes of the monitors, the primary one first. */
   osdMonitors: () => invoke<string[]>('osd_monitors'),
@@ -115,7 +115,7 @@ export const api = {
   showWindow: () => invoke<void>('window_show'),
   profilesDir: () => invoke<string>('profiles_dir'),
   logFile: () => invoke<string>('log_file'),
-  takeNotices: () => invoke<string[]>('take_notices'),
+  takeNotices: () => invoke<Notice[]>('take_notices'),
 };
 
 /** Error text from a rejected command. */
