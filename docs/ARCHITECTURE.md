@@ -48,7 +48,7 @@ deterministic.
 
 It returns the virtual pad state, key/mouse transitions, mouse motion, wheel, rumble and
 host commands. There are no threads, clocks or I/O inside, so every behaviour is tested with
-a fake clock (`engine/tests.rs`).
+a fake clock (`engine/tests/`).
 
 Pipeline per tick:
 
