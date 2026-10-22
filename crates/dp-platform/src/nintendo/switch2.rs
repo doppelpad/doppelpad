@@ -82,6 +82,36 @@ fn flash_read_command(addr: u32) -> Vec<u8> {
 /// Length of a flash-read reply; the block starts at offset 0x10.
 const FLASH_REPLY_LEN: usize = 0x50;
 
+// Flash blocks (0x40 bytes each).
+/// Factory IMU calibration: the gyro bias as three f32 (rad/s) from offset 4.
+const FLASH_IMU: u32 = 0x13040;
+/// Factory stick calibration: nine bytes at offset 0x28 (see [`stick_cal`]).
+const FLASH_LEFT_STICK: u32 = 0x13080;
+const FLASH_RIGHT_STICK: u32 = 0x130C0;
+/// Factory rest values of the GameCube triggers: left, right.
+const FLASH_GC_TRIGGERS: u32 = 0x13140;
+/// User stick calibration, each behind the calibration magic.
+const FLASH_USER_LEFT: u32 = 0x1FC040;
+const FLASH_USER_RIGHT: u32 = 0x1FC080;
+
+// Input report 0x05, offsets from the report ID.
+/// Buttons: right, middle and left byte, as on the first generation.
+const IN_BUTTONS: usize = 5;
+/// GR and GL (Pro Controller).
+const IN_PADDLES: usize = 8;
+/// Sticks: x and y packed in 12 bits each.
+const IN_LEFT_STICK: usize = 11;
+const IN_RIGHT_STICK: usize = 14;
+/// IMU timestamp (u32), 0 while the IMU is off.
+const IN_IMU_TIME: usize = 0x2B;
+/// Accelerometer, then gyroscope: three i16 each.
+const IN_ACCEL: usize = 0x31;
+const IN_GYRO: usize = 0x37;
+/// Analog GameCube triggers: left, right.
+const IN_GC_TRIGGERS: usize = 0x3D;
+/// The input report up to its last field read here.
+const IN_LEN: usize = 0x3F;
+
 fn flash_block(reply: &[u8]) -> Option<&[u8]> {
     reply.get(0x10..FLASH_REPLY_LEN)
 }
@@ -119,7 +149,7 @@ impl Default for Calibration {
 }
 
 fn apply_gamecube(s: &mut PadState, r: &[u8], cal: &Calibration) {
-    let (face, mid, left) = (r[5], r[6], r[7]);
+    let (face, mid, left) = (r[IN_BUTTONS], r[IN_BUTTONS + 1], r[IN_BUTTONS + 2]);
     // Mapped by the pad's geometry: big A south, B left of it, X right, Y on top.
     s.set(PadButton::Y, face & 0x01 != 0);
     s.set(PadButton::B, face & 0x02 != 0); // X
@@ -135,13 +165,20 @@ fn apply_gamecube(s: &mut PadState, r: &[u8], cal: &Calibration) {
     s.set(PadButton::DpadRight, left & 0x04 != 0);
     s.set(PadButton::DpadLeft, left & 0x08 != 0);
     s.set(PadButton::LB, left & 0x80 != 0); // ZL
-    s.set_axis(Axis::LeftTrigger, gc_trigger(r[0x3D], cal.trigger_zero[0]));
-    s.set_axis(Axis::RightTrigger, gc_trigger(r[0x3E], cal.trigger_zero[1]));
+    let triggers = &r[IN_GC_TRIGGERS..IN_GC_TRIGGERS + 2];
+    s.set_axis(
+        Axis::LeftTrigger,
+        gc_trigger(triggers[0], cal.trigger_zero[0]),
+    );
+    s.set_axis(
+        Axis::RightTrigger,
+        gc_trigger(triggers[1], cal.trigger_zero[1]),
+    );
 }
 
 /// IMU timestamp of an input report (0 while the IMU is off).
 fn imu_timestamp(r: &[u8]) -> u32 {
-    le_u32(r, 0x2B)
+    le_u32(r, IN_IMU_TIME)
 }
 
 /// Parse input report 0x05. `gyro_scale` is degrees per second per raw unit; motion is
@@ -152,23 +189,24 @@ pub fn parse_report(
     gyro_scale: Option<f32>,
     r: &[u8],
 ) -> Option<PadState> {
-    if r.len() < 0x3F || r[0] != INPUT_REPORT {
+    if r.len() < IN_LEN || r[0] != INPUT_REPORT {
         return None;
     }
     let mut s = PadState::default();
     if model == Switch2Model::GameCube {
         apply_gamecube(&mut s, r, cal);
     } else {
-        apply_buttons(&mut s, r[5], r[6], r[7]);
-        if r[8] & 0x01 != 0 {
+        apply_buttons(&mut s, r[IN_BUTTONS], r[IN_BUTTONS + 1], r[IN_BUTTONS + 2]);
+        if r[IN_PADDLES] & 0x01 != 0 {
             s.set(PadButton::PaddleUR, true); // GR
         }
-        if r[8] & 0x02 != 0 {
+        if r[IN_PADDLES] & 0x02 != 0 {
             s.set(PadButton::PaddleUL, true); // GL
         }
     }
-    let (lx, ly) = cal.left.normalize(unpack12(&r[11..14]));
-    let (rx, ry) = cal.right.normalize(unpack12(&r[14..17]));
+    let stick = |at: usize| unpack12(&r[at..at + 3]);
+    let (lx, ly) = cal.left.normalize(stick(IN_LEFT_STICK));
+    let (rx, ry) = cal.right.normalize(stick(IN_RIGHT_STICK));
     s.set_axis(Axis::LeftX, lx);
     s.set_axis(Axis::LeftY, ly);
     s.set_axis(Axis::RightX, rx);
@@ -177,8 +215,8 @@ pub fn parse_report(
         && imu_timestamp(r) != 0
     {
         let v = |at: usize| f32::from(le_i16(r, at));
-        let a = [v(0x31), v(0x33), v(0x35)].map(|v| v / 4096.0);
-        let g: [f32; 3] = std::array::from_fn(|i| v(0x37 + 2 * i) * scale - cal.gyro_bias[i]);
+        let a: [f32; 3] = std::array::from_fn(|i| v(IN_ACCEL + 2 * i) / 4096.0);
+        let g: [f32; 3] = std::array::from_fn(|i| v(IN_GYRO + 2 * i) * scale - cal.gyro_bias[i]);
         // Device axes to ours: x stays, z is up (our y), y points backward (our -z).
         s.motion = Some(Motion {
             gyro: [g[0], g[2], -g[1]],
@@ -207,7 +245,9 @@ fn report_id(model: Switch2Model) -> u8 {
     }
 }
 
-/// Rumble output report for the HD-rumble pads (everything but the GameCube controller).
+/// Rumble output report for the HD-rumble pads (everything but the GameCube controller):
+/// report ID, `0x50 | seq`, one HD sample; the Pro Controller's second motor repeats the
+/// five bytes after the report ID at 0x11.
 pub fn rumble_report(model: Switch2Model, seq: u8, r: Rumble) -> [u8; 64] {
     let amp = |v: f32| (v.clamp(0.0, 1.0) * RUMBLE_MAX) as u16;
     let mut out = [0u8; 64];
@@ -270,12 +310,19 @@ impl ImuClock {
     }
 }
 
+/// The pad's USB vendor interface (calibration, start-up commands, player lights).
+enum Vendor {
+    Ready(Box<dyn BulkIo>),
+    /// Not open: why, and where it arrives once the program that held it lets go.
+    Missing {
+        reason: String,
+        late: Option<LateBulk>,
+    },
+}
+
 pub struct Switch2Driver {
     model: Switch2Model,
-    /// The vendor interface, or why it could not be opened.
-    bulk: Result<Box<dyn BulkIo>, String>,
-    /// The vendor interface once the program that held it at the start lets go.
-    late: Option<LateBulk>,
+    vendor: Vendor,
     /// The vendor interface arrived late and the limitation notice is gone.
     notice_cleared: bool,
     cal: Calibration,
@@ -288,10 +335,13 @@ pub struct Switch2Driver {
 
 impl Switch2Driver {
     pub fn new(model: Switch2Model, bulk: Result<Box<dyn BulkIo>, String>) -> Self {
+        let vendor = match bulk {
+            Ok(bulk) => Vendor::Ready(bulk),
+            Err(reason) => Vendor::Missing { reason, late: None },
+        };
         Switch2Driver {
             model,
-            bulk,
-            late: None,
+            vendor,
             notice_cleared: false,
             cal: Calibration::default(),
             clock: ImuClock::default(),
@@ -308,22 +358,27 @@ impl Switch2Driver {
 
     /// Take over the vendor interface when it arrives through `late` (it was busy at the
     /// start); until then the pad runs on another program's initialisation.
-    pub fn with_retry(mut self, late: LateBulk) -> Self {
-        self.late = Some(late);
+    pub fn with_retry(mut self, retry: LateBulk) -> Self {
+        if let Vendor::Missing { late, .. } = &mut self.vendor {
+            *late = Some(retry);
+        }
         self
     }
 
     /// Read the calibration and (re)start output through a vendor interface that became
     /// free while the pad was running. HID input continues meanwhile.
     fn adopt_late_bulk(&mut self) {
-        let Some(mut bulk) = self.late.as_ref().and_then(LateBulk::try_take) else {
+        let Vendor::Missing { late, .. } = &mut self.vendor else {
             return;
         };
-        self.late = None;
-        match self.start(bulk.as_mut()) {
+        let Some(mut bulk) = late.as_ref().and_then(LateBulk::try_take) else {
+            return;
+        };
+        *late = None;
+        match start(self.model, &mut self.cal, bulk.as_mut()) {
             Ok(()) => {
                 tracing::info!("Switch 2 controller: took over its USB command interface");
-                self.bulk = Ok(bulk);
+                self.vendor = Vendor::Ready(bulk);
                 self.notice_cleared = true;
             }
             Err(e) => {
@@ -331,138 +386,142 @@ impl Switch2Driver {
             }
         }
     }
+}
 
-    fn identity(&self, notice: Option<String>) -> Identity {
-        let (name, family, joycon) = match self.model {
-            Switch2Model::Pro => ("Switch 2 Pro Controller", PadFamily::SwitchPro, None),
-            Switch2Model::GameCube => ("GameCube Controller", PadFamily::GameCube, None),
-            Switch2Model::JoyConLeft => {
-                ("Joy-Con 2 (L)", PadFamily::JoyCon, Some(JoyConSide::Left))
-            }
-            Switch2Model::JoyConRight => {
-                ("Joy-Con 2 (R)", PadFamily::JoyCon, Some(JoyConSide::Right))
-            }
-        };
-        Identity {
-            joycon,
-            has_motion: self.model != Switch2Model::GameCube,
-            has_rumble: true,
-            notice,
-            ..Identity::new(name, family)
-        }
+fn identity(model: Switch2Model, notice: Option<String>) -> Identity {
+    let (name, family, joycon) = match model {
+        Switch2Model::Pro => ("Switch 2 Pro Controller", PadFamily::SwitchPro, None),
+        Switch2Model::GameCube => ("GameCube Controller", PadFamily::GameCube, None),
+        Switch2Model::JoyConLeft => ("Joy-Con 2 (L)", PadFamily::JoyCon, Some(JoyConSide::Left)),
+        Switch2Model::JoyConRight => ("Joy-Con 2 (R)", PadFamily::JoyCon, Some(JoyConSide::Right)),
+    };
+    Identity {
+        joycon,
+        has_motion: model != Switch2Model::GameCube,
+        has_rumble: true,
+        notice,
+        ..Identity::new(name, family)
     }
+}
 
-    fn read_calibration(&mut self, bulk: &mut dyn BulkIo) {
-        let mut read = |addr: u32| -> Option<Vec<u8>> {
-            let reply = bulk
-                .command(&flash_read_command(addr), FLASH_REPLY_LEN, COMMAND_TIMEOUT)
-                .map_err(|e| tracing::debug!(addr, "flash read failed: {e}"))
-                .ok()?;
-            flash_block(&reply).map(<[u8]>::to_vec)
-        };
-        if let Some(b) = read(0x13040) {
-            self.cal.gyro_bias = [4, 8, 12].map(|at| le_f32(&b, at).to_degrees());
-            if !self
-                .cal
-                .gyro_bias
-                .iter()
-                .all(|v| v.is_finite() && v.abs() < 50.0)
-            {
-                self.cal.gyro_bias = [0.0; 3];
-            }
-        }
-        if let Some(b) = read(0x13080) {
-            self.cal.left = stick_cal(&b[0x28..]);
-        }
-        if let Some(b) = read(0x130C0) {
-            self.cal.right = stick_cal(&b[0x28..]);
-        }
-        if self.model == Switch2Model::GameCube
-            && let Some(b) = read(0x13140)
+/// Read the calibration blocks that are there into `cal`.
+fn read_calibration(model: Switch2Model, cal: &mut Calibration, bulk: &mut dyn BulkIo) {
+    let mut read = |addr: u32| -> Option<Vec<u8>> {
+        let reply = bulk
+            .command(&flash_read_command(addr), FLASH_REPLY_LEN, COMMAND_TIMEOUT)
+            .map_err(|e| tracing::debug!(addr, "flash read failed: {e}"))
+            .ok()?;
+        flash_block(&reply).map(<[u8]>::to_vec)
+    };
+    if let Some(b) = read(FLASH_IMU) {
+        cal.gyro_bias = [4, 8, 12].map(|at| le_f32(&b, at).to_degrees());
+        if !cal
+            .gyro_bias
+            .iter()
+            .all(|v| v.is_finite() && v.abs() < 50.0)
         {
-            self.cal.trigger_zero = [b[0], b[1]];
-        }
-        // User calibration. The left stick lives at 0x1FC040; for the right stick, sources
-        // disagree between 0x1FC080 and 0x1FC060 (offset 0x20 of the first block).
-        let user = read(0x1FC040);
-        if let Some(b) = &user
-            && b[..2] == CAL_MAGIC
-        {
-            self.cal.left = stick_cal(&b[2..]);
-        }
-        let right = read(0x1FC080)
-            .filter(|b| b[..2] == CAL_MAGIC)
-            .map(|b| b[2..11].to_vec())
-            .or_else(|| {
-                user.filter(|b| b[0x20..0x22] == CAL_MAGIC)
-                    .map(|b| b[0x22..0x2B].to_vec())
-            });
-        if let Some(b) = right {
-            self.cal.right = stick_cal(&b);
+            cal.gyro_bias = [0.0; 3];
         }
     }
+    if let Some(b) = read(FLASH_LEFT_STICK) {
+        cal.left = stick_cal(&b[0x28..]);
+    }
+    if let Some(b) = read(FLASH_RIGHT_STICK) {
+        cal.right = stick_cal(&b[0x28..]);
+    }
+    if model == Switch2Model::GameCube
+        && let Some(b) = read(FLASH_GC_TRIGGERS)
+    {
+        cal.trigger_zero = [b[0], b[1]];
+    }
+    // User calibration. For the right stick, sources disagree between FLASH_USER_RIGHT
+    // and offset 0x20 of the left stick's block (0x1FC060).
+    let user = read(FLASH_USER_LEFT);
+    if let Some(b) = &user
+        && b[..2] == CAL_MAGIC
+    {
+        cal.left = stick_cal(&b[2..]);
+    }
+    let right = read(FLASH_USER_RIGHT)
+        .filter(|b| b[..2] == CAL_MAGIC)
+        .map(|b| b[2..11].to_vec())
+        .or_else(|| {
+            user.filter(|b| b[0x20..0x22] == CAL_MAGIC)
+                .map(|b| b[0x22..0x2B].to_vec())
+        });
+    if let Some(b) = right {
+        cal.right = stick_cal(&b);
+    }
+}
 
-    fn send(bulk: &mut dyn BulkIo, cmd: &[u8]) -> io::Result<Vec<u8>> {
-        bulk.command(cmd, 64, COMMAND_TIMEOUT)
-    }
+fn send(bulk: &mut dyn BulkIo, cmd: &[u8]) -> io::Result<Vec<u8>> {
+    bulk.command(cmd, 64, COMMAND_TIMEOUT)
+}
 
-    fn start(&mut self, bulk: &mut dyn BulkIo) -> Result<(), InitError> {
-        self.read_calibration(bulk);
-        let mut ok = true;
-        for cmd in init_commands(FEATURES) {
-            if let Err(e) = Self::send(bulk, &cmd) {
-                tracing::debug!(cmd = cmd[0], sub = cmd[3], "init command failed: {e}");
-                ok = false;
-                break;
-            }
+/// Read the calibration, then switch the pad's input and output on.
+fn start(
+    model: Switch2Model,
+    cal: &mut Calibration,
+    bulk: &mut dyn BulkIo,
+) -> Result<(), InitError> {
+    read_calibration(model, cal, bulk);
+    let mut ok = true;
+    for cmd in init_commands(FEATURES) {
+        if let Err(e) = send(bulk, &cmd) {
+            tracing::debug!(cmd = cmd[0], sub = cmd[3], "init command failed: {e}");
+            ok = false;
+            break;
         }
-        if !ok {
-            // Fall back to the two commands that matter.
-            let _ = Self::send(bulk, &select_report_command());
-            Self::send(bulk, &start_output_command())?;
-        }
-        if let Err(e) = Self::send(bulk, &player_led_command(FIRST_PLAYER)) {
-            tracing::debug!("player LED: {e}");
-        }
-        Ok(())
     }
+    if !ok {
+        // Fall back to the two commands that matter.
+        let _ = send(bulk, &select_report_command());
+        send(bulk, &start_output_command())?;
+    }
+    if let Err(e) = send(bulk, &player_led_command(FIRST_PLAYER)) {
+        tracing::debug!("player LED: {e}");
+    }
+    Ok(())
+}
 
-    /// Wait for input that another program's initialisation already started.
-    fn wait_for_input(io: &mut dyn ReportIo) -> io::Result<bool> {
-        let until = io.now() + FOREIGN_INIT_WAIT;
-        let input = read_until(io, until, |r| {
-            (r.first() == Some(&INPUT_REPORT)).then_some(())
-        })?;
-        Ok(input.is_some())
-    }
+/// Wait for input that another program's initialisation already started.
+fn wait_for_input(io: &mut dyn ReportIo) -> io::Result<bool> {
+    let until = io.now() + FOREIGN_INIT_WAIT;
+    let input = read_until(io, until, |r| {
+        (r.first() == Some(&INPUT_REPORT)).then_some(())
+    })?;
+    Ok(input.is_some())
 }
 
 impl PadDriver for Switch2Driver {
     fn init(&mut self, io: &mut dyn ReportIo) -> Result<Identity, InitError> {
-        let mut bulk = std::mem::replace(&mut self.bulk, Err(String::new()));
-        let result = match &mut bulk {
-            Ok(b) => self.start(b.as_mut()).map(|()| self.identity(None)),
-            Err(reason) => {
-                if Self::wait_for_input(io)? {
-                    let until = if self.late.is_some() {
-                        " until that interface is free"
-                    } else {
-                        ""
-                    };
-                    Ok(self.identity(Some(format!(
-                        "{reason}; it works, but with default stick calibration{until}"
-                    ))))
-                } else {
-                    Err(InitError::Blocked(reason.clone()))
-                }
+        let model = self.model;
+        match &mut self.vendor {
+            Vendor::Ready(bulk) => {
+                start(model, &mut self.cal, bulk.as_mut())?;
+                Ok(identity(model, None))
             }
-        };
-        self.bulk = bulk;
-        result
+            Vendor::Missing { reason, late } => {
+                if !wait_for_input(io)? {
+                    return Err(InitError::Blocked(reason.clone()));
+                }
+                let until = if late.is_some() {
+                    " until that interface is free"
+                } else {
+                    ""
+                };
+                Ok(identity(
+                    model,
+                    Some(format!(
+                        "{reason}; it works, but with default stick calibration{until}"
+                    )),
+                ))
+            }
+        }
     }
 
     fn parse(&mut self, report: &[u8], now: Instant) -> Option<PadState> {
-        if report.len() >= 0x3F && report[0] == INPUT_REPORT {
+        if report.len() >= IN_LEN && report[0] == INPUT_REPORT {
             self.clock.update(imu_timestamp(report), now);
         }
         let scale = self
@@ -479,9 +538,9 @@ impl PadDriver for Switch2Driver {
     fn service(&mut self, io: &mut dyn ReportIo, rumble: Rumble) -> io::Result<()> {
         self.adopt_late_bulk();
         // The change waits until the vendor interface is there.
-        if let Ok(bulk) = &mut self.bulk
+        if let Vendor::Ready(bulk) = &mut self.vendor
             && let Some(mask) = self.lights.take_change()
-            && let Err(e) = Self::send(bulk.as_mut(), &player_led_command(mask))
+            && let Err(e) = send(bulk.as_mut(), &player_led_command(mask))
         {
             tracing::debug!("player LED: {e}");
         }
