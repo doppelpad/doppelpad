@@ -4,6 +4,8 @@
 import type { Profile, StickZones, TriggerZones, ZoneRadius } from '../types';
 import { setLayerPart } from './analog';
 import type { ZoneName, ZoneParts } from './controls';
+import { declaredLayer } from './layers';
+import { nonEmpty, setOrDrop } from './util';
 
 export type Side = 'left' | 'right';
 export type Level = 'low' | 'med' | 'high';
@@ -84,22 +86,13 @@ export function setStickLevel(
   value: number | undefined,
   d: ZoneDefaults,
 ): StickZones {
-  const out: StickZones = { ...(z ?? {}) };
-  if (value === undefined) {
-    delete out[level];
-    return out;
-  }
-  if (axis === 'both') {
-    out[level] = value;
-    return out;
-  }
+  if (value === undefined || axis === 'both') return setOrDrop({ ...z }, level, value);
   // Setting one axis starts from the effective value of the other.
   const eff = stickThresholds(z, d);
   const i = LEVELS.indexOf(level);
   const x = axis === 0 ? value : eff.x[i];
   const y = axis === 1 ? value : eff.y[i];
-  out[level] = radius(x, y);
-  return out;
+  return { ...z, [level]: radius(x, y) };
 }
 
 /** Turn separate axes on (each level keeps its value on both) or off (the x value wins). */
@@ -114,10 +107,7 @@ export function setElliptic(z: StickZones | undefined, on: boolean): StickZones 
 }
 
 export function setTriggerLevel(z: TriggerZones | undefined, level: Level, value: number | undefined): TriggerZones {
-  const out: TriggerZones = { ...(z ?? {}) };
-  if (value === undefined) delete out[level];
-  else out[level] = value;
-  return out;
+  return setOrDrop({ ...z }, level, value);
 }
 
 /** The zones stored for one stick or trigger as they are on `layer`: its own, else Main's. */
@@ -127,7 +117,7 @@ export function storedZones(
   layer = 0,
 ): StickZones | TriggerZones | undefined {
   const key = source.kind === 'stick' ? 'sticks' : 'triggers';
-  const own = layer === 0 ? undefined : p.layers?.find((l) => l.id === layer)?.[key]?.[source.side]?.zones;
+  const own = layer === 0 ? undefined : declaredLayer(p, layer)?.[key]?.[source.side]?.zones;
   return own ?? p[key]?.[source.side]?.zones;
 }
 
@@ -147,10 +137,8 @@ export function withZones(
     return setLayerPart(p, layer, key, source.side, { zones }, { zones: main });
   }
   const group = { ...(p[key] ?? {}) } as Record<Side, Record<string, unknown> | undefined>;
-  const cfg: Record<string, unknown> = { ...(group[source.side] ?? {}) };
-  if (Object.keys(zones).length > 0) cfg.zones = zones;
-  else delete cfg.zones;
-  group[source.side] = cfg;
+  const cfg: Record<string, unknown> = { ...group[source.side] };
+  group[source.side] = setOrDrop(cfg, 'zones', nonEmpty(zones));
   return { ...p, [key]: group };
 }
 

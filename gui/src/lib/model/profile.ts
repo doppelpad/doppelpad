@@ -3,13 +3,14 @@
 
 import { has, t } from '../i18n/index.svelte';
 import { replaceLayerRoutes, routeLayer } from './analog';
+import { declaredLayer, patchLayer } from './layers';
+import { clone, dropUndefined, nonEmpty, sameJson, setOrDrop } from './util';
 import type {
   Action,
   Activator,
   AnalogMapping,
   Combo,
   ControlName,
-  Layer,
   Light,
   Mapping,
   Mode,
@@ -18,9 +19,10 @@ import type {
   Profile,
   Timing,
   Unlock,
-  VirtualDevices,
   WheelDir,
 } from '../types';
+
+export { setVirtualDevice } from './layers';
 
 export const ACTIVATORS: Activator[] = ['single', 'long', 'double', 'triple', 'start', 'release'];
 
@@ -58,10 +60,6 @@ export function findMapping(p: Profile, layer: number, combo: Combo, activator: 
 /** All mappings of this trigger defined directly on `layer`. */
 export function ownMappings(p: Profile, layer: number, combo: Combo): Mapping[] {
   return p.mappings.filter((m) => layerOf(m) === layer && sameCombo(m.trigger, combo));
-}
-
-function declaredLayer(p: Profile, id: number): Layer | undefined {
-  return p.layers?.find((l) => l.id === id);
 }
 
 /** Whether an unlock layer gives this physical keyboard/mouse control back. */
@@ -156,21 +154,17 @@ export function nativeAction(combo: Combo): Action | null {
 }
 
 export function sameAction(a: Action, b: Action): boolean {
-  return JSON.stringify(a) === JSON.stringify(b);
+  return sameJson(a, b);
 }
 
 /** Remove fields that equal their default, so saved files stay small and stable. */
 export function tidyMapping(m: Mapping): Mapping {
-  const out: Mapping = { ...m };
+  const out = dropUndefined(m);
   if (out.layer === 0) delete out.layer;
   if (out.activator === 'single') delete out.activator;
   if (out.mode === 'hold') delete out.mode;
   if (out.actions && out.actions.length === 0) delete out.actions;
   if (out.description === '') delete out.description;
-  for (const k of ['turbo_ms', 'repeat', 'repeat_pause_ms', 'long_press_ms', 'double_tap_ms', 'triple_tap_ms', 'key_delay_ms'] as const) {
-    if (out[k] === undefined || out[k] === null) delete out[k];
-  }
-  if (out.jump === undefined || out.jump === null) delete out.jump;
   return out;
 }
 
@@ -197,28 +191,13 @@ export function addLayer(p: Profile): { profile: Profile; id: number } {
 }
 
 export function renameLayer(p: Profile, id: number, name: string): Profile {
-  const layers = [...(p.layers ?? [])];
-  const i = layers.findIndex((l) => l.id === id);
-  if (i >= 0) layers[i] = { ...layers[i], name };
-  else layers.push({ id, name, inherit: true });
-  return { ...p, layers };
+  return patchLayer(p, id, (l) => ({ ...l, name }));
 }
 
 /** How a layer inherits from Main (layers that are not declared inherit everything). */
 export function layerInheritance(p: Profile, id: number): { inherit: boolean; notInherited: Combo[] } {
   const decl = declaredLayer(p, id);
   return { inherit: decl?.inherit ?? true, notInherited: decl?.not_inherited ?? [] };
-}
-
-/** Change a layer's declaration, declaring it first if needed. */
-function patchLayer(p: Profile, id: number, patch: (l: Layer) => Layer): Profile {
-  const layers = [...(p.layers ?? [])];
-  const i = layers.findIndex((l) => l.id === id);
-  const next = patch(i >= 0 ? { ...layers[i] } : { id, inherit: true });
-  if (next.not_inherited && next.not_inherited.length === 0) delete next.not_inherited;
-  if (i >= 0) layers[i] = next;
-  else layers.push(next);
-  return { ...p, layers };
 }
 
 /** Whether a layer takes over Main's mappings for the controls it does not map itself. */
@@ -257,26 +236,8 @@ export type TimingField = keyof Timing;
 
 /** Set (or with `undefined` reset to the default) one profile-wide timing value. */
 export function setProfileTiming(p: Profile, field: TimingField, value: number | undefined): Profile {
-  const timing: Timing = { ...(p.timing ?? {}) };
-  if (value === undefined) delete timing[field];
-  else timing[field] = value;
-  const out: Profile = { ...p, timing };
-  if (Object.keys(timing).length === 0) delete out.timing;
-  return out;
-}
-
-/** Set (or with `undefined` remove) one virtual device's settings, keeping the others. */
-export function setVirtualDevice<K extends keyof VirtualDevices>(
-  p: Profile,
-  key: K,
-  value: VirtualDevices[K] | undefined,
-): Profile {
-  const v: VirtualDevices = { ...p.virtual };
-  if (value === undefined) delete v[key];
-  else v[key] = value;
-  const out: Profile = { ...p, virtual: v };
-  if (Object.keys(v).length === 0) delete out.virtual;
-  return out;
+  const timing: Timing = setOrDrop({ ...p.timing }, field, value);
+  return setOrDrop(p, 'timing', nonEmpty(timing));
 }
 
 /** Remove a layer, its mappings and routes, and jumps that lead to it. */
@@ -306,7 +267,7 @@ export interface LayerCopy {
 }
 
 export function copyLayer(p: Profile, id: number): LayerCopy {
-  return structuredClone({
+  return clone({
     mappings: p.mappings.filter((m) => layerOf(m) === id),
     analog: (p.analog ?? []).filter((r) => routeLayer(r) === id),
   });
@@ -315,7 +276,7 @@ export function copyLayer(p: Profile, id: number): LayerCopy {
 /** A copied layer, re-targeted to another layer (replacing its mappings and routes). */
 export function pasteLayer(p: Profile, copied: LayerCopy, into: number): Profile {
   const rest = p.mappings.filter((m) => layerOf(m) !== into);
-  const moved = copied.mappings.map((m) => tidyMapping({ ...structuredClone(m), layer: into }));
+  const moved = copied.mappings.map((m) => tidyMapping({ ...clone(m), layer: into }));
   return replaceLayerRoutes({ ...p, mappings: [...rest, ...moved] }, into, copied.analog);
 }
 
@@ -428,10 +389,6 @@ export function mappingSummary(m: Mapping, layerLabel: (id: number) => string): 
 
 /** The light bar of `layer` (0: the profile's own), or `undefined` to drop it. */
 export function setLight(p: Profile, layer: number, light: Light | undefined): Profile {
-  if (layer === 0) {
-    const next: Profile = { ...p, lightbar: light };
-    if (!light) delete next.lightbar;
-    return next;
-  }
+  if (layer === 0) return setOrDrop(p, 'lightbar', light);
   return patchLayer(p, layer, ({ lightbar: _, ...l }) => (light ? { ...l, lightbar: light } : l));
 }

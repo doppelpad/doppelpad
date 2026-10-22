@@ -3,6 +3,7 @@
 
 import { t } from '../i18n/index.svelte';
 import type { Crosshair, CrosshairFull, CrosshairShape, Profile } from '../types';
+import { dropUndefined, nonEmpty, setOrDrop } from './util';
 
 export const CROSSHAIR_SHAPES: CrosshairShape[] = [
   'cross',
@@ -87,9 +88,7 @@ export function crosshairParts(shape: CrosshairShape, size: number, w: number): 
 /** The profile with crosshair `i` changed (fields set to `undefined` go back to the default). */
 export function updateCrosshair(p: Profile, i: number, patch: Partial<Crosshair>): Profile {
   const all = [...(p.crosshairs ?? [])];
-  const next: Crosshair = { ...all[i], ...patch };
-  for (const k of Object.keys(next) as (keyof Crosshair)[]) if (next[k] === undefined) delete next[k];
-  all[i] = next;
+  all[i] = dropUndefined({ ...all[i], ...patch });
   return { ...p, crosshairs: all };
 }
 
@@ -112,7 +111,5 @@ export function removeCrosshair(p: Profile, i: number): Profile {
     });
     return { ...m, actions };
   });
-  const next: Profile = { ...p, crosshairs, mappings };
-  if (crosshairs.length === 0) delete next.crosshairs;
-  return next;
+  return setOrDrop({ ...p, crosshairs, mappings }, 'crosshairs', nonEmpty(crosshairs));
 }

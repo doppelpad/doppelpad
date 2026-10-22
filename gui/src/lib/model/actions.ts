@@ -2,6 +2,7 @@
 
 import type { Action, ControlName } from '../types';
 import { nativeAction } from './profile';
+import { clamp, roundTo } from './util';
 
 type StickAction = Extract<Action, { stick: unknown }>;
 
@@ -13,10 +14,9 @@ export function stickAmount(a: StickAction): number {
 /** The same direction with another deflection (0–1). */
 export function withStickAmount(a: StickAction, amount: number): StickAction {
   const now = stickAmount(a);
-  const v = Math.min(Math.max(amount, 0), 1);
+  const v = clamp(amount, 0, 1);
   if (now === 0) return a;
-  const round = (n: number) => Math.round(n * 1000) / 1000;
-  return { ...a, x: round((a.x / now) * v), y: round((a.y / now) * v) };
+  return { ...a, x: roundTo((a.x / now) * v, 3), y: roundTo((a.y / now) * v, 3) };
 }
 
 /** Whether `parameterFields` has anything to offer for this action. */

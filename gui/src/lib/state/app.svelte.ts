@@ -18,6 +18,7 @@ import {
   upsertMapping,
   type LayerCopy,
 } from '../model/profile';
+import { clone } from '../model/util';
 import type {
   Activator,
   Catalog,
@@ -331,7 +332,7 @@ class AppState {
     if (!this.profile || this.readOnly) return;
     const { own, inherited } = this.mappingAt(layer, combo, activator);
     const from = own ?? inherited;
-    const m: Mapping = from ? structuredClone($state.snapshot(from) as Mapping) : newMapping(layer, combo, activator);
+    const m: Mapping = from ? clone(from) : newMapping(layer, combo, activator);
     change(m);
     const tidy = tidyMapping({ ...m, layer, activator });
     const empty = (tidy.actions ?? []).length === 0 && !tidy.jump && !tidy.description && modeOf(tidy) === 'hold';
