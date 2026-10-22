@@ -84,7 +84,8 @@
     "delete_confirm": "„{name}“ samt allen Configs in den Papierkorb verschieben?",
     "config_count_one": "1 Config",
     "config_count": "{n} Configs",
-    "game_options": "Spiel-Optionen"
+    "game_options": "Spiel-Optionen",
+    "open_confirm": "Das Spiel „{name}“ importieren? Es kommt als neues Spiel hinzu; nichts Vorhandenes wird überschrieben."
   },
   "window": {
     "minimize": "Minimieren",

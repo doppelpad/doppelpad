@@ -428,7 +428,9 @@ the config menu as **New from template: …**.
 
 To share a game, choose **Export game …** in its menu in the game list: one `.dpgame` file holds
 its settings, every config and its picture. **Import game** (the arrow next to *+*) unpacks such
-a file into a new game; nothing existing is overwritten. **Save bindings sheet …** in a config's
+a file into a new game; nothing existing is overwritten. The installer registers `.dpgame`
+files, so a double-click in Explorer opens Doppelpad (or the one already running) and asks
+whether to import the game. **Save bindings sheet …** in a config's
 menu writes an HTML page listing every layer's mappings and routes, to print from a browser. A
 layer's menu can **Save as preset …** (its settings, mappings and routes); presets of all configs
 appear in every layer menu as **Insert preset: …**, which adds them as a new layer (layer

@@ -1,5 +1,6 @@
 // Central application state (Svelte 5 runes). Components read and mutate `app`.
 
+import { listen } from '@tauri-apps/api/event';
 import { api, errorText } from '../api';
 import { setLanguage, t } from '../i18n/index.svelte';
 import type { Side } from '../model/analog';
@@ -168,6 +169,9 @@ class AppState {
       await this.refreshLibrary();
       await api.liveSubscribe((s) => this.onLive(s));
       for (const n of await api.takeNotices()) this.toast(t(`notices.${n}`), 'info');
+      // Bundles opened from Explorer: the one the app started with now, later ones as they come.
+      await listen<string[]>('open-files', (e) => this.openFiles(e.payload));
+      const opened = await api.takeOpenFiles();
       this.rewasd = await api.rewasdStatus();
       if (this.rewasdRunning) {
         if (this.settings.rewasd_at_start === 'quit') this.quitRewasd();
@@ -181,7 +185,8 @@ class AppState {
       // already here), else the first game.
       const applied = this.live?.profile_path;
       const game = this.library.games.find((g) => g.configs.some((c) => c.path === applied)) ?? this.library.games[0];
-      if (game) this.selectGame(game.dir);
+      if (game) await this.selectGame(game.dir);
+      if (opened.length) await this.openFiles(opened);
     } catch (e) {
       this.toast(errorText(e), 'error');
     }
@@ -287,6 +292,14 @@ class AppState {
       api.gameCreate(name).then((g) => this.openCreatedGame(g)),
       t('notices.game_created', { name }),
     );
+  }
+
+  /** Game bundles opened from Explorer: each is imported after asking. */
+  async openFiles(files: string[]) {
+    for (const file of files) {
+      const name = file.split(/[\\/]/).pop() ?? file;
+      if (await this.confirmAsk(t('profiles.open_confirm', { name }))) await this.importGame(file);
+    }
   }
 
   /** Unpack a game bundle into a new game and open it. */

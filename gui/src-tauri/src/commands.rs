@@ -64,6 +64,8 @@ pub struct AppState {
     pub profiles_dir: PathBuf,
     /// Messages for the UI collected before it was ready (e.g. a service takeover).
     pub notices: Mutex<Vec<Notice>>,
+    /// Game bundles the app was started with (opened from Explorer), for the UI to import.
+    pub open_files: Mutex<Vec<PathBuf>>,
     /// Incremented per live subscription; older streaming threads stop.
     pub live_generation: Arc<AtomicU64>,
     /// The main window has the focus (window events; the webview inside holds the keyboard
@@ -751,4 +753,10 @@ pub fn log_file() -> PathBuf {
 #[tauri::command]
 pub fn take_notices(state: State<AppState>) -> Vec<Notice> {
     std::mem::take(&mut *state.notices.lock().unwrap())
+}
+
+/// The game bundles the app was started with; each is handed out once.
+#[tauri::command]
+pub fn take_open_files(state: State<AppState>) -> Vec<PathBuf> {
+    std::mem::take(&mut *state.open_files.lock().unwrap())
 }

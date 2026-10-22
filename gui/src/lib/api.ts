@@ -125,6 +125,8 @@ export const api = {
   profilesDir: () => invoke<string>('profiles_dir'),
   logFile: () => invoke<string>('log_file'),
   takeNotices: () => invoke<Notice[]>('take_notices'),
+  /** Game bundles the app was started with (opened from Explorer). */
+  takeOpenFiles: () => invoke<string[]>('take_open_files'),
 };
 
 /** Error text from a rejected command. */

@@ -8,6 +8,7 @@ mod autostart;
 mod commands;
 mod crosshair;
 mod logging;
+mod open_file;
 mod osd;
 mod overlay;
 mod pad_overlay;
@@ -22,7 +23,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use dp_service::{HostOptions, Ipc, ServiceOptions};
-use tauri::{Manager, WebviewWindow, WebviewWindowBuilder, WindowEvent};
+use tauri::{Emitter, Manager, WebviewWindow, WebviewWindowBuilder, WindowEvent};
 
 use crate::commands::{AppState, MAIN_WINDOW, Notice};
 use crate::settings::GuiSettings;
@@ -71,8 +72,13 @@ fn create_main_window(app: &tauri::App, visible: bool) -> tauri::Result<WebviewW
 
 fn main() {
     tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+        .plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
             tray::show_main(app);
+            // A game bundle opened from Explorer while the app runs.
+            let files = open_file::bundles_in(&args, std::path::Path::new(&cwd));
+            if !files.is_empty() {
+                let _ = app.emit_to(MAIN_WINDOW, open_file::OPEN_EVENT, files);
+            }
         }))
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
@@ -100,6 +106,10 @@ fn main() {
                 settings: Mutex::new(GuiSettings::load()),
                 profiles_dir,
                 notices: Mutex::new(notices),
+                open_files: Mutex::new(open_file::bundles_in(
+                    &std::env::args().collect::<Vec<_>>(),
+                    &std::env::current_dir().unwrap_or_default(),
+                )),
                 live_generation: Arc::new(AtomicU64::new(0)),
                 main_focused: AtomicBool::new(false),
             });
@@ -198,6 +208,7 @@ fn main() {
             commands::profiles_dir,
             commands::log_file,
             commands::take_notices,
+            commands::take_open_files,
             overlay::overlay_ready,
             osd::osd_test,
             osd::osd_monitors,
