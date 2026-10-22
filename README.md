@@ -1,6 +1,33 @@
-# Doppelpad
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="site/src/assets/logo-dark.svg">
+    <img src="site/src/assets/logo-light.svg" alt="Doppelpad" width="440">
+  </picture>
+</p>
 
-**Free, open-source controller remapping for Windows, with Linux in preview and macOS planned, written in Rust.**
+<p align="center">
+  <strong>Free, open-source controller remapping for Windows, written in Rust.</strong><br>
+  Linux in preview, macOS planned.
+</p>
+
+<p align="center">
+  <a href="https://github.com/doppelpad/doppelpad/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/doppelpad/doppelpad?style=flat-square&color=14b8a6&label=release"></a>
+  <a href="https://github.com/doppelpad/doppelpad/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/doppelpad/doppelpad/ci.yml?branch=main&style=flat-square&label=CI"></a>
+  <a href="#license"><img alt="License: MIT or Apache-2.0" src="https://img.shields.io/badge/license-MIT%20%7C%20Apache--2.0-blue?style=flat-square"></a>
+  <img alt="Platform: Windows 10 and 11" src="https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078D4?style=flat-square">
+  <img alt="Built with Rust" src="https://img.shields.io/badge/built%20with-Rust-dea584?style=flat-square&logo=rust">
+</p>
+
+<p align="center">
+  <a href="https://github.com/doppelpad/doppelpad/releases/latest"><strong>Download</strong></a> ·
+  <a href="https://doppelpad.github.io/doppelpad/"><strong>Website</strong></a> ·
+  <a href="docs/GUI.md"><strong>Desktop app guide</strong></a> ·
+  <a href="docs/PROFILES.md"><strong>Profile reference</strong></a>
+</p>
+
+<p align="center">
+  <img src="docs/images/editor.png" alt="The Doppelpad editor: the games list on the left, a DualSense with the keys and mouse buttons its controls send in the middle, the config's mappings on the right" width="900">
+</p>
 
 Doppelpad turns any supported controller, keyboard or mouse into whatever a game expects:
 remap buttons, build combos and macros, add shift layers, turbo, toggles, long/double/triple
@@ -11,11 +38,44 @@ Doppelpad uses only open drivers ([ViGEmBus](https://github.com/nefarius/ViGEmBu
 [HidHide](https://github.com/nefarius/HidHide)) and can import JSON profiles (schema 3.0)
 from other remapping tools.
 
-> **Status: early preview (0.3).** The engine, profile format, importer and Windows
-> backends are implemented and unit-tested, and real DualSense input has been verified.
-> The desktop app (editor + tray service) is new and still being polished. End-to-end
-> testing with ViGEmBus/HidHide in games is the next milestone. A Linux backend
-> (evdev/uinput) is implemented but not yet tested on real hardware. Expect rough edges.
+> **Status: early preview.** The engine, profile format, importer and Windows backends are
+> implemented and unit-tested, and real DualSense input has been verified. The desktop app
+> (editor + tray service) is still being polished. End-to-end testing with ViGEmBus/HidHide
+> in games is the next milestone. A Linux backend (evdev/uinput) is implemented but not yet
+> tested on real hardware. Expect rough edges.
+
+## Download
+
+Get `Doppelpad_<version>_x64-setup.exe` from the
+[latest release](https://github.com/doppelpad/doppelpad/releases/latest) and run it. It
+installs ViGEmBus and HidHide when they are missing. The setup is not code-signed yet, so
+Windows SmartScreen warns about it: choose *More info*, then *Run anyway*. Once installed,
+Doppelpad offers new versions itself.
+
+## Highlights
+
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="docs/images/binding.png" alt="The binding panel for the Square button: single, long, double and triple press, start and release, a key, turbo, toggle, macro editor and layer change">
+      <br><sub><strong>Map every control</strong>: six activators per control, turbo, toggles, macros and layer changes.</sub>
+    </td>
+    <td width="50%" valign="top">
+      <img src="docs/images/layer-map.png" alt="The layer map: Main, Sniper and Vehicle layers with the controls that switch between them">
+      <br><sub><strong>Shift layers</strong>: hold, toggle or switch, and a map of how they connect.</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="docs/images/gyro.png" alt="Analog settings on the Gyro tab: turning or tilting, roll or turn, gyro aiming, zones and calibration">
+      <br><sub><strong>Gyro, sticks and triggers</strong>: deadzones, curves, zones, gyro aiming and calibration.</sub>
+    </td>
+    <td width="50%" valign="top">
+      <img src="docs/images/live-output.png" alt="The live output panel over the controller: the keys W and LeftShift and the left mouse button being sent">
+      <br><sub><strong>See what is sent</strong>: the live view shows the keys, buttons and virtual controller right now.</sub>
+    </td>
+  </tr>
+</table>
 
 ## Features
 
