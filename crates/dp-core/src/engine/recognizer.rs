@@ -10,20 +10,20 @@ use crate::profile::Activator;
 /// Timing for one trigger.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub(super) struct RecConfig {
-    pub single: bool,
-    pub long: bool,
-    pub double: bool,
-    pub triple: bool,
-    pub start: bool,
-    pub release: bool,
+    pub(super) single: bool,
+    pub(super) long: bool,
+    pub(super) double: bool,
+    pub(super) triple: bool,
+    pub(super) start: bool,
+    pub(super) release: bool,
     /// Hold time for Long.
-    pub t_long: u64,
+    pub(super) t_long: u64,
     /// Second press must begin within this time after the first release.
-    pub t_double: u64,
+    pub(super) t_double: u64,
     /// Third press must begin within this time after the first release.
-    pub t_triple: u64,
+    pub(super) t_triple: u64,
     /// Length of activations that can only be decided after the fact.
-    pub t_pulse: u64,
+    pub(super) t_pulse: u64,
 }
 
 impl Default for RecConfig {
@@ -52,8 +52,9 @@ pub(super) enum RecEvent {
     End(Activator, u64),
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
 enum State {
+    #[default]
     Idle,
     /// Pressed with no pattern activator configured (only Start/Release, or nothing).
     Held,
@@ -84,7 +85,7 @@ enum State {
     Dead,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub(super) struct Recognizer {
     state: State,
     /// Pending ends of pulsed activations and minimum-length Start activations.
@@ -92,17 +93,6 @@ pub(super) struct Recognizer {
     /// Start activation waiting for release (or its minimum length).
     start_begin: Option<u64>,
     start_released: bool,
-}
-
-impl Default for Recognizer {
-    fn default() -> Self {
-        Recognizer {
-            state: State::Idle,
-            pending_ends: Vec::new(),
-            start_begin: None,
-            start_released: false,
-        }
-    }
 }
 
 impl Recognizer {

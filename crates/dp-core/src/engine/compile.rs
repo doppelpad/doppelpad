@@ -3,12 +3,12 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use super::recognizer::RecConfig;
-use crate::control::{Control, TouchGesture};
+use crate::control::{Control, Dir, TouchGesture};
 use crate::keys::{Key, MouseButton, WheelDir};
 use crate::pad::{PadButton, Stick, Trigger};
 use crate::profile::{
-    Action, Activator, AnalogMapping, AnalogSource, Combo, Command, JumpMode, Mapping, Mode, Press,
-    Profile, RadialSelect, ShakeAxis,
+    Action, Activator, AnalogSource, Combo, Command, JumpMode, Mapping, Mode, Press, Profile,
+    RadialSelect, ShakeAxis,
 };
 
 pub(super) type MaskId = usize;
@@ -25,8 +25,13 @@ pub(super) enum Out {
 /// Analog output contribution while held.
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub(super) enum AnalogOut {
-    /// Stick deflection; `true` replaces the axes it names instead of adding.
-    Stick(Stick, f32, f32, bool),
+    /// Stick deflection; `absolute` replaces the axes it names instead of adding.
+    Stick {
+        stick: Stick,
+        x: f32,
+        y: f32,
+        absolute: bool,
+    },
     Trigger(Trigger, f32),
     /// Mouse velocity in pixels per second (screen coordinates, y down).
     MouseVelocity(f32, f32),
@@ -40,8 +45,13 @@ impl AnalogOut {
     /// Contributions to the same slot replace each other within one activation.
     fn slot(&self) -> u8 {
         match self {
-            AnalogOut::Stick(Stick::Left, ..) => 0,
-            AnalogOut::Stick(Stick::Right, ..) => 1,
+            AnalogOut::Stick {
+                stick: Stick::Left, ..
+            } => 0,
+            AnalogOut::Stick {
+                stick: Stick::Right,
+                ..
+            } => 1,
             AnalogOut::Trigger(Trigger::Left, _) => 2,
             AnalogOut::Trigger(Trigger::Right, _) => 3,
             AnalogOut::MouseVelocity(..) | AnalogOut::MouseAccel(..) => 4,
@@ -116,25 +126,34 @@ pub(super) enum StopRule {
     Never,
 }
 
+/// Where a binding jumps: the target layer, an optional delay, and whether the actions wait
+/// for the delayed jump.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct JumpTarget {
+    pub(super) layer: u8,
+    pub(super) delay_ms: Option<u32>,
+    pub(super) postpone: bool,
+}
+
 #[derive(Clone, Debug)]
 pub(super) struct Binding {
-    pub mask: MaskId,
-    pub layer: u8,
-    pub activator: Activator,
-    pub mode: Mode,
+    pub(super) mask: MaskId,
+    pub(super) layer: u8,
+    pub(super) activator: Activator,
+    pub(super) mode: Mode,
     /// How an activation runs the programs.
-    pub policy: Policy,
+    pub(super) policy: Policy,
     /// One program per segment: hold programs (ending with a hold point), runs (everything
     /// released at the end), or the one turbo pulse (press, wait half a period, release).
-    pub programs: Vec<Vec<Step>>,
-    pub jump: JumpTarget,
-    pub has_pad_output: bool,
+    pub(super) programs: Vec<Vec<Step>>,
+    pub(super) jump: Option<JumpTarget>,
+    pub(super) has_pad_output: bool,
     /// No actions and no jump: the trigger is consumed ("unmapped"/muted).
-    pub is_unmap: bool,
+    pub(super) is_unmap: bool,
     /// The mapping's own press-pattern windows, where it sets them.
-    pub long_press_ms: Option<u32>,
-    pub double_tap_ms: Option<u32>,
-    pub triple_tap_ms: Option<u32>,
+    pub(super) long_press_ms: Option<u32>,
+    pub(super) double_tap_ms: Option<u32>,
+    pub(super) triple_tap_ms: Option<u32>,
 }
 
 impl Binding {
@@ -206,31 +225,30 @@ fn segments(actions: &[Action]) -> Vec<&[Action]> {
 #[derive(Clone, Debug, Default)]
 pub(super) struct LayerTable {
     /// Effective bindings of each mask in this layer.
-    pub bindings: HashMap<MaskId, Vec<BindingId>>,
-    pub rec: HashMap<MaskId, RecConfig>,
+    pub(super) bindings: HashMap<MaskId, Vec<BindingId>>,
+    pub(super) rec: HashMap<MaskId, RecConfig>,
     /// Single-control mask per control.
-    pub plain: HashMap<Control, MaskId>,
+    pub(super) plain: HashMap<Control, MaskId>,
     /// Multi-control masks with bindings, and which of them each control belongs to.
-    pub shortcuts: Vec<MaskId>,
-    pub member_of: HashMap<Control, Vec<MaskId>>,
+    pub(super) shortcuts: Vec<MaskId>,
+    pub(super) member_of: HashMap<Control, Vec<MaskId>>,
     /// Controls that have a single-control mapping here (not mirrored to the virtual pad).
-    pub mapped: HashSet<Control>,
+    pub(super) mapped: HashSet<Control>,
     /// Keyboard/mouse controls whose physical events are swallowed in this layer.
-    pub muted: HashSet<Control>,
-    /// Effective analog routes.
-    pub routes: Vec<usize>,
+    pub(super) muted: HashSet<Control>,
+    /// Effective analog routes (indices into the profile's).
+    pub(super) routes: Vec<usize>,
 }
 
 #[derive(Clone, Debug)]
 pub(super) struct Compiled {
-    pub masks: Vec<Vec<Control>>,
-    pub bindings: Vec<Binding>,
+    pub(super) masks: Vec<Vec<Control>>,
+    pub(super) bindings: Vec<Binding>,
     /// Indexed by layer id; missing layers fall back to layer 0.
-    pub layers: BTreeMap<u8, LayerTable>,
-    pub routes: Vec<AnalogMapping>,
-    pub warnings: Vec<String>,
+    pub(super) layers: BTreeMap<u8, LayerTable>,
+    pub(super) warnings: Vec<String>,
     /// The binding of every radial menu sector, per menu.
-    pub radial: Vec<Vec<BindingId>>,
+    pub(super) radial: Vec<Vec<BindingId>>,
 }
 
 impl Compiled {
@@ -286,7 +304,12 @@ fn press_outputs(a: &Action) -> Option<(Held, Press)> {
             absolute,
             action,
         } => (
-            Held::Analog(AnalogOut::Stick(stick, x, y, absolute)),
+            Held::Analog(AnalogOut::Stick {
+                stick,
+                x,
+                y,
+                absolute,
+            }),
             action,
         ),
         Action::Trigger {
@@ -415,13 +438,14 @@ fn has_pad_output(actions: &[Action]) -> bool {
 }
 
 /// Expand jump sugar: `hold` and `toggle` jumps get a return mapping in the target layer.
-/// Target layer, optional delay and postponed actions of a binding's jump.
-type JumpTarget = Option<(u8, Option<u32>, bool)>;
-
-fn expand_jumps(mappings: &[Mapping]) -> Vec<(Mapping, JumpTarget)> {
+fn expand_jumps(mappings: &[Mapping]) -> Vec<(Mapping, Option<JumpTarget>)> {
     let mut out = Vec::new();
     for m in mappings {
-        let jump = m.jump.as_ref().map(|j| (j.layer, j.delay_ms, j.postpone));
+        let jump = m.jump.as_ref().map(|j| JumpTarget {
+            layer: j.layer,
+            delay_ms: j.delay_ms,
+            postpone: j.postpone,
+        });
         out.push((m.clone(), jump));
         let Some(j) = &m.jump else { continue };
         if j.layer == m.layer {
@@ -443,10 +467,18 @@ fn expand_jumps(mappings: &[Mapping]) -> Vec<(Mapping, JumpTarget)> {
         ret.long_press_ms = m.long_press_ms;
         ret.double_tap_ms = m.double_tap_ms;
         ret.triple_tap_ms = m.triple_tap_ms;
-        out.push((ret, Some((m.layer, None, false))));
+        let back = JumpTarget {
+            layer: m.layer,
+            delay_ms: None,
+            postpone: false,
+        };
+        out.push((ret, Some(back)));
     }
     out
 }
+
+/// Stands for all mouse motion in the muted set and the unlock checks.
+const MOUSE_MOTION: Control = Control::MouseMove(Dir::Up);
 
 /// Pulse length of decided-after-the-fact activations.
 const PULSE_PAD_MS: u64 = 20;
@@ -482,7 +514,7 @@ impl MaskTable {
 fn make_binding(
     p: &Profile,
     m: &Mapping,
-    jump: JumpTarget,
+    jump: Option<JumpTarget>,
     mt: &mut MaskTable,
     warnings: &mut Vec<String>,
 ) -> Binding {
@@ -556,7 +588,7 @@ pub(super) fn compile(p: &Profile) -> Compiled {
     let mut layer_ids: Vec<u8> = vec![0];
     layer_ids.extend(p.layers.iter().map(|l| l.id));
     layer_ids.extend(bindings.iter().map(|b| b.layer));
-    layer_ids.extend(bindings.iter().filter_map(|b| b.jump.map(|j| j.0)));
+    layer_ids.extend(bindings.iter().filter_map(|b| b.jump.map(|j| j.layer)));
     layer_ids.sort();
     layer_ids.dedup();
 
@@ -654,13 +686,11 @@ pub(super) fn compile(p: &Profile) -> Compiled {
             .collect();
         for (i, r) in p.analog.iter().enumerate() {
             let mouse = r.source == AnalogSource::Mouse;
-            let gone = mouse && unlocked(Control::MouseMove(crate::control::Dir::Up));
+            let gone = mouse && unlocked(MOUSE_MOTION);
             if r.layer == lid || (inherit && r.layer == 0 && !own.contains(&r.source) && !gone) {
                 table.routes.push(i);
                 if mouse && r.consume && !gone {
-                    table
-                        .muted
-                        .insert(Control::MouseMove(crate::control::Dir::Up));
+                    table.muted.insert(MOUSE_MOTION);
                 }
             }
         }
@@ -682,7 +712,7 @@ pub(super) fn compile(p: &Profile) -> Compiled {
         if menu.select == RadialSelect::Mouse
             && let Some(t) = layers.get_mut(&menu.layer)
         {
-            t.muted.insert(Control::MouseMove(crate::control::Dir::Up));
+            t.muted.insert(MOUSE_MOTION);
         }
     }
 
@@ -690,7 +720,6 @@ pub(super) fn compile(p: &Profile) -> Compiled {
         masks: mt.masks,
         bindings,
         layers,
-        routes: p.analog.clone(),
         warnings,
         radial,
     }
@@ -728,7 +757,15 @@ mod tests {
         let ret = &c.bindings[1];
         assert_eq!(
             (ret.layer, ret.activator, ret.jump),
-            (1, Activator::Release, Some((0, None, false)))
+            (
+                1,
+                Activator::Release,
+                Some(JumpTarget {
+                    layer: 0,
+                    delay_ms: None,
+                    postpone: false
+                })
+            )
         );
         // Layer 1 inherits A from layer 0, but Back has its own (release) binding there.
         let l1 = c.layer(1);

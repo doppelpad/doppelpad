@@ -22,22 +22,22 @@ pub struct RadialView {
 #[derive(Clone, Debug)]
 pub(super) struct RadialState {
     /// The menu shown now; `parents` are the menus it was opened from.
-    pub menu: usize,
+    menu: usize,
     parents: Vec<usize>,
-    pub pointed: Option<usize>,
+    pointed: Option<usize>,
     /// When the menu's layer became active.
     since: u64,
     /// Mouse travel collected for pointing.
     mouse: (f32, f32),
     /// Closed by applying or going back; it opens again with its layer.
-    pub closed: bool,
+    pub(super) closed: bool,
 }
 
-/// What a command or a closing layer asks the engine to do.
+/// A sector a command or a closing layer asks the engine to play.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum RadialRun {
-    /// Play sector `sector` of menu `menu`.
-    Sector { menu: usize, sector: usize },
+pub(super) struct RadialRun {
+    pub(super) menu: usize,
+    pub(super) sector: usize,
 }
 
 /// The sector a direction points at: sector 0 at the top, the rest clockwise. `y` is up.
@@ -143,15 +143,13 @@ impl RadialState {
             && let Some(i) = (sub as usize).checked_sub(1).filter(|&i| i < menus.len())
         {
             self.parents.push(self.menu);
-            self.menu = i;
-            self.pointed = None;
-            self.mouse = (0.0, 0.0);
+            self.enter(i);
             return None;
         }
         if sector.close {
             self.closed = true;
         }
-        Some(RadialRun::Sector {
+        Some(RadialRun {
             menu: self.menu,
             sector: p,
         })
@@ -160,13 +158,16 @@ impl RadialState {
     /// Back to the parent menu, or close.
     pub(super) fn back(&mut self) {
         match self.parents.pop() {
-            Some(m) => {
-                self.menu = m;
-                self.pointed = None;
-                self.mouse = (0.0, 0.0);
-            }
+            Some(m) => self.enter(m),
             None => self.closed = true,
         }
+    }
+
+    /// Show `menu` with nothing pointed at.
+    fn enter(&mut self, menu: usize) {
+        self.menu = menu;
+        self.pointed = None;
+        self.mouse = (0.0, 0.0);
     }
 
     /// The menu's layer ended: the pointed sector of a release menu runs.
@@ -176,7 +177,7 @@ impl RadialState {
             return None;
         }
         let sector = menus.get(self.menu)?.sectors.get(p)?;
-        sector.submenu.is_none().then_some(RadialRun::Sector {
+        sector.submenu.is_none().then_some(RadialRun {
             menu: self.menu,
             sector: p,
         })
@@ -215,10 +216,7 @@ mod tests {
         assert_eq!(s.apply(&menus), None, "opens the sub-menu");
         assert_eq!(s.menu, 1);
         s.step(&menus, 1);
-        assert_eq!(
-            s.leave(&menus),
-            Some(RadialRun::Sector { menu: 1, sector: 0 })
-        );
+        assert_eq!(s.leave(&menus), Some(RadialRun { menu: 1, sector: 0 }));
         s.back();
         assert_eq!((s.menu, s.closed), (0, false));
         s.back();

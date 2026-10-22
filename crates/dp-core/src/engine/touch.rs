@@ -45,15 +45,6 @@ pub(super) fn regions(
             }
         }
         TouchZones::Grid => {
-            let third = |v: f32| {
-                if v < 1.0 / 3.0 {
-                    -1
-                } else if v > 2.0 / 3.0 {
-                    1
-                } else {
-                    0
-                }
-            };
             let (col, row) = (third(x), -third(y));
             let h = match col {
                 -1 => Some(Dir::Left),
@@ -141,6 +132,17 @@ pub(super) fn output_fingers(g: TouchGesture, t: f32) -> [Option<TouchPoint>; 2]
     }
 }
 
+/// Which third of the pad `v` (0–1) is in: -1, 0 or 1.
+fn third(v: f32) -> i8 {
+    if v < 1.0 / 3.0 {
+        -1
+    } else if v > 2.0 / 3.0 {
+        1
+    } else {
+        0
+    }
+}
+
 /// Which half of the pad a finger is on, and where within it (0–1 again).
 pub(super) fn half_of(p: TouchPoint) -> (Half, (f32, f32)) {
     if p.x < 0.5 {
@@ -224,15 +226,13 @@ impl GestureTracker {
                 if t.fingers >= 2 {
                     out.push(Control::Gesture(TouchGesture::MultiTap));
                 } else {
-                    let third = if t.start.0 < 1.0 / 3.0 {
-                        TouchGesture::TapLeft
-                    } else if t.start.0 > 2.0 / 3.0 {
-                        TouchGesture::TapRight
-                    } else {
-                        TouchGesture::TapCenter
+                    let side = match third(t.start.0) {
+                        -1 => TouchGesture::TapLeft,
+                        1 => TouchGesture::TapRight,
+                        _ => TouchGesture::TapCenter,
                     };
                     out.push(Control::Gesture(TouchGesture::Tap));
-                    out.push(Control::Gesture(third));
+                    out.push(Control::Gesture(side));
                     if split {
                         let (half, _) = half_of(TouchPoint {
                             x: t.start.0,

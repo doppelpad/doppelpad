@@ -38,13 +38,22 @@ pub(super) mod scale {
     pub(crate) const TRACKBALL_MAX_MS: f32 = 5200.0;
 }
 
+/// The touchpad's trackball glide after the finger lifted: speed (pixels per second), start
+/// and length in milliseconds.
+#[derive(Clone, Copy, Debug)]
+struct Glide {
+    vel: (f32, f32),
+    since: u64,
+    ms: f32,
+}
+
 #[derive(Clone, Debug, Default)]
 pub(super) struct RouteState {
     ema: (f32, f32),
     last_motion: u64,
     last_touch: Option<(f32, f32)>,
     touch_vel: (f32, f32),
-    glide: Option<((f32, f32), u64, f32)>,
+    glide: Option<Glide>,
     /// Flick stick: out past the threshold, the last stick angle, and the flick turn still
     /// to send (counts) with its speed (counts per second).
     flick_out: bool,
@@ -58,20 +67,20 @@ pub(super) struct RouteState {
 }
 
 pub(super) struct RouteInput<'a> {
-    pub pad: Option<&'a PadState>,
-    pub sticks: &'a Sticks,
+    pub(super) pad: Option<&'a PadState>,
+    pub(super) sticks: &'a Sticks,
     /// Raw mouse counts since the previous tick (y down).
-    pub mouse: (f32, f32),
+    pub(super) mouse: (f32, f32),
     /// Seconds since the previous tick.
-    pub dt: f32,
-    pub now: u64,
-    pub gyro_enabled: bool,
+    pub(super) dt: f32,
+    pub(super) now: u64,
+    pub(super) gyro_enabled: bool,
     /// Turn calibration for flick routes.
-    pub turn: &'a VirtualMouse,
+    pub(super) turn: &'a VirtualMouse,
     /// Gyro yaw and pitch rates for routes (already in the profile's gyro space).
-    pub gyro_rates: Option<(f32, f32)>,
+    pub(super) gyro_rates: Option<(f32, f32)>,
     /// In tilt mode: steering and pitch tilt as deflections (left and up positive).
-    pub tilt: Option<(f32, f32)>,
+    pub(super) tilt: Option<(f32, f32)>,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -349,19 +358,23 @@ pub(super) fn run(r: &AnalogMapping, st: &mut RouteState, input: &RouteInput) ->
                             if r.trackball_friction < 1.0 {
                                 let duration = scale::TRACKBALL_MAX_MS
                                     * (1.0 - r.trackball_friction.clamp(0.0, 1.0));
-                                st.glide = Some((st.touch_vel, input.now, duration));
+                                st.glide = Some(Glide {
+                                    vel: st.touch_vel,
+                                    since: input.now,
+                                    ms: duration,
+                                });
                             }
                             RouteOutput::None
                         }
                         (None, None) => match st.glide {
-                            Some((v0, t0, duration)) => {
-                                let t = input.now.saturating_sub(t0) as f32;
-                                if t >= duration {
+                            Some(g) => {
+                                let t = input.now.saturating_sub(g.since) as f32;
+                                if t >= g.ms {
                                     st.glide = None;
                                     return RouteOutput::None;
                                 }
-                                let f = 1.0 - t / duration;
-                                RouteOutput::Mouse(v0.0 * f * input.dt, v0.1 * f * input.dt)
+                                let f = 1.0 - t / g.ms;
+                                RouteOutput::Mouse(g.vel.0 * f * input.dt, g.vel.1 * f * input.dt)
                             }
                             None => RouteOutput::None,
                         },
