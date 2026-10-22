@@ -9,7 +9,7 @@
 //! reading the devices directly. Limitations: keyboard LEDs (Caps/Num Lock) are not mirrored
 //! back to grabbed keyboards, and touchpads / tablets (absolute pointers) are not captured.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::io;
 use std::os::fd::AsRawFd;
 use std::path::{Path, PathBuf};
@@ -21,17 +21,17 @@ use std::time::{Duration, Instant};
 use crossbeam_channel::{Receiver, Sender};
 use dp_core::keys::Key;
 use evdev::uinput::VirtualDevice;
-use evdev::{AbsoluteAxisCode, Device, InputEvent, KeyCode, RelativeAxisCode, UinputAbsSetup};
+use evdev::{Device, InputEvent, UinputAbsSetup};
 
 use super::codes::*;
 use super::dev::{
-    check_uinput, event_nodes, is_own, own_phys, set_grab, uinput_name, wait_readable,
+    Fetch, NodeTracker, check_uinput, event_nodes, fetch, has_abs, has_key, has_rel, is_own,
+    own_phys, set_grab, uinput_name,
 };
 use super::kbmmap::Passthrough;
 use crate::scan::{RESCAN, Rescanner};
 use crate::{CaptureFilter, KbmCapture, KbmEvent, PlatformError, Result};
 
-const RETRY_FAILED: Duration = Duration::from_secs(30);
 /// How long to wait for keys held at capture start to be released before grabbing anyway.
 const RELEASE_WAIT: Duration = Duration::from_secs(5);
 const PASSTHROUGH_SETTLE: Duration = Duration::from_millis(200);
@@ -60,8 +60,8 @@ struct Scanner {
     filter: Arc<CaptureFilter>,
     stop: Arc<AtomicBool>,
     devices: Devices,
-    ignored: HashSet<PathBuf>,
-    failed: HashMap<PathBuf, Instant>,
+    /// Nodes that are not keyboards or mice.
+    nodes: NodeTracker,
 }
 
 /// Keyboards (any key the engine knows) and relative mice; not our own devices, gamepads,
@@ -70,24 +70,17 @@ fn capturable(dev: &Device) -> bool {
     if is_own(dev) {
         return false;
     }
-    let keys = dev.supported_keys();
-    let has_key = |c| keys.is_some_and(|k| k.contains(KeyCode(c)));
-    let absolute = dev.supported_absolute_axes().is_some_and(|a| {
-        a.contains(AbsoluteAxisCode(ABS_X)) || a.contains(AbsoluteAxisCode(ABS_MT_POSITION_X))
-    });
-    if absolute || has_key(BTN_SOUTH) || has_key(BTN_JOYSTICK) {
+    let absolute = has_abs(dev, ABS_X) || has_abs(dev, ABS_MT_POSITION_X);
+    if absolute || has_key(dev, BTN_SOUTH) || has_key(dev, BTN_JOYSTICK) {
         return false;
     }
-    let keyboard = keys.is_some_and(|k| {
+    let keyboard = dev.supported_keys().is_some_and(|k| {
         k.iter().any(|c| {
             Key::from_evdev(c.code())
                 .is_some_and(|key| !matches!(key, Key::Power | Key::Sleep | Key::Wake))
         })
     });
-    let mouse = has_key(BTN_LEFT)
-        && dev.supported_relative_axes().is_some_and(|r| {
-            r.contains(RelativeAxisCode(REL_X)) && r.contains(RelativeAxisCode(REL_Y))
-        });
+    let mouse = has_key(dev, BTN_LEFT) && has_rel(dev, REL_X) && has_rel(dev, REL_Y);
     keyboard || mouse
 }
 
@@ -120,11 +113,6 @@ fn passthrough_for(dev: &Device) -> io::Result<VirtualDevice> {
     builder.build()
 }
 
-fn has_rel(dev: &Device, code: u16) -> bool {
-    dev.supported_relative_axes()
-        .is_some_and(|r| r.contains(RelativeAxisCode(code)))
-}
-
 impl Scanner {
     /// Returns how many nodes could not be opened for lack of permission.
     fn scan(&mut self) -> usize {
@@ -132,15 +120,10 @@ impl Scanner {
         let now = Instant::now();
         let mut devices = self.devices.lock().unwrap();
         devices.retain(|_, c| c.alive.load(Ordering::Relaxed));
-        self.ignored.retain(|p| present.contains(p));
-        self.failed
-            .retain(|p, t| present.contains(p) && now - *t < RETRY_FAILED);
+        self.nodes.prune(&present, now);
         let mut denied = 0;
         for path in present {
-            if devices.contains_key(&path)
-                || self.ignored.contains(&path)
-                || self.failed.contains_key(&path)
-            {
+            if devices.contains_key(&path) || self.nodes.skips(&path) {
                 continue;
             }
             let dev = match Device::open(&path) {
@@ -149,12 +132,12 @@ impl Scanner {
                     if e.kind() == io::ErrorKind::PermissionDenied {
                         denied += 1;
                     }
-                    self.failed.insert(path, now);
+                    self.nodes.failed(path, now);
                     continue;
                 }
             };
             if !capturable(&dev) {
-                self.ignored.insert(path);
+                self.nodes.ignore(path);
                 continue;
             }
             let alive = Arc::new(AtomicBool::new(true));
@@ -223,17 +206,16 @@ fn run_capture(
     );
     let (mut events, mut forward) = (Vec::new(), Vec::new());
     while !stop.load(Ordering::Relaxed) {
-        match wait_readable(fd, 100) {
-            Ok(true) => {}
-            Ok(false) => continue,
-            Err(_) => break,
-        }
-        let batch: Vec<(u16, u16, i32)> = match dev.fetch_events() {
-            Ok(evs) => evs
-                .map(|e| (e.event_type().0, e.code(), e.value()))
-                .collect(),
-            Err(e) if e.kind() == io::ErrorKind::WouldBlock => continue,
-            Err(_) => break, // unplugged
+        let fetched = fetch(fd, || {
+            dev.fetch_events().map(|evs| {
+                evs.map(|e| (e.event_type().0, e.code(), e.value()))
+                    .collect()
+            })
+        });
+        let batch: Vec<(u16, u16, i32)> = match fetched {
+            Fetch::Ready(batch) => batch,
+            Fetch::Idle => continue,
+            Fetch::Closed(_) => break, // unplugged
         };
         for ev in batch {
             state.event(ev, filter, &mut events, &mut forward);
@@ -267,8 +249,7 @@ impl KbmCapture for GrabCapture {
             filter,
             stop: stop.clone(),
             devices: devices.clone(),
-            ignored: HashSet::new(),
-            failed: HashMap::new(),
+            nodes: NodeTracker::default(),
         };
         let denied = scan.scan();
         if devices.lock().unwrap().is_empty() && denied > 0 {

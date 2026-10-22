@@ -6,8 +6,9 @@ use std::path::PathBuf;
 use std::process::Command;
 
 use x11rb::connection::Connection;
-use x11rb::protocol::xproto::{AtomEnum, ClientMessageEvent, ConnectionExt, EventMask, Window};
+use x11rb::protocol::xproto::{ClientMessageEvent, ConnectionExt, EventMask};
 
+use super::x11::X11;
 use crate::{PlatformError, PowerAction, Result, SystemControl};
 
 pub struct LinuxSystem;
@@ -32,38 +33,23 @@ fn run(program: &str, args: &[&str]) -> Result<()> {
 
 fn close_active_x11_window() -> Result<()> {
     let err = |e: &dyn std::fmt::Display| PlatformError::Other(format!("X11: {e}"));
-    let (conn, screen) = x11rb::connect(None).map_err(|e| err(&e))?;
-    let root = conn.setup().roots[screen].root;
-    let atom = |name: &[u8]| -> Result<u32> {
-        Ok(conn
-            .intern_atom(false, name)
-            .map_err(|e| err(&e))?
-            .reply()
-            .map_err(|e| err(&e))?
-            .atom)
-    };
-    let active = atom(b"_NET_ACTIVE_WINDOW")?;
-    let close = atom(b"_NET_CLOSE_WINDOW")?;
-    let reply = conn
-        .get_property(false, root, active, AtomEnum::WINDOW, 0, 1)
+    let x11 = X11::connect().map_err(|e| err(&e))?;
+    let close = x11.atom(b"_NET_CLOSE_WINDOW").map_err(|e| err(&e))?;
+    let window = x11
+        .active_window()
         .map_err(|e| err(&e))?
-        .reply()
-        .map_err(|e| err(&e))?;
-    let window: Window = reply
-        .value32()
-        .and_then(|mut v| v.next())
-        .filter(|&w| w != 0)
         .ok_or_else(|| PlatformError::Other("no window has the focus".into()))?;
     // Timestamp 0 (current time), source 2 (a pager or similar tool).
     let event = ClientMessageEvent::new(32, window, close, [0u32, 2, 0, 0, 0]);
-    conn.send_event(
-        false,
-        root,
-        EventMask::SUBSTRUCTURE_REDIRECT | EventMask::SUBSTRUCTURE_NOTIFY,
-        event,
-    )
-    .map_err(|e| err(&e))?;
-    conn.flush().map_err(|e| err(&e))?;
+    x11.conn
+        .send_event(
+            false,
+            x11.root,
+            EventMask::SUBSTRUCTURE_REDIRECT | EventMask::SUBSTRUCTURE_NOTIFY,
+            event,
+        )
+        .map_err(|e| err(&e))?;
+    x11.conn.flush().map_err(|e| err(&e))?;
     Ok(())
 }
 

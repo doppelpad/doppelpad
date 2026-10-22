@@ -17,9 +17,9 @@ use evdev::{
 };
 
 use super::codes::*;
-use super::dev::{check_uinput, own_phys, uinput_error, wait_readable};
+use super::dev::{Fetch, check_uinput, fetch, own_phys, uinput_error};
 use super::kbmmap::{WheelOut, mouse_button_code};
-use super::padmap::{
+use super::x360::{
     FfMixer, X360_AXES, X360_EVENTS, X360_KEYS, X360_NAME, X360_PID, X360_VERSION, X360_VID,
     x360_events,
 };
@@ -120,16 +120,16 @@ fn now_ms(epoch: Instant) -> u64 {
 fn ff_loop(dev: &Mutex<VirtualDevice>, ff: &Mutex<FfMixer>, epoch: Instant, stop: &AtomicBool) {
     let fd = dev.lock().unwrap().as_raw_fd();
     while !stop.load(Ordering::Relaxed) {
-        match wait_readable(fd, 100) {
-            Ok(true) => {}
-            Ok(false) => continue,
-            Err(_) => break,
-        }
-        let mut dev = dev.lock().unwrap();
-        let events: Vec<InputEvent> = match dev.fetch_events() {
-            Ok(events) => events.collect(),
-            Err(e) if e.kind() == io::ErrorKind::WouldBlock => continue,
-            Err(e) => {
+        // The device stays unlocked while we wait: pad reports go out through it.
+        let fetched = fetch(fd, || {
+            let mut dev = dev.lock().unwrap();
+            let events: Vec<InputEvent> = dev.fetch_events()?.collect();
+            Ok((dev, events))
+        });
+        let (mut dev, events) = match fetched {
+            Fetch::Ready(r) => r,
+            Fetch::Idle => continue,
+            Fetch::Closed(e) => {
                 tracing::warn!("virtual pad force feedback stopped: {e}");
                 break;
             }
