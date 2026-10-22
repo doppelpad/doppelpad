@@ -70,6 +70,7 @@ permissions = [
   "allow-profiles-dir",
   "allow-log-file",
   "allow-take-notices",
+  "allow-take-open-files",
   "allow-overlay-ready",
   "allow-osd-test",
   "allow-osd-monitors",

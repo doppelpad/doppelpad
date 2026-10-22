@@ -84,7 +84,8 @@
     "delete_confirm": "Move “{name}” and all its configs to the recycle bin?",
     "config_count_one": "1 config",
     "config_count": "{n} configs",
-    "game_options": "Game options"
+    "game_options": "Game options",
+    "open_confirm": "Import the game “{name}”? It is added as a new game; nothing existing is overwritten."
   },
   "window": {
     "minimize": "Minimize",

@@ -1,0 +1,46 @@
+//! Game bundles handed to the app from Explorer: a double-clicked `.dpgame` arrives in the
+//! command line, at start-up or (while the app runs) through the single-instance handler.
+
+use std::path::{Path, PathBuf};
+
+/// The event that brings bundles opened while the app runs to the window.
+pub const OPEN_EVENT: &str = "open-files";
+
+/// The game bundles among command-line arguments (not the program itself or flags), made
+/// absolute against `cwd`.
+pub fn bundles_in(args: &[String], cwd: &Path) -> Vec<PathBuf> {
+    args.iter()
+        .skip(1)
+        .filter(|a| !a.starts_with('-'))
+        .map(PathBuf::from)
+        .filter(|p| {
+            p.extension()
+                .and_then(|e| e.to_str())
+                .is_some_and(|e| e.eq_ignore_ascii_case("dpgame"))
+        })
+        .map(|p| if p.is_absolute() { p } else { cwd.join(p) })
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn finds_bundles_among_arguments() {
+        let args: Vec<String> = [
+            "C:/Doppelpad/doppelpad-gui.exe",
+            "--hidden",
+            "Halo.DPGAME",
+            "notes.txt",
+        ]
+        .map(String::from)
+        .into();
+        let cwd = Path::new("C:/Users/me/Downloads");
+        assert_eq!(bundles_in(&args, cwd), [cwd.join("Halo.DPGAME")]);
+        let absolute = std::env::temp_dir().join("x.dpgame");
+        let args = vec!["app".to_owned(), absolute.display().to_string()];
+        assert_eq!(bundles_in(&args, cwd), [absolute]);
+        assert!(bundles_in(&["app.dpgame".to_owned()], cwd).is_empty());
+    }
+}
