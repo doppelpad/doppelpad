@@ -1,6 +1,9 @@
 //! Snapshot of everything a user interface shows live: devices with their current
 //! input, the active profile and layer, slots, switches, warnings and driver status.
 
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
+
 use dp_core::pad::PadState;
 use dp_core::profile::{Crosshair, RadialMenu};
 use dp_platform::generic::RawInput;
@@ -13,6 +16,37 @@ use crate::dsu::DsuSettings;
 use crate::httpapi::HttpSettings;
 use crate::runtime::{DriverStatus, SessionInfo};
 use crate::slots::{PlayerLights, RuntimeOptions};
+
+/// How often the live snapshot is refreshed, and how often its fastest readers look.
+pub const LIVE_INTERVAL: Duration = Duration::from_millis(16);
+
+/// The latest live snapshot, shared by the service thread with its readers. Its generation
+/// goes up whenever it changes, so a reader looks at it only then.
+#[derive(Clone, Default)]
+pub struct SharedLive(Arc<Mutex<(u64, Arc<LiveState>)>>);
+
+impl SharedLive {
+    /// Store `state` if it is the first or differs from the current snapshot.
+    pub(crate) fn publish(&self, state: LiveState) {
+        let mut current = self.0.lock().unwrap();
+        if current.0 == 0 || *current.1 != state {
+            current.0 += 1;
+            current.1 = Arc::new(state);
+        }
+    }
+
+    /// The current snapshot.
+    pub fn get(&self) -> Arc<LiveState> {
+        self.0.lock().unwrap().1.clone()
+    }
+
+    /// The snapshot and its generation, if it changed since generation `seen` (0: never
+    /// seen).
+    pub fn since(&self, seen: u64) -> Option<(u64, Arc<LiveState>)> {
+        let current = self.0.lock().unwrap();
+        (current.0 != seen).then(|| (current.0, current.1.clone()))
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct LiveDevice {
@@ -124,4 +158,26 @@ pub struct LiveDeviceSlots {
     pub id: String,
     pub slots: Vec<Option<String>>,
     pub active_slot: usize,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_generation_moves_only_on_change() {
+        let live = SharedLive::default();
+        assert!(live.since(0).is_none(), "nothing published yet");
+        live.publish(LiveState::default());
+        let (seen, _) = live.since(0).unwrap();
+        assert_eq!(seen, 1, "the first state counts, even the default one");
+        live.publish(LiveState::default());
+        assert!(live.since(seen).is_none(), "the same state again");
+        live.publish(LiveState {
+            layer: 2,
+            ..LiveState::default()
+        });
+        assert_eq!(live.since(seen).unwrap().1.layer, 2);
+        assert_eq!(live.get().layer, 2);
+    }
 }

@@ -18,7 +18,7 @@ use dp_ipc::{Request, Response};
 use serde::{Deserialize, Serialize};
 
 use crate::client::round_trip;
-use crate::live::LiveState;
+use crate::live::{LiveState, SharedLive};
 use crate::net::{Worker, bind_ip};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -61,7 +61,14 @@ pub fn new_token() -> String {
 /// What the server asks the service for; answered on the service thread.
 pub enum Job {
     Ipc(Request, Sender<Response>),
-    Live(Sender<LiveState>),
+}
+
+/// How a connection reaches the service: requests through the queue, the live state from
+/// the shared snapshot.
+#[derive(Clone)]
+struct Link {
+    jobs: Sender<Job>,
+    live: SharedLive,
 }
 
 pub struct HttpApi {
@@ -86,7 +93,7 @@ const EVENT_EVERY: Duration = Duration::from_millis(200);
 const HEARTBEAT_EVERY: u32 = 75;
 
 impl HttpApi {
-    pub fn start(settings: &HttpSettings) -> io::Result<HttpApi> {
+    pub fn start(settings: &HttpSettings, live: SharedLive) -> io::Result<HttpApi> {
         let listener = TcpListener::bind((bind_ip(settings.lan), settings.port))?;
         listener.set_nonblocking(true)?;
         let addr = listener.local_addr()?;
@@ -96,8 +103,9 @@ impl HttpApi {
             token: settings.token.clone(),
             port: addr.port(),
         };
+        let link = Link { jobs: tx, live };
         let worker = Worker::spawn("dp-http", move |stop| {
-            accept_loop(listener, access, tx, stop);
+            accept_loop(listener, access, link, stop);
         })?;
         tracing::info!(%addr, "local HTTP API listening");
         Ok(HttpApi {
@@ -120,15 +128,15 @@ struct Access {
     port: u16,
 }
 
-fn accept_loop(listener: TcpListener, access: Access, tx: Sender<Job>, stop: Arc<AtomicBool>) {
+fn accept_loop(listener: TcpListener, access: Access, link: Link, stop: Arc<AtomicBool>) {
     while !stop.load(Ordering::Relaxed) {
         match listener.accept() {
             Ok((stream, _)) => {
-                let (access, tx, stop) = (access.clone(), tx.clone(), stop.clone());
+                let (access, link, stop) = (access.clone(), link.clone(), stop.clone());
                 let spawned = std::thread::Builder::new()
                     .name("dp-http-conn".into())
                     .spawn(move || {
-                        if let Err(e) = serve(stream, &access, &tx, &stop) {
+                        if let Err(e) = serve(stream, &access, &link, &stop) {
                             tracing::debug!("HTTP connection: {e}");
                         }
                     });
@@ -279,10 +287,6 @@ fn ask_ipc(tx: &Sender<Job>, req: Request) -> Response {
     round_trip(tx, |rtx| Job::Ipc(req, rtx)).unwrap_or_else(Response::from)
 }
 
-fn ask_live(tx: &Sender<Job>) -> Option<LiveState> {
-    round_trip(tx, Job::Live).ok()
-}
-
 /// The parts of the live state the event stream reports. Slots count 1–4, as in the status.
 fn summary(l: &LiveState) -> serde_json::Value {
     serde_json::json!({
@@ -299,15 +303,16 @@ fn summary(l: &LiveState) -> serde_json::Value {
     })
 }
 
-fn route(req: &HttpRequest, tx: &Sender<Job>) -> (u16, String) {
+fn route(req: &HttpRequest, link: &Link) -> (u16, String) {
+    let tx = &link.jobs;
     let json = |r: &Response| serde_json::to_string(r).unwrap_or_default();
     match (req.method.as_str(), req.path.as_str()) {
         ("GET", "/api/status") => (200, json(&ask_ipc(tx, Request::Status))),
         ("GET", "/api/devices") => (200, json(&ask_ipc(tx, Request::Devices))),
-        ("GET", "/api/live") => match ask_live(tx) {
-            Some(l) => (200, serde_json::to_string(&l).unwrap_or_default()),
-            None => (503, error_json("Doppelpad did not answer")),
-        },
+        ("GET", "/api/live") => (
+            200,
+            serde_json::to_string(&*link.live.get()).unwrap_or_default(),
+        ),
         ("POST", "/api") => {
             let json_body = req
                 .header("content-type")
@@ -337,17 +342,14 @@ fn route(req: &HttpRequest, tx: &Sender<Job>) -> (u16, String) {
 }
 
 /// Stream `live` events while the client listens.
-fn events(stream: &mut TcpStream, tx: &Sender<Job>, stop: &AtomicBool) -> io::Result<()> {
+fn events(stream: &mut TcpStream, live: &SharedLive, stop: &AtomicBool) -> io::Result<()> {
     stream.write_all(
         b"HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nCache-Control: no-store\r\nConnection: keep-alive\r\n\r\n",
     )?;
     let mut last = serde_json::Value::Null;
     let mut quiet = 0;
     while !stop.load(Ordering::Relaxed) {
-        let Some(live) = ask_live(tx) else {
-            return Ok(());
-        };
-        let now = summary(&live);
+        let now = summary(&live.get());
         if now != last {
             write!(stream, "event: live\ndata: {now}\n\n")?;
             last = now;
@@ -365,12 +367,7 @@ fn events(stream: &mut TcpStream, tx: &Sender<Job>, stop: &AtomicBool) -> io::Re
     Ok(())
 }
 
-fn serve(
-    mut stream: TcpStream,
-    access: &Access,
-    tx: &Sender<Job>,
-    stop: &AtomicBool,
-) -> io::Result<()> {
+fn serve(mut stream: TcpStream, access: &Access, link: &Link, stop: &AtomicBool) -> io::Result<()> {
     stream.set_nonblocking(false)?;
     stream.set_read_timeout(Some(IO_TIMEOUT))?;
     stream.set_write_timeout(Some(IO_TIMEOUT))?;
@@ -382,9 +379,9 @@ fn serve(
         return respond(&mut stream, code, &error_json(why));
     }
     if req.method == "GET" && req.path == "/api/events" {
-        return events(&mut stream, tx, stop);
+        return events(&mut stream, &link.live, stop);
     }
-    let (code, body) = route(&req, tx);
+    let (code, body) = route(&req, link);
     respond(&mut stream, code, &body)
 }
 
@@ -458,13 +455,13 @@ mod tests {
 
     #[test]
     fn serves_requests_through_the_queue() {
-        let api = HttpApi::start(&HttpSettings {
+        let settings = HttpSettings {
             enabled: true,
             lan: false,
             port: 0,
             token: String::new(),
-        })
-        .unwrap();
+        };
+        let api = HttpApi::start(&settings, SharedLive::default()).unwrap();
         let addr = api.addr;
         let client = std::thread::spawn(move || {
             let mut s = TcpStream::connect(addr).unwrap();
@@ -497,7 +494,11 @@ mod tests {
     #[test]
     fn routes_refuse_what_they_do_not_serve() {
         let (tx, jobs) = crossbeam_channel::unbounded::<Job>();
-        let code = |raw: &str| route(&parse(raw), &tx).0;
+        let link = Link {
+            jobs: tx,
+            live: SharedLive::default(),
+        };
+        let code = |raw: &str| route(&parse(raw), &link).0;
         assert_eq!(code("DELETE /api/status HTTP/1.1\r\n\r\n"), 405);
         assert_eq!(code("GET /nowhere HTTP/1.1\r\n\r\n"), 404);
         assert_eq!(

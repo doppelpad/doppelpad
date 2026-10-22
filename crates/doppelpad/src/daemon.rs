@@ -14,7 +14,7 @@ pub fn run(profiles_dir: PathBuf, initial: Option<PathBuf>, auto_switch: bool) -
     let mut service = ServiceOptions::with_user_files(profiles_dir);
     service.initial_profile = initial;
     service.auto_switch = Some(auto_switch);
-    let mut handle = dp_service::spawn(HostOptions { service, ipc: true })?;
+    let handle = dp_service::spawn(HostOptions { service, ipc: true })?;
     tracing::info!("daemon running; control it with `doppelpad apply|select-slot|remap|status`");
 
     while running.load(Ordering::Relaxed) && handle.is_running() {

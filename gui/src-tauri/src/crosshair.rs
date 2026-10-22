@@ -2,11 +2,10 @@
 //! shows it in the `crosshair` overlay window, centred on the primary monitor plus its
 //! offset; on Windows the magnifier enlarges the screen around it, below the crosshair.
 
-use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use dp_core::profile::Crosshair;
-use dp_service::LiveState;
+use dp_service::SharedLive;
 use tauri::{AppHandle, Manager, PhysicalPosition, PhysicalSize};
 
 use crate::commands::AppState;
@@ -91,12 +90,12 @@ fn hide_magnifier(magnifier: &mut Magnifier) {
     let _ = magnifier;
 }
 
-fn watch(app: AppHandle, live: Arc<Mutex<LiveState>>) {
+fn watch(app: AppHandle, live: SharedLive) {
     let mut magnifier = Magnifier::default();
     let mut shown: Option<Crosshair> = None;
     loop {
         std::thread::sleep(WATCH_INTERVAL);
-        let want = live.lock().unwrap().crosshair.clone();
+        let want = live.get().crosshair.clone();
         if want == shown {
             continue;
         }
@@ -112,12 +111,7 @@ fn watch(app: AppHandle, live: Arc<Mutex<LiveState>>) {
 }
 
 pub fn start(app: &AppHandle) -> tauri::Result<()> {
-    let live = app
-        .state::<AppState>()
-        .service
-        .lock()
-        .unwrap()
-        .live_shared();
+    let live = app.state::<AppState>().service.live_shared();
     let handle = app.clone();
     std::thread::Builder::new()
         .name("crosshair".into())
