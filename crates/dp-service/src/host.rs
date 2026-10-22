@@ -7,17 +7,16 @@ use std::time::{Duration, Instant};
 
 use anyhow::{Result, anyhow};
 use crossbeam_channel::{Sender, bounded, unbounded};
-use dp_ipc::{Request, Response};
+use dp_ipc::Request;
 use dp_platform::Platform;
 
+use crate::client::{CallError, round_trip};
 use crate::live::LiveState;
 use crate::runtime::{Runtime, TimerResolution};
 use crate::service::{Service, ServiceCmd, ServiceOptions, ServiceReply};
 
 /// How often the live snapshot is refreshed.
 const LIVE_INTERVAL: Duration = Duration::from_millis(16);
-/// How long a caller waits for the service to answer.
-const REPLY_TIMEOUT: Duration = Duration::from_secs(10);
 
 #[derive(Clone, Debug)]
 pub struct HostOptions {
@@ -38,12 +37,15 @@ pub struct ServiceHandle {
 impl ServiceHandle {
     /// Send a command and wait for the answer.
     pub fn call(&self, cmd: ServiceCmd) -> ServiceReply {
-        let (rtx, rrx) = bounded(1);
-        if self.tx.send((cmd, rtx)).is_err() {
-            return ServiceReply::Err("the remapping service has stopped".into());
+        match round_trip(&self.tx, |rtx| (cmd, rtx)) {
+            Ok(reply) => reply,
+            Err(CallError::Stopped) => {
+                ServiceReply::Err("the remapping service has stopped".into())
+            }
+            Err(CallError::Timeout) => {
+                ServiceReply::Err("the remapping service did not answer".into())
+            }
         }
-        rrx.recv_timeout(REPLY_TIMEOUT)
-            .unwrap_or_else(|_| ServiceReply::Err("the remapping service did not answer".into()))
     }
 
     /// Latest live snapshot.
@@ -152,14 +154,9 @@ pub fn spawn_with(
             .name("dp-ipc".into())
             .spawn(move || {
                 let result = dp_ipc::serve(|req| {
-                    let (rtx, rrx) = bounded(1);
-                    if ipc_tx.send((ServiceCmd::Ipc(req), rtx)).is_err() {
-                        return Response::error("Doppelpad is shutting down");
-                    }
-                    match rrx.recv_timeout(REPLY_TIMEOUT) {
-                        Ok(ServiceReply::Ipc(r)) => r,
-                        Ok(other) => other.into_result().into(),
-                        Err(_) => Response::error("Doppelpad did not answer"),
+                    match round_trip(&ipc_tx, |rtx| (ServiceCmd::Ipc(req), rtx)) {
+                        Ok(reply) => reply.into(),
+                        Err(e) => e.into(),
                     }
                 });
                 if let Err(e) = result {
