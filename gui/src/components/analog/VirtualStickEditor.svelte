@@ -195,11 +195,6 @@
     padding-top: 18px;
     border-top: 1px solid var(--line);
   }
-  .hint {
-    margin: -4px 0 0;
-    color: var(--text-dim);
-    font-size: var(--fs-s);
-  }
   .jitter {
     display: flex;
     flex-direction: column;

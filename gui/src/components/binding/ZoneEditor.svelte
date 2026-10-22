@@ -197,11 +197,6 @@
   .section-title {
     margin-top: 6px;
   }
-  .hint {
-    margin: 0;
-    font-size: var(--fs-s);
-    color: var(--text-faint);
-  }
   .bar-row {
     display: flex;
     align-items: center;

@@ -91,11 +91,6 @@
     flex: 1;
     max-width: 240px;
   }
-  .hint {
-    margin: 0;
-    color: var(--text-dim);
-    font-size: var(--fs-s);
-  }
   .list {
     display: flex;
     flex-direction: column;

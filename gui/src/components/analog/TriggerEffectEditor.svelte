@@ -167,9 +167,4 @@
     font-family: var(--mono, monospace);
     font-size: var(--fs-s);
   }
-  .hint {
-    margin: 0;
-    color: var(--text-faint);
-    font-size: var(--fs-s);
-  }
 </style>

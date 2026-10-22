@@ -91,10 +91,6 @@
     font-size: var(--fs-xs);
     color: var(--text-faint);
   }
-  .hint {
-    font-size: var(--fs-s);
-    color: var(--text-faint);
-  }
   .foot {
     display: flex;
     align-items: center;

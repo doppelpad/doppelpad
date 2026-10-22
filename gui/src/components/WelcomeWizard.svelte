@@ -120,10 +120,6 @@
   p {
     margin: 0;
   }
-  .hint {
-    color: var(--text-dim);
-    font-size: var(--fs-s);
-  }
   .row {
     display: flex;
     align-items: center;

@@ -43,7 +43,6 @@
       {label}
       {disabled}
       size="s"
-      hover={false}
     />
   </div>
 {/snippet}
@@ -115,11 +114,6 @@
   .cl {
     min-width: 120px;
     font-size: 13px;
-  }
-  .hint {
-    margin: -4px 0 4px;
-    color: var(--text-dim);
-    font-size: var(--fs-s);
   }
   .warn {
     margin: 0;

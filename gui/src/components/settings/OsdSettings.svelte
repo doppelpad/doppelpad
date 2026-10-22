@@ -34,7 +34,7 @@
           <span>{t(`settings.osd.${e}`)}</span>
         </label>
         {#if e === 'layer'}
-          <label class="check sub">
+          <label class="check keep">
             <input
               type="checkbox"
               checked={osd.keep_layer}
@@ -101,10 +101,8 @@
     align-items: center;
     gap: 8px;
   }
-  /* Indented under "layer"; dim and bold like the overlay subheadings it once shared a class with. */
-  .check.sub {
-    margin: 4px 0 0 24px;
-    color: var(--text-dim);
-    font-weight: 600;
+  /* Belongs to "layer": indented under it. */
+  .check.keep {
+    margin-left: 24px;
   }
 </style>

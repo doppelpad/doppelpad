@@ -106,11 +106,6 @@
 {/if}
 
 <style>
-  .hint {
-    margin: -4px 0 0;
-    color: var(--text-dim);
-    font-size: var(--fs-s);
-  }
   .toggles {
     display: flex;
     flex-wrap: wrap;

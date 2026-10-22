@@ -156,7 +156,6 @@
     <Segmented
       variant="fill"
       size="l"
-      hover={false}
       label={t('macro.mode_label')}
       options={MODES.map((md) => ({ value: md.id, label: t(`macro.${md.key}`) }))}
       value={mode}
@@ -299,8 +298,8 @@
           ><SeparatorHorizontal size={14} /> {t('macro.add_break')}</button
         >
       </div>
-      {#if recording}<p class="hint">{t('macro.recording')}</p>{/if}
-      {#if padRecording}<p class="hint">{t('macro.recording_pad')}</p>{/if}
+      {#if recording}<p class="recording">{t('macro.recording')}</p>{/if}
+      {#if padRecording}<p class="recording">{t('macro.recording_pad')}</p>{/if}
       {#if segments > 1}
         <p class="parts">
           {t('macro.segments', { n: segments })}
@@ -433,7 +432,7 @@
     color: var(--text-dim);
     font-size: var(--fs-s);
   }
-  .hint {
+  .recording {
     margin: 0;
     color: var(--danger);
   }

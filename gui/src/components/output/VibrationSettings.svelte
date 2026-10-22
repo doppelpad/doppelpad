@@ -66,11 +66,6 @@
   .section-title {
     margin-top: 10px;
   }
-  .hint {
-    margin: 0;
-    color: var(--text-dim);
-    font-size: var(--fs-s);
-  }
   .fields {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
