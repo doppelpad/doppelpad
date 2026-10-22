@@ -5,6 +5,7 @@ import { MOUSE_PRESETS, addRoute, newRoute, routeLayer, sourceOf, targetOf, type
 import { DIAGONALS, zoneFamily } from './controls';
 import { activatorOf, comboList, layerOf, newMapping, ownMappings, upsertMapping } from './profile';
 import type { AnalogMapping, AnalogSource, Mapping, Profile } from '../types';
+import { nonEmpty, setOrDrop } from './util';
 
 export type StickGroup = 'mouse' | 'wasd' | 'arrows' | 'flick';
 export const STICK_GROUPS: StickGroup[] = ['mouse', 'wasd', 'arrows', 'flick'];
@@ -78,8 +79,11 @@ export function setStickGroup(
 ): Profile {
   const dirs = directionControls(s);
   const analog = (p.analog ?? []).filter((r) => !isStickRoute(r, layer, s));
-  let out: Profile = { ...p, mappings: p.mappings.filter((m) => !isDirectionMapping(m, layer, dirs)), analog };
-  if (analog.length === 0) delete out.analog;
+  let out: Profile = setOrDrop(
+    { ...p, mappings: p.mappings.filter((m) => !isDirectionMapping(m, layer, dirs)), analog },
+    'analog',
+    nonEmpty(analog),
+  );
   const source = stickSource(s);
   if (group === 'mouse') return addRoute(out, newRoute(def, layer, { source, target: 'mouse', ...MOUSE_PRESETS.standard }));
   if (group === 'flick') return addRoute(out, newRoute(def, layer, { source, target: 'flick', deadzone: 0.6 }));

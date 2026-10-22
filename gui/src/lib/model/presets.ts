@@ -1,21 +1,23 @@
 // Layer presets: one layer's settings, mappings and routes, kept to insert into other configs
 // as a new layer.
 import type { LayerPreset, Mapping, Profile } from '../types';
+import { declaredLayer } from './layers';
 import { addLayer, copyLayer, layerIds, pasteLayer } from './profile';
+import { clone } from './util';
 
 /** In a preset, a jump to the preset's own layer (which gets a new id when inserted). */
 export const SELF = 255;
 
 export function makePreset(p: Profile, layer: number, name: string): LayerPreset {
   const { mappings, analog } = copyLayer(p, layer);
-  const decl = layer === 0 ? undefined : (p.layers ?? []).find((l) => l.id === layer);
+  const decl = layer === 0 ? undefined : declaredLayer(p, layer);
   const own = (m: Mapping): Mapping => {
     const { layer: _, ...rest } = m;
     return m.jump?.layer === layer ? { ...rest, jump: { ...m.jump, layer: SELF } } : rest;
   };
   return {
     name,
-    ...(decl ? { layer: { ...structuredClone(decl), id: 0, name } } : {}),
+    ...(decl ? { layer: { ...clone(decl), id: 0, name } } : {}),
     mappings: mappings.map(own),
     analog: analog.map(({ layer: _, ...r }) => r),
   };

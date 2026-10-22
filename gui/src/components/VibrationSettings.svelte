@@ -2,6 +2,7 @@
   // How the game's rumble reaches the controller: each motor's strength, a swap, and the
   // shortest gap between rumble commands. Rumble that mappings play is not changed.
   import { t } from '../lib/i18n/index.svelte';
+  import { setOrDrop } from '../lib/model/util';
   import { app } from '../lib/state/app.svelte';
   import type { Vibration } from '../lib/types';
   import Slider from './ui/Slider.svelte';
@@ -15,9 +16,7 @@
     if (!app.profile) return;
     const next = { ...v, ...patch };
     const same = (Object.keys(def) as (keyof Vibration)[]).every((k) => next[k] === def[k]);
-    const profile = { ...app.profile, vibration: same ? undefined : next };
-    if (same) delete profile.vibration;
-    app.update(profile);
+    app.update(setOrDrop(app.profile, 'vibration', same ? undefined : next));
   }
 </script>
 

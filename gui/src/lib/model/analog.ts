@@ -16,19 +16,15 @@ import type {
   TriggerConfig,
   TriggerFull,
   Triggers,
-  VirtualDevices,
   VirtualStick,
   VirtualSticks,
 } from '../types';
+import { declaredLayer, patchLayer, setVirtualDevice } from './layers';
+import { clamp, clone, nonEmpty, roundTo, sameJson, setOrDrop } from './util';
 
 export type Side = 'left' | 'right';
 /** A response curve point: `[input, output]`, both in 0..1. */
 export type CurvePoint = [number, number];
-
-const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
-const round2 = (v: number) => Math.round(v * 100) / 100;
-/** Deep copy that also works on Svelte state proxies (unlike `structuredClone`). */
-const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v));
 
 // ----- stick and trigger settings ----------------------------------------------------------
 
@@ -46,20 +42,13 @@ function partOf(l: Layer | undefined, kind: AnalogKind): Group | undefined {
 
 /** The layer with a new group for `kind`; empty groups are dropped. */
 function withPart(l: Layer, kind: AnalogKind, group: Group): Layer {
-  const next: Layer = { ...l };
-  const empty = Object.keys(group).length === 0;
-  if (kind === 'virtual_sticks') {
-    const v: { sticks?: VirtualSticks } = { ...next.virtual, sticks: group as VirtualSticks };
-    if (empty) delete v.sticks;
-    if (Object.keys(v).length > 0) next.virtual = v;
-    else delete next.virtual;
-  } else if (empty) delete next[kind];
-  else next[kind] = group as Sticks & Triggers;
-  return next;
+  const part = nonEmpty(group);
+  if (kind !== 'virtual_sticks') return setOrDrop(l, kind, part as Sticks & Triggers | undefined);
+  return setOrDrop(l, 'virtual', nonEmpty(setOrDrop({ ...l.virtual }, 'sticks', part as VirtualSticks | undefined)));
 }
 
 function declared(p: Profile, layer: number): Layer | undefined {
-  return layer === 0 ? undefined : p.layers?.find((l) => l.id === layer);
+  return layer === 0 ? undefined : declaredLayer(p, layer);
 }
 
 /** A stick's settings with the defaults filled in, as they are on `layer` (Main by default). */
@@ -78,7 +67,7 @@ export function layerOverrides(p: Profile, layer: number, kind: AnalogKind, side
 }
 
 function isDefault(v: object, def: object): boolean {
-  return Object.entries(def).every(([k, d]) => JSON.stringify((v as Record<string, unknown>)[k]) === JSON.stringify(d));
+  return Object.entries(def).every(([k, d]) => sameJson((v as Record<string, unknown>)[k], d));
 }
 
 /**
@@ -109,41 +98,27 @@ export function setLayerPart(
   patch: object,
   main: object,
 ): Profile {
-  const layers = [...(p.layers ?? [])];
-  const i = layers.findIndex((l) => l.id === layer);
-  const l: Layer = i >= 0 ? { ...layers[i] } : { id: layer, inherit: true };
-  const group: Group = { ...partOf(l, kind) };
-  const own: Record<string, unknown> = { ...(group[side] ?? {}) };
-  for (const [k, v] of Object.entries(patch)) {
-    if (JSON.stringify(v) === JSON.stringify((main as Record<string, unknown>)[k])) delete own[k];
-    else own[k] = clone(v);
-  }
-  if (Object.keys(own).length > 0) group[side] = own;
-  else delete group[side];
-  if (i >= 0) layers[i] = withPart(l, kind, group);
-  else layers.push(withPart(l, kind, group));
-  return { ...p, layers };
+  return patchLayer(p, layer, (l) => {
+    const group: Group = { ...partOf(l, kind) };
+    const own: Record<string, unknown> = { ...(group[side] ?? {}) };
+    for (const [k, v] of Object.entries(patch)) {
+      if (sameJson(v, (main as Record<string, unknown>)[k])) delete own[k];
+      else own[k] = clone(v);
+    }
+    return withPart(l, kind, setOrDrop(group, side, nonEmpty(own)));
+  });
 }
 
 /** Let a layer follow Main again for one stick or trigger. */
 export function resetLayerPart(p: Profile, layer: number, kind: AnalogKind, side: Side): Profile {
   if (layerOverrides(p, layer, kind, side).length === 0) return p;
-  const layers = (p.layers ?? []).map((l) => {
-    if (l.id !== layer) return l;
-    const group: Group = { ...partOf(l, kind) };
-    delete group[side];
-    return withPart(l, kind, group);
-  });
-  return { ...p, layers };
+  return patchLayer(p, layer, (l) => withPart(l, kind, setOrDrop({ ...partOf(l, kind) }, side, undefined)));
 }
 
 /** Change a stick's settings on Main, or only on `layer`. */
 export function setStick(p: Profile, side: Side, patch: Partial<StickConfig>, def: Required<StickConfig>, layer = 0): Profile {
   if (layer !== 0) return setLayerPart(p, layer, 'sticks', side, patch, stickConfig(p, side, def));
-  const sticks: Sticks | undefined = setPair(p.sticks, side, patch, def);
-  const out = { ...p, sticks };
-  if (!sticks) delete out.sticks;
-  return out;
+  return setOrDrop(p, 'sticks', setPair(p.sticks, side, patch, def));
 }
 
 /** Change a trigger's settings on Main, or only on `layer`. */
@@ -155,10 +130,7 @@ export function setTrigger(
   layer = 0,
 ): Profile {
   if (layer !== 0) return setLayerPart(p, layer, 'triggers', side, patch, triggerConfig(p, side, def));
-  const triggers: Triggers | undefined = setPair(p.triggers, side, patch, def);
-  const out = { ...p, triggers };
-  if (!triggers) delete out.triggers;
-  return out;
+  return setOrDrop(p, 'triggers', setPair(p.triggers, side, patch, def));
 }
 
 /** How mappings push a virtual stick, with the defaults filled in, as on `layer`. */
@@ -180,12 +152,7 @@ export function setVirtualStick(
   layer = 0,
 ): Profile {
   if (layer !== 0) return setLayerPart(p, layer, 'virtual_sticks', side, patch, virtualStickConfig(p, side, def));
-  const sticks: VirtualSticks | undefined = setPair(p.virtual?.sticks, side, patch, def);
-  const v: VirtualDevices = { ...p.virtual, sticks };
-  if (!sticks) delete v.sticks;
-  const out: Profile = { ...p, virtual: v };
-  if (Object.keys(v).length === 0) delete out.virtual;
-  return out;
+  return setVirtualDevice(p, 'sticks', setPair(p.virtual?.sticks, side, patch, def));
 }
 
 /** The touchpad settings with the defaults filled in. */
@@ -196,9 +163,7 @@ export function touchpadConfig(p: Profile, def: Required<TouchpadSettings>): Req
 /** Change the touchpad settings; written in full unless all are defaults, like Rust. */
 export function setTouchpad(p: Profile, patch: Partial<TouchpadSettings>, def: Required<TouchpadSettings>): Profile {
   const touchpad = { ...touchpadConfig(p, def), ...patch };
-  const out: Profile = { ...p, touchpad };
-  if (isDefault(touchpad, def)) delete out.touchpad;
-  return out;
+  return setOrDrop(p, 'touchpad', isDefault(touchpad, def) ? undefined : touchpad);
 }
 
 /** The gyro settings with the defaults filled in. */
@@ -209,9 +174,7 @@ export function gyroConfig(p: Profile, def: Required<GyroSettings>): Required<Gy
 /** Change the gyro settings; like Rust, they are written in full unless all are defaults. */
 export function setGyro(p: Profile, patch: Partial<GyroSettings>, def: Required<GyroSettings>): Profile {
   const gyro = { ...gyroConfig(p, def), ...patch };
-  const out: Profile = { ...p, gyro };
-  if (isDefault(gyro, def)) delete out.gyro;
-  return out;
+  return setOrDrop(p, 'gyro', isDefault(gyro, def) ? undefined : gyro);
 }
 
 /** Deflection a button pushing along one axis has reached after `heldS` seconds (engine rule). */
@@ -305,12 +268,12 @@ export function graphToCurve([x, y]: CurvePoint, cfg: Required<StickConfig>): Cu
   const t = (x - cfg.deadzone) / (outerOf(cfg) - cfg.deadzone);
   let v = y / Math.max(cfg.sensitivity, 0.01);
   if (cfg.anti_deadzone > 0) v = (v - cfg.anti_deadzone) / Math.max(1 - cfg.anti_deadzone, 0.01);
-  return [round2(clamp(t, 0, 1)), round2(clamp(v, 0, 1))];
+  return [roundTo(clamp(t, 0, 1), 2), roundTo(clamp(v, 0, 1), 2)];
 }
 
 /** Insert a point, keeping the list sorted by input; a point at the same input is replaced. */
 export function addCurvePoint(points: CurvePoint[], pt: CurvePoint): CurvePoint[] {
-  const p: CurvePoint = [round2(clamp(pt[0], 0.01, 0.99)), round2(clamp(pt[1], 0, 1))];
+  const p: CurvePoint = [roundTo(clamp(pt[0], 0.01, 0.99), 2), roundTo(clamp(pt[1], 0, 1), 2)];
   const rest = points.filter((q) => Math.abs(q[0] - p[0]) >= 0.01);
   if (rest.length >= MAX_CURVE_POINTS) return points;
   return [...rest, p].sort((a, b) => a[0] - b[0]);
@@ -321,7 +284,7 @@ export function moveCurvePoint(points: CurvePoint[], i: number, pt: CurvePoint):
   const lo = i > 0 ? points[i - 1][0] + 0.01 : 0.01;
   const hi = i < points.length - 1 ? points[i + 1][0] - 0.01 : 0.99;
   const next = [...points];
-  next[i] = [round2(clamp(pt[0], lo, hi)), round2(clamp(pt[1], 0, 1))];
+  next[i] = [roundTo(clamp(pt[0], lo, hi), 2), roundTo(clamp(pt[1], 0, 1), 2)];
   return next;
 }
 
@@ -397,7 +360,7 @@ export interface RouteRef {
 export function layerRoutes(p: Profile, layer: number): RouteRef[] {
   const all = (p.analog ?? []).map((route, index) => ({ index, route, inherited: false }));
   const own = all.filter((r) => routeLayer(r.route) === layer);
-  if (layer === 0 || p.layers?.find((l) => l.id === layer)?.inherit === false) return own;
+  if (layer === 0 || declaredLayer(p, layer)?.inherit === false) return own;
   const routed = new Set(own.map((r) => sourceOf(r.route)));
   const base = all.filter((r) => routeLayer(r.route) === 0 && !routed.has(sourceOf(r.route)));
   return [...own, ...base.map((r) => ({ ...r, inherited: true }))];
@@ -447,9 +410,7 @@ export function newRoute(def: Required<AnalogMapping>, layer: number, patch: Par
 
 /** The profile with these routes; an empty list is left out like Rust does. */
 function withRoutes(p: Profile, analog: AnalogMapping[]): Profile {
-  const out: Profile = { ...p, analog };
-  if (analog.length === 0) delete out.analog;
-  return out;
+  return setOrDrop(p, 'analog', nonEmpty(analog));
 }
 
 export function addRoute(p: Profile, r: AnalogMapping): Profile {

@@ -3,8 +3,9 @@
   import { api, errorText } from '../lib/api';
   import { t } from '../lib/i18n/index.svelte';
   import { setProfileTiming, setVirtualDevice, type TimingField } from '../lib/model/profile';
+  import { setOrDrop } from '../lib/model/util';
   import { app } from '../lib/state/app.svelte';
-  import type { KbmSource, KeyRepeat, Output, Profile, VirtualPadType } from '../lib/types';
+  import type { KbmSource, KeyRepeat, Output, VirtualPadType } from '../lib/types';
   import CrosshairSettings from './crosshair/CrosshairSettings.svelte';
   import LightSettings from './LightSettings.svelte';
   import VibrationSettings from './VibrationSettings.svelte';
@@ -49,9 +50,7 @@
     z[i] = n;
     for (let j = i + 1; j < 3; j++) z[j] = Math.max(z[j], z[j - 1] + 1);
     for (let j = i - 1; j >= 0; j--) z[j] = Math.min(z[j], z[j + 1] - 1);
-    const p: Profile = { ...app.profile, mouse: { zones: z } };
-    if (z.every((v, j) => v === MOUSE_ZONES[j])) delete p.mouse;
-    app.update(p);
+    app.update(setOrDrop(app.profile, 'mouse', z.every((v, j) => v === MOUSE_ZONES[j]) ? undefined : { zones: z }));
   }
 
   async function testTurn() {

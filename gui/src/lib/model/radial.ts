@@ -67,6 +67,7 @@ import {
 import type { Component } from 'svelte';
 import { t } from '../i18n/index.svelte';
 import type { Profile, RadialMenu, RadialSector } from '../types';
+import { dropUndefined, nonEmpty, setOrDrop } from './util';
 
 /** Icons a sector can show, by the name a profile stores. */
 export const RADIAL_ICONS: Record<string, Component> = {
@@ -169,16 +170,13 @@ export function sectorCentre(k: number, n: number, r: number): [number, number] 
 
 export function updateMenu(p: Profile, i: number, patch: Partial<RadialMenu>): Profile {
   const all = [...(p.radial_menus ?? [])];
-  all[i] = { ...all[i], ...patch };
-  for (const k of Object.keys(all[i]) as (keyof RadialMenu)[]) if (all[i][k] === undefined) delete all[i][k];
+  all[i] = dropUndefined({ ...all[i], ...patch });
   return { ...p, radial_menus: all };
 }
 
 export function updateSector(p: Profile, i: number, k: number, patch: Partial<RadialSector>): Profile {
   const sectors = [...(p.radial_menus?.[i]?.sectors ?? [])];
-  const next: RadialSector = { ...sectors[k], ...patch };
-  for (const key of Object.keys(next) as (keyof RadialSector)[]) if (next[key] === undefined) delete next[key];
-  sectors[k] = next;
+  sectors[k] = dropUndefined({ ...sectors[k], ...patch });
   return updateMenu(p, i, { sectors });
 }
 
@@ -205,7 +203,5 @@ export function removeMenu(p: Profile, i: number): Profile {
         return s.submenu > n ? { ...s, submenu: s.submenu - 1 } : s;
       }),
     }));
-  const next: Profile = { ...p, radial_menus };
-  if (radial_menus.length === 0) delete next.radial_menus;
-  return next;
+  return setOrDrop({ ...p, radial_menus }, 'radial_menus', nonEmpty(radial_menus));
 }
