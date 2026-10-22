@@ -14,6 +14,7 @@ mod net;
 pub mod runtime;
 pub mod service;
 pub mod slots;
+mod sync;
 mod timing;
 
 pub use host::{HostOptions, ServiceHandle, spawn, spawn_with};

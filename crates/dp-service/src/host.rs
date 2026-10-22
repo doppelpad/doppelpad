@@ -16,6 +16,7 @@ use dp_platform::timer::TimerResolution;
 
 use crate::runtime::Runtime;
 use crate::service::{Service, ServiceCmd, ServiceOptions, ServiceReply};
+use crate::sync::lock_ignore_poison;
 use crate::timing::TICK;
 
 #[derive(Clone, Debug)]
@@ -72,9 +73,7 @@ impl ServiceHandle {
     }
 
     pub fn is_running(&self) -> bool {
-        self.thread
-            .lock()
-            .unwrap()
+        lock_ignore_poison(&self.thread)
             .as_ref()
             .is_some_and(|t| !t.is_finished())
     }
@@ -84,7 +83,7 @@ impl ServiceHandle {
         if self.is_running() {
             let _ = self.call(ServiceCmd::Shutdown);
         }
-        let thread = self.thread.lock().unwrap().take();
+        let thread = lock_ignore_poison(&self.thread).take();
         if let Some(t) = thread {
             let _ = t.join();
         }

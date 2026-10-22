@@ -13,6 +13,7 @@ use dp_platform::{Battery, PadSnapshot};
 use serde::{Deserialize, Serialize};
 
 use crate::net::{Worker, bind_ip};
+use crate::sync::lock_ignore_poison;
 
 const DSU_SLOTS: usize = 4;
 const VERSION: u16 = 1001;
@@ -380,7 +381,7 @@ impl DsuServer {
             self.last[i] = Some(pad);
             pads_out[i] = Some(pad);
         }
-        let mut f = self.frame.lock().unwrap();
+        let mut f = lock_ignore_poison(&self.frame);
         if f.pads != pads_out {
             f.pads = pads_out;
             f.seq += 1;
@@ -406,7 +407,7 @@ fn serve(socket: UdpSocket, frame: &Mutex<Frame>, count: &AtomicUsize, stop: &At
     while !stop.load(Ordering::Relaxed) {
         if let Ok((n, from)) = socket.recv_from(&mut buf) {
             let now = Instant::now();
-            let pads = frame.lock().unwrap().pads;
+            let pads = lock_ignore_poison(frame).pads;
             match parse_request(&buf[..n]) {
                 Some(Request::Version) => {
                     let _ = socket.send_to(
@@ -452,7 +453,7 @@ fn serve(socket: UdpSocket, frame: &Mutex<Frame>, count: &AtomicUsize, stop: &At
         clients.retain(|_, c| c.alive(now));
         count.store(clients.len(), Ordering::Relaxed);
         let (pads, seq) = {
-            let f = frame.lock().unwrap();
+            let f = lock_ignore_poison(frame);
             (f.pads, f.seq)
         };
         if seq == sent_seq {

@@ -15,6 +15,7 @@ use std::time::Duration;
 
 use crossbeam_channel::{Receiver, Sender, bounded};
 use dp_ipc::{Request, Response};
+use dp_platform::Battery;
 use serde::{Deserialize, Serialize};
 
 use crate::client::round_trip;
@@ -288,31 +289,72 @@ fn ask_ipc(tx: &Sender<Job>, req: Request) -> Response {
 }
 
 /// The parts of the live state the event stream reports. Slots count 1–4, as in the status.
-fn summary(l: &LiveState) -> serde_json::Value {
-    serde_json::json!({
-        "remap_on": l.remap_on,
-        "suspended": l.suspended,
-        "active_slot": l.active_slot + 1,
-        "profile": l.profile,
-        "layer": l.layer,
-        "layer_name": l.layer_name,
-        "devices": l.devices.iter().map(|d| serde_json::json!({
-            "id": d.id, "name": d.name, "battery": d.battery,
-        })).collect::<Vec<_>>(),
-        "warnings": l.warnings,
-    })
+/// The fields stay in alphabetical order, as the stream has always sent them.
+#[derive(Debug, PartialEq, Serialize)]
+struct LiveSummary {
+    active_slot: usize,
+    devices: Vec<DeviceSummary>,
+    layer: u8,
+    layer_name: Option<String>,
+    profile: Option<String>,
+    remap_on: bool,
+    suspended: bool,
+    warnings: Vec<String>,
+}
+
+#[derive(Debug, PartialEq, Serialize)]
+struct DeviceSummary {
+    battery: Option<Battery>,
+    id: String,
+    name: String,
+}
+
+impl LiveSummary {
+    fn of(l: &LiveState) -> LiveSummary {
+        LiveSummary {
+            active_slot: l.active_slot + 1,
+            devices: l
+                .devices
+                .iter()
+                .map(|d| DeviceSummary {
+                    battery: d.battery,
+                    id: d.id.clone(),
+                    name: d.name.clone(),
+                })
+                .collect(),
+            layer: l.layer,
+            layer_name: l.layer_name.clone(),
+            profile: l.profile.clone(),
+            remap_on: l.remap_on,
+            suspended: l.suspended,
+            warnings: l.warnings.clone(),
+        }
+    }
+}
+
+/// The API's paths and the method each takes; another method gets 405.
+const ROUTES: [(&str, &str); 5] = [
+    ("GET", "/api/status"),
+    ("GET", "/api/devices"),
+    ("GET", "/api/live"),
+    ("GET", "/api/events"),
+    ("POST", "/api"),
+];
+
+/// `ok` with `value` as JSON, or 500 if it cannot be written.
+fn json_reply(ok: u16, value: &impl Serialize) -> (u16, String) {
+    match serde_json::to_string(value) {
+        Ok(body) => (ok, body),
+        Err(e) => (500, error_json(&format!("cannot write the answer: {e}"))),
+    }
 }
 
 fn route(req: &HttpRequest, link: &Link) -> (u16, String) {
     let tx = &link.jobs;
-    let json = |r: &Response| serde_json::to_string(r).unwrap_or_default();
     match (req.method.as_str(), req.path.as_str()) {
-        ("GET", "/api/status") => (200, json(&ask_ipc(tx, Request::Status))),
-        ("GET", "/api/devices") => (200, json(&ask_ipc(tx, Request::Devices))),
-        ("GET", "/api/live") => (
-            200,
-            serde_json::to_string(&*link.live.get()).unwrap_or_default(),
-        ),
+        ("GET", "/api/status") => json_reply(200, &ask_ipc(tx, Request::Status)),
+        ("GET", "/api/devices") => json_reply(200, &ask_ipc(tx, Request::Devices)),
+        ("GET", "/api/live") => json_reply(200, &*link.live.get()),
         ("POST", "/api") => {
             let json_body = req
                 .header("content-type")
@@ -329,14 +371,12 @@ fn route(req: &HttpRequest, link: &Link) -> (u16, String) {
                     } else {
                         200
                     };
-                    (code, json(&answer))
+                    json_reply(code, &answer)
                 }
                 Err(e) => (400, error_json(&format!("not a request: {e}"))),
             }
         }
-        (_, "/api" | "/api/status" | "/api/devices" | "/api/live" | "/api/events") => {
-            (405, error_json("wrong method"))
-        }
+        (_, path) if ROUTES.iter().any(|&(_, p)| p == path) => (405, error_json("wrong method")),
         _ => (404, error_json("unknown path; see docs/API.md")),
     }
 }
@@ -346,13 +386,14 @@ fn events(stream: &mut TcpStream, live: &SharedLive, stop: &AtomicBool) -> io::R
     stream.write_all(
         b"HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nCache-Control: no-store\r\nConnection: keep-alive\r\n\r\n",
     )?;
-    let mut last = serde_json::Value::Null;
+    let mut last: Option<LiveSummary> = None;
     let mut quiet = 0;
     while !stop.load(Ordering::Relaxed) {
-        let now = summary(&live.get());
-        if now != last {
-            write!(stream, "event: live\ndata: {now}\n\n")?;
-            last = now;
+        let now = LiveSummary::of(&live.get());
+        if last.as_ref() != Some(&now) {
+            let data = serde_json::to_string(&now).map_err(io::Error::other)?;
+            write!(stream, "event: live\ndata: {data}\n\n")?;
+            last = Some(now);
             quiet = 0;
         } else {
             quiet += 1;
@@ -440,7 +481,7 @@ mod tests {
             ..LiveState::default()
         };
         assert_eq!(
-            summary(&live)["active_slot"],
+            LiveSummary::of(&live).active_slot,
             2,
             "slots are 1–4 on the wire"
         );
@@ -533,9 +574,10 @@ mod tests {
             warnings: vec!["careful".into()],
             ..LiveState::default()
         };
-        let s = summary(&live);
-        assert_eq!(s["devices"][0]["id"], "hid:1");
-        assert_eq!(s["devices"][0]["name"], "Pad");
-        assert_eq!(s["warnings"][0], "careful");
+        assert_eq!(
+            serde_json::to_string(&LiveSummary::of(&live)).unwrap(),
+            r#"{"active_slot":1,"devices":[{"battery":null,"id":"hid:1","name":"Pad"}],"layer":0,"layer_name":null,"profile":null,"remap_on":false,"suspended":false,"warnings":["careful"]}"#,
+            "the stream's text, keys in the order it always had"
+        );
     }
 }

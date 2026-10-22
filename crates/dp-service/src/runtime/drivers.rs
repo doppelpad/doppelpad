@@ -23,7 +23,7 @@ impl std::fmt::Display for DriverState {
     }
 }
 
-impl DriverState {
+impl From<dp_platform::Result<()>> for DriverState {
     fn from(r: dp_platform::Result<()>) -> Self {
         match r {
             Ok(()) => DriverState {
