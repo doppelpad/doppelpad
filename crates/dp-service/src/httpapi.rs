@@ -10,7 +10,7 @@ use std::hash::{BuildHasher, Hasher};
 use std::io::{self, BufRead, BufReader, Read, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::time::Duration;
 
 use crossbeam_channel::{Receiver, Sender, bounded};
@@ -70,7 +70,12 @@ pub enum Job {
 struct Link {
     jobs: Sender<Job>,
     live: SharedLive,
+    /// Event streams open now.
+    streams: Arc<AtomicUsize>,
 }
+
+/// Event streams served at once; each holds a connection thread.
+const MAX_EVENT_STREAMS: usize = 8;
 
 pub struct HttpApi {
     /// Stops first, before the job queue goes away.
@@ -104,7 +109,11 @@ impl HttpApi {
             token: settings.token.clone(),
             port: addr.port(),
         };
-        let link = Link { jobs: tx, live };
+        let link = Link {
+            jobs: tx,
+            live,
+            streams: Arc::default(),
+        };
         let worker = Worker::spawn("dp-http", move |stop| {
             accept_loop(listener, access, link, stop);
         })?;
@@ -271,6 +280,7 @@ fn respond(stream: &mut TcpStream, code: u16, body: &str) -> io::Result<()> {
         404 => "Not Found",
         405 => "Method Not Allowed",
         415 => "Unsupported Media Type",
+        500 => "Internal Server Error",
         _ => "Service Unavailable",
     };
     write!(
@@ -420,7 +430,13 @@ fn serve(mut stream: TcpStream, access: &Access, link: &Link, stop: &AtomicBool)
         return respond(&mut stream, code, &error_json(why));
     }
     if req.method == "GET" && req.path == "/api/events" {
-        return events(&mut stream, &link.live, stop);
+        if link.streams.fetch_add(1, Ordering::Relaxed) >= MAX_EVENT_STREAMS {
+            link.streams.fetch_sub(1, Ordering::Relaxed);
+            return respond(&mut stream, 503, &error_json("too many event streams"));
+        }
+        let result = events(&mut stream, &link.live, stop);
+        link.streams.fetch_sub(1, Ordering::Relaxed);
+        return result;
     }
     let (code, body) = route(&req, link);
     respond(&mut stream, code, &body)
@@ -538,6 +554,7 @@ mod tests {
         let link = Link {
             jobs: tx,
             live: SharedLive::default(),
+            streams: Arc::default(),
         };
         let code = |raw: &str| route(&parse(raw), &link).0;
         assert_eq!(code("DELETE /api/status HTTP/1.1\r\n\r\n"), 405);

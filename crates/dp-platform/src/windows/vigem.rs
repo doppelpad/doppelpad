@@ -42,9 +42,14 @@ impl VigemFactory {
     }
 }
 
+/// Whether the ViGEmBus driver answers.
+pub(super) fn available() -> Result<()> {
+    Client::connect().map(drop).map_err(vigem_err)
+}
+
 impl VirtualPadFactory for VigemFactory {
     fn available(&self) -> Result<()> {
-        Client::connect().map(drop).map_err(vigem_err)
+        available()
     }
 
     fn create(&mut self, kind: VirtualPadKind) -> Result<Box<dyn VirtualPad>> {

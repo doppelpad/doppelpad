@@ -40,6 +40,13 @@ impl Worker {
     }
 }
 
+impl Worker {
+    /// Ask the thread to stop (dropping the worker also waits for it).
+    pub(crate) fn request_stop(&self) {
+        self.stop.store(true, Ordering::Relaxed);
+    }
+}
+
 impl Drop for Worker {
     fn drop(&mut self) {
         self.stop.store(true, Ordering::Relaxed);

@@ -3,7 +3,7 @@
 
 use std::collections::HashMap;
 use std::io;
-use std::net::{SocketAddr, UdpSocket};
+use std::net::{Ipv4Addr, SocketAddr, UdpSocket};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -287,7 +287,7 @@ struct Frame {
 }
 
 pub struct DsuServer {
-    _worker: Worker,
+    worker: Worker,
     frame: Arc<Mutex<Frame>>,
     clients: Arc<AtomicUsize>,
     pub addr: SocketAddr,
@@ -308,7 +308,7 @@ impl DsuServer {
         let worker = Worker::spawn("dp-dsu", move |stop| serve(socket, &f, &c, &stop))?;
         tracing::info!(%addr, "DSU motion server listening");
         Ok(DsuServer {
-            _worker: worker,
+            worker,
             frame,
             clients,
             addr,
@@ -389,6 +389,17 @@ impl DsuServer {
     }
 }
 
+impl Drop for DsuServer {
+    /// Stop the thread and wake it, as it may be waiting for a request; dropping the worker
+    /// then waits for it.
+    fn drop(&mut self) {
+        self.worker.request_stop();
+        if let Ok(s) = UdpSocket::bind((Ipv4Addr::LOCALHOST, 0)) {
+            let _ = s.send_to(&[], (Ipv4Addr::LOCALHOST, self.addr.port()));
+        }
+    }
+}
+
 /// A made-up but stable MAC address per controller (some clients register by MAC).
 fn mac_of(id: &str) -> [u8; 6] {
     let h = crc32(id.as_bytes());
@@ -404,7 +415,14 @@ fn serve(socket: UdpSocket, frame: &Mutex<Frame>, count: &AtomicUsize, stop: &At
     let mut buf = [0u8; 1024];
     let mut sent_seq = 0;
     let mut sent_at = Instant::now();
+    let mut sleeping = false;
     while !stop.load(Ordering::Relaxed) {
+        // Without subscribers there is nothing to send: wait for the next request (or the
+        // wake-up when the server stops) instead of polling.
+        if clients.is_empty() != sleeping {
+            sleeping = clients.is_empty();
+            let _ = socket.set_read_timeout((!sleeping).then_some(SEND_EVERY));
+        }
         if let Ok((n, from)) = socket.recv_from(&mut buf) {
             let now = Instant::now();
             let pads = lock_ignore_poison(frame).pads;
@@ -485,8 +503,6 @@ fn rand_id() -> u32 {
 
 #[cfg(test)]
 mod tests {
-    use std::net::Ipv4Addr;
-
     use dp_core::pad::{Motion, TouchPoint};
     use dp_platform::PadFamily;
 

@@ -28,13 +28,17 @@ use crate::net::Listener;
 use crate::runtime::{DriverStatus, Runtime};
 use crate::slots::{PlayerLights, SlotSet, SlotState};
 use crate::timing::Every;
+use crossbeam_channel::Receiver;
+use dp_platform::DriverReport;
+use dp_platform::scan::Rescanner;
+use std::time::Duration;
 
 /// How often the foreground application is checked by default.
 const FOREGROUND_POLL_MS: u64 = 250;
 /// How often to check whether the user's desktop takes input.
 const DESKTOP_POLL_MS: u64 = 250;
 /// How often driver availability is re-probed.
-const DRIVER_POLL_MS: u64 = 5000;
+const DRIVER_POLL: Duration = Duration::from_secs(5);
 /// How long the editor's focus report is trusted by default although another program is in
 /// front (the foreground check lags behind a focus change).
 const GUI_FOCUS_GRACE_MS: u64 = 1000;
@@ -125,12 +129,31 @@ struct Foreground {
     switched_for: Option<String>,
 }
 
-/// Driver availability, probed now and then.
+/// Driver availability, probed on the `dp-drivers` thread every `DRIVER_POLL`.
 struct DriverWatch {
     status: DriverStatus,
-    poll: Every,
-    /// [`Runtime::hiding_problems`], refreshed with the driver status.
+    /// Connected devices the hiding driver keeps from Doppelpad.
     hiding_problems: Vec<String>,
+    /// A report has arrived.
+    known: bool,
+    reports: Receiver<DriverReport>,
+    _probe: Rescanner,
+}
+
+impl DriverWatch {
+    fn start(probe: fn() -> DriverReport) -> DriverWatch {
+        let (tx, reports) = crossbeam_channel::bounded(1);
+        let probe = Rescanner::spawn("dp-drivers", DRIVER_POLL, move |_| {
+            let _ = tx.try_send(probe());
+        });
+        DriverWatch {
+            status: DriverStatus::default(),
+            hiding_problems: Vec::new(),
+            known: false,
+            reports,
+            _probe: probe,
+        }
+    }
 }
 
 /// What went wrong, for replies and warnings.
@@ -214,6 +237,7 @@ impl Service {
         if let Some(path) = &opts.calibration_path {
             *rt.calibration_mut() = crate::calibration::Calibrator::load(path);
         }
+        let probe = rt.driver_probe();
         let mut svc = Service {
             rt,
             library: Default::default(),
@@ -226,11 +250,7 @@ impl Service {
                 pid: None,
                 switched_for: None,
             },
-            drivers: DriverWatch {
-                status: DriverStatus::default(),
-                poll: Every::new(DRIVER_POLL_MS),
-                hiding_problems: Vec::new(),
-            },
+            drivers: DriverWatch::start(probe),
             errors: Errors::default(),
             connected: Vec::new(),
             dsu: Listener::default(),
@@ -528,21 +548,30 @@ impl Service {
             self.apply_suspend();
         }
         self.auto_switch_tick();
-        if self.drivers.poll.elapsed(now) {
-            self.check_drivers(now);
+        if let Ok(report) = self.drivers.reports.try_recv() {
+            self.take_driver_report(report);
         }
     }
 
-    fn check_drivers(&mut self, now: u64) {
-        let drivers = self.rt.drivers();
-        if !self.drivers.poll.ever() || drivers != self.drivers.status {
+    /// Probe the drivers now, on this thread (an explicit refresh).
+    fn check_drivers(&mut self) {
+        let report = (self.rt.driver_probe())();
+        self.take_driver_report(report);
+    }
+
+    fn take_driver_report(&mut self, report: DriverReport) {
+        let drivers = DriverStatus {
+            virtual_pads: report.virtual_pads.into(),
+            device_hiding: report.device_hiding.into(),
+        };
+        if !self.drivers.known || drivers != self.drivers.status {
             tracing::info!(
                 "drivers: virtual pads {}, device hiding {}",
                 drivers.virtual_pads,
                 drivers.device_hiding
             );
         }
-        let problems = self.rt.hiding_problems();
+        let problems = report.hiding_problems;
         for p in problems
             .iter()
             .filter(|p| !self.drivers.hiding_problems.contains(p))
@@ -551,7 +580,7 @@ impl Service {
         }
         self.drivers.status = drivers;
         self.drivers.hiding_problems = problems;
-        self.drivers.poll.done(now);
+        self.drivers.known = true;
     }
 
     /// Release everything and unhide devices.

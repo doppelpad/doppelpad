@@ -9,24 +9,24 @@ use std::time::Duration;
 use crossbeam_channel::{RecvTimeoutError, Sender};
 
 /// How often the backends look for new devices on their own.
-pub(crate) const RESCAN: Duration = Duration::from_secs(2);
+pub const RESCAN: Duration = Duration::from_secs(2);
 
 /// One scan pass.
-pub(crate) struct Pass<'a> {
+pub struct Pass<'a> {
     /// Asked for with [`Rescanner::wake`]: retry what failed before.
-    pub(crate) requested: bool,
+    pub requested: bool,
     stop: &'a AtomicBool,
 }
 
 impl Pass<'_> {
     /// The scanner is stopping; a long pass ends early.
-    pub(crate) fn stopping(&self) -> bool {
+    pub fn stopping(&self) -> bool {
         self.stop.load(Ordering::Relaxed)
     }
 }
 
 /// A scanner thread, stopped and joined on drop.
-pub(crate) struct Rescanner {
+pub struct Rescanner {
     stop: Arc<AtomicBool>,
     wake: Sender<()>,
     thread: Option<JoinHandle<()>>,
@@ -35,7 +35,7 @@ pub(crate) struct Rescanner {
 impl Rescanner {
     /// Run `pass` on a thread named `name`: at once, then every `period` and whenever woken.
     /// A thread that cannot start is logged; the backend then runs without discovery.
-    pub(crate) fn spawn(
+    pub fn spawn(
         name: &str,
         period: Duration,
         mut pass: impl FnMut(&Pass) + Send + 'static,
@@ -66,12 +66,12 @@ impl Rescanner {
     }
 
     /// Scan now and retry what failed before.
-    pub(crate) fn wake(&self) {
+    pub fn wake(&self) {
         let _ = self.wake.try_send(());
     }
 
     /// Stop the thread and wait for the pass it is in.
-    pub(crate) fn stop(&mut self) {
+    pub fn stop(&mut self) {
         self.stop.store(true, Ordering::Relaxed);
         self.wake();
         if let Some(t) = self.thread.take() {

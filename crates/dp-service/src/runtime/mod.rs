@@ -36,7 +36,7 @@ use dp_core::repeat::KeyRepeater;
 use dp_platform::generic::GenericLayout;
 use dp_platform::groups::{Grouping, SeenDevice};
 use dp_platform::{
-    CaptureFilter, DeviceId, GamepadBackend, KbmEvent, Leds, PadSnapshot, Platform,
+    CaptureFilter, DeviceId, DriverReport, GamepadBackend, KbmEvent, Leds, PadSnapshot, Platform,
     VirtualIgnoreList, VirtualPadKind,
 };
 use serde::Serialize;
@@ -375,6 +375,11 @@ impl Runtime {
 
     pub fn devices(&self) -> &[PadSnapshot] {
         &self.snapshots
+    }
+
+    /// The platform's driver probe (it can run on another thread).
+    pub(crate) fn driver_probe(&self) -> fn() -> DriverReport {
+        self.platform.probe_drivers
     }
 
     pub(crate) fn platform_mut(&mut self) -> &mut Platform {

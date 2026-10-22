@@ -46,6 +46,11 @@ pub fn platform() -> Platform {
     // Before any backend enumerates: un-hide pads a killed earlier run left hidden.
     hidhide::recover_stale();
     Platform {
+        probe_drivers: || crate::DriverReport {
+            virtual_pads: vigem::available(),
+            device_hiding: hidhide::available(),
+            hiding_problems: hidhide::problems(),
+        },
         gamepads: vec![
             Box::new(xinput::XInputBackend::new()),
             Box::new(gcadapter::GcAdapterBackend::new()),
