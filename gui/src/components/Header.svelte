@@ -11,11 +11,14 @@
   import type { Profile, Template } from '../lib/types';
   import Menu, { type MenuItem } from './ui/Menu.svelte';
   import WindowControls from './WindowControls.svelte';
+  import HistoryDialog from './HistoryDialog.svelte';
 
   let { onsettings }: { onsettings: () => void } = $props();
 
   const configName = $derived(app.profile?.name || '—');
   const mac = platform === 'macos';
+  /** The earlier versions of the config are listed. */
+  let historyOpen = $state(false);
 
   function fromTemplate(tpl: Template) {
     if (app.gameDir) app.createConfig(api.configFromTemplate(app.gameDir, t(`welcome.templates.${tpl}`), tpl));
@@ -96,6 +99,7 @@
     { label: t('sheet.menu') + '…', onclick: saveSheet, disabled: !app.profile },
     { label: t('common.reveal'), onclick: () => app.configPath && app.attempt(api.reveal(app.configPath)), disabled: !app.configPath },
     { label: t('header.clear_mappings'), onclick: clearMappings, disabled: !app.profile || app.readOnly },
+    { label: t('history.title') + '…', onclick: () => (historyOpen = true), disabled: !app.configPath || app.readOnly },
     { label: t('shortcuts_list.title'), onclick: () => (app.shortcutsOpen = true), detail: shortcutLabel('help', mac) },
     { separator: true, label: '' },
     { label: t('common.delete'), danger: true, onclick: remove, disabled: !app.configPath },
@@ -159,6 +163,8 @@
     <WindowControls />
   </div>
 </header>
+
+{#if historyOpen}<HistoryDialog onclose={() => (historyOpen = false)} />{/if}
 
 <style>
   .header {

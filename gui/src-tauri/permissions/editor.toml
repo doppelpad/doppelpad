@@ -30,6 +30,7 @@ permissions = [
   "allow-config-load",
   "allow-config-save",
   "allow-config-check",
+  "allow-config-versions",
   "allow-config-create",
   "allow-config-duplicate",
   "allow-config-delete",

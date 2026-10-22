@@ -9,6 +9,7 @@ use std::sync::{Arc, Mutex};
 
 use dp_config::Diagnostic;
 use dp_config::bundle::{self, LayerPreset, PresetEntry};
+use dp_config::history;
 use dp_config::library::{self, Game, GameMeta, Library};
 use dp_config::templates::{self, Template};
 use dp_core::control::Control;
@@ -428,9 +429,24 @@ pub fn config_save(app: AppHandle, path: PathBuf, profile: Profile) -> CmdResult
         return Ok(diags.0);
     }
     library_change(&app, || {
+        // The file as it was becomes an earlier version; a failure there does not stop saving.
+        if let Err(e) = history::keep_version(
+            &path,
+            &dp_config::history_dir(),
+            history::now_ms(),
+            history::KEEP,
+        ) {
+            tracing::warn!("cannot keep the earlier version of {}: {e}", path.display());
+        }
         library::save_profile_atomic(&path, &profile).map_err(err)
     })?;
     Ok(diags.0)
+}
+
+/// The earlier versions kept of a config, the newest first.
+#[tauri::command(async)]
+pub fn config_versions(path: PathBuf) -> Vec<history::Version> {
+    history::versions(&path, &dp_config::history_dir())
 }
 
 #[tauri::command(async)]

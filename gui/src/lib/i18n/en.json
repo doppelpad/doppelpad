@@ -1533,5 +1533,17 @@
     "no_session": "No config runs on this controller.",
     "no_pad": "This config has no virtual controller.",
     "no_keys": "No keys or mouse buttons held."
+  },
+  "history": {
+    "title": "Earlier versions",
+    "hint": "Each time the config is saved over, the version before is kept (the last 20). Open one to see what restoring it would change.",
+    "none": "No earlier versions yet. They are kept from the next save on.",
+    "same": "This version is the same as the config now.",
+    "added": "added",
+    "removed": "removed",
+    "changed": "changed",
+    "section": "settings: {name}",
+    "restore": "Restore this version",
+    "restored": "Restored the version of {when}. Save to keep it; Ctrl+Z takes it back."
   }
 }

@@ -1533,5 +1533,17 @@
     "no_session": "Auf diesem Controller läuft keine Config.",
     "no_pad": "Diese Config hat keinen virtuellen Controller.",
     "no_keys": "Keine Tasten oder Maustasten gehalten."
+  },
+  "history": {
+    "title": "Frühere Versionen",
+    "hint": "Jedes Mal, wenn die Config überschrieben wird, bleibt die Version davor erhalten (die letzten 20). Öffne eine, um zu sehen, was das Wiederherstellen ändern würde.",
+    "none": "Noch keine früheren Versionen. Sie werden ab dem nächsten Speichern aufbewahrt.",
+    "same": "Diese Version ist gleich der Config jetzt.",
+    "added": "neu",
+    "removed": "entfernt",
+    "changed": "geändert",
+    "section": "Einstellungen: {name}",
+    "restore": "Diese Version wiederherstellen",
+    "restored": "Version vom {when} wiederhergestellt. Speichern behält sie, Strg+Z nimmt es zurück."
   }
 }

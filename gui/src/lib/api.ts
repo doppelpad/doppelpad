@@ -66,6 +66,8 @@ export const api = {
   configSave: (path: string, profile: Profile) => invoke<DiagMsg[]>('config_save', { path, profile }),
   /** Validate a profile being edited, without saving it. */
   configCheck: (profile: Profile) => invoke<DiagMsg[]>('config_check', { profile }),
+  /** Earlier versions kept of a config, the newest first. */
+  configVersions: (path: string) => invoke<{ path: string; time_ms: number }[]>('config_versions', { path }),
   configCreate: (gameDir: string, name: string) => invoke<string>('config_create', { gameDir, name }),
   configDuplicate: (path: string) => invoke<string>('config_duplicate', { path }),
   configDelete: (path: string) => invoke<void>('config_delete', { path }),

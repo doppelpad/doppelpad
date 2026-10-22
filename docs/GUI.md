@@ -576,10 +576,17 @@ reports a running reWASD.
 | `%APPDATA%\doppelpad\calibration.toml` | Gyro calibration per controller (also used by `doppelpad daemon`) |
 | `%APPDATA%\doppelpad\gui.toml` | Language, focus pause, press-to-select, what to do about a running reWASD, notifications, the controller and mappings overlays, whether the welcome guide is done, descriptions or actions in the editor, the questions turned off |
 | `%LOCALAPPDATA%\doppelpad\logs\doppelpad-gui.log` | Log of the current run; the logs of the five runs before are kept as `doppelpad-gui.log.1` (the newest) to `.5` |
+| `%LOCALAPPDATA%\doppelpad\history\<game>\<config>\<time>.toml` | Earlier versions of each config, the last 20 |
 
 The app saves atomically (it writes a temporary file, then renames it). Before it
 overwrites a profile that it did not write itself, it keeps one `.bak` copy. Deleting
 moves files to the recycle bin.
+
+Each time the app saves a config over its file, the version before is kept (the last 20 per
+config). **Earlier versions…** in the config's options menu lists them by date; opening one
+shows what restoring it would change (mappings added, removed or changed, and the settings
+that differ). **Restore this version** makes it the unsaved draft: *Save* keeps it, Ctrl+Z
+takes it back.
 
 ### Log file
 
