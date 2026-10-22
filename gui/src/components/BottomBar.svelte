@@ -24,13 +24,14 @@
   const live = $derived(app.live);
   const set = $derived(app.slotSet);
 
-  /** *Game › Config* for a config file, else its file name. */
+  /** *Game › Config* for a config in a game, a loose config's name, else the file name. */
   function configName(path: string) {
     for (const g of app.library.games) {
       const c = g.configs.find((c) => c.path === path);
       if (c) return `${g.meta.name} › ${c.name}`;
     }
-    return path.split(/[\\/]/).pop() ?? path;
+    const loose = app.library.unsorted.find((c) => c.path === path);
+    return loose?.name ?? path.split(/[\\/]/).pop() ?? path;
   }
 
   const slotNames = $derived(set.slots.map((p) => (p ? configName(p) : null)));

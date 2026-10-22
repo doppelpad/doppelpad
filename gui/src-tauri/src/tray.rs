@@ -7,7 +7,6 @@
 use std::path::Path;
 use std::time::Duration;
 
-use dp_config::library::Library;
 use dp_platform::Battery;
 use dp_service::{LiveState, SLOTS, ServiceCmd, SharedLive};
 use tauri::image::Image;
@@ -130,29 +129,9 @@ fn dimmed(icon: &Image<'_>) -> Image<'static> {
     Image::new_owned(rgba, icon.width(), icon.height())
 }
 
-/// "Game › Config", like the slot tooltips in the window.
-pub(crate) fn config_label(lib: &Library, path: &str) -> String {
-    let path = Path::new(path);
-    lib.games
-        .iter()
-        .find_map(|g| {
-            g.configs
-                .iter()
-                .find(|c| c.path == path)
-                .map(|c| format!("{} › {}", g.meta.name, c.name))
-        })
-        .or_else(|| {
-            lib.unsorted
-                .iter()
-                .find(|c| c.path == path)
-                .map(|c| c.name.clone())
-        })
-        .unwrap_or_else(|| {
-            path.file_name().map_or_else(
-                || path.display().to_string(),
-                |n| n.to_string_lossy().into(),
-            )
-        })
+/// "Game › Config", like the slot names in the window.
+fn config_label(path: &str) -> String {
+    dp_config::library::config_label(Path::new(path))
 }
 
 /// Menus take `&` as the mnemonic marker; a doubled one shows as itself.
@@ -187,9 +166,8 @@ fn render(app: &AppHandle) {
     let state = app.state::<AppState>();
     let view = tray.view();
     let t = texts(&state.settings.lock().unwrap().language);
-    let lib = dp_config::library::scan(&state.profiles_dir);
 
-    let active = view.profile_path.as_deref().map(|p| config_label(&lib, p));
+    let active = view.profile_path.as_deref().map(config_label);
     let _ = tray.open.set_text(t.open);
     let status = active.as_deref().unwrap_or(t.no_config);
     let _ = tray.status.set_text(menu_text(status));
@@ -200,7 +178,7 @@ fn render(app: &AppHandle) {
     for (i, item) in tray.slots.iter().enumerate() {
         let path = view.slots.get(i).cloned().flatten();
         let text = match &path {
-            Some(p) => format!("{} {}: {}", t.slot, i + 1, config_label(&lib, p)),
+            Some(p) => format!("{} {}: {}", t.slot, i + 1, config_label(p)),
             None => format!("{} {} ({})", t.slot, i + 1, t.empty),
         };
         let _ = item.set_text(menu_text(&text));
