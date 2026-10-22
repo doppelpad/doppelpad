@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use dp_core::profile::{AnalogMapping, Layer, Mapping};
 use serde::{Deserialize, Serialize};
 
-use crate::library::{self, Game, GameMeta, LibraryError, Result};
+use crate::library::{self, Game, GameMeta, LibraryError, Result, io};
 
 /// Format version of game bundles.
 const BUNDLE_VERSION: u32 = 1;
@@ -72,15 +72,8 @@ fn unbase64(text: &str) -> Option<Vec<u8>> {
     Some(out)
 }
 
-fn io(path: &Path) -> impl FnOnce(std::io::Error) -> LibraryError + '_ {
-    move |e| LibraryError::Io(path.to_path_buf(), e)
-}
-
 fn invalid(path: &Path, why: impl Into<String>) -> LibraryError {
-    LibraryError::Io(
-        path.to_path_buf(),
-        std::io::Error::new(std::io::ErrorKind::InvalidData, why.into()),
-    )
+    LibraryError::Bundle(path.to_path_buf(), why.into())
 }
 
 /// A plain file name from a bundle: no folders, no surprises.
@@ -225,7 +218,7 @@ pub fn list_presets(profiles: &Path) -> Vec<PresetEntry> {
 
 pub fn load_preset(path: &Path) -> Result<LayerPreset> {
     let text = std::fs::read_to_string(path).map_err(io(path))?;
-    toml::from_str(&text).map_err(|e| invalid(path, e.to_string()))
+    toml::from_str(&text).map_err(|e| LibraryError::Preset(path.to_path_buf(), e))
 }
 
 /// Store a preset under its name; a preset of the same name is replaced, and one whose name
@@ -240,7 +233,8 @@ pub fn save_preset(profiles: &Path, preset: &LayerPreset) -> Result<PathBuf> {
         Some(same) => same.path,
         None => library::unique_path(&dir, &library::slugify(&preset.name), Some("toml")),
     };
-    let text = toml::to_string_pretty(preset).map_err(|e| invalid(&path, e.to_string()))?;
+    let text =
+        toml::to_string_pretty(preset).map_err(|e| LibraryError::Serialize(path.clone(), e))?;
     crate::store::write_atomic(&path, format!("# Doppelpad layer preset\n{text}"))
         .map_err(io(&path))?;
     Ok(path)

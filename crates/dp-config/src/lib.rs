@@ -49,16 +49,19 @@ impl Format {
     /// `.toml` files are native profiles; any other file whose content is a JSON
     /// object is imported, whatever its extension.
     pub fn detect(path: &Path, content: &str) -> Format {
-        let json = content
-            .trim_start_matches('\u{feff}')
-            .trim_start()
-            .starts_with('{');
-        if json && !is_toml_path(path) {
+        if looks_like_json(content) && !is_toml_path(path) {
             Format::Json
         } else {
             Format::Toml
         }
     }
+}
+
+/// Whether `text` starts with a JSON object (after a byte order mark and white space).
+pub(crate) fn looks_like_json(text: &str) -> bool {
+    text.trim_start_matches('\u{feff}')
+        .trim_start()
+        .starts_with('{')
 }
 
 /// Parse a native TOML profile.
@@ -79,8 +82,14 @@ pub fn to_toml(p: &Profile) -> Result<String, toml::ser::Error> {
 /// Load a profile from disk, importing JSON profiles. The diagnostics include
 /// import notes and [`validate`] results.
 pub fn load(path: &Path) -> Result<(Profile, Diagnostics), LoadError> {
+    load_with_format(path).map(|(profile, diags, _)| (profile, diags))
+}
+
+/// [`load`], also telling which format the file is in.
+pub fn load_with_format(path: &Path) -> Result<(Profile, Diagnostics, Format), LoadError> {
     let src = std::fs::read_to_string(path).map_err(|e| LoadError::Io(path.into(), e))?;
-    let (mut profile, mut diags) = match Format::detect(path, &src) {
+    let format = Format::detect(path, &src);
+    let (mut profile, mut diags) = match format {
         Format::Toml => (
             parse_toml(&src).map_err(|e| LoadError::Toml(path.into(), e))?,
             Diagnostics::default(),
@@ -95,7 +104,7 @@ pub fn load(path: &Path) -> Result<(Profile, Diagnostics), LoadError> {
             .to_owned();
     }
     diags.0.extend(validate(&profile).0);
-    Ok((profile, diags))
+    Ok((profile, diags, format))
 }
 
 /// Check a profile for mistakes the engine would silently tolerate.
@@ -690,10 +699,7 @@ pub(crate) fn is_profile_file(path: &Path) -> bool {
     let n = std::fs::File::open(path)
         .and_then(|mut f| std::io::Read::read(&mut f, &mut head))
         .unwrap_or(0);
-    let text = String::from_utf8_lossy(&head[..n]);
-    text.trim_start_matches('\u{feff}')
-        .trim_start()
-        .starts_with('{')
+    looks_like_json(&String::from_utf8_lossy(&head[..n]))
 }
 
 /// All loadable profiles in `dir` (TOML and importable JSON), with load errors reported

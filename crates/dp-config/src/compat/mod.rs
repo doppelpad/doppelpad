@@ -125,11 +125,10 @@ fn fold_jump_pairs(mappings: &mut Vec<Mapping>) {
 
 /// Import a JSON profile document.
 pub fn import(json: &str) -> Result<(Profile, Diagnostics), ImportError> {
-    let json = json.trim_start_matches('\u{feff}').trim_start();
-    if !json.starts_with('{') {
+    if !crate::looks_like_json(json) {
         return Err(ImportError::Format("expected a JSON object".into()));
     }
-    let root: Value = serde_json::from_str(json)?;
+    let root: Value = serde_json::from_str(json.trim_start_matches('\u{feff}'))?;
     match root.get("schemaVersion").and_then(Value::as_f64) {
         Some(3.0) => {}
         Some(v) => {
