@@ -7,6 +7,7 @@
   import { platform, win } from '../lib/state/window.svelte';
   import type { Game } from '../lib/types';
   import Menu from './ui/Menu.svelte';
+  import GameDialog from './GameDialog.svelte';
 
   /** Stable hue per game name for the avatar. */
   function hue(name: string): number {
@@ -27,16 +28,31 @@
     await app.refreshLibrary();
   }
 
-  async function editProcesses(g: Game) {
-    const text = await app.ask(t('profiles.processes_hint'), g.meta.processes.join('\n'), true);
-    if (text === null) return;
-    const processes = text
-      .split(/[\n,;]/)
-      .map((s) => s.trim())
-      .filter(Boolean);
-    await app.attempt(api.gameUpdate(g.dir, { ...g.meta, processes }));
+  /** The game whose settings dialog is open. */
+  let settingsOf = $state<Game | null>(null);
+
+  async function duplicateGame(g: Game) {
+    const made = api.gameDuplicate(g.dir);
+    if (!(await app.attempt(made))) return;
     await app.refreshLibrary();
+    await app.selectGame((await made).dir);
   }
+
+  /** Pictures of the games as data URLs, by folder and picture file. */
+  let pictures = $state<Record<string, string | null>>({});
+  const pictureKey = (g: Game) => `${g.dir}|${g.meta.image ?? ''}`;
+  $effect(() => {
+    for (const g of app.library.games) {
+      const key = pictureKey(g);
+      if (!g.meta.image || key in pictures) continue;
+      pictures[key] = null;
+      api
+        .gamePicture(g.dir)
+        .then((url) => (pictures[key] = url))
+        .catch(() => {});
+    }
+  });
+  const pictureOf = (g: Game) => (g.meta.image ? pictures[pictureKey(g)] : null);
 
   async function exportGame(g: Game) {
     const out = await save({
@@ -93,11 +109,16 @@
     {#each app.library.games as g (g.dir)}
       <div class="game" class:selected={g.dir === app.gameDir}>
         <button class="game-main" onclick={() => app.selectGame(g.dir)}>
-          <span class="avatar" style="--h: {hue(g.meta.name)}">{g.meta.name.slice(0, 1).toUpperCase()}</span>
+          {#if pictureOf(g)}
+            <img class="avatar picture" src={pictureOf(g)} alt="" />
+          {:else}
+            <span class="avatar" style="--h: {hue(g.meta.name)}">{g.meta.name.slice(0, 1).toUpperCase()}</span>
+          {/if}
           <span class="name">
             {g.meta.name}
             <span class="sub">
-              {g.configs.length === 1 ? t('profiles.config_count_one') : t('profiles.config_count', { n: g.configs.length })}
+              {g.meta.description ||
+                (g.configs.length === 1 ? t('profiles.config_count_one') : t('profiles.config_count', { n: g.configs.length }))}
               {#if g.meta.processes.length}· <Radar size={11} /> {g.meta.processes[0]}{/if}
             </span>
           </span>
@@ -109,7 +130,8 @@
           iconOnly
           items={[
             { label: t('common.rename'), onclick: () => renameGame(g) },
-            { label: t('profiles.autodetect') + '…', onclick: () => editProcesses(g) },
+            { label: t('game.settings') + '…', onclick: () => (settingsOf = g) },
+            { label: t('common.duplicate'), onclick: () => duplicateGame(g) },
             { label: t('common.reveal'), onclick: () => app.attempt(api.reveal(g.dir)) },
             { label: t('profiles.export') + '…', onclick: () => exportGame(g) },
             { separator: true, label: '' },
@@ -141,6 +163,8 @@
     {/if}
   </div>
 </aside>
+
+{#if settingsOf}<GameDialog game={settingsOf} onclose={() => (settingsOf = null)} />{/if}
 
 <style>
   .panel {
@@ -215,6 +239,10 @@
     font-size: 15px;
     color: white;
     background: linear-gradient(135deg, hsl(var(--h) 55% 42%), hsl(calc(var(--h) + 40) 55% 30%));
+  }
+  .avatar.picture {
+    object-fit: cover;
+    background: var(--bg-2);
   }
   .name {
     display: flex;

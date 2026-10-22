@@ -81,8 +81,6 @@
     "new_name": "Name des Spiels",
     "unsorted": "Weitere Configs",
     "empty": "Noch keine Spiele. Füge eins hinzu, um loszulegen.",
-    "autodetect": "Automatisch erkennen",
-    "processes_hint": "Programme, bei denen automatisch die Config dieses Spiels aktiv wird, eins pro Zeile (z. B. game.exe)",
     "delete_confirm": "„{name}“ samt allen Configs in den Papierkorb verschieben?",
     "config_count_one": "1 Config",
     "config_count": "{n} Configs",
@@ -1483,5 +1481,29 @@
     "title": "Ebenen-Übersicht",
     "empty": "Diese Config hat noch keine Shift-Ebenen.",
     "hint": "Jeder Pfeil ist ein Mapping, das die Ebene wechselt: ⇣ solange gedrückt, ⇄ umschalten, → wechseln. Ein Klick auf eine Ebene zeigt sie, auf die Beschriftung eines Pfeils wählt sein Mapping. Orange markiert Ebenen, auf die nichts wechselt, und Wechsel, aus denen nichts zurückführt."
+  },
+  "game": {
+    "settings": "Spiel-Einstellungen",
+    "title": "{name}",
+    "name": "Name",
+    "description": "Beschreibung",
+    "description_hint": "Optional, steht in der Liste unter dem Namen",
+    "picture_choose": "Bild wählen…",
+    "picture_title": "Ein Bild für das Spiel wählen",
+    "picture_filter": "Bilder",
+    "programs": "Programme, die zu diesem Spiel wechseln",
+    "program_placeholder": "Programmdatei, z. B. Spiel.exe",
+    "add": "Hinzufügen",
+    "running": "Laufende Programme",
+    "running_none": "Kein Programm mit Fenster gefunden.",
+    "filter": "Filtern",
+    "browse": "Durchsuchen…",
+    "browse_title": "Programm des Spiels wählen",
+    "programs_filter": "Programme",
+    "in_front": "Spiel im Vordergrund",
+    "in_front_wait": "Zum Spiel wechseln… {n}",
+    "in_front_none": "Kein anderes Programm war im Vordergrund.",
+    "save": "Speichern",
+    "programs_hint": "Kommt eines davon nach vorn, wird die Standard-Config des Spiels aktiv (wenn Autodetect an ist)."
   }
 }

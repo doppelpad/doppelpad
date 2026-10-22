@@ -81,8 +81,6 @@
     "new_name": "Name of the game",
     "unsorted": "Other configs",
     "empty": "No games yet. Add one to start mapping.",
-    "autodetect": "Autodetect",
-    "processes_hint": "Programs that switch to this game's config automatically, one per line (e.g. game.exe)",
     "delete_confirm": "Move “{name}” and all its configs to the recycle bin?",
     "config_count_one": "1 config",
     "config_count": "{n} configs",
@@ -1483,5 +1481,29 @@
     "title": "Layer map",
     "empty": "This config has no shift layers yet.",
     "hint": "Each arrow is a mapping that changes layer: ⇣ while held, ⇄ toggle, → switch. Click a layer to show it, an arrow’s label to select its mapping. Orange marks layers nothing changes to and switches nothing leaves again."
+  },
+  "game": {
+    "settings": "Game settings",
+    "title": "{name}",
+    "name": "Name",
+    "description": "Description",
+    "description_hint": "Optional, shown under the name in the list",
+    "picture_choose": "Choose a picture…",
+    "picture_title": "Choose a picture for the game",
+    "picture_filter": "Pictures",
+    "programs": "Programs that switch to this game",
+    "program_placeholder": "Program file, e.g. Game.exe",
+    "add": "Add",
+    "running": "Running programs",
+    "running_none": "No program with a window found.",
+    "filter": "Filter",
+    "browse": "Browse…",
+    "browse_title": "Choose the game's program",
+    "programs_filter": "Programs",
+    "in_front": "Game in front",
+    "in_front_wait": "Switch to the game… {n}",
+    "in_front_none": "No other program was in front.",
+    "save": "Save",
+    "programs_hint": "When one of them comes to the front, the game's default config becomes active (with Autodetect on)."
   }
 }
