@@ -46,9 +46,4 @@
     align-items: center;
     justify-content: space-between;
   }
-  .section > :global(p.hint) {
-    margin: 0;
-    color: var(--text-dim);
-    font-size: var(--fs-s);
-  }
 </style>

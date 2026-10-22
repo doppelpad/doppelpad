@@ -44,7 +44,6 @@
   {#if mapping?.jump}
     <Segmented
       variant="fill"
-      hover={false}
       label={t('binding.jump')}
       options={(['hold', 'toggle', 'switch'] as const).map((jm) => ({ value: jm, label: t(`binding.jump_${jm}`) }))}
       value={mapping.jump.mode ?? 'hold'}

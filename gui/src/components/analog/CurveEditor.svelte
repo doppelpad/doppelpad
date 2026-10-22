@@ -297,9 +297,4 @@
   .chip.custom {
     cursor: default;
   }
-  .hint {
-    margin: 0;
-    color: var(--text-faint);
-    font-size: 11.5px;
-  }
 </style>

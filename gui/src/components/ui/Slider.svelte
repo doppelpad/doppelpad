@@ -169,9 +169,4 @@
   .disabled input[type='range']::-webkit-slider-thumb {
     box-shadow: none;
   }
-  .hint {
-    color: var(--text-faint);
-    font-size: 11.5px;
-    line-height: 1.35;
-  }
 </style>

@@ -86,8 +86,4 @@
     gap: 6px 12px;
     margin-top: 10px;
   }
-  .hint {
-    color: var(--text-dim);
-    font-size: var(--fs-s);
-  }
 </style>

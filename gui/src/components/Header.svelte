@@ -206,7 +206,4 @@
     border-radius: var(--radius-pill);
     padding: 2px 8px;
   }
-  .hint {
-    color: var(--text-dim);
-  }
 </style>

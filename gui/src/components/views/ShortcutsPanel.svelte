@@ -153,10 +153,6 @@
     flex-direction: column;
     gap: 10px;
   }
-  .hint {
-    margin: 0;
-    color: var(--text-dim);
-  }
   .grid {
     display: flex;
     flex-wrap: wrap;

@@ -81,9 +81,4 @@
   .unit {
     color: var(--text-dim);
   }
-  .hint {
-    margin: -6px 0 0;
-    color: var(--text-dim);
-    font-size: var(--fs-s);
-  }
 </style>

@@ -254,11 +254,6 @@
   .section-title {
     margin-top: 10px;
   }
-  .hint {
-    margin: 0;
-    color: var(--text-dim);
-    font-size: var(--fs-s);
-  }
   .warn {
     margin: 0;
     color: var(--warning);

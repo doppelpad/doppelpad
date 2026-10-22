@@ -127,10 +127,6 @@
   p {
     margin: 0;
   }
-  .hint {
-    color: var(--text-dim);
-    font-size: var(--fs-s);
-  }
   .prompt {
     font-size: 18px;
     font-weight: 600;

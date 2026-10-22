@@ -33,7 +33,6 @@
         label={t('analog.touchpad.zones')}
         {disabled}
         size="s"
-        hover={false}
       />
     </div>
     <p class="hint">{t(`analog.touchpad.zones_hint_${cfg.zones}`)}</p>
@@ -80,10 +79,5 @@
   .cl {
     min-width: 120px;
     font-size: 13px;
-  }
-  .hint {
-    margin: -4px 0 4px;
-    color: var(--text-dim);
-    font-size: var(--fs-s);
   }
 </style>

@@ -21,7 +21,6 @@
     disabled = false,
     variant = 'inline',
     size = 'm',
-    hover = true,
     class: cls = '',
   }: {
     options: readonly SegmentedOption<T>[];
@@ -33,8 +32,6 @@
     variant?: 'inline' | 'fill' | 'chips';
     /** `s`: inline with less padding, or small chips in two columns; `l`: a main choice (fill). */
     size?: 's' | 'm' | 'l';
-    /** Unselected joined buttons light up under the pointer. */
-    hover?: boolean;
     /** For the caller's layout (margins). */
     class?: string;
   } = $props();
@@ -42,7 +39,7 @@
   const marks = $derived(options.some((o) => o.marked !== undefined));
 </script>
 
-<div class={['seg', variant, size, cls, { joined: variant !== 'chips', hover, marks }]} role="radiogroup" aria-label={label}>
+<div class={['seg', variant, size, cls, { joined: variant !== 'chips', marks }]} role="radiogroup" aria-label={label}>
   {#each options as o (o.value)}
     <button
       role="radio"
@@ -102,7 +99,7 @@
     padding: 9px 6px;
     font-size: inherit;
   }
-  .hover button:hover:not(:disabled, .on) {
+  .joined button:hover:not(:disabled, .on) {
     color: var(--text);
     background: var(--bg-2);
   }
