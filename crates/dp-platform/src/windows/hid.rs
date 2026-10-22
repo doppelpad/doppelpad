@@ -180,16 +180,22 @@ enum DevState {
     },
 }
 
+/// What the engine wants a device to do, handed to its thread.
+#[derive(Default)]
+struct Outputs {
+    rumble: Rumble,
+    lightbar: Option<Rgb>,
+    leds: Leds,
+    triggers: TriggerEffects,
+    /// Layouts of generic pads.
+    layouts: Arc<Vec<GenericLayout>>,
+}
+
 struct Shared {
     state: Mutex<DevState>,
-    rumble: Mutex<Rumble>,
-    lightbar: Mutex<Option<Rgb>>,
-    leds: Mutex<Leds>,
-    triggers: Mutex<TriggerEffects>,
+    outputs: Mutex<Outputs>,
     /// Turn the controller off at the next chance.
     power_off: AtomicBool,
-    /// Layouts of generic pads.
-    layouts: Mutex<Arc<Vec<GenericLayout>>>,
     waker: Arc<Waker>,
     stop: AtomicBool,
     done: AtomicBool,
@@ -203,6 +209,14 @@ struct Device {
 }
 
 impl Device {
+    /// Whether this is the started device `id`.
+    fn is(&self, id: &DeviceId) -> bool {
+        matches!(
+            &*self.shared.state.lock().unwrap(),
+            DevState::Ready { info, .. } if &info.id == id
+        )
+    }
+
     fn stop(&self) {
         self.shared.stop.store(true, Ordering::Relaxed);
         self.shared.waker.wake();
@@ -249,24 +263,23 @@ impl HidBackend {
             scanner,
         }
     }
-}
 
-impl HidBackend {
     /// Store an output value for a device's thread and wake it if the value changed.
-    fn hand_over<T: PartialEq>(&self, id: &DeviceId, slot: impl Fn(&Shared) -> &Mutex<T>, v: T) {
-        for d in self.devices.lock().unwrap().values() {
-            let matches = matches!(
-                &*d.shared.state.lock().unwrap(),
-                DevState::Ready { info, .. } if &info.id == id
-            );
-            if matches {
-                let mut current = slot(&d.shared).lock().unwrap();
-                if *current != v {
-                    *current = v;
-                    d.shared.waker.wake();
-                }
-                return;
-            }
+    fn hand_over<T: PartialEq>(
+        &self,
+        id: &DeviceId,
+        slot: impl FnOnce(&mut Outputs) -> &mut T,
+        v: T,
+    ) {
+        let devices = self.devices.lock().unwrap();
+        let Some(d) = devices.values().find(|d| d.is(id)) else {
+            return;
+        };
+        let mut outputs = d.shared.outputs.lock().unwrap();
+        let current = slot(&mut outputs);
+        if *current != v {
+            *current = v;
+            d.shared.waker.wake();
         }
     }
 }
@@ -420,13 +433,12 @@ fn spawn_device(
     let (bluetooth, bt_address) = (base.bluetooth, base.bt_address);
     let shared = Arc::new(Shared {
         state: Mutex::new(DevState::Starting),
-        rumble: Mutex::new(Rumble::default()),
-        lightbar: Mutex::new(None),
-        leds: Mutex::new(Leds::default()),
-        triggers: Mutex::new([None; 2]),
+        outputs: Mutex::new(Outputs {
+            layouts,
+            ..Outputs::default()
+        }),
         waker: io.waker(),
         power_off: AtomicBool::new(false),
-        layouts: Mutex::new(layouts),
         stop: AtomicBool::new(false),
         done: AtomicBool::new(false),
     });
@@ -449,8 +461,50 @@ fn spawn_device(
 /// The device thread: start the driver, then read, parse and service until stopped or
 /// the device goes away.
 fn run_device(mut io: HidIo, base: &Base, decoder: Option<HidDecoder>, shared: &Shared) {
-    let mut driver = base.driver(&io, decoder);
-    let identity = match driver.init(&mut io) {
+    let Some((mut driver, name)) = start(&mut io, base, decoder, shared) else {
+        return;
+    };
+    while !shared.stop.load(Ordering::Relaxed) {
+        let now = Instant::now();
+        let timeout = driver
+            .next_deadline()
+            .map_or(IDLE_WAIT, |d| d.saturating_duration_since(now))
+            .min(IDLE_WAIT);
+        match io.wait(timeout) {
+            Ok(Wait::Report(_)) => {
+                tracing::trace!(report = ?io.report(), "HID report");
+                let parsed = driver.parse(io.report(), Instant::now());
+                publish(shared, driver.as_ref(), parsed);
+            }
+            Ok(Wait::Woken | Wait::Timeout) => {}
+            Err(e) => {
+                tracing::debug!(path = %base.path, "HID read failed: {e}");
+                return; // unplugged: nothing to restore
+            }
+        }
+        let rumble = apply_outputs(driver.as_mut(), &mut io, base, shared);
+        if let Err(e) = driver.service(&mut io, rumble) {
+            tracing::debug!(path = %base.path, "HID write failed: {e}");
+        }
+        if let Some(changed) = driver.take_notice_change()
+            && let DevState::Ready { notice, .. } = &mut *shared.state.lock().unwrap()
+        {
+            *notice = changed.map(|n| format!("{name}: {n}"));
+        }
+    }
+    driver.shutdown(&mut io);
+}
+
+/// Start the driver and publish the device as ready: the driver and the device's name, or
+/// `None` (with the device marked failed) when it did not start.
+fn start(
+    io: &mut HidIo,
+    base: &Base,
+    decoder: Option<HidDecoder>,
+    shared: &Shared,
+) -> Option<(Box<dyn PadDriver>, String)> {
+    let mut driver = base.driver(io, decoder);
+    let identity = match driver.init(io) {
         Ok(id) => id,
         Err(e) => {
             tracing::info!(path = %base.path, "controller did not start: {e}");
@@ -459,7 +513,7 @@ fn run_device(mut io: HidIo, base: &Base, decoder: Option<HidDecoder>, shared: &
                 _ => None,
             };
             *shared.state.lock().unwrap() = DevState::Failed { problem };
-            return;
+            return None;
         }
     };
     let info = Arc::new(DeviceInfo {
@@ -485,69 +539,55 @@ fn run_device(mut io: HidIo, base: &Base, decoder: Option<HidDecoder>, shared: &
         notice,
         raw: None,
     };
+    Some((driver, name))
+}
 
-    while !shared.stop.load(Ordering::Relaxed) {
-        let now = Instant::now();
-        let timeout = driver
-            .next_deadline()
-            .map_or(IDLE_WAIT, |d| d.saturating_duration_since(now))
-            .min(IDLE_WAIT);
-        match io.wait(timeout) {
-            Ok(Wait::Report(_)) => {
-                tracing::trace!(report = ?io.report(), "HID report");
-                let parsed = driver.parse(io.report(), Instant::now());
-                let connected = driver.connected();
-                if let DevState::Ready { pad, battery, .. } = &mut *shared.state.lock().unwrap()
-                    && !connected
-                {
-                    // An empty receiver slot: nothing to report.
-                    *pad = None;
-                    *battery = None;
-                }
-                if let Some(pad) = parsed.filter(|_| connected)
-                    && let DevState::Ready {
-                        pad: p,
-                        battery,
-                        raw,
-                        ..
-                    } = &mut *shared.state.lock().unwrap()
-                {
-                    *p = Some(pad);
-                    *battery = driver.battery();
-                    *raw = driver.raw();
-                }
-            }
-            Ok(Wait::Woken | Wait::Timeout) => {}
+/// Hand a parsed report over to `poll`; an empty receiver slot reports nothing.
+fn publish(shared: &Shared, driver: &dyn PadDriver, parsed: Option<PadState>) {
+    let connected = driver.connected();
+    let mut state = shared.state.lock().unwrap();
+    let DevState::Ready {
+        pad, battery, raw, ..
+    } = &mut *state
+    else {
+        return;
+    };
+    if !connected {
+        *pad = None;
+        *battery = None;
+    } else if let Some(p) = parsed {
+        *pad = Some(p);
+        *battery = driver.battery();
+        *raw = driver.raw();
+    }
+}
+
+/// Give the driver what the engine wants shown and turn the pad off if asked; the rumble
+/// to service it with.
+fn apply_outputs(
+    driver: &mut dyn PadDriver,
+    io: &mut HidIo,
+    base: &Base,
+    shared: &Shared,
+) -> Rumble {
+    let rumble = {
+        let o = shared.outputs.lock().unwrap();
+        driver.set_lightbar(o.lightbar);
+        driver.set_leds(o.leds);
+        driver.set_trigger_effects(o.triggers);
+        driver.set_layouts(&o.layouts);
+        o.rumble
+    };
+    if shared.power_off.swap(false, Ordering::Relaxed) {
+        match driver.power_off(io) {
+            Ok(true) => tracing::info!(path = %base.path, "controller told to turn off"),
+            Ok(false) => {}
             Err(e) => {
-                tracing::debug!(path = %base.path, "HID read failed: {e}");
-                return; // unplugged: nothing to restore
+                tracing::warn!(path = %base.path, "turning the controller off failed: {e}");
             }
-        }
-        let rumble = *shared.rumble.lock().unwrap();
-        driver.set_lightbar(*shared.lightbar.lock().unwrap());
-        driver.set_leds(*shared.leds.lock().unwrap());
-        driver.set_trigger_effects(*shared.triggers.lock().unwrap());
-        let layouts = shared.layouts.lock().unwrap().clone();
-        driver.set_layouts(&layouts);
-        if shared.power_off.swap(false, Ordering::Relaxed) {
-            match driver.power_off(&mut io) {
-                Ok(true) => tracing::info!(path = %base.path, "controller told to turn off"),
-                Ok(false) => {}
-                Err(e) => {
-                    tracing::warn!(path = %base.path, "turning the controller off failed: {e}");
-                }
-            }
-        }
-        if let Err(e) = driver.service(&mut io, rumble) {
-            tracing::debug!(path = %base.path, "HID write failed: {e}");
-        }
-        if let Some(changed) = driver.take_notice_change()
-            && let DevState::Ready { notice, .. } = &mut *shared.state.lock().unwrap()
-        {
-            *notice = changed.map(|n| format!("{name}: {n}"));
         }
     }
-    driver.shutdown(&mut io);
+    rumble
 }
 
 impl GamepadBackend for HidBackend {
@@ -576,36 +616,32 @@ impl GamepadBackend for HidBackend {
     }
 
     fn set_rumble(&mut self, id: &DeviceId, rumble: Rumble) {
-        self.hand_over(id, |s| &s.rumble, rumble);
+        self.hand_over(id, |o| &mut o.rumble, rumble);
     }
 
     fn set_lightbar(&mut self, id: &DeviceId, color: Option<Rgb>) {
-        self.hand_over(id, |s| &s.lightbar, color);
+        self.hand_over(id, |o| &mut o.lightbar, color);
     }
 
     fn set_leds(&mut self, id: &DeviceId, leds: Leds) {
-        self.hand_over(id, |s| &s.leds, leds);
+        self.hand_over(id, |o| &mut o.leds, leds);
     }
 
     fn set_trigger_effects(&mut self, id: &DeviceId, effects: TriggerEffects) {
-        self.hand_over(id, |s| &s.triggers, effects);
+        self.hand_over(id, |o| &mut o.triggers, effects);
     }
 
     fn set_layouts(&mut self, layouts: Arc<Vec<GenericLayout>>) {
         *self.layouts.lock().unwrap() = layouts.clone();
         for d in self.devices.lock().unwrap().values() {
-            *d.shared.layouts.lock().unwrap() = layouts.clone();
+            d.shared.outputs.lock().unwrap().layouts = layouts.clone();
             d.shared.waker.wake();
         }
     }
 
     fn power_off(&mut self, id: &DeviceId) -> bool {
         for d in self.devices.lock().unwrap().values() {
-            let matches = matches!(
-                &*d.shared.state.lock().unwrap(),
-                DevState::Ready { info, .. } if &info.id == id
-            );
-            if !matches || !d.bluetooth {
+            if !d.is(id) || !d.bluetooth {
                 continue;
             }
             // Sony pads have no off command: their Bluetooth link is dropped instead.
