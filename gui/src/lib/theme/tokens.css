@@ -12,12 +12,14 @@
   --accent: #14b8a6;
   --accent-hover: #2dd4bf;
   --accent-soft: rgba(20, 184, 166, 0.14);
+  /* Text and marks on an accent background. */
+  --on-accent: #04221f;
   --danger: #f43f5e;
   --warning: #f59e0b;
   --ok: #22c55e;
 
   /* Layer colours: base layer uses the accent, shifts get their own hues. */
-  --layer-0: #14b8a6;
+  --layer-0: var(--accent);
   --layer-1: #8b5cf6;
   --layer-2: #38bdf8;
   --layer-3: #ec4899;
@@ -28,7 +30,19 @@
   --radius-s: 6px;
   --radius-m: 10px;
   --radius-l: 16px;
+  --radius-pill: 99px;
+  --fs-xs: 11px;
+  --fs-s: 12px;
   --shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
   --font: 'Inter', system-ui, 'Segoe UI', sans-serif;
   --mono: ui-monospace, 'Cascadia Code', Consolas, monospace;
+
+  /* Behind dialogs. */
+  --backdrop: rgba(5, 7, 10, 0.6);
+  /* Stacking order: menus, the welcome guide, dialogs, the window caption, toasts on top. */
+  --z-menu: 50;
+  --z-guide: 90;
+  --z-dialog: 100;
+  --z-caption: 110;
+  --z-toast: 120;
 }

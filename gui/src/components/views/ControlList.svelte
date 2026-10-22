@@ -100,7 +100,7 @@
     padding: 20px 24px 32px;
   }
   .group {
-    font-size: 11px;
+    font-size: var(--fs-xs);
     font-weight: 600;
     letter-spacing: 0.06em;
     text-transform: uppercase;
@@ -141,7 +141,7 @@
   }
   .sum {
     color: var(--text-dim);
-    font-size: 12px;
+    font-size: var(--fs-s);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;

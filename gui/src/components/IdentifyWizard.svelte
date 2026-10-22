@@ -136,10 +136,10 @@
   .backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(5, 7, 10, 0.6);
+    background: var(--backdrop);
     display: grid;
     place-items: center;
-    z-index: 100;
+    z-index: var(--z-dialog);
   }
   .dialog {
     width: 460px;
@@ -168,11 +168,11 @@
   }
   .hint {
     color: var(--text-dim);
-    font-size: 12px;
+    font-size: var(--fs-s);
   }
   .progress {
     color: var(--text-dim);
-    font-size: 11px;
+    font-size: var(--fs-xs);
     font-weight: 600;
     letter-spacing: 0.06em;
     text-transform: uppercase;
@@ -191,7 +191,7 @@
     padding-top: 10px;
     color: var(--text-dim);
     font-family: var(--mono);
-    font-size: 11px;
+    font-size: var(--fs-xs);
     word-break: break-word;
   }
 </style>

@@ -242,7 +242,7 @@
     overflow-y: auto;
     background: rgba(245, 158, 11, 0.06);
     border-top: 1px solid var(--line);
-    font-size: 12px;
+    font-size: var(--fs-s);
     user-select: text;
   }
   .service-warnings li {
@@ -343,7 +343,7 @@
     align-items: center;
     gap: 3px;
     color: var(--text-dim);
-    font-size: 11px;
+    font-size: var(--fs-xs);
   }
   .battery.low,
   .more.low {
@@ -358,7 +358,7 @@
     border-radius: 4px;
     background: var(--line-strong);
     color: var(--text-dim);
-    font-size: 11px;
+    font-size: var(--fs-xs);
     font-weight: 600;
   }
   .warn {
@@ -367,7 +367,7 @@
     gap: 4px;
     margin-left: 6px;
     color: var(--warning);
-    font-size: 12px;
+    font-size: var(--fs-s);
     white-space: nowrap;
   }
   .apply {

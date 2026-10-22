@@ -158,7 +158,7 @@
   .hint {
     margin: -4px 0 0;
     color: var(--text-dim);
-    font-size: 12px;
+    font-size: var(--fs-s);
   }
   .stick {
     display: grid;
@@ -196,7 +196,7 @@
     font-size: 11.5px;
   }
   .sub {
-    font-size: 11px;
+    font-size: var(--fs-xs);
     font-weight: 600;
     letter-spacing: 0.06em;
     text-transform: uppercase;

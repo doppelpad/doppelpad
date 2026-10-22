@@ -279,9 +279,9 @@
     font-weight: 600;
   }
   .layer {
-    font-size: 11px;
+    font-size: var(--fs-xs);
     padding: 1px 8px;
-    border-radius: 99px;
+    border-radius: var(--radius-pill);
     border: 1px solid var(--c);
     color: var(--c);
   }
@@ -358,7 +358,7 @@
   .idx {
     width: 22px;
     color: var(--text-faint);
-    font-size: 11px;
+    font-size: var(--fs-xs);
     text-align: right;
   }
   .label {
@@ -402,7 +402,7 @@
   .parts {
     margin: 0;
     color: var(--text-dim);
-    font-size: 12px;
+    font-size: var(--fs-s);
   }
   .hint {
     margin: 0;

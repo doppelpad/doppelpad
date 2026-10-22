@@ -371,7 +371,7 @@
     z-index: 2;
   }
   .name {
-    font-size: 11px;
+    font-size: var(--fs-xs);
     font-weight: 600;
     color: var(--text-dim);
   }
@@ -427,7 +427,7 @@
     transform: translate(-50%, calc(-100% - 12px));
   }
   .sm-title {
-    font-size: 11px;
+    font-size: var(--fs-xs);
     color: var(--text-dim);
     margin-bottom: 6px;
     white-space: nowrap;
@@ -464,7 +464,7 @@
     border-radius: var(--radius-s);
     background: var(--bg-3);
     border: 1px solid var(--line);
-    font-size: 11px;
+    font-size: var(--fs-xs);
     white-space: nowrap;
   }
   .sm-settings {
@@ -486,7 +486,7 @@
     border-radius: var(--radius-s);
     background: var(--bg-3);
     border: 1px solid var(--line);
-    font-size: 11px;
+    font-size: var(--fs-xs);
     white-space: nowrap;
   }
   .sm-lean button:hover,

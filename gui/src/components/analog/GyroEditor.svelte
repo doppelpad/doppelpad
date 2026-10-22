@@ -125,7 +125,7 @@
   }
   .seg button {
     padding: 5px 12px;
-    font-size: 12px;
+    font-size: var(--fs-s);
     color: var(--text-dim);
   }
   .seg button + button {
@@ -138,12 +138,12 @@
   .hint {
     margin: -4px 0 4px;
     color: var(--text-dim);
-    font-size: 12px;
+    font-size: var(--fs-s);
   }
   .warn {
     margin: 0;
     color: var(--warning);
-    font-size: 12px;
+    font-size: var(--fs-s);
   }
   .cal {
     display: flex;
@@ -153,12 +153,12 @@
   }
   .bias {
     color: var(--text-dim);
-    font-size: 12px;
+    font-size: var(--fs-s);
     font-variant-numeric: tabular-nums;
   }
   .sub {
     margin-top: 8px;
-    font-size: 11px;
+    font-size: var(--fs-xs);
     font-weight: 600;
     letter-spacing: 0.06em;
     text-transform: uppercase;

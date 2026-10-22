@@ -201,10 +201,10 @@
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    font-size: 11px;
+    font-size: var(--fs-xs);
     color: var(--warning);
     border: 1px solid rgba(245, 158, 11, 0.4);
-    border-radius: 99px;
+    border-radius: var(--radius-pill);
     padding: 2px 8px;
   }
   .hint {

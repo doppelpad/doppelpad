@@ -36,7 +36,7 @@
     display: flex;
     gap: 8px;
     align-items: center;
-    font-size: 12px;
+    font-size: var(--fs-s);
     color: var(--layer-2);
     background: color-mix(in srgb, var(--layer-2) 10%, transparent);
     border-radius: var(--radius-s);
@@ -45,6 +45,6 @@
   .note .btn {
     margin-left: auto;
     padding: 3px 10px;
-    font-size: 12px;
+    font-size: var(--fs-s);
   }
 </style>

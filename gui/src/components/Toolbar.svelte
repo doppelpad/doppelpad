@@ -231,7 +231,7 @@
     border: 1px solid transparent;
   }
   .tile span {
-    font-size: 12px;
+    font-size: var(--fs-s);
   }
   .tile:hover {
     background: var(--bg-2);
@@ -277,10 +277,10 @@
     align-items: center;
     gap: 6px;
     padding: 5px 12px;
-    border-radius: 99px;
+    border-radius: var(--radius-pill);
     border: 1px solid var(--line);
     color: var(--text-dim);
-    font-size: 12px;
+    font-size: var(--fs-s);
     white-space: nowrap;
   }
   .layer.more {

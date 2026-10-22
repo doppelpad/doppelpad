@@ -119,9 +119,9 @@
   }
   .chip {
     padding: 2px 10px;
-    border-radius: 99px;
+    border-radius: var(--radius-pill);
     border: 1px solid var(--line-strong);
-    font-size: 12px;
+    font-size: var(--fs-s);
     color: var(--text-dim);
   }
   .chip.active {
@@ -132,11 +132,11 @@
   .raw {
     width: 230px;
     font-family: var(--mono, monospace);
-    font-size: 12px;
+    font-size: var(--fs-s);
   }
   .hint {
     margin: 0;
     color: var(--text-faint);
-    font-size: 12px;
+    font-size: var(--fs-s);
   }
 </style>

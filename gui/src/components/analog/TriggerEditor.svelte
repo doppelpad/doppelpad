@@ -198,7 +198,7 @@
   .state {
     font-size: 11.5px;
     padding: 2px 8px;
-    border-radius: 99px;
+    border-radius: var(--radius-pill);
     border: 1px solid var(--line);
     color: var(--text-faint);
   }

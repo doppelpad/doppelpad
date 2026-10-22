@@ -134,10 +134,10 @@
   .backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(5, 7, 10, 0.6);
+    background: var(--backdrop);
     display: grid;
     place-items: center;
-    z-index: 90;
+    z-index: var(--z-guide);
   }
   .dialog {
     width: 500px;
@@ -166,7 +166,7 @@
   }
   .hint {
     color: var(--text-dim);
-    font-size: 12px;
+    font-size: var(--fs-s);
   }
   .row {
     display: flex;

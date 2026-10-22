@@ -58,7 +58,7 @@
     gap: 8px;
   }
   .section-head {
-    font-size: 11px;
+    font-size: var(--fs-xs);
     font-weight: 600;
     letter-spacing: 0.06em;
     text-transform: uppercase;
@@ -67,12 +67,12 @@
   .hint {
     margin: 0;
     color: var(--text-dim);
-    font-size: 12px;
+    font-size: var(--fs-s);
   }
   .error {
     margin: 0;
     color: var(--danger);
-    font-size: 12px;
+    font-size: var(--fs-s);
   }
   .row {
     display: flex;
@@ -88,6 +88,6 @@
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
-    font-size: 11px;
+    font-size: var(--fs-xs);
   }
 </style>

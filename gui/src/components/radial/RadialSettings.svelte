@@ -180,7 +180,7 @@
 <style>
   .label {
     margin-top: 10px;
-    font-size: 11px;
+    font-size: var(--fs-xs);
     font-weight: 600;
     letter-spacing: 0.06em;
     text-transform: uppercase;
@@ -189,12 +189,12 @@
   .hint {
     margin: 0;
     color: var(--text-dim);
-    font-size: 12px;
+    font-size: var(--fs-s);
   }
   .warn {
     margin: 0;
     color: var(--warning);
-    font-size: 12px;
+    font-size: var(--fs-s);
   }
   .menu {
     display: flex;
@@ -244,7 +244,7 @@
     display: flex;
     flex-direction: column;
     gap: 3px;
-    font-size: 11px;
+    font-size: var(--fs-xs);
     color: var(--text-faint);
   }
   .fields {
@@ -294,10 +294,10 @@
     align-items: center;
     gap: 4px;
     padding: 2px 6px 2px 10px;
-    border-radius: 99px;
+    border-radius: var(--radius-pill);
     background: var(--bg-3);
     border: 1px solid var(--line-strong);
-    font-size: 12px;
+    font-size: var(--fs-s);
   }
   .chip-x {
     display: inline-grid;
@@ -316,7 +316,7 @@
     align-items: center;
     gap: 3px;
     color: var(--accent);
-    font-size: 12px;
+    font-size: var(--fs-s);
   }
   .picker {
     flex-basis: 100%;

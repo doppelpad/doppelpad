@@ -60,7 +60,7 @@
   }
   .track.on .thumb {
     transform: translateX(16px);
-    background: #04221f;
+    background: var(--on-accent);
   }
   .text {
     color: var(--text-dim);

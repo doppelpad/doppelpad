@@ -48,7 +48,7 @@
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    font-size: 12px;
+    font-size: var(--fs-s);
     font-weight: 500;
   }
   .summary :global(.flip) {
@@ -71,7 +71,7 @@
   }
   code {
     font-family: var(--mono);
-    font-size: 11px;
+    font-size: var(--fs-xs);
     color: var(--text-faint);
     margin-right: 6px;
   }

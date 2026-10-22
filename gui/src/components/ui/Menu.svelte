@@ -100,7 +100,7 @@
     border-radius: var(--radius-m);
     box-shadow: var(--shadow);
     padding: 4px;
-    z-index: 50;
+    z-index: var(--z-menu);
   }
   .popup.right {
     left: auto;
@@ -137,7 +137,7 @@
   .detail {
     margin-left: auto;
     padding-left: 18px;
-    font-size: 12px;
+    font-size: var(--fs-s);
     color: var(--text-dim);
   }
   .detail.warning {

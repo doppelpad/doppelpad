@@ -129,7 +129,7 @@
     align-items: center;
     gap: 5px;
     color: var(--text-dim);
-    font-size: 12px;
+    font-size: var(--fs-s);
   }
   .param input:not([type='checkbox']) {
     width: 64px;

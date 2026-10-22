@@ -16,7 +16,7 @@
 .btn.primary {
   background: var(--accent);
   border-color: var(--accent);
-  color: #04221f;
+  color: var(--on-accent);
   font-weight: 600;
 }
 .btn.primary:hover {

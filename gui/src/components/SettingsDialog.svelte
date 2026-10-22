@@ -283,10 +283,10 @@
   .backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(5, 7, 10, 0.6);
+    background: var(--backdrop);
     display: grid;
     place-items: center;
-    z-index: 100;
+    z-index: var(--z-dialog);
   }
   .dialog {
     width: 520px;
@@ -327,7 +327,7 @@
   .hint {
     margin: 0;
     color: var(--text-dim);
-    font-size: 12px;
+    font-size: var(--fs-s);
   }
   .events {
     display: flex;
@@ -358,7 +358,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    font-size: 11px;
+    font-size: var(--fs-xs);
     font-weight: 600;
     letter-spacing: 0.06em;
     text-transform: uppercase;
@@ -379,7 +379,7 @@
   .state {
     margin-left: auto;
     color: var(--warning);
-    font-size: 12px;
+    font-size: var(--fs-s);
   }
   .dir {
     display: flex;
@@ -389,7 +389,7 @@
   code {
     flex: 1;
     font-family: var(--mono);
-    font-size: 12px;
+    font-size: var(--fs-s);
     color: var(--text-dim);
     background: var(--bg-2);
     border-radius: var(--radius-s);
