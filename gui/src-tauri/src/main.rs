@@ -21,7 +21,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use dp_service::{HostOptions, ServiceCmd, ServiceOptions};
+use dp_service::{HostOptions, ServiceOptions};
 use tauri::{Manager, WebviewWindow, WebviewWindowBuilder, WindowEvent};
 
 use crate::commands::AppState;
@@ -112,7 +112,8 @@ fn main() {
                         if let Some(w) = app_handle.get_webview_window("main") {
                             let _ = w.hide();
                         }
-                        let _ = state.call(ServiceCmd::SetSuspended(false));
+                        // A hidden window has no focus, whether or not Windows reports it.
+                        state.set_main_focused(false);
                     }
                     _ => {}
                 }
