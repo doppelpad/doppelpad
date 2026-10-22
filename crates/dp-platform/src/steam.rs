@@ -10,7 +10,7 @@ use std::time::{Duration, Instant};
 
 use dp_core::pad::{Axis, Motion, PadButton, PadState, Rumble, TouchPoint, axis_from_i16};
 
-use crate::padio::{Identity, InitError, PadDriver, ReportIo, RumblePacer};
+use crate::padio::{Every, Identity, InitError, PadDriver, ReportIo, RumblePacer, earliest};
 use crate::report::{le_i16, le_u16};
 use crate::{Battery, PadFamily};
 
@@ -83,7 +83,10 @@ fn command(cmd: u8, payload: &[u8]) -> [u8; 65] {
 fn settings(values: &[(u8, u16)]) -> [u8; 65] {
     let payload: Vec<u8> = values
         .iter()
-        .flat_map(|&(reg, v)| [reg, v as u8, (v >> 8) as u8])
+        .flat_map(|&(reg, v)| {
+            let [lo, hi] = v.to_le_bytes();
+            [reg, lo, hi]
+        })
         .collect();
     command(CMD_SET_SETTINGS, &payload)
 }
@@ -258,7 +261,7 @@ pub struct SteamDriver {
     connected: bool,
     /// Lizard mode still has to be turned off (start, or a controller joined the receiver).
     setup_pending: bool,
-    fed_at: Option<Instant>,
+    fed: Every,
     last: Shared,
     battery: Option<Battery>,
     rumble: RumblePacer,
@@ -270,20 +273,16 @@ impl SteamDriver {
             model,
             connected: model != SteamModel::Receiver,
             setup_pending: true,
-            fed_at: None,
+            fed: Every::new(DECK_FEED),
             last: Shared::default(),
             battery: None,
             rumble: RumblePacer::new(Duration::from_millis(50), None, 3),
         }
     }
 
-    fn send(io: &mut dyn ReportIo, report: &[u8]) -> io::Result<()> {
-        io.set_feature(report)
-    }
-
     /// Stop the keyboard and mouse emulation (and turn the gyro on).
     fn lizard_off(&self, io: &mut dyn ReportIo) -> io::Result<()> {
-        Self::send(io, &command(CMD_CLEAR_MAPPINGS, &[]))?;
+        io.set_feature(&command(CMD_CLEAR_MAPPINGS, &[]))?;
         let values: &[(u8, u16)] = match self.model {
             SteamModel::Deck => &[
                 (REG_SMOOTH_MOUSE, 0),
@@ -299,18 +298,18 @@ impl SteamDriver {
                 (REG_IMU_MODE, IMU_RAW),
             ],
         };
-        Self::send(io, &settings(values))
+        io.set_feature(&settings(values))
     }
 
     /// Keep the Deck from turning lizard mode back on.
     fn feed(io: &mut dyn ReportIo) -> io::Result<()> {
-        Self::send(io, &command(CMD_CLEAR_MAPPINGS, &[]))?;
-        Self::send(io, &settings(&[(REG_RIGHT_PAD_MODE, PAD_MODE_NONE)]))
+        io.set_feature(&command(CMD_CLEAR_MAPPINGS, &[]))?;
+        io.set_feature(&settings(&[(REG_RIGHT_PAD_MODE, PAD_MODE_NONE)]))
     }
 
     /// Ask the receiver whether a controller is on this slot.
     fn ask_link(&mut self, io: &mut dyn ReportIo) -> io::Result<()> {
-        Self::send(io, &command(CMD_WIRELESS_STATE, &[]))?;
+        io.set_feature(&command(CMD_WIRELESS_STATE, &[]))?;
         let mut reply = [0u8; 65];
         io.get_feature(&mut reply)?;
         // Report ID, command echo, length, state.
@@ -419,16 +418,15 @@ impl PadDriver for SteamDriver {
         if self.setup_pending {
             self.setup_pending = false;
             self.lizard_off(io)?;
-            self.fed_at = Some(now);
-        } else if self.model == SteamModel::Deck && self.fed_at.is_none_or(|t| now >= t + DECK_FEED)
-        {
+            self.fed.ran(now);
+        } else if self.model == SteamModel::Deck && self.fed.due(now) {
             Self::feed(io)?;
-            self.fed_at = Some(now);
+            self.fed.ran(now);
         }
         if self.model == SteamModel::Deck
             && let Some(r) = self.rumble.poll(now, rumble)
         {
-            Self::send(io, &Self::rumble_report(r))?;
+            io.set_feature(&Self::rumble_report(r))?;
         }
         Ok(())
     }
@@ -437,7 +435,7 @@ impl PadDriver for SteamDriver {
         if self.model != SteamModel::Receiver || !self.connected {
             return Ok(false);
         }
-        Self::send(io, &command(CMD_TURN_OFF, b"off!"))?;
+        io.set_feature(&command(CMD_TURN_OFF, b"off!"))?;
         Ok(true)
     }
 
@@ -445,25 +443,21 @@ impl PadDriver for SteamDriver {
         if self.model != SteamModel::Deck || !self.connected {
             return None;
         }
-        let feed = self.fed_at.map(|t| t + DECK_FEED);
-        match (feed, self.rumble.next_deadline()) {
-            (Some(a), Some(b)) => Some(a.min(b)),
-            (a, b) => a.or(b),
-        }
+        earliest([self.fed.next(), self.rumble.next_deadline()])
     }
 
     fn shutdown(&mut self, io: &mut dyn ReportIo) {
-        if !self.connected || self.fed_at.is_none() {
+        if !self.connected || !self.fed.done() {
             return;
         }
         let mut give_back = || -> io::Result<()> {
             if self.model == SteamModel::Deck {
-                Self::send(io, &Self::rumble_report(Rumble::default()))?;
+                io.set_feature(&Self::rumble_report(Rumble::default()))?;
             }
-            Self::send(io, &command(CMD_DEFAULT_MAPPINGS, &[]))?;
-            Self::send(io, &command(CMD_DEFAULT_SETTINGS, &[]))?;
+            io.set_feature(&command(CMD_DEFAULT_MAPPINGS, &[]))?;
+            io.set_feature(&command(CMD_DEFAULT_SETTINGS, &[]))?;
             if self.model != SteamModel::Deck {
-                Self::send(io, &settings(&[(REG_RIGHT_PAD_MODE, PAD_MODE_MOUSE)]))?;
+                io.set_feature(&settings(&[(REG_RIGHT_PAD_MODE, PAD_MODE_MOUSE)]))?;
             }
             Ok(())
         };

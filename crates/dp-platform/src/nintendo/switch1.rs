@@ -10,9 +10,12 @@ use std::time::{Duration, Instant};
 
 use dp_core::pad::{Axis, Motion, PadState, Rumble};
 
-use super::{CAL_MAGIC, FIRST_PLAYER, NINTENDO_VID, StickCal, apply_buttons, imu_to_pad, pid};
-use crate::nintendo::player_mask;
-use crate::padio::{Identity, InitError, PadDriver, ReportIo, RumblePacer, pause};
+use super::{
+    CAL_MAGIC, FIRST_PLAYER, NINTENDO_VID, PlayerLights, StickCal, apply_buttons, imu_to_pad, pid,
+};
+use crate::padio::{
+    Every, Identity, InitError, PadDriver, ReportIo, RumblePacer, Seq4, earliest, pause, read_until,
+};
 use crate::report::{le_i16, unpack12};
 use crate::{Battery, JoyConSide, Leds, PadFamily};
 
@@ -411,12 +414,8 @@ pub fn rumble_data(ty: ControllerType, r: Rumble) -> [u8; 8] {
     out
 }
 
-fn neutral8() -> [u8; 8] {
-    let mut r = [0u8; 8];
-    r[..4].copy_from_slice(&NEUTRAL_RUMBLE);
-    r[4..].copy_from_slice(&NEUTRAL_RUMBLE);
-    r
-}
+/// Both motors at rest ([`NEUTRAL_RUMBLE`] twice).
+const NEUTRAL_RUMBLE8: [u8; 8] = [0x00, 0x01, 0x40, 0x40, 0x00, 0x01, 0x40, 0x40];
 
 // ---------------------------------------------------------------------------------------
 // Driver
@@ -442,7 +441,7 @@ pub struct Switch1Driver {
     link: Link,
     ty: ControllerType,
     cal: Calibration,
-    counter: u8,
+    counter: Seq4,
     rumble: [u8; 8],
     pacer: RumblePacer,
     last_command: Option<Instant>,
@@ -454,15 +453,13 @@ pub struct Switch1Driver {
     /// Started again after a silence and no full report since.
     stalled: bool,
     mode_lost: bool,
-    last_mode_fix: Option<Instant>,
+    mode_fix: Every,
     imu_seen: bool,
     imu_lost: bool,
-    last_imu_fix: Option<Instant>,
+    imu_fix: Every,
     now: Option<Instant>,
     battery: Option<Battery>,
-    /// Player lights wanted and last sent.
-    player_want: Option<u8>,
-    player_sent: Option<u8>,
+    lights: PlayerLights,
 }
 
 impl Switch1Driver {
@@ -471,8 +468,8 @@ impl Switch1Driver {
             link,
             ty: ControllerType::fallback(link.vid, link.pid, link.grip_slot),
             cal: Calibration::default(),
-            counter: 0,
-            rumble: neutral8(),
+            counter: Seq4::default(),
+            rumble: NEUTRAL_RUMBLE8,
             pacer: RumblePacer::new(
                 Duration::from_millis(30),
                 Some(Duration::from_millis(50)),
@@ -485,13 +482,12 @@ impl Switch1Driver {
             last_restart: None,
             stalled: false,
             mode_lost: false,
-            last_mode_fix: None,
+            mode_fix: Every::new(MODE_RETRY),
             imu_seen: false,
             battery: None,
-            player_want: None,
-            player_sent: Some(FIRST_PLAYER),
+            lights: PlayerLights::new(),
             imu_lost: false,
-            last_imu_fix: None,
+            imu_fix: Every::new(IMU_RETRY),
             now: None,
         }
     }
@@ -509,10 +505,9 @@ impl Switch1Driver {
         Duration::from_millis(if self.link.bluetooth { 60 } else { 20 })
     }
 
-    fn next_counter(&mut self) -> u8 {
-        let c = self.counter;
-        self.counter = (self.counter + 1) & 0x0F;
-        c
+    /// Wired pads other than the charging grip need keep-alives and, when silent, a restart.
+    fn usb_watchdog(&self) -> bool {
+        !self.link.bluetooth && !self.link.is_grip()
     }
 
     /// Read reports until `want` accepts one or the reply timeout passes.
@@ -521,24 +516,14 @@ impl Switch1Driver {
         io: &mut dyn ReportIo,
         mut want: impl FnMut(&[u8]) -> Option<T>,
     ) -> io::Result<Option<T>> {
-        let deadline = io.now() + REPLY_TIMEOUT;
-        let mut buf = [0u8; 64];
-        loop {
-            let now = io.now();
-            if now >= deadline {
-                return Ok(None);
+        let until = io.now() + REPLY_TIMEOUT;
+        let initial_mode = &mut self.initial_mode;
+        read_until(io, until, |r| {
+            if initial_mode.is_none() && matches!(r.first(), Some(0x30 | 0x31 | 0x3F)) {
+                *initial_mode = Some(r[0]);
             }
-            let Some(n) = io.read(&mut buf, deadline - now)? else {
-                return Ok(None);
-            };
-            let r = &buf[..n];
-            if self.initial_mode.is_none() && matches!(r.first(), Some(0x30 | 0x31 | 0x3F)) {
-                self.initial_mode = Some(r[0]);
-            }
-            if let Some(v) = want(r) {
-                return Ok(Some(v));
-            }
-        }
+            want(r)
+        })
     }
 
     fn usb(&mut self, io: &mut dyn ReportIo, cmd: u8, wait: bool) -> io::Result<bool> {
@@ -592,7 +577,7 @@ impl Switch1Driver {
             if let Some(t) = self.last_command {
                 pause(io, t + self.gap())?;
             }
-            let report = subcommand_report(self.next_counter(), &self.rumble, sub, args);
+            let report = subcommand_report(self.counter.step(), &self.rumble, sub, args);
             io.write(&report)?;
             self.last_command = Some(io.now());
             let reply = self.wait_for(io, |r| subcommand_reply(r, sub).and_then(&mut accept))?;
@@ -666,7 +651,7 @@ impl Switch1Driver {
 
     /// Fire-and-forget subcommand while running (no reply wait).
     fn send_subcommand(&mut self, io: &mut dyn ReportIo, sub: u8, args: &[u8]) -> io::Result<()> {
-        let report = subcommand_report(self.next_counter(), &self.rumble, sub, args);
+        let report = subcommand_report(self.counter.step(), &self.rumble, sub, args);
         io.write(&report)
     }
 
@@ -714,9 +699,9 @@ impl Switch1Driver {
         if self.usb_handshake(io)? {
             self.start_reports(io)?;
             // A reset also put out the player lights.
-            let mask = self.player_want.unwrap_or(FIRST_PLAYER);
+            let mask = self.lights.wanted_or_first();
             self.subcommand(io, SUB_PLAYER_LEDS, &[mask])?;
-            self.player_sent = Some(mask);
+            self.lights.mark_sent(mask);
         }
         Ok(())
     }
@@ -724,7 +709,7 @@ impl Switch1Driver {
 
 impl PadDriver for Switch1Driver {
     fn init(&mut self, io: &mut dyn ReportIo) -> Result<Identity, InitError> {
-        self.rumble = neutral8();
+        self.rumble = NEUTRAL_RUMBLE8;
         if !self.link.bluetooth && !self.usb_handshake(io)? {
             return Err(InitError::NoResponse);
         }
@@ -763,9 +748,10 @@ impl PadDriver for Switch1Driver {
         if let Some(b) = parse_battery(report) {
             self.battery = Some(b);
         }
-        match report.first()? {
+        let id = *report.first()?;
+        self.last_input = Some(now);
+        match id {
             0x30 | 0x31 => {
-                self.last_input = Some(now);
                 self.mode_lost = false;
                 if self.stalled {
                     self.stalled = false;
@@ -785,14 +771,10 @@ impl PadDriver for Switch1Driver {
             }
             0x3F => {
                 // Someone switched the pad back to simple reports.
-                self.last_input = Some(now);
                 self.mode_lost = true;
                 None
             }
-            _ => {
-                self.last_input = Some(now);
-                None
-            }
+            _ => None,
         }
     }
 
@@ -801,7 +783,7 @@ impl PadDriver for Switch1Driver {
     }
 
     fn set_leds(&mut self, leds: Leds) {
-        self.player_want = leds.player.map(player_mask);
+        self.lights.set(leds.player);
     }
 
     fn power_off(&mut self, io: &mut dyn ReportIo) -> io::Result<bool> {
@@ -815,16 +797,14 @@ impl PadDriver for Switch1Driver {
 
     fn service(&mut self, io: &mut dyn ReportIo, rumble: Rumble) -> io::Result<()> {
         let now = io.now();
-        if !self.link.bluetooth
-            && !self.link.is_grip()
+        if self.usb_watchdog()
             && self.last_input.is_some_and(|t| now >= t + USB_KEEPALIVE)
             && self.last_keepalive.is_none_or(|t| now >= t + USB_KEEPALIVE)
         {
             io.write(&usb_command(USB_FORCE))?;
             self.last_keepalive = Some(now);
         }
-        if !self.link.bluetooth
-            && !self.link.is_grip()
+        if self.usb_watchdog()
             && self
                 .last_input
                 .max(self.last_restart)
@@ -832,55 +812,49 @@ impl PadDriver for Switch1Driver {
         {
             self.restart_usb(io)?;
         }
-        if self.mode_lost && self.last_mode_fix.is_none_or(|t| now >= t + MODE_RETRY) {
+        if self.mode_lost && self.mode_fix.due(now) {
             self.send_subcommand(io, SUB_REPORT_MODE, &[MODE_FULL])?;
-            self.last_mode_fix = Some(now);
+            self.mode_fix.ran(now);
         }
-        if self.imu_lost && self.last_imu_fix.is_none_or(|t| now >= t + IMU_RETRY) {
+        if self.imu_lost && self.imu_fix.due(now) {
             self.send_subcommand(io, SUB_IMU, &[0x01])?;
-            self.last_imu_fix = Some(now);
+            self.imu_fix.ran(now);
         }
-        if let Some(mask) = self.player_want.filter(|m| Some(*m) != self.player_sent) {
-            self.player_sent = Some(mask);
+        if let Some(mask) = self.lights.take_change() {
             self.send_subcommand(io, SUB_PLAYER_LEDS, &[mask])?;
         }
         if self.ty.has_rumble()
             && let Some(r) = self.pacer.poll(now, rumble)
         {
             self.rumble = rumble_data(self.ty, r);
-            let report = rumble_report(self.next_counter(), &self.rumble);
+            let report = rumble_report(self.counter.step(), &self.rumble);
             io.write(&report)?;
         }
         Ok(())
     }
 
     fn next_deadline(&self) -> Option<Instant> {
-        let mut next = self.pacer.next_deadline();
-        let mut consider = |t: Option<Instant>| {
-            if let Some(t) = t {
-                next = Some(next.map_or(t, |n| n.min(t)));
-            }
+        // Counted from the last attempt too, so a silent pad does not make the caller spin
+        // on a deadline in the past.
+        let watch = |attempt: Option<Instant>, wait: Duration| {
+            self.usb_watchdog()
+                .then(|| self.last_input.max(attempt).map(|t| t + wait))
+                .flatten()
         };
-        if !self.link.bluetooth && !self.link.is_grip() {
-            // Counted from the last attempt too, so a silent pad does not make the
-            // caller spin on a deadline in the past.
-            let since = |attempt: Option<Instant>| self.last_input.max(attempt);
-            consider(since(self.last_keepalive).map(|t| t + USB_KEEPALIVE));
-            consider(since(self.last_restart).map(|t| t + USB_RESTART));
-        }
-        if self.mode_lost {
-            consider(self.last_mode_fix.map(|t| t + MODE_RETRY).or(self.now));
-        }
-        if self.imu_lost {
-            consider(self.last_imu_fix.map(|t| t + IMU_RETRY).or(self.now));
-        }
-        next
+        let retry = |lost: bool, fix: &Every| lost.then(|| fix.next().or(self.now)).flatten();
+        earliest([
+            self.pacer.next_deadline(),
+            watch(self.last_keepalive, USB_KEEPALIVE),
+            watch(self.last_restart, USB_RESTART),
+            retry(self.mode_lost, &self.mode_fix),
+            retry(self.imu_lost, &self.imu_fix),
+        ])
     }
 
     fn shutdown(&mut self, io: &mut dyn ReportIo) {
-        self.rumble = neutral8();
+        self.rumble = NEUTRAL_RUMBLE8;
         if self.ty.has_rumble() {
-            let report = rumble_report(self.next_counter(), &self.rumble);
+            let report = rumble_report(self.counter.step(), &self.rumble);
             let _ = io.write(&report);
         }
         // Wired pads stop reporting in simple mode, so only Bluetooth goes back to it.

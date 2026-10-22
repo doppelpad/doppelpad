@@ -115,7 +115,7 @@ pub fn apply_buttons(s: &mut PadState, right: u8, shared: u8, left: u8) {
     s.set(PadButton::PaddleUR, right & 0x10 != 0); // right Joy-Con SR
     s.set(PadButton::PaddleLR, right & 0x20 != 0); // right Joy-Con SL
     s.set(PadButton::RB, right & 0x40 != 0);
-    s.set_axis(Axis::RightTrigger, trigger(right & 0x80 != 0));
+    s.set_axis(Axis::RightTrigger, f32::from(right & 0x80 != 0));
 
     s.set(PadButton::Back, shared & 0x01 != 0); // Minus
     s.set(PadButton::Start, shared & 0x02 != 0); // Plus
@@ -132,11 +132,7 @@ pub fn apply_buttons(s: &mut PadState, right: u8, shared: u8, left: u8) {
     s.set(PadButton::PaddleLL, left & 0x10 != 0); // left Joy-Con SR
     s.set(PadButton::PaddleUL, left & 0x20 != 0); // left Joy-Con SL
     s.set(PadButton::LB, left & 0x40 != 0);
-    s.set_axis(Axis::LeftTrigger, trigger(left & 0x80 != 0));
-}
-
-fn trigger(pressed: bool) -> f32 {
-    if pressed { 1.0 } else { 0.0 }
+    s.set_axis(Axis::LeftTrigger, f32::from(left & 0x80 != 0));
 }
 
 /// Player lights for player `n` (1–4) the way the console lights them: LED 1, LEDs 1–2,
@@ -145,6 +141,44 @@ pub fn player_mask(n: u8) -> u8 {
     match n {
         0 => 0,
         n => (1u8 << n.min(4)) - 1,
+    }
+}
+
+/// Player lights: what the app wants and what the pad was sent last.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct PlayerLights {
+    want: Option<u8>,
+    sent: Option<u8>,
+}
+
+impl PlayerLights {
+    /// A pad that shows player 1, as it does once it is set up.
+    pub(crate) fn new() -> Self {
+        PlayerLights {
+            want: None,
+            sent: Some(FIRST_PLAYER),
+        }
+    }
+
+    /// The lights of `player` from now on; `None` leaves them as they are.
+    pub(crate) fn set(&mut self, player: Option<u8>) {
+        self.want = player.map(player_mask);
+    }
+
+    /// The wanted lights if they differ from the last sent; they count as sent.
+    pub(crate) fn take_change(&mut self) -> Option<u8> {
+        let mask = self.want.filter(|m| Some(*m) != self.sent)?;
+        self.sent = Some(mask);
+        Some(mask)
+    }
+
+    /// The wanted lights, else player 1's.
+    pub(crate) fn wanted_or_first(&self) -> u8 {
+        self.want.unwrap_or(FIRST_PLAYER)
+    }
+
+    pub(crate) fn mark_sent(&mut self, mask: u8) {
+        self.sent = Some(mask);
     }
 }
 

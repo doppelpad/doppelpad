@@ -32,8 +32,8 @@ pub fn parse_report(r: &[u8]) -> Option<PadState> {
     s.set(PadButton::Y, p[0] & 0x08 != 0); // X
     s.set(PadButton::LB, p[0] & 0x10 != 0);
     s.set(PadButton::RB, p[0] & 0x20 != 0);
-    s.set_axis(Axis::LeftTrigger, if p[0] & 0x40 != 0 { 1.0 } else { 0.0 });
-    s.set_axis(Axis::RightTrigger, if p[0] & 0x80 != 0 { 1.0 } else { 0.0 });
+    s.set_axis(Axis::LeftTrigger, f32::from(p[0] & 0x40 != 0));
+    s.set_axis(Axis::RightTrigger, f32::from(p[0] & 0x80 != 0));
     s.set(PadButton::Back, p[1] & 0x01 != 0);
     s.set(PadButton::Start, p[1] & 0x02 != 0);
     s.set(PadButton::LS, p[1] & 0x04 != 0);

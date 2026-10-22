@@ -12,8 +12,10 @@ use std::time::{Duration, Instant};
 use dp_core::pad::{Axis, Motion, PadButton, PadState, Rumble};
 
 use super::{CAL_MAGIC, FIRST_PLAYER, StickCal, Switch2Model, apply_buttons, gc_trigger};
-use crate::nintendo::player_mask;
-use crate::padio::{BulkIo, Identity, InitError, LateBulk, PadDriver, ReportIo, RumblePacer};
+use crate::nintendo::PlayerLights;
+use crate::padio::{
+    BulkIo, Identity, InitError, LateBulk, PadDriver, ReportIo, RumblePacer, Seq4, read_until,
+};
 use crate::report::{le_f32, le_i16, le_u32, unpack12};
 use crate::{JoyConSide, Leds, PadFamily};
 
@@ -278,12 +280,10 @@ pub struct Switch2Driver {
     notice_cleared: bool,
     cal: Calibration,
     clock: ImuClock,
-    seq: u8,
+    seq: Seq4,
     pacer: RumblePacer,
     gc_error: u32,
-    /// Player lights wanted and last sent (bits 0..3: LEDs 1..4).
-    player_want: Option<u8>,
-    player_sent: Option<u8>,
+    lights: PlayerLights,
 }
 
 impl Switch2Driver {
@@ -295,15 +295,14 @@ impl Switch2Driver {
             notice_cleared: false,
             cal: Calibration::default(),
             clock: ImuClock::default(),
-            seq: 0,
+            seq: Seq4::default(),
             pacer: RumblePacer::new(
                 Duration::from_millis(12),
                 Some(Duration::from_millis(12)),
                 1,
             ),
             gc_error: 0,
-            player_want: None,
-            player_sent: Some(FIRST_PLAYER),
+            lights: PlayerLights::new(),
         }
     }
 
@@ -436,19 +435,11 @@ impl Switch2Driver {
 
     /// Wait for input that another program's initialisation already started.
     fn wait_for_input(io: &mut dyn ReportIo) -> io::Result<bool> {
-        let deadline = io.now() + FOREIGN_INIT_WAIT;
-        let mut buf = [0u8; 64];
-        loop {
-            let now = io.now();
-            if now >= deadline {
-                return Ok(false);
-            }
-            if let Some(n) = io.read(&mut buf, deadline - now)?
-                && buf[..n].first() == Some(&INPUT_REPORT)
-            {
-                return Ok(true);
-            }
-        }
+        let until = io.now() + FOREIGN_INIT_WAIT;
+        let input = read_until(io, until, |r| {
+            (r.first() == Some(&INPUT_REPORT)).then_some(())
+        })?;
+        Ok(input.is_some())
     }
 }
 
@@ -488,24 +479,22 @@ impl PadDriver for Switch2Driver {
     }
 
     fn set_leds(&mut self, leds: Leds) {
-        self.player_want = leds.player.map(player_mask);
+        self.lights.set(leds.player);
     }
 
     fn service(&mut self, io: &mut dyn ReportIo, rumble: Rumble) -> io::Result<()> {
         self.adopt_late_bulk();
-        if let Some(mask) = self.player_want.filter(|m| Some(*m) != self.player_sent)
-            && let Ok(bulk) = &mut self.bulk
+        // The change waits until the vendor interface is there.
+        if let Ok(bulk) = &mut self.bulk
+            && let Some(mask) = self.lights.take_change()
+            && let Err(e) = Self::send(bulk.as_mut(), &player_led_command(mask))
         {
-            if let Err(e) = Self::send(bulk.as_mut(), &player_led_command(mask)) {
-                tracing::debug!("player LED: {e}");
-            }
-            self.player_sent = Some(mask);
+            tracing::debug!("player LED: {e}");
         }
         let Some(r) = self.pacer.poll(io.now(), rumble) else {
             return Ok(());
         };
-        let seq = self.seq;
-        self.seq = (self.seq + 1) & 0x0F;
+        let seq = self.seq.step();
         let report = if self.model == Switch2Model::GameCube {
             // Partial strength by pulsing the motor (error diffusion at the refresh rate).
             let strength = (r.low.max(r.high).clamp(0.0, 1.0) * 65535.0) as u32;
@@ -536,9 +525,9 @@ impl PadDriver for Switch2Driver {
 
     fn shutdown(&mut self, io: &mut dyn ReportIo) {
         let report = if self.model == Switch2Model::GameCube {
-            gamecube_rumble_report(self.seq, 2)
+            gamecube_rumble_report(self.seq.get(), 2)
         } else {
-            rumble_report(self.model, self.seq, Rumble::default())
+            rumble_report(self.model, self.seq.get(), Rumble::default())
         };
         let _ = io.write(&report);
     }
