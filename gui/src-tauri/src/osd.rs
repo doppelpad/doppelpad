@@ -5,6 +5,7 @@
 //! window has focus (it shows the same state) or in the first seconds after start.
 
 use std::collections::HashMap;
+use std::path::Path;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
@@ -260,9 +261,8 @@ fn expire(app: &AppHandle) -> bool {
 }
 
 /// "Game › Config" for a config path.
-fn config_label(app: &AppHandle, path: &str) -> String {
-    let dir = app.state::<AppState>().profiles_dir.clone();
-    crate::tray::config_label(&library::scan(&dir), path)
+fn config_label(path: &str) -> String {
+    library::config_label(Path::new(path))
 }
 
 pub(crate) fn watch(app: AppHandle, live: SharedLive) {
@@ -283,7 +283,7 @@ pub(crate) fn watch(app: AppHandle, live: SharedLive) {
                         config: Some(path), ..
                     } = &mut e
                     {
-                        *path = config_label(&app, path);
+                        *path = config_label(path);
                     }
                     let keep =
                         s.keep_layer && matches!(e, Event::Layer { layer, .. } if layer != 0);

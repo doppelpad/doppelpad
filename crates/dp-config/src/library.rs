@@ -162,8 +162,8 @@ fn is_config_file(path: &Path) -> bool {
         && is_profile_file(path)
 }
 
-/// Read one game folder.
-pub fn read_game(dir: &Path) -> Result<Game> {
+/// Read a game folder's `game.toml`; without a name the game is named after its folder.
+fn read_meta(dir: &Path) -> Result<GameMeta> {
     let meta_path = game_file(dir)?;
     let src = std::fs::read_to_string(&meta_path).map_err(io(&meta_path))?;
     let mut meta: GameMeta =
@@ -175,6 +175,12 @@ pub fn read_game(dir: &Path) -> Result<Game> {
             .unwrap_or("Game")
             .to_owned();
     }
+    Ok(meta)
+}
+
+/// Read one game folder.
+pub fn read_game(dir: &Path) -> Result<Game> {
+    let meta = read_meta(dir)?;
     let configs = sorted_entries(dir)
         .into_iter()
         .filter(|p| is_config_file(p))
@@ -185,6 +191,17 @@ pub fn read_game(dir: &Path) -> Result<Game> {
         meta,
         configs,
     })
+}
+
+/// A config's name for the user: "Game › Config" in a game folder, else the config's own
+/// name, which is the profile's name or, for a file that cannot be read, its file stem (as
+/// in [`ConfigEntry::name`]). Reads the config and its game's `game.toml`, not the library.
+pub fn config_label(path: &Path) -> String {
+    let name = config_entry(path.to_path_buf()).name;
+    match path.parent().and_then(|dir| read_meta(dir).ok()) {
+        Some(meta) => format!("{} › {name}", meta.name),
+        None => name,
+    }
 }
 
 /// Scan the profiles directory one level deep.
@@ -391,6 +408,31 @@ pub fn import_into(game_dir: &Path, source: &Path) -> Result<(PathBuf, Diagnosti
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn config_labels_name_the_game() {
+        let root = tempfile::tempdir().unwrap();
+        let game = create_game(root.path(), "Halo").unwrap();
+        assert_eq!(config_label(&game.configs[0].path), "Halo › Default");
+        let broken = game.dir.join("broken.toml");
+        std::fs::write(&broken, "[[mappings]]\ntrigger = \"Nope\"\n").unwrap();
+        assert_eq!(config_label(&broken), "Halo › broken");
+        // A game.toml without a name: the folder's name.
+        let dir = root.path().join("unnamed");
+        std::fs::create_dir(&dir).unwrap();
+        std::fs::write(dir.join(GAME_FILE), "").unwrap();
+        let config = create_config(&dir, "Fast").unwrap();
+        assert_eq!(config_label(&config), "unnamed › Fast");
+    }
+
+    #[test]
+    fn config_labels_outside_a_game() {
+        let root = tempfile::tempdir().unwrap();
+        let loose = root.path().join("loose.toml");
+        std::fs::write(&loose, "name = \"Loose\"\n").unwrap();
+        assert_eq!(config_label(&loose), "Loose");
+        assert_eq!(config_label(&root.path().join("gone.toml")), "gone");
+    }
 
     const JSON: &str = r#"{ "schemaVersion": 3.0, "appVersion": "9.2.0",
       "config": { "appName": "Imported", "minTimeUnit": 1 },
