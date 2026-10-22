@@ -841,9 +841,11 @@ export interface Hotkeys {
   emergency_stop: PadButtonName[];
   pad_overlay: PadButtonName[];
   mappings_overlay: PadButtonName[];
+  /** Confirm each hotkey with a short rumble pattern on the controller. */
+  rumble: boolean;
 }
 
-export type HotkeyField = Exclude<keyof Hotkeys, 'hold_ms'>;
+export type HotkeyField = Exclude<keyof Hotkeys, 'hold_ms' | 'rumble'>;
 
 /** One running profile: the shared slots' (`owner` null) or a controller's own. */
 export interface LiveSession {

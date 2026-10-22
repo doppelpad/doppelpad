@@ -10,6 +10,7 @@
 
 mod binding;
 mod commands;
+pub(crate) mod confirm;
 mod drivers;
 mod echo;
 mod idle;
@@ -43,6 +44,7 @@ use dp_platform::{
 use serde::Serialize;
 
 use self::commands::TestTurn;
+use self::confirm::Confirm;
 use self::echo::Echo;
 use self::idle::Idle;
 use self::session::{CrosshairChoice, Session, rumble_gap_ms};
@@ -120,6 +122,8 @@ pub struct Runtime {
     suspended: bool,
     remap_off_requested: bool,
     hotkeys: HotkeyState,
+    /// Rumble patterns confirming hotkeys, per controller.
+    pulses: confirm::Pulses,
     /// A calibration turn: counts to send, start, length and how much was sent.
     test_turn: Option<TestTurn>,
     /// Gyro bias per controller, taken off before anything reads the rates.
@@ -231,6 +235,7 @@ impl Runtime {
             suspended: false,
             remap_off_requested: false,
             hotkeys: HotkeyState::default(),
+            pulses: confirm::Pulses::default(),
             test_turn: None,
             calibration: Calibrator::default(),
             overlays: Overlays::default(),
@@ -621,6 +626,7 @@ impl Runtime {
             }
             match action {
                 HotkeyAction::StopMacros => {
+                    self.confirm_hotkey(&id, Confirm::Long(1));
                     for s in self
                         .sessions
                         .iter_mut()
@@ -630,14 +636,23 @@ impl Runtime {
                     }
                 }
                 HotkeyAction::EmergencyStop => {
+                    self.confirm_hotkey(&id, Confirm::Long(2));
+                    self.drive_pulses(now);
                     self.remap_off();
                     return;
                 }
-                HotkeyAction::PadOverlay => self.overlays.toggle_pad(),
-                HotkeyAction::MappingsOverlay => self.overlays.toggle_mappings(),
+                HotkeyAction::PadOverlay => {
+                    self.confirm_hotkey(&id, Confirm::Short(1));
+                    self.overlays.toggle_pad();
+                }
+                HotkeyAction::MappingsOverlay => {
+                    self.confirm_hotkey(&id, Confirm::Short(1));
+                    self.overlays.toggle_mappings();
+                }
                 other => self.hotkeys.actions.push((id, other)),
             }
         }
+        self.drive_pulses(now);
         if self.suspended {
             return;
         }
@@ -655,7 +670,8 @@ impl Runtime {
                 kbm,
             });
             s.emit(&mut self.platform, &out, now);
-            s.feedback(&mut self.pads, out.rumble, now);
+            let pulsing = s.device.as_ref().is_some_and(|d| self.pulses.playing(d));
+            s.feedback(&mut self.pads, out.rumble, pulsing, now);
             if s.owner.is_none()
                 && let Some(echo) = &mut self.echo
             {

@@ -14,6 +14,7 @@ use super::{
 use crate::dsu::DsuSettings;
 use crate::httpapi::HttpSettings;
 use crate::runtime::Runtime;
+use crate::runtime::confirm::Confirm;
 use crate::slots::{PlayerLights, RuntimeOptions, SLOTS};
 
 impl Service {
@@ -466,14 +467,19 @@ impl Service {
                         device,
                         slot: n as usize,
                     };
-                    if let ServiceReply::Err(e) = self.handle(cmd) {
-                        tracing::warn!("slot hotkey: {e}");
+                    match self.handle(cmd) {
+                        ServiceReply::Err(e) => tracing::warn!("slot hotkey: {e}"),
+                        _ => self.rt.confirm_hotkey(&id, Confirm::Short(n + 1)),
                     }
                 }
                 HotkeyAction::ToggleRemap => {
                     let on = !self.state.remap_on;
-                    if let ServiceReply::Err(e) = self.handle(ServiceCmd::SetRemap(on)) {
-                        tracing::warn!("remap hotkey: {e}");
+                    match self.handle(ServiceCmd::SetRemap(on)) {
+                        ServiceReply::Err(e) => tracing::warn!("remap hotkey: {e}"),
+                        // One long pulse for on, two for off.
+                        _ => self
+                            .rt
+                            .confirm_hotkey(&id, Confirm::Long(if on { 1 } else { 2 })),
                     }
                 }
                 // The runtime handles these itself.

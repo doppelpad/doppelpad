@@ -24,6 +24,7 @@ const hotkeys: Hotkeys = {
   emergency_stop: ['Back', 'Start', 'LB', 'RB'],
   pad_overlay: [],
   mappings_overlay: [],
+  rumble: false,
 };
 
 const warn = (path: string): DiagMsg => ({ severity: 'warning', path, message: 'x' });

@@ -39,6 +39,65 @@ fn hotkey_buttons_do_not_reach_the_game() {
 }
 
 #[test]
+fn hotkeys_confirm_with_a_rumble_pattern_when_asked() {
+    use dp_core::pad::PadButton::*;
+    let (mut rt, world) = testing::runtime_with(&[("pad1", PadFamily::Xbox)]);
+    rt.set_hotkeys(Hotkeys {
+        hold_ms: 50,
+        pad_overlay: vec![Back, Start],
+        rumble: true,
+        ..Default::default()
+    });
+    rt.apply(Profile::default(), None).unwrap();
+    world.lock().unwrap().pads[0].state.buttons = Back.bit() | Start.bit();
+    rt.tick();
+    rt.advance_ms(60);
+    rt.tick();
+    world.lock().unwrap().pads[0].state.buttons = 0;
+    let on = |w: &testing::Shared| {
+        w.lock()
+            .unwrap()
+            .rumble
+            .iter()
+            .filter(|(_, r)| r.low > 0.0)
+            .count()
+    };
+    assert_eq!(on(&world), 1, "one short pulse for an overlay hotkey");
+    // The game's rumble waits until the pattern is over, then the session sends it again.
+    rt.advance_ms(100);
+    rt.tick();
+    let last = world.lock().unwrap().rumble.last().cloned().unwrap();
+    assert_eq!(last.1, Rumble::default(), "the motors stop after the pulse");
+    assert!(!rt.pulses.playing(&DeviceId("pad1".into())));
+}
+
+#[test]
+fn hotkeys_stay_quiet_without_the_setting() {
+    use dp_core::pad::PadButton::*;
+    let (mut rt, world) = testing::runtime_with(&[("pad1", PadFamily::Xbox)]);
+    rt.set_hotkeys(Hotkeys {
+        hold_ms: 50,
+        pad_overlay: vec![Back, Start],
+        ..Default::default()
+    });
+    rt.apply(Profile::default(), None).unwrap();
+    world.lock().unwrap().pads[0].state.buttons = Back.bit() | Start.bit();
+    rt.tick();
+    rt.advance_ms(60);
+    rt.tick();
+    rt.advance_ms(300);
+    rt.tick();
+    assert!(
+        world
+            .lock()
+            .unwrap()
+            .rumble
+            .iter()
+            .all(|(_, r)| r.low == 0.0)
+    );
+}
+
+#[test]
 fn picking_another_controller_moves_the_hiding() {
     let (mut rt, world) =
         testing::runtime_with(&[("pro", PadFamily::SwitchPro), ("ds", PadFamily::DualSense)]);

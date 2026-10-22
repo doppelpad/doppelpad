@@ -1160,7 +1160,9 @@
     "none": "Off",
     "press": "Hold the buttons, then let go…",
     "record": "Record",
-    "too_many": "A hotkey has at most {n} buttons."
+    "too_many": "A hotkey has at most {n} buttons.",
+    "rumble": "Confirm with a rumble on the controller",
+    "rumble_hint": "Slot hotkeys rumble as often as the slot number, remapping on once long and off twice long, the others once. Also works in full-screen games, where no notification shows."
   },
   "rewasd": {
     "title": "reWASD is running",
