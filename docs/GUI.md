@@ -97,7 +97,11 @@ open it gets them (Ctrl+S still saves). On macOS, Cmd takes the place of Ctrl.
    - **Block this control** makes it do nothing, and stops it from passing through.
    - **Layer** switches to another layer *while held*, as a *toggle*, or with *switch*
      (with an optional delay).
-   - **Description** is a note for yourself.
+   - **Description** is a note for yourself. The note button at the top right of the
+     controller, keyboard and mouse views shows the descriptions on the drawing, the tiles and
+     the keys instead of the actions (where a mapping has none, its actions stay); the app
+     remembers the choice. While the actions show, a small dot marks a control whose mappings
+     have a description.
    - **Timing** overrides the long-press, double- and triple-press windows or the key
      delay for this mapping only.
 5. On a shift layer, controls without their own mapping inherit the one from *Main*. The

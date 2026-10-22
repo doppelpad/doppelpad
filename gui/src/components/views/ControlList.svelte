@@ -17,7 +17,7 @@
     zoneTag,
   } from '../../lib/model/controls';
   import { hasMotion } from '../../lib/model/devices';
-  import { effectiveSummary } from '../../lib/model/labels';
+  import { shownSummary } from '../../lib/model/labels';
   import { app } from '../../lib/state/app.svelte';
   import type { ControlName } from '../../lib/types';
   import ControlTile from './ControlTile.svelte';
@@ -57,20 +57,22 @@
   }
 
   /** Summary of a tile: the control's own mappings, then its zones' tagged with the zone. */
-  function tileSummary(members: ControlName[]): { text: string; inherited: boolean } | null {
+  function tileSummary(members: ControlName[]): { text: string; inherited: boolean; hiddenNote: boolean } | null {
     const parts: string[] = [];
     let inherited = true;
+    let hiddenNote = false;
     for (const m of members) {
       const s = summary(m);
       if (!s) continue;
       const z = zoneParts(m)?.zone;
       parts.push(z ? `${zoneTag(z)} ${s.text}` : s.text);
       inherited &&= s.inherited;
+      hiddenNote ||= s.hiddenNote;
     }
-    return parts.length ? { text: parts.join(' · '), inherited } : null;
+    return parts.length ? { text: parts.join(' · '), inherited, hiddenNote } : null;
   }
 
-  const summary = (c: ControlName) => app.profile && effectiveSummary(app.profile, app.layer, c, app.layerLabel);
+  const summary = (c: ControlName) => app.profile && shownSummary(app.profile, app.layer, c, app.layerLabel, app.settings.show_notes);
 </script>
 
 <div class="list">

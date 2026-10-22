@@ -39,6 +39,8 @@ pub struct GuiSettings {
     pub mappings_overlay: MappingsOverlaySettings,
     /// The welcome guide was finished or skipped.
     pub welcome_done: bool,
+    /// The editor shows the mappings' notes instead of their actions.
+    pub show_notes: bool,
 }
 
 /// On-screen notifications: which events show one, and where and how.
@@ -170,6 +172,7 @@ impl Default for GuiSettings {
             pad_overlay: PadOverlaySettings::default(),
             mappings_overlay: MappingsOverlaySettings::default(),
             welcome_done: false,
+            show_notes: false,
         }
     }
 }

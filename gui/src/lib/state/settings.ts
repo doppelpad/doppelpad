@@ -28,4 +28,5 @@ export const SETTINGS_PLACEHOLDER: GuiSettings = {
   pad_overlay: { corner: 'top_left', size: 70, opacity: 90, hide_after: 5 },
   mappings_overlay: { corner: 'top_right', opacity: 90 },
   welcome_done: true,
+  show_notes: false,
 };

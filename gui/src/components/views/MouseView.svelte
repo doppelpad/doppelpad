@@ -3,7 +3,7 @@
   // movement directions as tiles.
   import { t } from '../../lib/i18n/index.svelte';
   import { DIRS8, controlLabel } from '../../lib/model/controls';
-  import { effectiveSummary } from '../../lib/model/labels';
+  import { shownSummary } from '../../lib/model/labels';
   import { app } from '../../lib/state/app.svelte';
   import type { ControlName } from '../../lib/types';
   import ControllerView from './ControllerView.svelte';
@@ -18,7 +18,7 @@
     },
   ];
 
-  const summary = (c: ControlName) => app.profile && effectiveSummary(app.profile, app.layer, c, app.layerLabel);
+  const summary = (c: ControlName) => app.profile && shownSummary(app.profile, app.layer, c, app.layerLabel, app.settings.show_notes);
 </script>
 
 <div class="mouse">

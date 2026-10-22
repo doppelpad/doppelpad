@@ -13,7 +13,8 @@
     onclick,
   }: {
     name: string;
-    summary: { text: string; inherited: boolean } | null | undefined;
+    /** `hiddenNote`: a mapping has a note the tile does not show; it gets a small mark. */
+    summary: { text: string; inherited: boolean; hiddenNote?: boolean } | null | undefined;
     /** The control the tile stands for: its context menu copies, pastes and clears it. */
     control: Combo;
     selected?: boolean;
@@ -22,13 +23,22 @@
   } = $props();
 </script>
 
-<button class="tile" class:selected class:pressed class:mapped={!!summary} {onclick} use:controlMenu={control}>
+<button
+  class="tile"
+  class:selected
+  class:pressed
+  class:mapped={!!summary}
+  class:noted={!!summary?.hiddenNote}
+  {onclick}
+  use:controlMenu={control}
+>
   <span class="name">{name}</span>
   <span class="sum" class:inh={summary?.inherited}>{summary?.text ?? '—'}</span>
 </button>
 
 <style>
   .tile {
+    position: relative;
     display: flex;
     flex-direction: column;
     gap: 3px;
@@ -65,5 +75,16 @@
   .sum.inh {
     color: var(--text-faint);
     font-style: italic;
+  }
+  /* A note the summary does not show: a small corner mark (Show notes shows it). */
+  .tile.noted::after {
+    content: '';
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--text-dim);
   }
 </style>

@@ -48,6 +48,32 @@ export function effectiveSummary(
   return { text: eff.mappings.map((m) => mappingSummary(m, label)).join(' · '), inherited: eff.inherited };
 }
 
+/** The notes of what a trigger does on a layer (all activators), or `null` when none has one. */
+export function effectiveNotes(p: Profile, layer: number, combo: Combo): string | null {
+  const notes = effectiveMappings(p, layer, combo)
+    .mappings.map((m) => m.description?.trim() ?? '')
+    .filter(Boolean);
+  return notes.length ? notes.join(' · ') : null;
+}
+
+/**
+ * What a control's chip, tile or key shows: its actions (`effectiveSummary`), or with `notes`
+ * its mappings' notes, falling back to the actions where there are none. `hiddenNote` says that a
+ * note exists but is not shown, so the actions view can mark it.
+ */
+export function shownSummary(
+  p: Profile,
+  layer: number,
+  combo: Combo,
+  label: (id: number) => string,
+  notes: boolean,
+): { text: string; inherited: boolean; hiddenNote: boolean } | null {
+  const s = effectiveSummary(p, layer, combo, label);
+  if (!s) return null;
+  const note = effectiveNotes(p, layer, combo);
+  return { text: notes && note ? note : s.text, inherited: s.inherited, hiddenNote: !!note && !notes };
+}
+
 /** One trigger in the mappings overlay: its control, what it does, and the notes. */
 export interface OverlayRow {
   control: string;

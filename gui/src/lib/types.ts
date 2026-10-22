@@ -723,6 +723,8 @@ export interface GuiSettings {
   mappings_overlay: MappingsOverlaySettings;
   /** The welcome guide was finished or skipped. */
   welcome_done: boolean;
+  /** The editor shows the mappings' notes instead of their actions. */
+  show_notes: boolean;
 }
 
 /** Starting points for new configs. */

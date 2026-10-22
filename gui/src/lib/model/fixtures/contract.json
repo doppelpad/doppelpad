@@ -236,7 +236,8 @@
       "corner": "top_right",
       "opacity": 90
     },
-    "welcome_done": false
+    "welcome_done": false,
+    "show_notes": false
   },
   "hotkeys": {
     "hold_ms": 500,

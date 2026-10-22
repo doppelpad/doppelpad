@@ -22,7 +22,7 @@ import {
   zoneParts,
   zoneTag,
 } from './controls';
-import { effectiveSummary } from './labels';
+import { shownSummary } from './labels';
 import { shortcutMembers } from './profile';
 
 /** Arrows for directions and touchpad regions in chip summaries. */
@@ -51,6 +51,8 @@ export interface ChipView {
   /** The whole stick the side panel shows. */
   stick: Side | null;
   layerLabel: (id: number) => string;
+  /** Show the mappings' notes instead of their actions (where they have one). */
+  notes: boolean;
 }
 
 export interface Chip {
@@ -61,6 +63,8 @@ export interface Chip {
   inherited: boolean;
   selected: boolean;
   combo: boolean;
+  /** A mapping behind the chip has a note that the chip does not show (actions view). */
+  hiddenNote: boolean;
 }
 
 /** Zone tag of a control ("H"), or "" for a control without a zone. */
@@ -100,7 +104,7 @@ function stickRoutes(p: Profile, layer: number): Map<Side, { text: string; inher
   return out;
 }
 
-const summaryIn = (v: ChipView) => (c: ControlName) => v.profile && effectiveSummary(v.profile, v.layer, c, v.layerLabel);
+const summaryIn = (v: ChipView) => (c: ControlName) => v.profile && shownSummary(v.profile, v.layer, c, v.layerLabel, v.notes);
 
 /** A chip per drawn control. */
 export function buildChips(controls: LayoutControl[], v: ChipView): Chip[] {
@@ -113,6 +117,7 @@ export function buildChips(controls: LayoutControl[], v: ChipView): Chip[] {
     let summary = own?.text ?? '';
     let mapped = !!own;
     let selected = v.selectedKey === c;
+    let hiddenNote = !!own?.hiddenNote;
     // Stick chips also show the directions and zones, trigger chips the zones.
     const parts: string[] = [];
     // A whole-stick route comes first: it is what the stick mostly does.
@@ -123,6 +128,7 @@ export function buildChips(controls: LayoutControl[], v: ChipView): Chip[] {
     for (const r of related(c)) {
       const s = summaryOf(r.c);
       if (s) parts.push(`${r.tag} ${s.text}`);
+      if (s?.hiddenNote) hiddenNote = true;
       if (v.selectedKey === r.c) selected = true;
     }
     if (parts.length) {
@@ -138,6 +144,7 @@ export function buildChips(controls: LayoutControl[], v: ChipView): Chip[] {
       inherited: !!own?.inherited,
       selected,
       combo: combos.has(c),
+      hiddenNote,
     };
   });
 }
