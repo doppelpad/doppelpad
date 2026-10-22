@@ -18,14 +18,15 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
 };
 
 use crate::KbmOutput;
+use crate::remainder::{MotionRemainder, Remainder};
 
 /// Marker in `dwExtraInfo` identifying events injected by Doppelpad ("DPAD").
 pub const INJECTED_TAG: usize = 0x4450_4144;
 
 #[derive(Default)]
 pub struct SendInputOutput {
-    move_rem: (f32, f32),
-    wheel_rem: [f32; 4],
+    move_rem: MotionRemainder,
+    wheel_rem: [Remainder; 4],
 }
 
 fn send(inputs: &[INPUT]) {
@@ -112,15 +113,11 @@ impl KbmOutput for SendInputOutput {
     }
 
     fn mouse_move(&mut self, dx: f32, dy: f32) {
-        self.move_rem.0 += dx;
-        self.move_rem.1 += dy;
-        let (ix, iy) = (self.move_rem.0.trunc(), self.move_rem.1.trunc());
-        if ix == 0.0 && iy == 0.0 {
+        let (x, y) = self.move_rem.take(dx, dy);
+        if (x, y) == (0, 0) {
             return;
         }
-        self.move_rem.0 -= ix;
-        self.move_rem.1 -= iy;
-        send(&[mouse(ix as i32, iy as i32, 0, MOUSEEVENTF_MOVE)]);
+        send(&[mouse(x, y, 0, MOUSEEVENTF_MOVE)]);
     }
 
     fn mouse_to(&mut self, x: f32, y: f32) {
@@ -157,14 +154,10 @@ impl KbmOutput for SendInputOutput {
     }
 
     fn wheel(&mut self, dir: WheelDir, detents: f32) {
-        let rem = &mut self.wheel_rem[dir as usize];
-        *rem += detents * WHEEL_DELTA as f32;
-        let amount = rem.trunc();
-        if amount == 0.0 {
+        let amount = self.wheel_rem[dir as usize].take(detents * WHEEL_DELTA as f32);
+        if amount == 0 {
             return;
         }
-        *rem -= amount;
-        let amount = amount as i32;
         let input = match dir {
             WheelDir::Up => mouse(0, 0, amount, MOUSEEVENTF_WHEEL),
             WheelDir::Down => mouse(0, 0, -amount, MOUSEEVENTF_WHEEL),

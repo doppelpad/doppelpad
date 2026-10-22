@@ -9,6 +9,7 @@ use dp_core::keys::{Key, MouseButton, WheelDir};
 
 use super::codes::*;
 use crate::CaptureFilter;
+use crate::remainder::Remainder;
 
 pub fn mouse_button_from_code(code: u16) -> Option<MouseButton> {
     Some(match code {
@@ -52,27 +53,24 @@ fn wheel_dir(code: u16, value: i32) -> Option<WheelDir> {
 #[derive(Debug, Default)]
 pub struct WheelOut {
     /// Not yet emitted high-resolution units, per [`WheelDir`].
-    hi_rem: [f32; 4],
+    hi_rem: [Remainder; 4],
     /// High-resolution units emitted since the last full detent: vertical, horizontal.
     detent_acc: [i32; 2],
 }
 
 impl WheelOut {
     pub fn wheel(&mut self, dir: WheelDir, detents: f32) -> Vec<(u16, i32)> {
-        let rem = &mut self.hi_rem[dir as usize];
-        *rem += detents * HI_RES_PER_DETENT as f32;
-        let amount = rem.trunc();
-        if amount == 0.0 {
+        let amount = self.hi_rem[dir as usize].take(detents * HI_RES_PER_DETENT as f32);
+        if amount == 0 {
             return Vec::new();
         }
-        *rem -= amount;
         let (hi, lo, axis, sign) = match dir {
             WheelDir::Up => (REL_WHEEL_HI_RES, REL_WHEEL, 0, 1),
             WheelDir::Down => (REL_WHEEL_HI_RES, REL_WHEEL, 0, -1),
             WheelDir::Right => (REL_HWHEEL_HI_RES, REL_HWHEEL, 1, 1),
             WheelDir::Left => (REL_HWHEEL_HI_RES, REL_HWHEEL, 1, -1),
         };
-        let value = amount as i32 * sign;
+        let value = amount * sign;
         let mut out = vec![(hi, value)];
         let acc = &mut self.detent_acc[axis];
         *acc += value;
@@ -146,25 +144,14 @@ impl Passthrough {
                 }
             }
             EV_KEY => {
-                let (event, suppress) = if let Some(key) = Key::from_evdev(code) {
-                    (
-                        Some(KbmEvent::Key {
-                            key,
-                            down: value != 0,
-                        }),
-                        filter.key(key),
-                    )
-                } else if let Some(button) = mouse_button_from_code(code) {
-                    (
-                        Some(KbmEvent::MouseButton {
-                            button,
-                            down: value != 0,
-                        }),
-                        filter.mouse_button(button),
-                    )
+                let down = value != 0;
+                let event = if let Some(key) = Key::from_evdev(code) {
+                    Some(KbmEvent::Key { key, down })
                 } else {
-                    (None, false)
+                    mouse_button_from_code(code)
+                        .map(|button| KbmEvent::MouseButton { button, down })
                 };
+                let suppress = event.is_some_and(|e| filter.suppresses(&e));
                 let pass = match value {
                     0 => self.down.remove(&code),
                     1 if suppress => false,
@@ -218,8 +205,6 @@ impl Passthrough {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::atomic::Ordering;
-
     use super::*;
 
     const EV_MSC_SCAN: (u16, u16, i32) = (EV_MSC, 4, 0x70004);
@@ -239,7 +224,7 @@ mod tests {
 
     fn filter() -> std::sync::Arc<CaptureFilter> {
         let f = CaptureFilter::new();
-        f.enabled.store(true, Ordering::Relaxed);
+        f.set_enabled(true);
         f
     }
 
@@ -332,7 +317,7 @@ mod tests {
     #[test]
     fn mouse_motion_and_buttons() {
         let f = filter();
-        f.mouse_move.store(true, Ordering::Relaxed);
+        f.set_mouse_move(true);
         f.set_mouse_button(MouseButton::X1, true);
         let mut p = Passthrough::default();
         let (events, fwd) = run(

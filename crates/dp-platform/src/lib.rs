@@ -41,6 +41,8 @@ pub const MICROSOFT_VID: u16 = 0x045E;
 pub const VIGEM_RELEASES: &str = "https://github.com/nefarius/ViGEmBus/releases";
 /// Where the HidHide driver (hiding devices on Windows) is downloaded.
 pub const HIDHIDE_RELEASES: &str = "https://github.com/nefarius/HidHide/releases";
+#[cfg(any(windows, target_os = "linux", test))]
+pub(crate) mod remainder;
 pub(crate) mod report;
 #[cfg(any(windows, target_os = "linux", test))]
 pub(crate) mod scan;
@@ -276,11 +278,29 @@ pub struct CaptureFilter {
     keys: [AtomicU64; 4],
     mouse_buttons: AtomicU64,
     wheel: AtomicU64,
-    pub mouse_move: AtomicBool,
+    mouse_move: AtomicBool,
     /// Master switch; when false nothing is suppressed.
-    pub enabled: AtomicBool,
+    enabled: AtomicBool,
     /// Which events are input at all: [`KbmSource`] as a number.
     source: AtomicU8,
+}
+
+// One bit per key in `CaptureFilter::keys`.
+const _: () = assert!(Key::ALL.len() <= 256);
+
+/// Set or clear bit `i` of a bit set.
+fn set_bit(set: &AtomicU64, i: u32, on: bool) {
+    let b = 1u64 << i;
+    if on {
+        set.fetch_or(b, Ordering::Relaxed);
+    } else {
+        set.fetch_and(!b, Ordering::Relaxed);
+    }
+}
+
+/// Whether bit `i` of a bit set is set.
+fn has_bit(set: &AtomicU64, i: u32) -> bool {
+    set.load(Ordering::Relaxed) & (1u64 << i) != 0
 }
 
 impl CaptureFilter {
@@ -288,8 +308,19 @@ impl CaptureFilter {
         Arc::new(Self::default())
     }
 
-    fn bit(i: usize) -> (usize, u64) {
-        (i / 64, 1u64 << (i % 64))
+    /// The word of `keys` that holds `key`, and its bit there.
+    fn key_bit(&self, key: Key) -> (&AtomicU64, u32) {
+        let i = key as usize;
+        (&self.keys[i / 64], (i % 64) as u32)
+    }
+
+    fn enabled(&self) -> bool {
+        self.enabled.load(Ordering::Relaxed)
+    }
+
+    /// The master switch; when off nothing is suppressed.
+    pub fn set_enabled(&self, on: bool) {
+        self.enabled.store(on, Ordering::Relaxed);
     }
 
     /// Which keyboard and mouse events count as input.
@@ -317,49 +348,47 @@ impl CaptureFilter {
     }
 
     pub fn set_key(&self, key: Key, suppress: bool) {
-        let (w, b) = Self::bit(key as usize);
-        if suppress {
-            self.keys[w].fetch_or(b, Ordering::Relaxed);
-        } else {
-            self.keys[w].fetch_and(!b, Ordering::Relaxed);
-        }
+        let (word, bit) = self.key_bit(key);
+        set_bit(word, bit, suppress);
     }
 
     pub fn key(&self, key: Key) -> bool {
-        let (w, b) = Self::bit(key as usize);
-        self.enabled.load(Ordering::Relaxed) && self.keys[w].load(Ordering::Relaxed) & b != 0
+        let (word, bit) = self.key_bit(key);
+        self.enabled() && has_bit(word, bit)
     }
 
     pub fn set_mouse_button(&self, button: MouseButton, suppress: bool) {
-        let b = 1u64 << button as u32;
-        if suppress {
-            self.mouse_buttons.fetch_or(b, Ordering::Relaxed);
-        } else {
-            self.mouse_buttons.fetch_and(!b, Ordering::Relaxed);
-        }
+        set_bit(&self.mouse_buttons, button as u32, suppress);
     }
 
     pub fn mouse_button(&self, button: MouseButton) -> bool {
-        self.enabled.load(Ordering::Relaxed)
-            && self.mouse_buttons.load(Ordering::Relaxed) & (1 << button as u32) != 0
+        self.enabled() && has_bit(&self.mouse_buttons, button as u32)
     }
 
     pub fn set_wheel(&self, dir: WheelDir, suppress: bool) {
-        let b = 1u64 << dir as u32;
-        if suppress {
-            self.wheel.fetch_or(b, Ordering::Relaxed);
-        } else {
-            self.wheel.fetch_and(!b, Ordering::Relaxed);
-        }
+        set_bit(&self.wheel, dir as u32, suppress);
     }
 
     pub fn wheel(&self, dir: WheelDir) -> bool {
-        self.enabled.load(Ordering::Relaxed)
-            && self.wheel.load(Ordering::Relaxed) & (1 << dir as u32) != 0
+        self.enabled() && has_bit(&self.wheel, dir as u32)
+    }
+
+    pub fn set_mouse_move(&self, suppress: bool) {
+        self.mouse_move.store(suppress, Ordering::Relaxed);
     }
 
     pub fn suppress_mouse_move(&self) -> bool {
-        self.enabled.load(Ordering::Relaxed) && self.mouse_move.load(Ordering::Relaxed)
+        self.enabled() && self.mouse_move.load(Ordering::Relaxed)
+    }
+
+    /// Whether `event` is swallowed rather than passed on to other applications.
+    pub fn suppresses(&self, event: &KbmEvent) -> bool {
+        match *event {
+            KbmEvent::Key { key, .. } => self.key(key),
+            KbmEvent::MouseButton { button, .. } => self.mouse_button(button),
+            KbmEvent::MouseMove { .. } => self.suppress_mouse_move(),
+            KbmEvent::Wheel { dir, .. } => self.wheel(dir),
+        }
     }
 }
 

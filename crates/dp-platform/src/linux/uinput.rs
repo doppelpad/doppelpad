@@ -23,6 +23,7 @@ use super::x360::{
     FfMixer, X360_AXES, X360_EVENTS, X360_KEYS, X360_NAME, X360_PID, X360_VERSION, X360_VID,
     x360_events,
 };
+use crate::remainder::MotionRemainder;
 use crate::{KbmOutput, PlatformError, Result, VirtualPad, VirtualPadFactory, VirtualPadKind};
 
 const FF_EFFECTS_MAX: u32 = 16;
@@ -251,7 +252,7 @@ pub struct UinputKbm {
     dev: Option<VirtualDevice>,
     retry_at: Option<Instant>,
     warned: bool,
-    move_rem: (f32, f32),
+    move_rem: MotionRemainder,
     wheel: WheelOut,
 }
 
@@ -261,7 +262,7 @@ impl UinputKbm {
             dev: None,
             retry_at: None,
             warned: false,
-            move_rem: (0.0, 0.0),
+            move_rem: MotionRemainder::default(),
             wheel: WheelOut::default(),
         };
         kbm.device();
@@ -310,20 +311,16 @@ impl KbmOutput for UinputKbm {
     }
 
     fn mouse_move(&mut self, dx: f32, dy: f32) {
-        self.move_rem.0 += dx;
-        self.move_rem.1 += dy;
-        let (ix, iy) = (self.move_rem.0.trunc(), self.move_rem.1.trunc());
-        if ix == 0.0 && iy == 0.0 {
+        let (x, y) = self.move_rem.take(dx, dy);
+        if (x, y) == (0, 0) {
             return;
         }
-        self.move_rem.0 -= ix;
-        self.move_rem.1 -= iy;
         let mut events = Vec::with_capacity(2);
-        if ix != 0.0 {
-            events.push((EV_REL, REL_X, ix as i32));
+        if x != 0 {
+            events.push((EV_REL, REL_X, x));
         }
-        if iy != 0.0 {
-            events.push((EV_REL, REL_Y, iy as i32));
+        if y != 0 {
+            events.push((EV_REL, REL_Y, y));
         }
         self.emit(&events);
     }
