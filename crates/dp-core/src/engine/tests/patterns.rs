@@ -215,6 +215,30 @@ fn wheel_notches_trigger_mappings() {
 }
 
 #[test]
+fn toggle_on_a_wheel_notch_latches_until_the_next() {
+    let mut p = Profile::default();
+    let mut m = map(Control::Wheel(WheelDir::Up), vec![key(Key::LeftShift)]);
+    m.mode = Mode::Toggle;
+    p.mappings.push(m);
+    let mut h = Harness::new(p);
+    let w = h.e.warnings();
+    assert!(
+        w.len() == 1 && w[0].contains("one notch") && w[0].contains("next"),
+        "{w:?}"
+    );
+    let notch = [KbmEvent::Wheel {
+        dir: WheelDir::Up,
+        detents: 1.0,
+    }];
+    h.kbm(notch);
+    h.until(200);
+    assert!(h.e.is_output_down(Key::LeftShift), "one notch latches");
+    h.kbm(notch);
+    h.until(400);
+    assert!(!h.e.is_output_down(Key::LeftShift), "the next one releases");
+}
+
+#[test]
 fn trigger_zones_follow_the_pull() {
     // Default thresholds: low 0.03, medium ~0.35, high ~0.67.
     let mut p = Profile::default();

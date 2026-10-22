@@ -279,6 +279,12 @@ sensitivity = 2.0
     }
 
     #[test]
+    fn ds4_is_not_a_virtual_pad_name() {
+        let src = "[output]\nvirtual_pad = \"ds4\"\n";
+        assert!(toml::from_str::<Profile>(src).is_err());
+    }
+
+    #[test]
     fn unknown_field_rejected() {
         let src = "[[mappings]]\ntrigger = \"A\"\nactoins = []\n";
         assert!(toml::from_str::<Profile>(src).is_err());
