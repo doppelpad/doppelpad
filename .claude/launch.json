@@ -4,52 +4,20 @@
     {
       "name": "gui-vite",
       "runtimeExecutable": "npm",
-      "runtimeArgs": [
-        "--prefix",
-        "gui",
-        "run",
-        "dev"
-      ],
+      "runtimeArgs": ["--prefix", "gui", "run", "dev"],
       "port": 5173
     },
     {
       "name": "site-dev",
       "runtimeExecutable": "npm",
-      "runtimeArgs": [
-        "--prefix",
-        "site",
-        "run",
-        "dev",
-        "--",
-        "--port",
-        "4321"
-      ],
+      "runtimeArgs": ["--prefix", "site", "run", "dev", "--", "--port", "4321"],
       "port": 4321
     },
     {
       "name": "site-preview",
       "runtimeExecutable": "npm",
-      "runtimeArgs": [
-        "--prefix",
-        "site",
-        "run",
-        "preview",
-        "--",
-        "--port",
-        "4322"
-      ],
+      "runtimeArgs": ["--prefix", "site", "run", "preview", "--", "--port", "4322"],
       "port": 4322
-    },
-    {
-      "name": "cmp",
-      "runtimeExecutable": "node",
-      "runtimeArgs": [
-        "gui/node_modules/vite/bin/vite.js",
-        "target/cmp",
-        "--port",
-        "5190"
-      ],
-      "port": 5190
     }
   ]
 }
