@@ -11,7 +11,7 @@ use dp_core::pad::{
 };
 use dp_core::profile::TriggerEffect;
 
-use crate::padio::{Identity, InitError, PadDriver, ReportIo};
+use crate::padio::{Identity, InitError, PadDriver, ReportIo, Seq4};
 use crate::report::{
     apply_hat, apply_u8_sticks, hat_from_dpad, le_i16, motor_u8, pack12, unpack12,
 };
@@ -386,7 +386,7 @@ pub struct SonyDriver {
     sent: Option<SonyOutput>,
     /// The DualSense light bar has been taken over from the firmware.
     set_up: bool,
-    seq: u8,
+    seq: Seq4,
     battery: Option<Battery>,
 }
 
@@ -402,7 +402,7 @@ impl SonyDriver {
             triggers: [None; 2],
             sent: None,
             set_up: false,
-            seq: 0,
+            seq: Seq4::default(),
             battery: None,
         }
     }
@@ -687,9 +687,8 @@ impl PadDriver for SonyDriver {
             self.model,
             self.bluetooth,
             &SonyOutput { setup, ..want },
-            self.seq,
+            self.seq.step(),
         );
-        self.seq = (self.seq + 1) & 0x0F;
         io.write(&report)
     }
 

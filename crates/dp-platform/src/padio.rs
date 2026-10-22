@@ -159,15 +159,84 @@ pub trait PadDriver: Send {
     fn shutdown(&mut self, _io: &mut dyn ReportIo) {}
 }
 
-/// Wait until `until` while discarding input reports (used for command spacing).
-pub fn pause(io: &mut dyn ReportIo, until: Instant) -> io::Result<()> {
+/// Read reports until `accept` takes one (and gives its answer) or `until` passes (`None`).
+pub fn read_until<T>(
+    io: &mut dyn ReportIo,
+    until: Instant,
+    mut accept: impl FnMut(&[u8]) -> Option<T>,
+) -> io::Result<Option<T>> {
     let mut buf = [0u8; 64];
     loop {
         let now = io.now();
         if now >= until {
-            return Ok(());
+            return Ok(None);
         }
-        io.read(&mut buf, until - now)?;
+        if let Some(n) = io.read(&mut buf, until - now)?
+            && let Some(v) = accept(&buf[..n])
+        {
+            return Ok(Some(v));
+        }
+    }
+}
+
+/// Wait until `until` while discarding input reports (used for command spacing).
+pub fn pause(io: &mut dyn ReportIo, until: Instant) -> io::Result<()> {
+    read_until(io, until, |_| None::<()>).map(drop)
+}
+
+/// Something done at most every `period`.
+#[derive(Clone, Copy, Debug)]
+pub struct Every {
+    period: Duration,
+    last: Option<Instant>,
+}
+
+impl Every {
+    pub const fn new(period: Duration) -> Self {
+        Every { period, last: None }
+    }
+
+    /// Whether it may run at `now` (always before the first time).
+    pub fn due(&self, now: Instant) -> bool {
+        self.last.is_none_or(|t| now >= t + self.period)
+    }
+
+    /// Whether it ran at all.
+    pub fn done(&self) -> bool {
+        self.last.is_some()
+    }
+
+    /// When it may run next; `None` before the first time.
+    pub fn next(&self) -> Option<Instant> {
+        self.last.map(|t| t + self.period)
+    }
+
+    /// It ran at `now`.
+    pub fn ran(&mut self, now: Instant) {
+        self.last = Some(now);
+    }
+}
+
+/// The earliest of some times, leaving out the ones that are not set.
+pub fn earliest(times: impl IntoIterator<Item = Option<Instant>>) -> Option<Instant> {
+    times.into_iter().flatten().min()
+}
+
+/// A 4-bit sequence counter, for reports that number themselves 0–15.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Seq4(u8);
+
+impl Seq4 {
+    /// The current number; the counter moves on.
+    pub fn step(&mut self) -> u8 {
+        let n = self.0;
+        self.0 = (n + 1) & 0x0F;
+        n
+    }
+
+    /// The current number.
+    pub fn get(self) -> u8 {
+        self.0
     }
 }
 
@@ -457,6 +526,22 @@ mod tests {
             !retry.wait(Duration::from_secs(5)),
             "returns at once, without waiting"
         );
+    }
+
+    #[test]
+    fn every_seq4_and_earliest() {
+        let t0 = Instant::now();
+        let mut e = Every::new(10 * MS);
+        assert!(e.due(t0) && !e.done() && e.next().is_none());
+        e.ran(t0);
+        assert!(e.done() && !e.due(t0 + 9 * MS) && e.due(t0 + 10 * MS));
+        assert_eq!(e.next(), Some(t0 + 10 * MS));
+        let mut s = Seq4::default();
+        let got: Vec<u8> = (0..17).map(|_| s.step()).collect();
+        assert_eq!(got[14..], [14, 15, 0]);
+        assert_eq!(s.get(), 1);
+        assert_eq!(earliest([None, Some(t0 + MS), Some(t0)]), Some(t0));
+        assert_eq!(earliest([None, None]), None);
     }
 
     #[test]
