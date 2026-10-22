@@ -24,6 +24,7 @@
     'emergency_stop',
     'pad_overlay',
     'mappings_overlay',
+    'app_navigation',
   ];
   const MAX_BUTTONS = 4;
   /** How long a hotkey must be held, in ms (dp-core's HOLD_MS_RANGE). */

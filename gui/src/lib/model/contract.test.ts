@@ -78,6 +78,7 @@ const live = {
   has_radial: true,
   pad_overlay: true,
   mappings_overlay: true,
+  app_navigation: true,
 } satisfies Keys<LiveState>;
 
 const device = {
@@ -133,6 +134,7 @@ const guiSettings = {
   show_notes: true,
   silenced: true,
   zoom: true,
+  pad_navigation: true,
 } satisfies Keys<GuiSettings>;
 const osdSettings = {
   enabled: true,
@@ -161,6 +163,7 @@ const hotkeys = {
   emergency_stop: true,
   pad_overlay: true,
   mappings_overlay: true,
+  app_navigation: true,
   rumble: true,
 } satisfies Keys<Hotkeys>;
 const osdMessage = {

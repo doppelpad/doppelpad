@@ -1,6 +1,6 @@
 //! Controller hotkeys that work independently of the active profile: select a slot, turn
 //! remapping on or off, stop macros, emergency stop, show the controller and mappings
-//! overlays.
+//! overlays, drive the app with the controller.
 //!
 //! A hotkey is a set of pad buttons held together for a while. [`HotkeyDetector`] watches
 //! the buttons of the controller in use, reports a hotkey once it has been held long
@@ -32,11 +32,13 @@ pub enum HotkeyAction {
     PadOverlay,
     /// Show or hide the overlay listing the current layer's mappings.
     MappingsOverlay,
+    /// Turn the app's controller navigation on or off (the app follows the live state).
+    AppNavigation,
 }
 
 impl HotkeyAction {
     /// Every action with an entry in [`Hotkeys`], in its order.
-    pub const ALL: [HotkeyAction; 9] = [
+    pub const ALL: [HotkeyAction; 10] = [
         HotkeyAction::Slot(0),
         HotkeyAction::Slot(1),
         HotkeyAction::Slot(2),
@@ -46,6 +48,7 @@ impl HotkeyAction {
         HotkeyAction::EmergencyStop,
         HotkeyAction::PadOverlay,
         HotkeyAction::MappingsOverlay,
+        HotkeyAction::AppNavigation,
     ];
 }
 
@@ -64,6 +67,8 @@ pub struct Hotkeys {
     pub emergency_stop: Vec<PadButton>,
     pub pad_overlay: Vec<PadButton>,
     pub mappings_overlay: Vec<PadButton>,
+    /// Drive the app with the controller (focus, activate, back), or stop.
+    pub app_navigation: Vec<PadButton>,
     /// Confirm each hotkey with a short rumble pattern on the controller.
     pub rumble: bool,
 }
@@ -82,6 +87,7 @@ impl Default for Hotkeys {
             emergency_stop: vec![Back, Start, LB, RB],
             pad_overlay: Vec::new(),
             mappings_overlay: Vec::new(),
+            app_navigation: Vec::new(),
             rumble: false,
         }
     }
@@ -101,6 +107,7 @@ impl Hotkeys {
             HotkeyAction::EmergencyStop => &self.emergency_stop,
             HotkeyAction::PadOverlay => &self.pad_overlay,
             HotkeyAction::MappingsOverlay => &self.mappings_overlay,
+            HotkeyAction::AppNavigation => &self.app_navigation,
         }
     }
 

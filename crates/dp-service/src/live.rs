@@ -151,6 +151,9 @@ pub struct LiveState {
     pub pad_overlay: bool,
     /// The overlay listing the current layer's mappings is on.
     pub mappings_overlay: bool,
+    /// How often the app-navigation hotkey fired; the app turns its controller navigation
+    /// on or off at each change.
+    pub app_navigation: u32,
 }
 
 /// The slots of a controller that has its own.

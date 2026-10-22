@@ -124,8 +124,11 @@
           <Toggle
             checked={app.settings.hook_buttons}
             label={t('settings.hook_buttons')}
+            disabled={app.settings.pad_navigation}
             onchange={(v) => app.setSettings({ hook_buttons: v })}
           />
+          <Toggle checked={app.settings.pad_navigation} label={t('padnav.toggle')} onchange={(v) => app.setPadNavigation(v)} />
+          <p class="hint">{t('padnav.hint')}</p>
           {#if app.rewasd}
             <SettingRow label={t('settings.rewasd')}>
               <select

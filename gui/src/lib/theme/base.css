@@ -109,3 +109,9 @@ input[type='color'] {
 ::-webkit-scrollbar-track {
   background: transparent;
 }
+
+/* The controller drives the app: the focused element always shows where it is. */
+:root.pad-nav :focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}

@@ -7,6 +7,7 @@
   import { isTextEntry, menuOpen, popoverOpen } from './lib/dom';
   import { matchShortcut } from './lib/state/shortcuts';
   import { runShortcut } from './components/shortcutActions';
+  import { runPadControls } from './components/padNavigation';
   import ShortcutsDialog from './components/ShortcutsDialog.svelte';
   import FindPanel from './components/FindPanel.svelte';
   import LiveOutput from './components/LiveOutput.svelte';
@@ -47,8 +48,14 @@
   const drawing = $derived(app.view === 'back' ? drawings.back : drawings.front);
 
   onMount(() => {
+    app.padHandler = runPadControls;
     app.init();
     win.init();
+  });
+
+  // A focus ring while the controller drives the app.
+  $effect(() => {
+    document.documentElement.classList.toggle('pad-nav', app.settings.pad_navigation);
   });
 
   function onKeydown(e: KeyboardEvent) {

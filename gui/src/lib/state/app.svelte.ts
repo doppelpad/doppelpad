@@ -11,6 +11,7 @@ import { layerLabel } from '../model/labels';
 import { clone } from '../model/util';
 import { isStreamingField, pointer } from '../dom';
 import { movedPath } from '../paths';
+import { padMode, PressRepeat } from '../padnav';
 import { History, type EditKey } from './history';
 import { flagsOf, hotkeyClashes, type Flags } from '../model/lints';
 import type { Copied } from '../model/clipboard';
@@ -136,6 +137,11 @@ class AppState {
   private pressListener: ((c: ControlName) => void) | null = null;
   /** Controls held on the primary controller; the drawing highlights exactly these. */
   pressed = $state.raw(new Set<ControlName>());
+  /** Runs what the controller does while it drives the app (set by App.svelte). */
+  padHandler: ((controls: ControlName[]) => void) | null = null;
+  private padRepeat = new PressRepeat();
+  /** Repeats held directions while no new live state comes (a held D-pad does not change it). */
+  private padTimer: ReturnType<typeof setInterval> | null = null;
   private toastId = 0;
   /** The settings write in flight: the next one waits for it, so it builds on its result. */
   private settingsWrite: Promise<void> = Promise.resolve();
@@ -200,8 +206,11 @@ class AppState {
   }
 
   private onLive(s: LiveState) {
-    const firstSnapshot = this.live === null;
+    const before = this.live;
+    const firstSnapshot = before === null;
     this.live = s;
+    // The navigation hotkey fired (it counts; the app keeps the mode).
+    if (before && s.app_navigation !== before.app_navigation) this.setPadNavigation(!this.settings.pad_navigation);
     if (firstSnapshot) this.applySlot = s.active_slot;
     const dev = this.primary;
     const now = dev && this.catalog ? controlsFromPad(dev, this.catalog.pad_buttons) : new Set<ControlName>();
@@ -210,6 +219,32 @@ class AppState {
     }
     // Live state comes many times a second; only a change of the held controls is news.
     if (now.size !== this.pressed.size || [...now].some((c) => !this.pressed.has(c))) this.pressed = now;
+    this.drivePad();
+  }
+
+  /** Controller navigation on or off (bottom bar, hotkey); it replaces press-to-select while on. */
+  setPadNavigation(on: boolean) {
+    if (on === this.settings.pad_navigation) return;
+    this.setSettings({ pad_navigation: on });
+    this.toast(t(on ? 'padnav.on' : 'padnav.off'), 'info');
+  }
+
+  /** While the controller drives the app: act on new presses and on held directions, again and again. */
+  private drivePad() {
+    const now = performance.now();
+    const driving = padMode(this.settings) === 'navigate' && !this.pressListener && document.hasFocus();
+    if (!driving) {
+      // What is held when the mode comes on does not act.
+      this.padRepeat.reset(this.pressed, now);
+    } else {
+      const acting = this.padRepeat.update(this.pressed, now);
+      if (acting.length) this.padHandler?.(acting);
+    }
+    if (driving && this.padRepeat.repeating) this.padTimer ??= setInterval(() => this.drivePad(), 40);
+    else if (this.padTimer) {
+      clearInterval(this.padTimer);
+      this.padTimer = null;
+    }
   }
 
   private onPhysicalPress(c: ControlName) {
@@ -217,7 +252,7 @@ class AppState {
       this.pressListener(c);
       return;
     }
-    if (!this.settings.hook_buttons || !this.profile || !document.hasFocus()) return;
+    if (padMode(this.settings) !== 'select' || !this.profile || !document.hasFocus()) return;
     if (this.view !== 'front' && this.view !== 'back') return;
     this.select(c);
     this.view = sideShowing(drawingsFor(this.primary), this.view, c);

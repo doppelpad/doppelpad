@@ -145,6 +145,7 @@ impl Service {
                 }),
             pad_overlay: self.rt.overlays().0,
             mappings_overlay: self.rt.overlays().1,
+            app_navigation: self.rt.navigation_presses(),
             has_radial: self
                 .rt
                 .profile()

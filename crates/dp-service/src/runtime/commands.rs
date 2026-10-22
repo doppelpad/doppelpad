@@ -123,9 +123,10 @@ impl Runtime {
     }
 
     /// Run the hotkey detectors on every controller and withhold the buttons of complete
-    /// hotkeys from the engines (in `pad_buf`).
+    /// hotkeys from the engines (in `pad_buf`). While the app has the focus (suspended) only
+    /// the app-navigation hotkey counts: the app reads the controller then.
     pub(super) fn detect_hotkeys(&mut self, now: u64) -> Vec<(DeviceId, HotkeyAction)> {
-        if self.hotkeys.paused || self.suspended {
+        if self.hotkeys.paused {
             self.hotkeys.detectors.clear();
             return Vec::new();
         }
@@ -138,7 +139,9 @@ impl Runtime {
                     .insert(id.clone(), HotkeyDetector::default());
             }
             let d = self.hotkeys.detectors.get_mut(id).expect("inserted above");
-            if let Some(a) = d.update(&self.hotkeys.set, pad.buttons, now) {
+            if let Some(a) = d.update(&self.hotkeys.set, pad.buttons, now)
+                && (!self.suspended || a == HotkeyAction::AppNavigation)
+            {
                 fired.push((id.clone(), a));
             }
             pad.buttons &= !d.withheld();

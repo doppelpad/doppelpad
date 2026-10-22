@@ -1169,6 +1169,7 @@
     "emergency_stop": "Emergency stop",
     "pad_overlay": "Controller overlay",
     "mappings_overlay": "Mappings overlay",
+    "app_navigation": "Drive this app with the controller (also while it has the focus)",
     "none": "Off",
     "press": "Hold the buttons, then let go…",
     "record": "Record",
@@ -1566,5 +1567,11 @@
   },
   "hints": {
     "steam_input": "Steam is running while {game} uses Doppelpad's virtual controller. Steam Input may take that controller as well and remap it again, so buttons act twice or not as mapped. If that happens, turn Steam Input off for this game: in Steam, open the game's Properties, then Controller, and choose to disable Steam Input."
+  },
+  "padnav": {
+    "toggle": "Drive the app with the controller",
+    "hint": "D-pad or left stick move the focus, A presses, B goes back or closes, LB and RB switch views, LT and RT switch layers, Start saves. Pressing a control then no longer selects it.",
+    "on": "The controller drives the app",
+    "off": "The controller selects controls again"
   }
 }
