@@ -237,10 +237,11 @@ impl Pad {
                 .rumble
                 .insert(self.nodes[0].control.upload_ff_effect(data)?),
         };
-        if off && self.rumble_playing {
-            effect.stop()?;
-            self.rumble_playing = false;
-        } else if !off && !self.rumble_playing {
+        // Off is the effect playing at zero. Stopping it instead left the motors running on
+        // the ff-memless drivers (hid-playstation, hid-nintendo, xpad): the update takes the
+        // effect out of "playing" until their timer runs, and a stop in between never sends
+        // the motors their zero.
+        if !off && !self.rumble_playing {
             effect.play(1)?;
             self.rumble_playing = true;
         }
