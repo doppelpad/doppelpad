@@ -137,6 +137,7 @@ fn main() {
                 )),
                 live_generation: Arc::new(AtomicU64::new(0)),
                 main_focused: AtomicBool::new(false),
+                min_size_held: AtomicBool::new(false),
             });
             app.manage(overlay::Overlays::default());
             app.manage(osd::OsdState::default());
@@ -150,10 +151,7 @@ fn main() {
             // Started with Windows: only the tray icon shows.
             let visible = !autostart::started_hidden();
             let window = create_main_window(app, visible)?;
-            commands::apply_zoom(
-                &window,
-                app.state::<AppState>().settings.lock().unwrap().zoom,
-            );
+            commands::apply_zoom(&window, &app.state::<AppState>());
             // Only after the zoom: on Windows, setting the minimum size un-maximizes the
             // window. A hidden window is fitted when it shows (`tray::show_main`).
             if visible {
@@ -173,6 +171,11 @@ fn main() {
                         }
                         // A hidden window has no focus, whether or not Windows reports it.
                         state.set_main_focused(false);
+                    }
+                    WindowEvent::Resized(_) => {
+                        if let Some(w) = app_handle.get_webview_window(MAIN_WINDOW) {
+                            commands::apply_held_min_size(&w, &state);
+                        }
                     }
                     _ => {}
                 }
