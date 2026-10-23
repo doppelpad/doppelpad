@@ -502,6 +502,7 @@ fn watch(app: AppHandle, live: SharedLive, mut shown: View) {
 pub fn show_main(app: &AppHandle) {
     if let Some(w) = app.get_webview_window(MAIN_WINDOW) {
         let _ = w.unminimize();
+        crate::fit_to_screen(&w);
         let _ = w.show();
         let _ = w.set_focus();
     }

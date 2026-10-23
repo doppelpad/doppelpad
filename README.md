@@ -41,8 +41,8 @@ from other remapping tools.
 > **Status: early preview.** The engine, profile format, importer and Windows backends are
 > implemented and unit-tested, and real DualSense input has been verified. The desktop app
 > (editor + tray service) is still being polished. End-to-end testing with ViGEmBus/HidHide
-> in games is the next milestone. A Linux backend (evdev/uinput) is implemented but not yet
-> tested on real hardware. Expect rough edges.
+> in games is the next milestone. A Linux backend (evdev/uinput) has had a first test on a
+> Steam Deck. Expect rough edges.
 
 ## Download
 
@@ -214,16 +214,18 @@ examples in [`profiles/examples/`](profiles/examples).
 | | Windows | Linux | macOS |
 |---|---|---|---|
 | Engine, profiles, CLI | ✅ | ✅ | ✅ (compiles) |
-| Read controllers | ✅ XInput, raw HID (Sony, Nintendo) | 🧪 evdev (incl. DS4/DualSense/Switch gyro + touchpad) | planned |
-| Virtual controller | ✅ Xbox 360, DualShock 4 (ViGEmBus) | 🧪 Xbox 360 (uinput) | — |
-| Hide physical controller | ✅ HidHide | 🧪 `EVIOCGRAB` | planned |
-| Keyboard/mouse output | ✅ `SendInput` | 🧪 uinput | planned |
-| Keyboard/mouse capture | ✅ hooks | 🧪 evdev grab + passthrough | planned |
-| Per-game auto-switching | ✅ | 🧪 X11 / XWayland | planned |
+| Read controllers | ✅ XInput, raw HID (Sony, Nintendo) | ✅ evdev (incl. DualSense/Switch gyro + touchpad) | planned |
+| Virtual controller | ✅ Xbox 360, DualShock 4 (ViGEmBus) | ✅ Xbox 360 (uinput) | — |
+| Hide physical controller | ✅ HidHide | ✅ `EVIOCGRAB` | planned |
+| Keyboard/mouse output | ✅ `SendInput` | ✅ uinput | planned |
+| Keyboard/mouse capture | ✅ hooks | ✅ evdev grab + passthrough | planned |
+| Per-game auto-switching | ✅ | ✅ X11 / XWayland | planned |
 
-🧪 = implemented and unit-tested, not yet tested on real hardware. Linux setup (udev rule for
-`/dev/uinput` and `/dev/input`) is in [docs/LINUX.md](docs/LINUX.md), the hardware test
-checklist in [docs/LINUX-TESTING.md](docs/LINUX-TESTING.md).
+The Linux column was tested on a Steam Deck (SteamOS 3.8, desktop mode) with a DualSense and
+a Switch Pro Controller; DualShock 4, Joy-Cons and Bluetooth are untested. Linux setup (udev
+rule for `/dev/uinput` and `/dev/input`, not needed on SteamOS) is in
+[docs/LINUX.md](docs/LINUX.md), the hardware test checklist and its results in
+[docs/LINUX-TESTING.md](docs/LINUX-TESTING.md).
 
 Everything except `crates/dp-platform` is platform-independent. See
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and [docs/ROADMAP.md](docs/ROADMAP.md).

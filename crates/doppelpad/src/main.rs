@@ -106,7 +106,7 @@ enum Cmd {
     },
     /// Validate a profile and print diagnostics.
     Check { profile: PathBuf },
-    /// Check drivers (ViGEmBus, HidHide) and list controllers.
+    /// Check drivers (ViGEmBus and HidHide on Windows, uinput on Linux) and list controllers.
     Doctor,
     /// Show live controller input (useful to verify devices and button names).
     Monitor,
@@ -426,14 +426,20 @@ fn doctor() -> Result<()> {
         env!("CARGO_PKG_VERSION"),
         dp_platform::os_version()
     );
-    println!(
-        "ViGEmBus (virtual controllers): {}",
-        ok(platform.virtual_pads.available())
-    );
-    println!(
-        "HidHide (hide physical pads):   {}",
-        ok(platform.hider.available())
-    );
+    // What each OS uses for the two.
+    let (pads, hiding) = if cfg!(windows) {
+        (
+            "ViGEmBus (virtual controllers):",
+            "HidHide (hide physical pads):",
+        )
+    } else {
+        (
+            "uinput (virtual controllers):",
+            "EVIOCGRAB (hide physical pads):",
+        )
+    };
+    println!("{pads:<32}{}", ok(platform.virtual_pads.available()));
+    println!("{hiding:<32}{}", ok(platform.hider.available()));
     drop(platform);
     match dp_config::portable_dir() {
         Some(dir) => println!(

@@ -11,9 +11,11 @@ Doppelpad runs on Linux with only kernel interfaces. No extra drivers are needed
 | Keyboard / mouse capture | `EVIOCGRAB` on every keyboard and mouse, plus one uinput passthrough device each |
 | Per-game profiles | X11 / XWayland `_NET_ACTIVE_WINDOW` → `_NET_WM_PID` → `/proc` |
 
-> **Status:** the backend compiles and its event mapping is unit-tested, but it has **not
-> been tested on real hardware yet**. Reports from Linux users are very welcome. The
-> [hardware test checklist](LINUX-TESTING.md) lists what to try.
+> **Status:** first tested on real hardware on a Steam Deck (SteamOS 3.8, desktop mode) with
+> a DualSense and a Switch Pro Controller over USB, a USB keyboard and mouse, and the desktop
+> app. The [results](LINUX-TESTING.md#results) list what works and what is still open.
+> DualShock 4, Joy-Cons, Bluetooth, other distributions and Game Mode are untested. Reports
+> from Linux users are very welcome.
 
 ## Setup
 
@@ -44,6 +46,14 @@ Don't run it as root. Give your user access instead:
 Be aware that members of the `input` group can read every keyboard on the system. Every
 evdev-based remapper needs this access.
 
+On **SteamOS** you can skip these steps. Steam's udev rules (`60-steam-input.rules`,
+`70-steam-jupiter-input.rules`) and systemd's `uaccess` already give the logged-in user
+`/dev/uinput` and every input device on USB, which on a Steam Deck includes Bluetooth ones
+(its Bluetooth adapter is a USB device). `doppelpad doctor` confirms it. Without the rule,
+the user can't read virtual keyboards and mice that other programs create through uinput, so
+capture leaves them alone. The nodes that stay unreadable, such as the touchscreen and the
+audio jacks, are not needed.
+
 ## Controllers
 
 Every event node with gamepad buttons (`BTN_SOUTH`) and sticks is read as a controller.
@@ -57,7 +67,8 @@ pads. Buttons are mapped by position, following `Documentation/input/gamepad.rst
 
 Doppelpad handles both. The Xbox Series Share button (`KEY_RECORD`) and the Switch Capture
 button become `Misc`. Back paddles (`BTN_GRIP*` on Elite pads, Fn and paddles on the
-DualSense Edge) become the four paddles.
+DualSense Edge) become the four paddles. The DualSense Create button is `Back`. Its Mute
+button never arrives: hid-playstation handles it itself and toggles the microphone LED.
 
 Joy-Cons from hid-nintendo:
 
@@ -71,6 +82,7 @@ Joy-Cons from hid-nintendo:
 
 Switch 2 controllers are not supported on Linux yet: without a kernel driver they stay silent
 until their USB vendor interface is initialised, which only the Windows backend does today.
+On SteamOS 3.8, Steam doesn't initialise a Switch 2 Pro Controller either.
 
 hid-playstation and hid-nintendo create extra nodes, "… Motion Sensors" / "(IMU)" and
 "… Touchpad", on the same parent device. Doppelpad attaches them to the controller:
@@ -80,6 +92,11 @@ hid-playstation and hid-nintendo create extra nodes, "… Motion Sensors" / "(IM
 - touchpad click.
 
 Rumble uses `FF_RUMBLE`.
+
+Turning a controller off, the light bar, player LEDs and DualSense trigger effects are not
+available on Linux yet, because evdev has no interface for them. The `power_off` command logs
+that the controller cannot be turned off, and a profile's `[lightbar]`, LEDs and trigger
+effects are ignored.
 
 Controller ids look like `evdev:054c:0ce6:a0:b1:c2:d3:e4:f5`: vendor and product id, then the
 Bluetooth address, the USB port or the device node, so a controller keeps its id when it
@@ -92,12 +109,40 @@ controller's event nodes. It grabs them through its own open file, so Doppelpad 
 reading them while games, Steam and the desktop no longer receive their events. Stopping
 the profile, or quitting Doppelpad for any reason, releases the grab.
 
-`EVIOCGRAB` only covers evdev. Games that open the controller through **hidraw** still see
-it. SDL's HIDAPI drivers do that for PlayStation, Nintendo and some Xbox pads, provided
-hidraw is accessible (Steam's udev rules make it so). If a game sees two controllers:
+`EVIOCGRAB` only covers evdev. Programs that open the controller through **hidraw** still see
+it:
 
-- start it with `SDL_JOYSTICK_HIDAPI=0`, or
-- turn off Steam Input for that game.
+- **Steam** reads every controller Steam Input drives through hidraw and gives games its
+  own virtual pad for it. With Steam Input on, a game therefore gets the controller twice:
+  once from Steam, not remapped, and once from Doppelpad's virtual pad, which Steam wraps
+  as well. Turn Steam Input off for the game (game *Properties → Controller → Disable Steam
+  Input*). The game then uses Doppelpad's pad and nothing else of that controller. This was
+  tested with a native game on a Steam Deck.
+- SDL's HIDAPI drivers open PlayStation, Nintendo and some Xbox pads through hidraw,
+  provided hidraw is accessible (Steam's udev rules make it so). If a game still sees two
+  controllers, start it with `SDL_JOYSTICK_HIDAPI=0`.
+
+## Steam
+
+Steam's virtual pads (`28de:11ff`, named "Microsoft X-Box 360 pad N") look like physical
+controllers to Doppelpad: it lists them, including the one Steam makes for Doppelpad's own
+virtual pad. A session keeps the controller it has, so this doesn't loop.
+
+While Steam drives a controller it also changes what its evdev nodes deliver:
+
+- Steam turns the Switch Pro Controller's IMU off, so its gyro stays at zero.
+- SteamOS's `steamos-manager` inhibits the touchpad node of a PlayStation controller that
+  Steam uses, so the touchpad sends nothing. To get it back while Steam runs:
+  `busctl set-property com.steampowered.SteamOSManager1 /com/steampowered/SteamOSManager1 com.steampowered.SteamOSManager1.RootManager InhibitDs b false`
+  (and `b true` to restore it).
+
+**Steam Deck controls.** While Steam runs, they exist only as Steam's virtual pad, with the
+Xbox 360 layout: no back buttons, trackpads or gyro. With Steam closed, hid-steam offers a
+"Steam Deck" controller and a motion node, but starts in lizard mode, in which the controls
+act as keyboard and mouse and the gamepad node stays silent. Hold the Menu button (≡) to
+switch to gamepad mode. Doppelpad then reads the buttons, L4/R4/L5/R5 as the four paddles,
+the sticks and the gyro. The trackpads, the ··· button and the analog triggers are not read
+yet (L2/R2 arrive as buttons), and the left trackpad wrongly moves the d-pad.
 
 ## Virtual controller
 
@@ -155,6 +200,14 @@ The power commands run `systemctl poweroff`, `reboot`, `suspend` and `hibernate`
 `loginctl terminate-session $XDG_SESSION_ID` for signing out; polkit decides whether the
 user may do that. `close_window` sends the EWMH `_NET_CLOSE_WINDOW` request for the active
 X11 window. The `screenshot` command is not available on Linux yet.
+
+## Desktop app
+
+The app builds and runs on Linux (see [LINUX-TESTING.md § 9](LINUX-TESTING.md#9-desktop-app);
+on SteamOS it needs a container with WebKitGTK). On a Wayland desktop it is a native Wayland
+window, and the compositor decides where windows go: the OSD and the controller overlay
+appear in the middle of the screen instead of the chosen corner. Over a fullscreen game an
+overlay takes the focus and then ends up behind the game.
 
 ## Troubleshooting
 

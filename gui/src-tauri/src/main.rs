@@ -80,6 +80,20 @@ fn create_main_window(app: &tauri::App, visible: bool) -> tauri::Result<WebviewW
     builder.build()
 }
 
+/// Maximize the main window if it is larger than the work area of its screen, such as a
+/// 1280 × 800 handheld, where its right end with the window buttons would be off screen.
+pub(crate) fn fit_to_screen(window: &WebviewWindow) {
+    if window.is_maximized().unwrap_or(true) {
+        return;
+    }
+    if let (Ok(Some(monitor)), Ok(size)) = (window.current_monitor(), window.inner_size()) {
+        let area = monitor.work_area().size;
+        if size.width > area.width || size.height > area.height {
+            let _ = window.maximize();
+        }
+    }
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
@@ -123,6 +137,7 @@ fn main() {
                 )),
                 live_generation: Arc::new(AtomicU64::new(0)),
                 main_focused: AtomicBool::new(false),
+                min_size_held: AtomicBool::new(false),
             });
             app.manage(overlay::Overlays::default());
             app.manage(osd::OsdState::default());
@@ -134,11 +149,14 @@ fn main() {
             overlay::spawn_watcher(app.handle(), "pad-overlay", pad_overlay::watch)?;
 
             // Started with Windows: only the tray icon shows.
-            let window = create_main_window(app, !autostart::started_hidden())?;
-            commands::apply_zoom(
-                &window,
-                app.state::<AppState>().settings.lock().unwrap().zoom,
-            );
+            let visible = !autostart::started_hidden();
+            let window = create_main_window(app, visible)?;
+            commands::apply_zoom(&window, &app.state::<AppState>());
+            // Only after the zoom: on Windows, setting the minimum size un-maximizes the
+            // window. A hidden window is fitted when it shows (`tray::show_main`).
+            if visible {
+                fit_to_screen(&window);
+            }
             let app_handle = app.handle().clone();
             window.on_window_event(move |event| {
                 let state = app_handle.state::<AppState>();
@@ -153,6 +171,11 @@ fn main() {
                         }
                         // A hidden window has no focus, whether or not Windows reports it.
                         state.set_main_focused(false);
+                    }
+                    WindowEvent::Resized(_) => {
+                        if let Some(w) = app_handle.get_webview_window(MAIN_WINDOW) {
+                            commands::apply_held_min_size(&w, &state);
+                        }
                     }
                     _ => {}
                 }

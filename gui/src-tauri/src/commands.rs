@@ -75,6 +75,9 @@ pub struct AppState {
     /// The main window has the focus (window events; the webview inside holds the keyboard
     /// focus, so the window itself does not report it). See [`AppState::set_main_focused`].
     pub main_focused: AtomicBool,
+    /// The main window was maximized or minimized when the zoom changed, so its new minimum
+    /// size waits; see [`apply_zoom`].
+    pub min_size_held: AtomicBool,
 }
 
 type CmdResult<T> = Result<T, String>;
@@ -820,16 +823,19 @@ pub fn settings_set(
     settings: GuiSettings,
 ) -> CmdResult<()> {
     let settings = settings.clamped();
-    {
+    let zoom_changed = {
         let mut current = state.settings.lock().unwrap();
         settings.save().map_err(err)?;
+        let changed = current.zoom != settings.zoom;
         *current = settings;
-    }
+        changed
+    };
     // "Keep remapping active" may have changed.
     state.sync_suspend()?;
     crate::tray::refresh(&app);
-    if let Some(window) = app.get_webview_window(MAIN_WINDOW) {
-        apply_zoom(&window, settings_zoom(&state));
+    // Only on a change: the zoom sets the window's minimum size, which applies its size again.
+    if zoom_changed && let Some(window) = app.get_webview_window(MAIN_WINDOW) {
+        apply_zoom(&window, &state);
     }
     Ok(())
 }
@@ -841,12 +847,35 @@ fn settings_zoom(state: &AppState) -> u16 {
 /// The window's minimum size at 100 % (tauri.conf.json); it grows with the zoom so nothing is cut off.
 const MIN_SIZE: (f64, f64) = (1080.0, 680.0);
 
-/// Show the window's contents at `zoom` percent.
-pub fn apply_zoom(window: &tauri::WebviewWindow, zoom: u16) {
-    let scale = f64::from(zoom) / 100.0;
+/// Show the window's contents at the zoom of the settings.
+pub fn apply_zoom(window: &tauri::WebviewWindow, state: &AppState) {
+    let scale = f64::from(settings_zoom(state)) / 100.0;
     if let Err(e) = window.set_zoom(scale) {
         tracing::warn!("cannot zoom the window: {e}");
     }
+    // Setting the minimum size applies the window's size again, which on Windows takes a
+    // maximized window out of maximized and leaves it at the maximized size. Such a window
+    // gets its minimum size once it is restored (`apply_held_min_size`).
+    if min_size_waits(window) {
+        state.min_size_held.store(true, Ordering::Relaxed);
+    } else {
+        set_min_size(window, scale);
+    }
+}
+
+/// Set the minimum size [`apply_zoom`] held back, once the window is restored.
+pub fn apply_held_min_size(window: &tauri::WebviewWindow, state: &AppState) {
+    if !min_size_waits(window) && state.min_size_held.swap(false, Ordering::Relaxed) {
+        set_min_size(window, f64::from(settings_zoom(state)) / 100.0);
+    }
+}
+
+/// Maximized or minimized: a minimum size set now would spoil the window's size.
+fn min_size_waits(window: &tauri::WebviewWindow) -> bool {
+    window.is_maximized().unwrap_or(true) || window.is_minimized().unwrap_or(true)
+}
+
+fn set_min_size(window: &tauri::WebviewWindow, scale: f64) {
     let grow = scale.max(1.0);
     let _ = window.set_min_size(Some(tauri::LogicalSize::new(
         MIN_SIZE.0 * grow,

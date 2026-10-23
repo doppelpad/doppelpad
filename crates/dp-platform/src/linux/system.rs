@@ -5,7 +5,6 @@
 use std::path::PathBuf;
 use std::process::Command;
 
-use x11rb::connection::Connection;
 use x11rb::protocol::xproto::{ClientMessageEvent, ConnectionExt, EventMask};
 
 use super::x11::X11;
@@ -49,7 +48,13 @@ fn close_active_x11_window() -> Result<()> {
             event,
         )
         .map_err(|e| err(&e))?;
-    x11.conn.flush().map_err(|e| err(&e))?;
+    // Wait for a reply, so the server has handled the request before the connection closes:
+    // it drops the requests it has not handled yet when a client goes away.
+    x11.conn
+        .get_input_focus()
+        .map_err(|e| err(&e))?
+        .reply()
+        .map_err(|e| err(&e))?;
     Ok(())
 }
 

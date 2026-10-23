@@ -7,9 +7,8 @@ use std::path::Path;
 /// kernel truncates to 15 bytes).
 pub fn process_name(pid: u32) -> Option<String> {
     let proc = Path::new("/proc").join(pid.to_string());
-    if let Ok(cmdline) = std::fs::read(proc.join("cmdline"))
-        && let Some(exe) = wine_exe(&cmdline)
-    {
+    let cmdline = std::fs::read(proc.join("cmdline")).unwrap_or_default();
+    if let Some(exe) = wine_exe(&cmdline) {
         return Some(exe);
     }
     if let Ok(target) = std::fs::read_link(proc.join("exe"))
@@ -20,7 +19,20 @@ pub fn process_name(pid: u32) -> Option<String> {
     }
     let comm = std::fs::read_to_string(proc.join("comm")).ok()?;
     let comm = comm.trim_end();
+    if let Some(name) = argv0_name(&cmdline, comm) {
+        return Some(name);
+    }
     (!comm.is_empty()).then(|| comm.to_owned())
+}
+
+/// The file name in `argv[0]` when `comm` is its start, so the whole name `comm` cut short.
+/// For when `exe` cannot be read: from a container or sandbox, other processes' `exe` links
+/// are off limits, but their command lines are not.
+pub fn argv0_name(cmdline: &[u8], comm: &str) -> Option<String> {
+    let argv0 = cmdline.split(|&b| b == 0).next()?;
+    let argv0 = String::from_utf8_lossy(argv0);
+    let name = argv0.rsplit('/').next()?;
+    (!comm.is_empty() && name.len() > comm.len() && name.starts_with(comm)).then(|| name.to_owned())
 }
 
 /// Wine sets `argv[0]` of a Windows process to its Windows path (`C:\games\foo.exe`);
@@ -46,5 +58,21 @@ mod tests {
         assert_eq!(wine_exe(b"/usr/bin/firefox\0--new-window\0"), None);
         assert_eq!(wine_exe(b".exe\0"), None);
         assert_eq!(wine_exe(b""), None);
+    }
+
+    #[test]
+    fn full_names_from_argv0() {
+        let silksong =
+            b"/run/media/sd/steamapps/common/Hollow Knight Silksong/Hollow Knight Silksong\0";
+        assert_eq!(
+            argv0_name(silksong, "Hollow Knight S"),
+            Some("Hollow Knight Silksong".into())
+        );
+        // Not cut short: comm is the whole name already.
+        assert_eq!(argv0_name(b"/usr/bin/firefox\0", "firefox"), None);
+        // A script under an interpreter: argv[0] names the interpreter.
+        assert_eq!(argv0_name(b"/usr/bin/python3\0game.py\0", "game.py"), None);
+        assert_eq!(argv0_name(b"", "x"), None);
+        assert_eq!(argv0_name(b"/bin/sh\0", ""), None);
     }
 }

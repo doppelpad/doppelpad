@@ -28,11 +28,11 @@ use evdev::{
 use super::codes::*;
 use super::dev::{
     Fetch, NodeTracker, abs_axes, event_nodes, fetch, has_abs, has_key, is_own, parent_device,
-    set_grab,
+    set_grab, sysfs_has_key, sysfs_name,
 };
 use super::padmap::{
-    AbsRange, MotionMapper, NINTENDO_VID, PadMapper, TouchMapper, family_for, joycon_side,
-    stable_id,
+    AbsRange, MotionMapper, NINTENDO_VID, PadMapper, TouchMapper, absinfo_is_state, family_for,
+    joycon_side, stable_id,
 };
 use crate::scan::{Pass, RESCAN, Rescanner};
 use crate::{
@@ -114,7 +114,9 @@ impl Node {
     ) -> io::Result<Node> {
         let control = Device::from_fd(dev.as_fd().try_clone_to_owned()?)?;
         for (code, _, value) in abs_axes(&dev) {
-            mapper.event(EV_ABS, code, value);
+            if absinfo_is_state(code) {
+                mapper.event(EV_ABS, code, value);
+            }
         }
         if let Ok(keys) = dev.get_key_state() {
             for k in keys.iter() {
@@ -235,10 +237,11 @@ impl Pad {
                 .rumble
                 .insert(self.nodes[0].control.upload_ff_effect(data)?),
         };
-        if off && self.rumble_playing {
-            effect.stop()?;
-            self.rumble_playing = false;
-        } else if !off && !self.rumble_playing {
+        // Off is the effect playing at zero. Stopping it instead left the motors running on
+        // the ff-memless drivers (hid-playstation, hid-nintendo, xpad): the update takes the
+        // effect out of "playing" until their timer runs, and a stop in between never sends
+        // the motors their zero.
+        if !off && !self.rumble_playing {
             effect.play(1)?;
             self.rumble_playing = true;
         }
@@ -385,10 +388,16 @@ impl Scanner {
             let dev = match Device::open(&path) {
                 Ok(dev) => dev,
                 Err(e) => {
-                    if e.kind() == io::ErrorKind::PermissionDenied && !self.warned_access {
+                    // Only for controllers: other nodes that are not readable (audio jacks,
+                    // the touchscreen on a Steam Deck) don't matter here.
+                    if e.kind() == io::ErrorKind::PermissionDenied
+                        && !self.warned_access
+                        && sysfs_has_key(&path, BTN_SOUTH)
+                    {
                         tracing::warn!(
-                            "cannot read {}: {e}; controllers need the udev rule from docs/LINUX.md",
-                            path.display()
+                            "cannot read {} ({}): {e}; controllers need the udev rule from docs/LINUX.md",
+                            path.display(),
+                            sysfs_name(&path).unwrap_or_default()
                         );
                         self.warned_access = true;
                     }

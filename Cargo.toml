@@ -58,3 +58,9 @@ match_same_arms = "warn"
 [profile.release]
 lto = "thin"
 codegen-units = 1
+
+# evdev 0.13.2 encodes UI_SET_PHYS with the size of a char instead of a pointer, so the kernel
+# rejects it with EINVAL and no uinput device can be created. Fixed upstream ("fix set_phys
+# ioctl"), not released yet. Drop this once a release includes it.
+[patch.crates-io]
+evdev = { git = "https://github.com/emberian/evdev", rev = "7fee138a341f73b81b9c4f8c59e3527c6a169ea3" }

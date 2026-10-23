@@ -105,6 +105,28 @@ pub fn family_for(vendor: u16, product: u16) -> PadFamily {
     }
 }
 
+/// Whether the value `EVIOCGABS` reports for `code` is the axis' current state, to start a
+/// mapper with. It is not for the multi-touch axes after `ABS_MT_SLOT`: the kernel keeps
+/// those per slot and reports their initial value, a tracking id of 0 among them, which
+/// would look like a finger on the touchpad.
+pub fn absinfo_is_state(code: u16) -> bool {
+    !(ABS_MT_SLOT + 1..=ABS_MT_TOOL_Y).contains(&code)
+}
+
+/// Whether a sysfs capability bitmap (`/sys/class/input/eventN/device/capabilities/key`) has
+/// bit `code`. The kernel prints it as hex words of `word_bits` bits (a `long`), most
+/// significant first.
+pub fn bitmap_has(bitmap: &str, word_bits: u32, code: u16) -> bool {
+    let word = usize::from(code) / word_bits as usize;
+    let bit = u32::from(code) % word_bits;
+    bitmap
+        .split_whitespace()
+        .rev()
+        .nth(word)
+        .and_then(|w| u64::from_str_radix(w, 16).ok())
+        .is_some_and(|w| (w >> bit) & 1 == 1)
+}
+
 /// How a driver numbers the four face buttons.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum FaceLayout {
@@ -473,6 +495,46 @@ mod tests {
             stable_id(1, 2, None, None, node),
             "evdev:0001:0002:/dev/input/event17"
         );
+    }
+
+    #[test]
+    fn multitouch_absinfo_is_not_state() {
+        assert!(absinfo_is_state(ABS_X));
+        assert!(absinfo_is_state(ABS_HAT0Y));
+        assert!(absinfo_is_state(ABS_MT_SLOT));
+        assert!(!absinfo_is_state(ABS_MT_POSITION_X));
+        assert!(!absinfo_is_state(ABS_MT_TRACKING_ID));
+        assert!(!absinfo_is_state(ABS_MT_TOOL_Y));
+        // What starting a touchpad from its absinfo did: a finger at the top left.
+        let mut t = TouchMapper::new(AbsRange::new(0, 1919), AbsRange::new(0, 1079));
+        for code in [
+            ABS_MT_SLOT,
+            ABS_MT_POSITION_X,
+            ABS_MT_POSITION_Y,
+            ABS_MT_TRACKING_ID,
+        ] {
+            if absinfo_is_state(code) {
+                t.event(EV_ABS, code, 0);
+            }
+        }
+        assert_eq!(t.touch(), [None, None]);
+    }
+
+    #[test]
+    fn sysfs_bitmaps() {
+        // Steam's virtual Xbox pad: BTN_SOUTH (0x130) is bit 48 of the fifth word from the end.
+        let pad = "7cdb000000000000 0 0 0 0\n";
+        assert!(bitmap_has(pad, 64, BTN_SOUTH));
+        assert!(!bitmap_has(pad, 64, BTN_LEFT));
+        // A keyboard: Esc (1) but no gamepad buttons.
+        let keyboard = "e080ffdf01cfffff fffffffffffffffe\n";
+        assert!(bitmap_has(keyboard, 64, 1));
+        assert!(!bitmap_has(keyboard, 64, 0));
+        assert!(!bitmap_has(keyboard, 64, BTN_SOUTH));
+        assert!(!bitmap_has("0\n", 64, BTN_SOUTH));
+        assert!(!bitmap_has("", 64, BTN_SOUTH));
+        // 32-bit kernels print 32-bit words.
+        assert!(bitmap_has("10000 0 0 0 0 0 0 0 0 0", 32, BTN_SOUTH));
     }
 
     const STICK: AbsRange = AbsRange::new(-32768, 32767);
