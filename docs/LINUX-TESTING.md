@@ -640,7 +640,7 @@ Driver = kernel driver of the gamepad node. Columns are the checks.
 | L1.1 Unit tests run natively | ✅ | 144 passed (147 with the tests the fixes added) |
 | L1.2 Messages without access | ✅ | Simulated in containers: a missing and an unwritable `/dev/uinput` and an unreadable controller each get their message. On SteamOS nothing needed setting up. The warning used to name the first unreadable node, an HDMI audio jack; fixed in `b2cb3c0`. |
 | L1.3 Doctor | ✅ | Fixed in `098cd6b`: evdev 0.13.2 sends `UI_SET_PHYS` with the wrong size, so no uinput device could be created at all (EINVAL). Labels fixed in `e673a14` (K1). `doctor` printed the uinput warning twice when uinput was missing, because it set up the backends twice; fixed after the run. |
-| L1.4 Daemon and IPC | ✅ | Also after `kill -9`. `devices` right after the daemon starts can say "no controllers found" until the first scan. |
+| L1.4 Daemon and IPC | ✅ | Also after `kill -9`. `devices` right after the daemon started could say "no controllers found" until the first scan; the backend now waits for that scan when it starts (fixed after the run). |
 | L2.1–L2.3, L2.5 | ⚠️ | see [Controllers](#controllers) |
 | L2.4 Joy-Cons | ➖ | none at hand |
 | L2.6 Steam Deck controls, Steam closed | ⚠️ | A "Steam Deck" controller (`28de:1205`, id from its serial) with its motion node. hid-steam starts in lizard mode (keyboard and mouse) and its gamepad node stays silent until the Menu button (≡) is held. Then buttons, L4/R4/L5/R5 (`PaddleUL`/`UR`/`LL`/`LR`), sticks, d-pad and gyro arrive; trackpads, ··· and analog triggers don't (K5). |
