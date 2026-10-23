@@ -193,11 +193,11 @@
     container-type: inline-size;
   }
   .board {
-    --u: calc(100cqw / var(--w));
+    /* One key unit, from the board's width: the view's width up to the widest board. */
+    --u: calc(min(100cqw, 1100px) / var(--w));
     position: relative;
-    width: 100%;
+    width: calc(var(--u) * var(--w));
     height: calc(var(--u) * var(--h));
-    max-width: 1100px;
     margin: 0 auto;
   }
   .key {

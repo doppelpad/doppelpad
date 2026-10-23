@@ -136,6 +136,20 @@
     border: 1px solid var(--line);
     border-radius: var(--radius-m);
     cursor: pointer;
+    transition:
+      background-color 0.12s,
+      border-color 0.12s;
+  }
+  .choice:hover {
+    border-color: var(--line-strong);
+  }
+  .choice:has(input:checked) {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+  }
+  /* In line with the first line of the title. */
+  .choice input {
+    margin-top: 1px;
   }
   .choice span {
     display: flex;

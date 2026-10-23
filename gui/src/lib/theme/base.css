@@ -48,8 +48,9 @@ textarea:focus {
   border-color: var(--accent);
 }
 
-/* Checkboxes in the app's look: a dark box that fills with the accent when ticked. */
-input[type='checkbox'] {
+/* Checkboxes and radio buttons in the app's look: a dark box (a circle for a radio button)
+   that fills with the accent when ticked, with a check mark or a dot. */
+:is(input[type='checkbox'], input[type='radio']) {
   appearance: none;
   flex: none;
   width: 16px;
@@ -64,29 +65,37 @@ input[type='checkbox'] {
     background-color 0.12s,
     border-color 0.12s;
 }
-input[type='checkbox']:focus {
+input[type='radio'] {
+  border-radius: 50%;
+}
+:is(input[type='checkbox'], input[type='radio']):focus {
   border-color: var(--line-strong);
 }
-input[type='checkbox']:hover {
+:is(input[type='checkbox'], input[type='radio']):hover {
   border-color: var(--text-faint);
 }
-input[type='checkbox']:checked {
+:is(input[type='checkbox'], input[type='radio']):checked {
   border-color: var(--accent);
   background-color: var(--accent);
+}
+input[type='checkbox']:checked {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 6.2 5 8.6l4.6-5' fill='none' stroke='%2304221f' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 }
-input[type='checkbox']:checked:hover {
+input[type='radio']:checked {
+  background-image: radial-gradient(circle, var(--on-accent) 0 3px, transparent 3.5px);
+}
+:is(input[type='checkbox'], input[type='radio']):checked:hover {
   border-color: var(--accent-hover);
   background-color: var(--accent-hover);
 }
-input[type='checkbox']:focus-visible {
+:is(input[type='checkbox'], input[type='radio']):focus-visible {
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
-input[type='checkbox']:disabled {
+:is(input[type='checkbox'], input[type='radio']):disabled {
   opacity: 0.4;
   cursor: default;
 }
-input[type='checkbox']:disabled:hover {
+:is(input[type='checkbox'], input[type='radio']):disabled:hover {
   border-color: var(--line-strong);
 }
 

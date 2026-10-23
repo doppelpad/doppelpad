@@ -28,6 +28,7 @@
   let stageEl: HTMLDivElement | undefined = $state();
   let deviceEl: HTMLDivElement | undefined = $state();
   let menuEl: HTMLDivElement | undefined = $state();
+  let gyroEl: HTMLButtonElement | undefined = $state();
   /** The menu opens upward when it would run past the bottom of the view and fits above. */
   let menuUp = $state(false);
   $effect(() => {
@@ -99,12 +100,18 @@
     app.openContextMenu(groupItems('Gyro'), keyboard ? null : { x: e.clientX, y: e.clientY }, e.currentTarget as HTMLElement);
   }
 
+  /**
+   * A press anywhere but the menu closes it; the gyro chip toggles it on its own. A press on a
+   * stick or the touchpad opens it again where the click lands.
+   */
+  function onWindowPointerdown(e: PointerEvent) {
+    const target = e.target as Node;
+    if (menu && !menuEl?.contains(target) && !gyroEl?.contains(target)) menu = null;
+  }
+
   function onDrawingClick(e: MouseEvent) {
     const g = (e.target as Element).closest('[data-control]');
-    if (!g || !drawing) {
-      menu = null;
-      return;
-    }
+    if (!g || !drawing) return;
     const c = g.getAttribute('data-control')!;
     const box = drawing.getBoundingClientRect();
     const x = ((e.clientX - box.left) / box.width) * vw + vx;
@@ -184,6 +191,7 @@
         class:mapped={!!gyroChip.summary}
         class:selected={gyroChip.selected || menu?.kind === 'gyro'}
         title={gyroChip.summary ? `${t('binding.gyro')}: ${gyroChip.summary}` : t('binding.gyro')}
+        bind:this={gyroEl}
         onclick={openGyroMenu}
         oncontextmenu={onGyroMenu}
       >
@@ -212,7 +220,7 @@
   </div>
 </div>
 
-<svelte:window onkeydown={(e) => e.key === 'Escape' && (menu = null)} />
+<svelte:window onkeydown={(e) => e.key === 'Escape' && (menu = null)} onpointerdowncapture={onWindowPointerdown} />
 
 <style>
   .stage {
