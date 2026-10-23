@@ -77,19 +77,21 @@ fn create_main_window(app: &tauri::App, visible: bool) -> tauri::Result<WebviewW
         .traffic_light_position(tauri::LogicalPosition::new(18.0, 20.0));
     #[cfg(not(target_os = "macos"))]
     let builder = builder.decorations(false);
-    let window = builder.build()?;
-    // On a screen smaller than the window, such as a 1280 × 800 handheld, its right end with
-    // the window buttons would be off screen: start maximized there.
-    if let Ok(Some(monitor)) = window.current_monitor() {
-        let area = monitor
-            .work_area()
-            .size
-            .to_logical::<f64>(monitor.scale_factor());
-        if config.width > area.width || config.height > area.height {
+    builder.build()
+}
+
+/// Maximize the main window if it is larger than the work area of its screen, such as a
+/// 1280 × 800 handheld, where its right end with the window buttons would be off screen.
+pub(crate) fn fit_to_screen(window: &WebviewWindow) {
+    if window.is_maximized().unwrap_or(true) {
+        return;
+    }
+    if let (Ok(Some(monitor)), Ok(size)) = (window.current_monitor(), window.inner_size()) {
+        let area = monitor.work_area().size;
+        if size.width > area.width || size.height > area.height {
             let _ = window.maximize();
         }
     }
-    Ok(window)
 }
 
 fn main() {
@@ -146,11 +148,17 @@ fn main() {
             overlay::spawn_watcher(app.handle(), "pad-overlay", pad_overlay::watch)?;
 
             // Started with Windows: only the tray icon shows.
-            let window = create_main_window(app, !autostart::started_hidden())?;
+            let visible = !autostart::started_hidden();
+            let window = create_main_window(app, visible)?;
             commands::apply_zoom(
                 &window,
                 app.state::<AppState>().settings.lock().unwrap().zoom,
             );
+            // Only after the zoom: on Windows, setting the minimum size un-maximizes the
+            // window. A hidden window is fitted when it shows (`tray::show_main`).
+            if visible {
+                fit_to_screen(&window);
+            }
             let app_handle = app.handle().clone();
             window.on_window_event(move |event| {
                 let state = app_handle.state::<AppState>();
