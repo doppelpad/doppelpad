@@ -9,7 +9,7 @@ use std::time::{Duration, Instant};
 
 use evdev::{AbsInfo, AbsoluteAxisCode, Device, KeyCode, RelativeAxisCode};
 
-use super::padmap::AbsRange;
+use super::padmap::{AbsRange, bitmap_has};
 use crate::{PlatformError, Result};
 
 /// `phys` prefix of every uinput device Doppelpad creates.
@@ -177,6 +177,30 @@ pub fn set_grab(fd: RawFd, grab: bool) -> io::Result<()> {
     } else {
         Ok(())
     }
+}
+
+/// A file of the node's device in sysfs (`/sys/class/input/eventN/device/<attr>`). Anyone may
+/// read these, also without access to the node.
+fn sysfs_attr(node: &Path, attr: &str) -> Option<String> {
+    let name = node.file_name()?;
+    std::fs::read_to_string(
+        Path::new("/sys/class/input")
+            .join(name)
+            .join("device")
+            .join(attr),
+    )
+    .ok()
+}
+
+/// Whether sysfs lists key or button `code` for the node. Unlike [`has_key`], this works
+/// without access to the node.
+pub fn sysfs_has_key(node: &Path, code: u16) -> bool {
+    sysfs_attr(node, "capabilities/key").is_some_and(|bits| bitmap_has(&bits, usize::BITS, code))
+}
+
+/// The device name sysfs gives for the node.
+pub fn sysfs_name(node: &Path) -> Option<String> {
+    sysfs_attr(node, "name").map(|n| n.trim().to_owned())
 }
 
 /// Sysfs path of the device that owns this input node (the HID device or USB interface).

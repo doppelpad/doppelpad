@@ -28,7 +28,7 @@ use evdev::{
 use super::codes::*;
 use super::dev::{
     Fetch, NodeTracker, abs_axes, event_nodes, fetch, has_abs, has_key, is_own, parent_device,
-    set_grab,
+    set_grab, sysfs_has_key, sysfs_name,
 };
 use super::padmap::{
     AbsRange, MotionMapper, NINTENDO_VID, PadMapper, TouchMapper, family_for, joycon_side,
@@ -385,10 +385,16 @@ impl Scanner {
             let dev = match Device::open(&path) {
                 Ok(dev) => dev,
                 Err(e) => {
-                    if e.kind() == io::ErrorKind::PermissionDenied && !self.warned_access {
+                    // Only for controllers: other nodes that are not readable (audio jacks,
+                    // the touchscreen on a Steam Deck) don't matter here.
+                    if e.kind() == io::ErrorKind::PermissionDenied
+                        && !self.warned_access
+                        && sysfs_has_key(&path, BTN_SOUTH)
+                    {
                         tracing::warn!(
-                            "cannot read {}: {e}; controllers need the udev rule from docs/LINUX.md",
-                            path.display()
+                            "cannot read {} ({}): {e}; controllers need the udev rule from docs/LINUX.md",
+                            path.display(),
+                            sysfs_name(&path).unwrap_or_default()
                         );
                         self.warned_access = true;
                     }
