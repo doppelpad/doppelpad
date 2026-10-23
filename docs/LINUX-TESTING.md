@@ -63,7 +63,7 @@ works on other distributions.
    - Rust stable, 1.88 or newer, through rustup
    - a C toolchain and git
    - `evtest`
-   - `fftest` (package `linuxconsoletools` on Arch, `joystick` on Debian and Ubuntu)
+   - `fftest` (package `linuxconsole` on Arch, `joystick` on Debian and Ubuntu)
 2. Build with `cargo build --release -p doppelpad`. The binary is `target/release/doppelpad`.
    Put that folder on `PATH`; the checks call it `doppelpad`.
 3. **Before** setting up access, run `doppelpad doctor` once and keep its output for
@@ -76,28 +76,46 @@ works on other distributions.
 
 Work in desktop mode.
 
-- Give the `deck` user a password with `passwd`. `sudo` needs it.
+- `evtest` and `fftest` are already installed.
 - The SteamOS system partition is read-only, has no compiler, and is replaced by every
-  update. Don't unlock it to install packages. Build in a Distrobox container instead
-  (SteamOS 3.5 and newer ship Distrobox). The container shares your home folder, so a
-  checkout in `~` is visible on both sides:
+  update. Don't unlock it to install packages. Build in Distrobox containers instead
+  (SteamOS 3.5 and newer ship Distrobox). A container shares your home folder, so a checkout
+  in `~` is visible on both sides, and rustup's toolchains in `~/.rustup` serve every
+  container.
+  - Build `doppelpad` in Debian 13 (trixie). Its glibc is the one SteamOS 3.8 has (2.41), so
+    the binary runs on the host:
 
-  ```bash
-  distrobox create --name dp --image docker.io/library/archlinux:latest
-  distrobox enter dp
-  sudo pacman -Syu --needed base-devel git rustup evtest linuxconsoletools
-  rustup default stable
-  ```
+    ```bash
+    distrobox create --name dph --image docker.io/library/debian:trixie
+    distrobox enter dph
+    sudo apt-get install build-essential pkg-config rustup
+    rustup default stable
+    ```
 
-- Where possible, run `doppelpad` on the host, where device access has the fewest surprises.
-  - If the host refuses the binary with `GLIBC_… not found`, the container's glibc is newer
-    than SteamOS's. Run it inside the container then.
+  - Build the desktop app ([section 9](#9-desktop-app)) in Arch, which has a current
+    WebKitGTK. Arch's glibc is newer than SteamOS's, so what it builds only runs inside that
+    container. Give it its own target folder with `export CARGO_TARGET_DIR=target/arch`:
+    build scripts compiled there don't run in the Debian container.
+
+    ```bash
+    distrobox create --name dp --image docker.io/library/archlinux:latest
+    distrobox enter dp
+    sudo pacman -Syu --needed base-devel git rustup
+    rustup default stable
+    ```
+
+- Run `doppelpad` on the host, where device access has the fewest surprises.
+  - If the host refuses the binary with `GLIBC_… not found`, it was built in a container
+    with a newer glibc than SteamOS's.
   - If something works on one side but not the other, suspect the container before
     Doppelpad.
-- Set up access ([LINUX.md § Setup](LINUX.md#setup)) on the host, not in the container. `/etc`
-  and the home folder survive SteamOS updates, so you only do this once.
-- Turn on SSH with `sudo systemctl enable --now sshd`. A second computer can then run
-  commands, and it can stop Doppelpad if input gets stuck.
+- Access needs no setup on SteamOS: Steam's udev rules already give the logged-in user
+  everything Doppelpad needs ([LINUX.md § Setup](LINUX.md#setup)). So step 4 above is only
+  a check with `doppelpad doctor`.
+- `sudo` needs a password, which a new Deck doesn't have yet. Set one with `passwd` when you
+  need it, for example to turn on SSH with `sudo systemctl enable --now sshd`. A second
+  computer can then run commands, and it can stop Doppelpad if input gets stuck.
+- On a new Deck, git has no `user.name` and `user.email` yet, and no GitHub login.
 - Commands over SSH have no display. For the X11 checks ([section 7](#7-per-game-profiles)
   and `close_window`), take `DISPLAY` and `XAUTHORITY` from the desktop session:
   `tr '\0' '\n' < /proc/$(pgrep -x plasmashell)/environ | grep -E '^(DISPLAY|XAUTHORITY)='`.
@@ -165,8 +183,9 @@ Do L2.1 to L2.5 for every controller you have and record them in the
   top `Y`. On a Nintendo controller, the bottom "B" shows as `A`.
 - Shoulders, stick clicks, `Back`, `Start`, `Guide` and the d-pad each show under their own
   name.
-- Share, Create, Capture and Mute show as `Misc`. Back paddles show as
-  `PaddleUL` … `PaddleLR`.
+- The Xbox Share button and the Switch Capture button show as `Misc`; the DualSense Create
+  button is `Back`. hid-playstation keeps the DualSense Mute button to itself (it toggles
+  the microphone LED), so it never arrives. Back paddles show as `PaddleUL` … `PaddleLR`.
 - Sticks go from −1 to +1, with up and right positive, and rest near 0.
 - Triggers go from 0 to 1. On Switch controllers they are digital: 0 or 1.
 - No control is stuck, missing or doubled.
@@ -539,13 +558,46 @@ The app has never been built on Linux. This section is a smoke test.
 
 ## Known issues
 
-Found while writing this checklist; fix them along the way.
+Found while writing this checklist, and fixed in the first run on a Steam Deck:
 
-- **K1:** `doppelpad doctor` labels its driver lines "ViGEmBus" and "HidHide" on Linux too.
-  On Linux they check `/dev/uinput` and grabbing.
+- **K1:** `doppelpad doctor` labelled its driver lines "ViGEmBus" and "HidHide" on Linux too.
+  It now names uinput and `EVIOCGRAB`.
 - **K2:** the evdev backend has no controller power-off, light bar, player LEDs or DualSense
   trigger effects. These use the do-nothing defaults of `GamepadBackend` in
-  `crates/dp-platform/src/lib.rs`. LINUX.md doesn't mention it yet.
+  `crates/dp-platform/src/lib.rs`. LINUX.md says so now.
+
+Found in the first run and left for the maintainer, with what was seen:
+
+- **K3, Steam's virtual controllers.** Steam makes a "Microsoft X-Box 360 pad N" (`28de:11ff`,
+  no `phys`, no `uniq`) for every controller it drives, Doppelpad's virtual pad included.
+  Doppelpad lists all of them as controllers, and the app's notices announce each
+  controller twice when it connects or goes away. "First free controller" picks by node
+  path, so it can be one of Steam's mirrors. Options: skip `28de:11ff` (but Steam's pad is
+  the only way to the Deck's controls while Steam runs, L6.4), or only skip the mirror of
+  our own pad (nothing in the device tells which pad Steam mirrors).
+- **K4, Steam and hidraw.** While Steam Input drives a controller, Steam reads it through
+  hidraw, so hiding doesn't reach Steam: a game with Steam Input on gets the controller
+  twice (L6.3). Steam also turns the Switch Pro Controller's IMU off, and SteamOS's
+  `steamos-manager` inhibits the DualSense touchpad node (`InhibitDs`), so neither reaches
+  Doppelpad through evdev while Steam drives the controller.
+- **K5, Steam Deck controls with Steam closed** (L2.6). The left trackpad (`ABS_HAT0X/Y`) is
+  read as the d-pad, the right trackpad (`ABS_HAT1X/Y`), the pad touches (`BTN_THUMB`,
+  `BTN_THUMB2`), the ··· button (`BTN_BASE`) and the analog triggers (`ABS_HAT2X/Y`) are not
+  read; L2/R2 arrive as digital `BTN_TL2`/`BTN_TR2`.
+- **K6, overlays on Wayland** (L9.7). The app runs as a native Wayland window, so the
+  compositor ignores overlay positions: the OSD and the controller overlay appear in the
+  middle of the screen. Over a fullscreen game the overlay takes the focus, and then ends
+  up behind the game. A layer-shell surface (wlr-layer-shell, which KWin supports) would
+  stay on top without focus and could be anchored to a corner. The controller overlay also
+  shows the default session's controller, not the one whose profile toggled it.
+- **K7, stick jitter at rest.** DualSense sticks are 8-bit; one step of jitter is 257 units
+  on the virtual pad, above its `fuzz` of 16, so it sends 60–100 events a second while the
+  sticks rest (L3.2).
+- **K8, Switch 2 controllers** stay unsupported, as documented: neither Doppelpad nor Steam
+  initialises a Switch 2 Pro Controller on SteamOS 3.8, and not even its hidraw node sends
+  anything. The platform-neutral driver in `nintendo/switch2.rs` and `nusb` (the user has
+  `uaccess` on the USB node) would carry over; what is missing is a Linux backend that runs
+  HID pad drivers over hidraw.
 
 ## Results
 
@@ -553,13 +605,18 @@ Found while writing this checklist; fix them along the way.
 
 | | |
 |---|---|
-| Machine | |
-| Distribution (`PRETTY_NAME` in `/etc/os-release`) | |
-| Kernel (`uname -r`) | |
-| Desktop and session type | |
-| Steam running | |
-| Doppelpad commit (`git rev-parse --short HEAD`) | |
-| Date | |
+| Machine | Steam Deck LCD ("Jupiter"), desktop mode |
+| Distribution (`PRETTY_NAME` in `/etc/os-release`) | SteamOS 3.8.28 (build 20260922.1) |
+| Kernel (`uname -r`) | 6.18.50-valve2-1-neptune-618-gc7289a96b14d |
+| Desktop and session type | KDE Plasma 6.4.3, Wayland (`DISPLAY=:0` for XWayland) |
+| Steam running | yes, except for L2.6 and the Switch Pro's L2.3 |
+| Doppelpad commit (`git rev-parse --short HEAD`) | `ca8c455` plus the fixes on `linux-hardware-test` |
+| Date | 2026-10-23 |
+
+The CLI was built in a Debian 13 container and run on the host; the app was built and run in
+an Arch container ([setup](#steam-deck-steamos)). Checks marked *fake pad* were driven by a
+uinput test gamepad (`045e:028e`, with `FF_RUMBLE`) instead of hands; *fixed* names the
+commit on `linux-hardware-test` without which the check failed.
 
 ### Controllers
 
@@ -567,57 +624,61 @@ Driver = kernel driver of the gamepad node. Columns are the checks.
 
 | Controller | Connection | Driver | L2.1 | L2.2 | L2.3 | L2.5 | L3.5 | L4.1 | Notes |
 |---|---|---|---|---|---|---|---|---|---|
-| | | | | | | | | | |
+| DualSense `054c:0ce6` | USB | playstation | ✅ | ⚠️ | ⚠️ | ✅ | ✅ | ✅ | Mute never arrives (see L2.2). Gyro signs right. Touchpad: phantom touch at (0,0) fixed in `020954d`; with Steam running, `steamos-manager` inhibits the touchpad node (K4), with `InhibitDs` off touch and click work. L3.5: rumble kept running after a stop, fixed in `fcbeaf3` and measured with the controller's accelerometer. |
+| Switch Pro Controller `057e:2009` | USB | nintendo | ✅ | ✅ | ⚠️ | ➖ | ➖ | ✅ | Capture is `Misc`, ZL/ZR digital. IMU silent while Steam drives the controller (K4); with Steam closed, gravity confirms the axes Doppelpad assumes. |
+| Switch 2 Pro Controller `057e:2069` | USB | usbhid | ⚠️ | ➖ | ➖ | ➖ | ➖ | ➖ | Skipped with "not supported on Linux yet", as documented (K8). |
+| Steam Deck controls `28de:1205` | built in | hid-steam | ⚠️ | ⚠️ | ⚠️ | ➖ | ➖ | ➖ | See L2.6 and L6.4. |
+| Fake pad `045e:028e` | uinput | — | ✅ | ✅ | ➖ | ✅ | ✅ | ✅ | Stable id from `phys`. |
 
 ### Checks
 
 | Check | Result | Notes |
 |---|---|---|
-| L1.1 Unit tests run natively | | |
-| L1.2 Messages without access | | |
-| L1.3 Doctor | | |
-| L1.4 Daemon and IPC | | |
-| L2.1–L2.3, L2.5 | | see [Controllers](#controllers) |
-| L2.4 Joy-Cons | | |
-| L2.6 Steam Deck controls, Steam closed | | |
-| L3.1 Virtual pad exists | | |
-| L3.2 Virtual pad input | | |
-| L3.3 Own pad ignored | | |
-| L3.4 Games see an Xbox 360 controller | | |
-| L3.5 Game rumble | | see [Controllers](#controllers) |
-| L3.6 Rumble from a mapping | | |
-| L3.7 Clean stop | | |
-| L4.1 Grab | | see [Controllers](#controllers) |
-| L4.2 Release | | |
-| L4.3 Reconnect while hidden | | |
-| L4.4 hidraw | | |
-| L5.1 Keyboard/mouse output | | |
-| L5.2 Capture | | |
-| L5.3 Key held at start | | |
-| L5.4 Release on stop | | |
-| L5.5 Keyboard plugged in during capture | | |
-| L5.6 What isn't captured | | |
-| L5.7 Lock keys | | |
-| L5.8 Deck controls during capture | | |
-| L6.1 Inventory | | |
-| L6.2 Feedback loop | | |
-| L6.3 What a game sees | | |
-| L6.4 Deck controls with Steam running | | |
-| L7.1 Session | | |
-| L7.2 Foreground names | | |
-| L7.3 Automatic switching | | |
-| L7.4 Native Wayland windows | | |
-| L7.5 Game Mode | | |
-| L8.1 `close_window` | | |
-| L8.2 `screenshot` | | |
-| L8.3 `launch` | | |
-| L8.4 `power_off`, light bar | | |
-| L8.5 `sleep` | | |
-| L8.6 Other power commands | | |
-| L9.1 App builds | | |
-| L9.2 Window | | |
-| L9.3 Controller view | | |
-| L9.4 Apply to a slot | | |
-| L9.5 Tray | | |
-| L9.6 Log file | | |
-| L9.7 Overlays | | |
+| L1.1 Unit tests run natively | ✅ | 144 passed (147 with the tests the fixes added) |
+| L1.2 Messages without access | ✅ | Simulated in containers: a missing and an unwritable `/dev/uinput` and an unreadable controller each get their message. On SteamOS nothing needed setting up. The warning used to name the first unreadable node, an HDMI audio jack; fixed in `b2cb3c0`. |
+| L1.3 Doctor | ✅ | Fixed in `098cd6b`: evdev 0.13.2 sends `UI_SET_PHYS` with the wrong size, so no uinput device could be created at all (EINVAL). Labels fixed in `e673a14` (K1). `doctor` prints the uinput warning twice when uinput is missing. |
+| L1.4 Daemon and IPC | ✅ | Also after `kill -9`. `devices` right after the daemon starts can say "no controllers found" until the first scan. |
+| L2.1–L2.3, L2.5 | ⚠️ | see [Controllers](#controllers) |
+| L2.4 Joy-Cons | ➖ | none at hand |
+| L2.6 Steam Deck controls, Steam closed | ⚠️ | A "Steam Deck" controller (`28de:1205`, id from its serial) with its motion node. hid-steam starts in lizard mode (keyboard and mouse) and its gamepad node stays silent until the Menu button (≡) is held. Then buttons, L4/R4/L5/R5 (`PaddleUL`/`UR`/`LL`/`LR`), sticks, d-pad and gyro arrive; trackpads, ··· and analog triggers don't (K5). |
+| L3.1 Virtual pad exists | ✅ | after `098cd6b` |
+| L3.2 Virtual pad input | ⚠️ | All controls, ranges and A→B as expected (DualSense, fake pad). At rest the DualSense keeps sending stick events (K7). |
+| L3.3 Own pad ignored | ✅ | Steam's mirror of it is listed (K3). |
+| L3.4 Games see an Xbox 360 controller | ✅ | Steam lists it as an Xbox 360 Controller; Hollow Knight: Silksong (native) uses it (L6.3). |
+| L3.5 Game rumble | ✅ | `fftest` strong and weak, with gain and delay, reach the controller (fake pad); see [Controllers](#controllers). |
+| L3.6 Rumble from a mapping | ✅ | Fixed in `fcbeaf3`: a 300 ms rumble lasted until something else wrote to the DualSense (1–9 s). |
+| L3.7 Clean stop | ✅ | Ctrl+C and `kill -9`; the kernel stops a playing rumble when the file closes. |
+| L4.1 Grab | ✅ | see [Controllers](#controllers); motion and touchpad nodes are grabbed too |
+| L4.2 Release | ✅ | profile change, Ctrl+C, `kill -9` |
+| L4.3 Reconnect while hidden | ✅ | DualSense and fake pad grabbed again within seconds |
+| L4.4 hidraw | ➖ | Silksong opens no hidraw node, so it sees the controller once without `SDL_JOYSTICK_HIDAPI=0` (L6.3 b). No game using SDL's HIDAPI was at hand. |
+| L5.1 Keyboard/mouse output | ✅ | fake pad, output read with `evtest --grab`: keys, clicks, smooth cursor, wheel with `REL_WHEEL_HI_RES`, Alt+Tab, Meta; `osk.exe` logs an error |
+| L5.2 Capture | ✅ | USB keyboard and mouse: every keyboard and mouse got a passthrough twin, including the Deck's lizard nodes and the HDMI-CEC keyboards; mapped keys type nothing, the others type normally |
+| L5.3 Key held at start | ✅ | Fixed in `d27f196`: a key held longer than the 5 s wait stayed pressed for the desktop, which repeated it. |
+| L5.4 Release on stop | ✅ | SIGINT and `kill -9`; nothing stuck |
+| L5.5 Keyboard plugged in during capture | ✅ | |
+| L5.6 What isn't captured | ✅ | touchscreen, power buttons and a Wacom tablet stay untouched |
+| L5.7 Lock keys | ➖ | the keyboard has no Caps Lock LED |
+| L5.8 Deck controls during capture | ✅ | trackpad cursor and buttons keep working through the passthrough devices |
+| L6.1 Inventory | ⚠️ | Steam opens the hidraw nodes of the controllers it drives and makes a `28de:11ff` pad for each, Doppelpad's pad included (K3). SteamOS 3.8's Steam has no switch to turn Steam Input off per controller type. |
+| L6.2 Feedback loop | ✅ | No loop: Steam mirrors Doppelpad's pad and Doppelpad lists the mirror, but a session keeps the controller it has; one press gives one press. |
+| L6.3 What a game sees | ⚠️ | Silksong with `hidden.toml` on a Switch Pro Controller. (a) Steam Input on: three pads, the controller twice, once through Steam unremapped (K4); Steam also takes Capture for its screenshots. (b) Steam Input off for the game: it opens Doppelpad's pad and the grabbed (silent) physical node, so one controller, remapped. (c) not available (L6.1). |
+| L6.4 Deck controls with Steam running | ✅ | Only as Steam's "Microsoft X-Box 360 pad 0": the Xbox 360 layout, without paddles, trackpads or gyro. Remapping those needs native support, for example through hidraw like the Windows `steam` driver. |
+| L7.1 Session | ✅ | Wayland, `DISPLAY=:0`, Plasma 6.4.3 |
+| L7.2 Foreground names | ✅ | XWayland windows by name (`kdialog`, `Hollow Knight Silksong`); native Wayland ones `?`. From the containerised app the name was cut to 15 bytes; fixed in `4e651fa`. No Proton game tested. |
+| L7.3 Automatic switching | ✅ | in and out within 0.5 s |
+| L7.4 Native Wayland windows | ✅ | `?`, nothing in the log |
+| L7.5 Game Mode | ➖ | skipped (optional) |
+| L8.1 `close_window` | ✅ | Fixed in `d12b70f`: the window almost never closed, because the connection closed before the X server handled the request. Tested on a dialog, not on an editor with unsaved text. |
+| L8.2 `screenshot` | ✅ | |
+| L8.3 `launch` | ✅ | |
+| L8.4 `power_off`, light bar | ✅ | logs "this controller cannot be turned off"; light bar not tried (K2) |
+| L8.5 `sleep` | ✅ | suspends; after waking, the controllers and the profile keep working |
+| L8.6 Other power commands | ➖ | skipped |
+| L9.1 App builds | ✅ | `npm ci` and `tauri build --no-bundle` in the Arch container; two Linux-only clippy warnings fixed in `3e5b87f` |
+| L9.2 Window | ✅ | Fixed in `601b203`: the 1320 × 820 window was larger than the Deck's screen, which cut off the close button and the bottom bar. |
+| L9.3 Controller view | ✅ | |
+| L9.4 Apply to a slot | ✅ | `doppelpad status` reaches the app's service |
+| L9.5 Tray | ✅ | quitting from the tray releases everything |
+| L9.6 Log file | ✅ | `~/.local/state/doppelpad/logs` |
+| L9.7 Overlays | ⚠️ | Fixed in `374edfa`: the first overlay crashed the app (tao panicked). They now show above other windows, but in the middle of the screen, and over a fullscreen game they take the focus (K6). |

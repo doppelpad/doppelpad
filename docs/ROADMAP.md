@@ -38,9 +38,9 @@ unit-tested but have not run against the real device yet.
 
 | Area | Status |
 |---|---|
-| Virtual Xbox 360 / DualShock 4 | ✅ via ViGEmBus, with the game's rumble fed back; DualShock 4 with touchpad, motion and light bar (⏳ hardware testing); Linux: Xbox 360 via uinput (untested on hardware) |
+| Virtual Xbox 360 / DualShock 4 | ✅ via ViGEmBus, with the game's rumble fed back; DualShock 4 with touchpad, motion and light bar (⏳ hardware testing); Linux: Xbox 360 via uinput, with rumble (tested on a Steam Deck) |
 | Multiple controllers / multiple virtual pads | ✅ each controller can have its own slots, config and virtual pad (⏳ hardware testing) |
-| Hide physical controller | ✅ via HidHide; Linux: `EVIOCGRAB` (untested on hardware) |
+| Hide physical controller | ✅ via HidHide; Linux: `EVIOCGRAB` (tested on a Steam Deck) |
 | Ignore list and controller groups (several pads as one) | ✅ |
 | On-screen overlays: notifications (remap, slot, layer, controllers, battery), crosshairs with magnifier, radial menus, controller overlay, mappings sheet | ✅ Windows, in the app (not in `doppelpad daemon`; ⏳ testing in games) |
 | Battery levels (DualShock 4, DualSense, Switch controllers, Xbox) in the app, tray and notifications | ✅ Windows (⏳ hardware testing) |
@@ -83,22 +83,22 @@ unit-tested but have not run against the real device yet.
 ## Platforms
 
 1. **Windows**: current focus.
-2. **Linux**: implemented in `dp-platform/src/linux`; compile-checked and unit-tested, not
-   yet tested on real hardware. Setup and limitations are in [LINUX.md](LINUX.md), the
-   hardware test plan in [LINUX-TESTING.md](LINUX-TESTING.md).
+2. **Linux**: implemented in `dp-platform/src/linux`; unit-tested and tested on a Steam
+   Deck. Setup and limitations are in [LINUX.md](LINUX.md), the hardware test plan and its
+   results in [LINUX-TESTING.md](LINUX-TESTING.md).
 
    | Responsibility | Status |
    |---|---|
    | Read controllers | ✅ evdev, with DS4/DualSense/Switch motion and touchpad nodes merged, Joy-Cons paired |
-   | Hide physical controllers | ✅ `EVIOCGRAB`; hidraw readers such as SDL HIDAPI still see the pad |
+   | Hide physical controllers | ✅ `EVIOCGRAB`; hidraw readers such as Steam Input and SDL HIDAPI still see the pad |
    | Virtual Xbox 360 pad with rumble feedback | ✅ uinput (`045e:028e`, xpad layout, `FF_RUMBLE`) |
    | Virtual DualShock 4 | ⏳ needs a `uhid` DS4 emulation |
    | Keyboard/mouse output | ✅ uinput, high-resolution wheel |
    | Keyboard/mouse capture | ✅ per-device grab + uinput passthrough; keyboard LEDs not mirrored yet |
    | Foreground app | ✅ X11 / XWayland; ⏳ native Wayland (compositor-specific protocols) |
    | Power commands, close window | ✅ `systemctl` / `loginctl`, EWMH |
-   | Not on Linux yet | screenshots, battery levels, turning controllers off, Steam controllers, generic-pad layouts, GameCube adapter, keep-awake and lock-screen pause, device problems (missing permissions) in the app's warnings — only logged; overlays untested |
-   | Hardware testing | ⏳ needed |
+   | Not on Linux yet | screenshots, battery levels, turning controllers off, Steam controllers (the Deck's trackpads, ··· and analog triggers with Steam closed), Switch 2 controllers, generic-pad layouts, GameCube adapter, keep-awake and lock-screen pause, device problems (missing permissions) in the app's warnings — only logged; overlays that keep their place and stay over fullscreen games on Wayland |
+   | Hardware testing | ✅ first pass on a Steam Deck (DualSense, Switch Pro Controller, keyboard and mouse, desktop app); ⏳ DualShock 4, Joy-Cons, Bluetooth, Game Mode, other distributions |
 
    It requires a udev rule for `/dev/uinput` and the input devices.
 3. **macOS**:
