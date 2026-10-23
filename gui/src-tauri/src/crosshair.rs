@@ -75,6 +75,8 @@ fn show(app: &AppHandle, c: &Crosshair, magnifier: &mut Magnifier) {
     }
 }
 
+// Without Windows, `Magnifier` is `()`.
+#[cfg_attr(not(windows), allow(clippy::needless_pass_by_ref_mut))]
 fn hide_magnifier(magnifier: &mut Magnifier) {
     #[cfg(windows)]
     if let Some(m) = magnifier {
@@ -85,6 +87,7 @@ fn hide_magnifier(magnifier: &mut Magnifier) {
 }
 
 pub(crate) fn watch(app: AppHandle, live: SharedLive) {
+    #[cfg_attr(not(windows), allow(clippy::let_unit_value))]
     let mut magnifier = Magnifier::default();
     let mut shown: Option<Crosshair> = None;
     loop {
