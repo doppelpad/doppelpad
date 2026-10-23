@@ -226,6 +226,9 @@ fn window(app: &AppHandle, kind: OverlayKind) -> tauri::Result<(WebviewWindow, b
         None => w,
     }
     .build()?;
+    // GTK can only do this for a window that has been shown (tao panics on one that hasn't),
+    // so on Linux `raise` does it.
+    #[cfg(not(target_os = "linux"))]
     w.set_ignore_cursor_events(true)?;
     #[cfg(windows)]
     if let Ok(hwnd) = w.hwnd() {
@@ -310,6 +313,9 @@ fn raise(w: &WebviewWindow) {
         return;
     }
     let _ = w.show();
+    // See `window`; repeating it on every show does no harm.
+    #[cfg(target_os = "linux")]
+    let _ = w.set_ignore_cursor_events(true);
 }
 
 pub fn hide(w: &WebviewWindow) {
