@@ -639,7 +639,7 @@ Driver = kernel driver of the gamepad node. Columns are the checks.
 |---|---|---|
 | L1.1 Unit tests run natively | ✅ | 144 passed (147 with the tests the fixes added) |
 | L1.2 Messages without access | ✅ | Simulated in containers: a missing and an unwritable `/dev/uinput` and an unreadable controller each get their message. On SteamOS nothing needed setting up. The warning used to name the first unreadable node, an HDMI audio jack; fixed in `b2cb3c0`. |
-| L1.3 Doctor | ✅ | Fixed in `098cd6b`: evdev 0.13.2 sends `UI_SET_PHYS` with the wrong size, so no uinput device could be created at all (EINVAL). Labels fixed in `e673a14` (K1). `doctor` prints the uinput warning twice when uinput is missing. |
+| L1.3 Doctor | ✅ | Fixed in `098cd6b`: evdev 0.13.2 sends `UI_SET_PHYS` with the wrong size, so no uinput device could be created at all (EINVAL). Labels fixed in `e673a14` (K1). `doctor` printed the uinput warning twice when uinput was missing, because it set up the backends twice; fixed after the run. |
 | L1.4 Daemon and IPC | ✅ | Also after `kill -9`. `devices` right after the daemon starts can say "no controllers found" until the first scan. |
 | L2.1–L2.3, L2.5 | ⚠️ | see [Controllers](#controllers) |
 | L2.4 Joy-Cons | ➖ | none at hand |
