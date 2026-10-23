@@ -160,6 +160,26 @@ impl Scanner {
     }
 }
 
+/// Release `held` for everyone else reading `dev`, which is about to be grabbed: they would
+/// never see those keys go up, and the desktop would repeat them until something else
+/// happened. Written to the device itself, the releases reach every reader; the real ones
+/// that follow are dropped by the kernel, since the keys are already up.
+fn release_for_others(path: &Path, dev: &mut Device, held: &[u16]) {
+    let mut events: Vec<InputEvent> = held
+        .iter()
+        .map(|&code| InputEvent::new(EV_KEY, code, 0))
+        .collect();
+    events.push(InputEvent::new(EV_SYN, SYN_REPORT, 0));
+    match dev.send_events(&events) {
+        Ok(()) => {
+            tracing::debug!(path = %path.display(), keys = ?held, "released the keys still held");
+        }
+        Err(e) => {
+            tracing::warn!(path = %path.display(), "keys held while capture starts may stay pressed: {e}");
+        }
+    }
+}
+
 fn run_capture(
     path: &Path,
     dev: &mut Device,
@@ -183,12 +203,16 @@ fn run_capture(
         if stop.load(Ordering::Relaxed) {
             return;
         }
-        let held = match dev.get_key_state() {
-            Ok(keys) => keys.iter().next().is_some(),
+        let held: Vec<u16> = match dev.get_key_state() {
+            Ok(keys) => keys.iter().map(|k| k.code()).collect(),
             Err(_) => return,
         };
         let now = Instant::now();
-        if now >= deadline || (now >= settle && !held) {
+        if now >= settle && held.is_empty() {
+            break;
+        }
+        if now >= deadline {
+            release_for_others(path, dev, &held);
             break;
         }
         std::thread::sleep(Duration::from_millis(10));
