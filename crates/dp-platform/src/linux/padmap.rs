@@ -105,6 +105,14 @@ pub fn family_for(vendor: u16, product: u16) -> PadFamily {
     }
 }
 
+/// Whether the value `EVIOCGABS` reports for `code` is the axis' current state, to start a
+/// mapper with. It is not for the multi-touch axes after `ABS_MT_SLOT`: the kernel keeps
+/// those per slot and reports their initial value, a tracking id of 0 among them, which
+/// would look like a finger on the touchpad.
+pub fn absinfo_is_state(code: u16) -> bool {
+    !(ABS_MT_SLOT + 1..=ABS_MT_TOOL_Y).contains(&code)
+}
+
 /// Whether a sysfs capability bitmap (`/sys/class/input/eventN/device/capabilities/key`) has
 /// bit `code`. The kernel prints it as hex words of `word_bits` bits (a `long`), most
 /// significant first.
@@ -487,6 +495,29 @@ mod tests {
             stable_id(1, 2, None, None, node),
             "evdev:0001:0002:/dev/input/event17"
         );
+    }
+
+    #[test]
+    fn multitouch_absinfo_is_not_state() {
+        assert!(absinfo_is_state(ABS_X));
+        assert!(absinfo_is_state(ABS_HAT0Y));
+        assert!(absinfo_is_state(ABS_MT_SLOT));
+        assert!(!absinfo_is_state(ABS_MT_POSITION_X));
+        assert!(!absinfo_is_state(ABS_MT_TRACKING_ID));
+        assert!(!absinfo_is_state(ABS_MT_TOOL_Y));
+        // What starting a touchpad from its absinfo did: a finger at the top left.
+        let mut t = TouchMapper::new(AbsRange::new(0, 1919), AbsRange::new(0, 1079));
+        for code in [
+            ABS_MT_SLOT,
+            ABS_MT_POSITION_X,
+            ABS_MT_POSITION_Y,
+            ABS_MT_TRACKING_ID,
+        ] {
+            if absinfo_is_state(code) {
+                t.event(EV_ABS, code, 0);
+            }
+        }
+        assert_eq!(t.touch(), [None, None]);
     }
 
     #[test]

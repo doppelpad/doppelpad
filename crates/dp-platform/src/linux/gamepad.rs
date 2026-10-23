@@ -31,8 +31,8 @@ use super::dev::{
     set_grab, sysfs_has_key, sysfs_name,
 };
 use super::padmap::{
-    AbsRange, MotionMapper, NINTENDO_VID, PadMapper, TouchMapper, family_for, joycon_side,
-    stable_id,
+    AbsRange, MotionMapper, NINTENDO_VID, PadMapper, TouchMapper, absinfo_is_state, family_for,
+    joycon_side, stable_id,
 };
 use crate::scan::{Pass, RESCAN, Rescanner};
 use crate::{
@@ -114,7 +114,9 @@ impl Node {
     ) -> io::Result<Node> {
         let control = Device::from_fd(dev.as_fd().try_clone_to_owned()?)?;
         for (code, _, value) in abs_axes(&dev) {
-            mapper.event(EV_ABS, code, value);
+            if absinfo_is_state(code) {
+                mapper.event(EV_ABS, code, value);
+            }
         }
         if let Ok(keys) = dev.get_key_state() {
             for k in keys.iter() {

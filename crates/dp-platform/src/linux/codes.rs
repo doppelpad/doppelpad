@@ -85,3 +85,5 @@ pub const ABS_MT_SLOT: u16 = 0x2f;
 pub const ABS_MT_POSITION_X: u16 = 0x35;
 pub const ABS_MT_POSITION_Y: u16 = 0x36;
 pub const ABS_MT_TRACKING_ID: u16 = 0x39;
+/// The last multi-touch axis.
+pub const ABS_MT_TOOL_Y: u16 = 0x3d;
