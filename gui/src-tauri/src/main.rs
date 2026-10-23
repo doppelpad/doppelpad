@@ -77,7 +77,19 @@ fn create_main_window(app: &tauri::App, visible: bool) -> tauri::Result<WebviewW
         .traffic_light_position(tauri::LogicalPosition::new(18.0, 20.0));
     #[cfg(not(target_os = "macos"))]
     let builder = builder.decorations(false);
-    builder.build()
+    let window = builder.build()?;
+    // On a screen smaller than the window, such as a 1280 × 800 handheld, its right end with
+    // the window buttons would be off screen: start maximized there.
+    if let Ok(Some(monitor)) = window.current_monitor() {
+        let area = monitor
+            .work_area()
+            .size
+            .to_logical::<f64>(monitor.scale_factor());
+        if config.width > area.width || config.height > area.height {
+            let _ = window.maximize();
+        }
+    }
+    Ok(window)
 }
 
 fn main() {
