@@ -69,11 +69,19 @@ impl Runtime {
 
     /// Which controller each session reads: its own, or for the default session one
     /// without a session of its own: the preferred one, else the one it lost, else the
-    /// current one, else the first. Returns whether any session changed controllers.
+    /// current one, else the first that is no other program's mirror (Steam's virtual pads
+    /// on Linux, one of them for Doppelpad's own pad). Returns whether any session changed
+    /// controllers.
     pub(super) fn bind_sessions(&mut self) -> bool {
         let owned = |id: &DeviceId| self.sessions.iter().any(|s| s.owner.as_ref() == Some(id));
         let is_free = |p: &&DeviceId| self.device_ids.contains(p) && !owned(p);
-        let first_free = || self.device_ids.iter().find(|id| !owned(id));
+        let first_free = || {
+            self.snapshots
+                .iter()
+                .filter(|s| !s.info.mirror)
+                .map(|s| &s.info.id)
+                .find(|id| !owned(id))
+        };
         let (primary, reason) = if let Some(p) = self.binding.preferred.as_ref().filter(is_free) {
             (Some(p), "picked in the app")
         } else if let Some(p) = self.binding.lost.as_ref().filter(is_free) {

@@ -65,7 +65,8 @@
             2,
             null
           ]
-        }
+        },
+        "mirror": false
       }
     ],
     "primary": "hid:pad",

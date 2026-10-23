@@ -559,6 +559,7 @@ fn start(
         has_motion: identity.has_motion,
         has_touchpad: identity.has_touchpad,
         has_rumble: identity.has_rumble,
+        mirror: false,
     });
     tracing::info!(name = %info.name, id = %info.id, "HID controller connected");
     let name = info.name.clone();

@@ -143,6 +143,10 @@ pub struct DeviceInfo {
     pub has_motion: bool,
     pub has_touchpad: bool,
     pub has_rumble: bool,
+    /// A virtual controller another program makes for a controller it reads, such as Steam's
+    /// on Linux (for Doppelpad's own virtual pad too). It is listed and can be picked, but
+    /// is never picked on its own and not announced.
+    pub mirror: bool,
 }
 
 /// One device's latest state.

@@ -75,6 +75,7 @@ describe('controls pressed on a controller', () => {
     gyro_calibration: null,
     battery: null,
     raw: null,
+    mirror: false,
   });
 
   it('reads buttons by catalog position, stick directions and triggers', () => {

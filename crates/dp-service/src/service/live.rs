@@ -76,6 +76,7 @@ impl Service {
                         .map(|_| self.rt.calibration().status(s.info.id.as_str(), now)),
                     battery: s.battery,
                     raw: s.raw.as_deref().cloned(),
+                    mirror: s.info.mirror,
                 })
                 .collect(),
             primary: self.rt.primary_device().map(|d| d.to_string()),

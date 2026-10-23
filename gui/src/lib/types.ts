@@ -491,6 +491,8 @@ export interface LiveDevice {
   battery: Battery | null;
   /** Unmapped input of a generic pad, for identifying its buttons. */
   raw: RawInput | null;
+  /** Another program's virtual pad for a controller it reads (Steam's on Linux): never picked on its own and not announced. */
+  mirror: boolean;
 }
 
 /** All keyboard/mouse input, physical devices only, or only what scripts inject. */

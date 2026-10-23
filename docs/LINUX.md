@@ -124,9 +124,11 @@ it:
 
 ## Steam
 
-Steam's virtual pads (`28de:11ff`, named "Microsoft X-Box 360 pad N") look like physical
-controllers to Doppelpad: it lists them, including the one Steam makes for Doppelpad's own
-virtual pad. A session keeps the controller it has, so this doesn't loop.
+Steam makes a virtual pad (`28de:11ff`, named "Microsoft X-Box 360 pad N") for every
+controller it drives, Doppelpad's own virtual pad included. Doppelpad lists them, but never
+picks one on its own, and the app doesn't announce them or give them a tray icon of their
+own. To use one, pick it in the app. While Steam runs, that is the only way to the Steam
+Deck's own controls (below).
 
 While Steam drives a controller it also changes what its evdev nodes deliver:
 
@@ -137,7 +139,7 @@ While Steam drives a controller it also changes what its evdev nodes deliver:
   (and `b true` to restore it).
 
 **Steam Deck controls.** While Steam runs, they exist only as Steam's virtual pad, with the
-Xbox 360 layout: no back buttons, trackpads or gyro. With Steam closed, hid-steam offers a
+Xbox 360 layout: no back buttons, trackpads or gyro. Pick that pad in the app to remap them. With Steam closed, hid-steam offers a
 "Steam Deck" controller and a motion node, but starts in lizard mode, in which the controls
 act as keyboard and mouse and the gamepad node stays silent. Hold the Menu button (≡) to
 switch to gamepad mode. Doppelpad then reads the buttons, L4/R4/L5/R5 as the four paddles,

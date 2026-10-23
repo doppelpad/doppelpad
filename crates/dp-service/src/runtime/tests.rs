@@ -140,6 +140,33 @@ fn picking_another_controller_moves_the_hiding() {
 }
 
 #[test]
+fn mirrors_are_used_only_when_picked() {
+    let (mut rt, world) =
+        testing::runtime_with(&[("steam", PadFamily::Xbox), ("ds", PadFamily::DualSense)]);
+    std::sync::Arc::make_mut(&mut world.lock().unwrap().pads[0].info).mirror = true;
+    rt.apply(Profile::default(), None).unwrap();
+    rt.tick();
+    assert_eq!(
+        rt.primary_device(),
+        Some(&DeviceId("ds".into())),
+        "not the mirror listed first"
+    );
+
+    let ds = world.lock().unwrap().pads.remove(1);
+    rt.tick();
+    assert_eq!(rt.primary_device(), None, "never the mirror on its own");
+
+    rt.set_preferred_device(Some(DeviceId("steam".into())));
+    rt.tick();
+    assert_eq!(rt.primary_device(), Some(&DeviceId("steam".into())));
+
+    // Picked, it stays, as any other controller would.
+    world.lock().unwrap().pads.push(ds);
+    rt.tick();
+    assert_eq!(rt.primary_device(), Some(&DeviceId("steam".into())));
+}
+
+#[test]
 fn default_session_returns_to_its_controller_after_a_drop() {
     use dp_core::pad::PadButton;
     let (mut rt, world) =

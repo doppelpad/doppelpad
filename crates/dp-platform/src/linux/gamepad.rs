@@ -496,6 +496,7 @@ fn open_pad(path: &Path, dev: Device) -> io::Result<Pad> {
         has_rumble: dev
             .supported_ff()
             .is_some_and(|ff| ff.contains(FFEffectCode::FF_RUMBLE)),
+        mirror: crate::steam::is_virtual_pad(vendor, product),
     };
     let uniq = dev.unique_name().map(str::to_owned);
     let parts = Arc::new(Mutex::new(Parts::default()));

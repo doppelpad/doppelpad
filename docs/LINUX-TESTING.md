@@ -575,6 +575,9 @@ Found in the first run and left for the maintainer, with what was seen:
   path, so it can be one of Steam's mirrors. Options: skip `28de:11ff` (but Steam's pad is
   the only way to the Deck's controls while Steam runs, L6.4), or only skip the mirror of
   our own pad (nothing in the device tells which pad Steam mirrors).
+  *Decided after the run:* Steam's pads are still listed and can be picked in the app, but
+  are never picked on their own, are not announced, and get a tray icon only while in use.
+  Not yet checked on the Deck (L6.1, L6.2).
 - **K4, Steam and hidraw.** While Steam Input drives a controller, Steam reads it through
   hidraw, so hiding doesn't reach Steam: a game with Steam Input on gets the controller
   twice (L6.3). Steam also turns the Switch Pro Controller's IMU off, and SteamOS's

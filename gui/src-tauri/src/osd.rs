@@ -136,9 +136,12 @@ impl View {
             profile_path: live.profile_path.clone(),
             layer: live.layer,
             layer_name: live.layer_name.clone(),
+            // Not another program's mirror of a controller (Steam's virtual pads): it comes and
+            // goes with the controller, which is announced already.
             devices: live
                 .devices
                 .iter()
+                .filter(|d| !d.mirror)
                 .map(|d| PadInfo {
                     id: d.id.clone(),
                     name: d.name.clone(),
@@ -555,6 +558,39 @@ mod tests {
         s.controller = false;
         s.remap = false;
         assert!(events(&old, &new, &s).is_empty());
+    }
+
+    #[test]
+    fn mirrors_are_not_announced() {
+        let pad = dp_service::LiveDevice {
+            id: "evdev:054c:0ce6:usb-1".into(),
+            name: "DualSense Wireless Controller".into(),
+            family: dp_platform::PadFamily::DualSense,
+            backend: "evdev".into(),
+            vendor_id: 0x054C,
+            product_id: 0x0CE6,
+            state: dp_core::pad::PadState::default(),
+            gyro_calibration: None,
+            battery: None,
+            raw: None,
+            mirror: false,
+        };
+        let steam = dp_service::LiveDevice {
+            id: "evdev:28de:11ff:/dev/input/event20".into(),
+            name: "Microsoft X-Box 360 pad 0".into(),
+            mirror: true,
+            ..pad.clone()
+        };
+        let live = LiveState {
+            devices: vec![pad, steam],
+            ..LiveState::default()
+        };
+        let names: Vec<String> = View::of(&live)
+            .devices
+            .into_iter()
+            .map(|d| d.name)
+            .collect();
+        assert_eq!(names, ["DualSense Wireless Controller"]);
     }
 
     #[test]

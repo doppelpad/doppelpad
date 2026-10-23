@@ -287,6 +287,7 @@ mod tests {
                 has_motion: false,
                 has_touchpad: false,
                 has_rumble: true,
+                mirror: false,
             }),
             state,
             battery: None,

@@ -145,10 +145,15 @@ struct PadView {
     active_slot: usize,
 }
 
-/// Each connected controller as its icon shows it.
+/// Each connected controller as its icon shows it. Another program's mirror of a controller
+/// (Steam's virtual pads) gets one only while it is in use.
 fn pad_views(live: &LiveState, colors: &BTreeMap<String, String>) -> Vec<PadView> {
+    let in_use = |id: &String| {
+        live.primary.as_ref() == Some(id) || live.device_slots.iter().any(|s| &s.id == id)
+    };
     live.devices
         .iter()
+        .filter(|d| !d.mirror || in_use(&d.id))
         .map(|d| {
             let own = live.device_slots.iter().find(|s| s.id == d.id);
             let (config, slots, active_slot) = if let Some(own) = own {
@@ -640,6 +645,7 @@ mod tests {
                 wired: false,
             }),
             raw: None,
+            mirror: false,
         };
         LiveState {
             devices: vec![
@@ -702,6 +708,24 @@ mod tests {
         };
         let pads = pad_views(&off, &colors);
         assert!(pad_tooltip(&pads[1], t).contains(&t.remap_off));
+    }
+
+    #[test]
+    fn mirrors_get_an_icon_only_in_use() {
+        let mut live = live_with_two_pads();
+        for d in &mut live.devices {
+            d.mirror = d.id != "hid:a";
+        }
+        let ids = |live: &LiveState| -> Vec<String> {
+            pad_views(live, &BTreeMap::new())
+                .into_iter()
+                .map(|p| p.id)
+                .collect()
+        };
+        // hid:b runs its own slots; xinput:0 is not in use.
+        assert_eq!(ids(&live), ["hid:a", "hid:b"]);
+        live.primary = Some("xinput:0".into());
+        assert_eq!(ids(&live), ["hid:a", "hid:b", "xinput:0"]);
     }
 
     #[test]
