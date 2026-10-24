@@ -58,6 +58,8 @@ pub mod sony;
 pub mod steam;
 pub mod stores;
 pub mod timer;
+#[cfg(any(target_os = "linux", target_os = "macos", test))]
+pub(crate) mod wine;
 pub use null::NullPlatform;
 
 pub type Result<T, E = PlatformError> = std::result::Result<T, E>;
@@ -570,13 +572,17 @@ pub struct WindowedProgram {
     pub title: String,
 }
 
-/// The programs that show a window now (Windows only; empty elsewhere for now).
+/// The programs that show a window now (Windows and macOS; empty elsewhere for now).
 pub fn windowed_programs() -> Vec<WindowedProgram> {
     #[cfg(windows)]
     {
         windows::windowed_programs()
     }
-    #[cfg(not(windows))]
+    #[cfg(target_os = "macos")]
+    {
+        macos::windowed_programs()
+    }
+    #[cfg(not(any(windows, target_os = "macos")))]
     {
         Vec::new()
     }
@@ -595,26 +601,35 @@ pub fn installed_games() -> Vec<stores::InstalledGame> {
     }
 }
 
-/// The executable file name of the program in front (Windows only; `None` elsewhere for now).
+/// The executable file name of the program in front (Windows and macOS; `None` elsewhere for
+/// now).
 pub fn foreground_program() -> Option<String> {
     #[cfg(windows)]
     {
         windows::foreground_program()
     }
-    #[cfg(not(windows))]
+    #[cfg(target_os = "macos")]
+    {
+        macos::foreground_program()
+    }
+    #[cfg(not(any(windows, target_os = "macos")))]
     {
         None
     }
 }
 
 /// Whether Steam runs: its Steam Input may take a virtual controller and remap it again
-/// (Windows only; `false` elsewhere for now).
+/// (Windows and macOS; `false` elsewhere for now).
 pub fn steam_running() -> bool {
     #[cfg(windows)]
     {
         windows::program_running("steam.exe")
     }
-    #[cfg(not(windows))]
+    #[cfg(target_os = "macos")]
+    {
+        macos::program_running("steam_osx")
+    }
+    #[cfg(not(any(windows, target_os = "macos")))]
     {
         false
     }

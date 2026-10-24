@@ -1,5 +1,6 @@
 //! macOS backends: IOKit HID input, with controllers hidden by seizing them; keyboard and
-//! mouse output through Quartz events and capture through an event tap.
+//! mouse output through Quartz events and capture through an event tap; the foreground
+//! application from the window server's window list; power, window and screenshot commands.
 //!
 //! Reading controllers needs no permission; keyboard and mouse need Accessibility (see
 //! [`permissions`]). The pure translation code (`keycodes`) also compiles in tests on other
@@ -12,6 +13,8 @@ mod keycodes;
 #[cfg(target_os = "macos")]
 mod capture;
 #[cfg(target_os = "macos")]
+mod foreground;
+#[cfg(target_os = "macos")]
 mod hid;
 #[cfg(target_os = "macos")]
 mod hidio;
@@ -20,7 +23,13 @@ mod output;
 #[cfg(target_os = "macos")]
 pub mod permissions;
 #[cfg(target_os = "macos")]
+mod process;
+#[cfg(target_os = "macos")]
 mod props;
+#[cfg(target_os = "macos")]
+mod system;
+#[cfg(target_os = "macos")]
+mod windows;
 
 /// The macOS version and build, as `sw_vers` shows them.
 #[cfg(target_os = "macos")]
@@ -38,6 +47,40 @@ pub fn os_version() -> String {
         (Some(v), None) => format!("macOS {v}"),
         _ => "macOS".to_owned(),
     }
+}
+
+/// The executable file name of the program in front (see `crate::foreground_program`).
+#[cfg(target_os = "macos")]
+pub fn foreground_program() -> Option<String> {
+    process::process_name(windows::front()?.pid)
+}
+
+/// Whether a process with this executable file name runs (any case).
+#[cfg(target_os = "macos")]
+pub fn program_running(exe: &str) -> bool {
+    process::running(exe)
+}
+
+/// The programs that show a window now, one entry per program: its executable file name and
+/// the title of its frontmost window (its name where the title is not readable).
+#[cfg(target_os = "macos")]
+pub fn windowed_programs() -> Vec<crate::WindowedProgram> {
+    let own = std::process::id();
+    let mut out: Vec<crate::WindowedProgram> = Vec::new();
+    for w in windows::on_screen() {
+        if w.pid == own {
+            continue;
+        }
+        let Some(exe) = process::process_name(w.pid) else {
+            continue;
+        };
+        if out.iter().any(|p| p.exe.eq_ignore_ascii_case(&exe)) {
+            continue;
+        }
+        let title = w.title.or(w.owner).unwrap_or_else(|| exe.clone());
+        out.push(crate::WindowedProgram { exe, title });
+    }
+    out
 }
 
 /// Virtual controllers: none, for now.
@@ -63,8 +106,6 @@ impl crate::VirtualPadFactory for NoVirtualPads {
 
 #[cfg(target_os = "macos")]
 pub fn platform() -> crate::Platform {
-    use crate::NullPlatform;
-
     let gamepads = hid::backend();
     let hider = hid::SeizeHider::new(&gamepads);
     crate::Platform {
@@ -78,7 +119,7 @@ pub fn platform() -> crate::Platform {
         kbm_out: Box::new(output::EventOutput::new()),
         kbm_capture: Box::new(capture::TapCapture::default()),
         hider: Box::new(hider),
-        foreground: Box::new(NullPlatform),
-        system: Box::new(NullPlatform),
+        foreground: Box::new(foreground::Foreground::default()),
+        system: Box::new(system::MacSystem::default()),
     }
 }
