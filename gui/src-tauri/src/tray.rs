@@ -520,12 +520,26 @@ fn watch(app: AppHandle, live: SharedLive, mut shown: View) {
 }
 
 pub fn show_main(app: &AppHandle) {
+    show_in_dock(app, true);
     if let Some(w) = app.get_webview_window(MAIN_WINDOW) {
         let _ = w.unminimize();
         crate::fit_to_screen(&w);
         let _ = w.show();
         let _ = w.set_focus();
     }
+}
+
+/// On macOS, have the app in the Dock while its window is open and only in the menu bar while
+/// it runs on in the background, as Windows keeps it in the taskbar only with its window.
+pub fn show_in_dock(app: &AppHandle, show: bool) {
+    #[cfg(target_os = "macos")]
+    let _ = app.set_activation_policy(if show {
+        tauri::ActivationPolicy::Regular
+    } else {
+        tauri::ActivationPolicy::Accessory
+    });
+    #[cfg(not(target_os = "macos"))]
+    let _ = (app, show);
 }
 
 /// Stop the service (releasing outputs and unhiding devices), then exit.
