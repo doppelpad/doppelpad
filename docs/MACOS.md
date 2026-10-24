@@ -1,0 +1,177 @@
+# macOS
+
+Doppelpad runs on macOS 13 and later, on Apple silicon and Intel Macs, with only the
+interfaces macOS has. No drivers are needed:
+
+| Need | macOS backend (`crates/dp-platform/src/macos`) |
+|---|---|
+| Read controllers | IOKit HID: the same drivers as on Windows read the controllers' own reports |
+| Hide the physical controller | opening it exclusively (seizing it), which keeps it from every other program, the GameController framework included |
+| Virtual controller | not available yet (see [Virtual controller](#virtual-controller)) |
+| Keyboard / mouse output | Quartz events (`CGEventPost`) |
+| Keyboard / mouse capture | a Quartz event tap |
+| Per-game profiles | the frontmost window in the window server's list → its process |
+
+> **Status:** preview. Tried on a Mac with macOS 26 and a DualSense on USB: reading it
+> (sticks, buttons, motion, battery), its light bar and rumble, its feature reports, hiding it
+> from the GameController framework, the program in front, keeping the Mac awake and noticing
+> the lock screen. Keyboard and mouse, overlays over games, screenshots, closing windows, the
+> power commands and every other controller are untested, as are Bluetooth controllers.
+> Reports from Mac users are very welcome.
+
+## Install
+
+`Doppelpad_<version>_universal.dmg` holds the app: open it and drag Doppelpad into
+Applications. One app runs on Apple silicon and on Intel Macs. It hosts the remapping
+service itself, keeps running in the menu bar, and updates itself: when a new version is out
+it asks, then replaces the app and starts again.
+
+`doppelpad_<version>_macos-universal.tar.gz` holds the command-line tool `doppelpad`
+(`doctor`, `daemon`, `status`, …), for checking the setup and for running without the app.
+
+Until the app is signed with an Apple Developer ID, macOS will not open it with a double
+click at first: open it once, then choose *Open Anyway* in System Settings › Privacy &
+Security. A tool from the `.tar.gz` that macOS refuses to run likewise needs
+`xattr -d com.apple.quarantine doppelpad` once.
+
+## Permissions
+
+Reading and hiding controllers needs no permission. The rest does, granted per program in
+System Settings › Privacy & Security:
+
+| Permission | Needed for |
+|---|---|
+| Accessibility | sending keys and mouse input, capturing keyboard and mouse, the *close window* command |
+| Screen & System Audio Recording | the *screenshot* command, and the window titles in the game picker (without it, programs are listed by name) |
+
+The app shows a missing Accessibility permission in Settings › Drivers, in the welcome guide
+and at the bottom of the window. *Open settings* asks for it: macOS adds Doppelpad to the
+list, where it only has to be turned on. `doppelpad doctor` reports it too. If keyboard and
+mouse still do nothing after granting it, quit Doppelpad and start it again.
+
+The permission belongs to the program as it is signed. An app signed ad hoc is a new program
+to macOS after every update, so the permission has to be granted again. A Developer ID
+signature ends that.
+
+For the command-line tool, macOS gives the permission to the terminal it runs in (Terminal,
+iTerm, …), not to `doppelpad` itself.
+
+## Controllers
+
+Doppelpad reads controllers through IOKit HID, with the drivers of its Windows backend:
+
+- DualShock 4, DualSense and DualSense Edge, with motion, touchpad, light bar, player lights,
+  microphone LED, trigger effects and rumble.
+- Nintendo Switch Pro Controller, Joy-Cons (paired automatically, or sideways on their own),
+  Nintendo Switch Online and Switch-style wired pads, with motion and rumble.
+- The Steam Controller.
+- Every other HID game pad or joystick, read through its report descriptor: Xbox controllers
+  over Bluetooth are among them, as macOS has no XInput. Identify their buttons once with the
+  wizard in the app.
+
+Not yet: Switch 2 controllers (their USB command channel), the GameCube controller adapter,
+and Xbox controllers over USB, which macOS drives itself (they are not HID devices).
+
+macOS 14 and later make a stand-in Xbox 360 pad for each controller they support
+(`GCSyntheticDevice`), for older games. Doppelpad leaves those out, so no controller is read
+twice.
+
+### Hiding
+
+To hide a controller, Doppelpad opens it exclusively: macOS calls it seizing. While it does,
+no other program gets the controller's input: the GameController framework (which most Mac
+games use), Steam and games that read HID devices themselves see a controller that does
+nothing. Doppelpad keeps reading it. Letting go of it gives it back at once.
+
+Doppelpad hides a controller only for a profile with a virtual controller, as on Windows, and
+macOS has none yet (below), so for now nothing is hidden in practice.
+
+## Virtual controller
+
+macOS has no driver for virtual controllers that anyone may use. A program can make a virtual
+HID device with CoreHID or IOKit only with an entitlement Apple grants on request
+(`com.apple.developer.hid.virtual.device`); Doppelpad does not have one yet. Configs with a
+virtual controller do not start on macOS, and say why.
+
+Even with the entitlement, the GameController framework is built to ignore virtual devices, so
+a virtual DualShock 4 might reach games that read HID devices themselves (SDL, emulators,
+Steam) but not every Mac game.
+
+## Keyboard and mouse
+
+Output goes into the system's event stream as Quartz events: keys by their position on the
+keyboard with the modifier flags a Mac keyboard sets, mouse buttons with click counts for
+double clicks, motion with the deltas games read, the wheel in lines.
+
+Capture is an event tap: it sees every key, button, wheel and motion and swallows the ones a
+config remaps. Swallowing mouse motion (for mouse-to-stick mappings) detaches the cursor from
+the mouse while it lasts.
+
+Limitations:
+
+- Programs that read keyboard and mouse from the HID devices themselves (the GameController
+  framework's `GCKeyboard` and `GCMouse`) do not see Doppelpad's output, and still see input
+  Doppelpad swallowed.
+- Keyboards and mice are not told apart.
+- While a password field has secure input on, macOS keeps keys from every event tap.
+- Keys a Mac keyboard does not have (Print Screen, Scroll Lock, Pause, the launch and browser
+  keys) cannot be sent, nor can the media and volume keys yet.
+
+## Per-game profiles
+
+The program in front is the owner of the frontmost ordinary window; this needs no permission.
+Its name is the file name of its executable: for an app, the one in its
+`Contents/MacOS` folder, which is usually the app's name. For games under Wine (CrossOver,
+Whisky, the Game Porting Toolkit) it is the Windows `.exe` name, as on Windows. Add the Mac
+name to a game's programs: the game picker in the app lists the programs with a window.
+
+## Commands
+
+| Command | On macOS |
+|---|---|
+| Shut down, restart, log out | asks `loginwindow`, so programs may still save their work |
+| Sleep | `pmset sleepnow` |
+| Hibernate | not available: macOS has no hibernate of its own to ask for |
+| Screenshot | the display with the window in front, to `~/Pictures/Doppelpad` (needs Screen Recording) |
+| Close window | presses the focused window's close button (needs Accessibility) |
+
+Doppelpad keeps the Mac awake while mappings run, and pauses while the screen is locked.
+
+## Desktop app
+
+The app keeps running in the menu bar when its window is closed, and leaves the Dock until
+the window opens again. *Open at login, in the menu bar* in the settings adds a launch agent
+(`~/Library/LaunchAgents/dev.doppelpad.app.plist`) that starts it hidden; it shows among the
+login items in System Settings › General.
+
+Overlays (notifications, crosshairs, radial menus, the controller overlay) float above every
+window, on every Space and over games in full screen, without taking the focus from the game.
+The crosshair's magnifier is not available on macOS.
+
+Settings, configs, logs and the history of configs are in
+`~/Library/Application Support/doppelpad` (under `$XDG_CONFIG_HOME` and `$XDG_STATE_HOME`
+when those are set).
+
+## Command-line tool
+
+`doppelpad doctor` lists what macOS allows and the controllers it finds; `doppelpad daemon`
+runs remapping without the app. Keyboard and mouse need the Accessibility permission for the
+terminal it runs in. The daemon and the app talk through a socket in the user's temporary
+folder.
+
+## Building
+
+Requirements: Rust, Node.js 20 or newer and the Xcode command-line tools
+(`xcode-select --install`).
+
+```bash
+cargo build --release   # → target/release/doppelpad
+cd gui
+npm install
+npx tauri build --bundles app --config '{"bundle":{"createUpdaterArtifacts":false}}'
+```
+
+The app is `target/release/bundle/macos/Doppelpad.app`. The `--config` leaves out the
+updater's archive, which needs the release signing key. `--target universal-apple-darwin`
+builds one app for both kinds of Mac, with both Rust targets installed. The release workflow
+builds the `.dmg` and the updater's archive (see `.github/workflows/release.yml`).
