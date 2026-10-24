@@ -124,7 +124,8 @@ The program in front is the owner of the frontmost ordinary window; this needs n
 Its name is the file name of its executable: for an app, the one in its
 `Contents/MacOS` folder, which is usually the app's name. For games under Wine (CrossOver,
 Whisky, the Game Porting Toolkit) it is the Windows `.exe` name, as on Windows. Add the Mac
-name to a game's programs: the game picker in the app lists the programs with a window.
+name to a game's programs: the game picker in the app lists the programs with a window, and
+suggests the games Steam and Epic have installed, with the programs in their app bundles.
 
 ## Commands
 
