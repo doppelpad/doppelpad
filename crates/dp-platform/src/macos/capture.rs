@@ -1,4 +1,4 @@
-//! Global keyboard/mouse capture through a Quartz event tap.
+//! Global keyboard/mouse capture through a Quartz event tap, media keys included.
 //!
 //! The tap sits where hardware events enter the window server and runs on a thread of its own.
 //! It sees every key, button, wheel and motion and can swallow the ones the active profile
@@ -22,8 +22,10 @@ use objc2_core_graphics::{
     CGEventTapOptions, CGEventTapPlacement, CGEventTapProxy, CGEventType,
 };
 
+use objc2_app_kit::NSEvent;
+
 use super::keycodes;
-use super::output::INJECTED_TAG;
+use super::output::{INJECTED_TAG, MEDIA_SUBTYPE};
 use crate::{CaptureFilter, KbmCapture, KbmEvent, PlatformError, Result};
 
 /// What the tap callback needs; lives on the tap thread's heap while the tap does.
@@ -48,9 +50,14 @@ pub struct TapCapture {
     run_loop: Option<LoopRef>,
 }
 
+/// The system events that carry the media keys (`NX_SYSDEFINED`), which CoreGraphics has no
+/// name for.
+const SYSTEM_DEFINED: CGEventType = CGEventType(14);
+
 /// The event types the tap listens to.
 fn mask() -> CGEventMask {
     [
+        SYSTEM_DEFINED,
         CGEventType::KeyDown,
         CGEventType::KeyUp,
         CGEventType::FlagsChanged,
@@ -164,6 +171,15 @@ fn events_of(kind: CGEventType, event: &CGEvent) -> Vec<KbmEvent> {
                     dx: dx as i32,
                     dy: dy as i32,
                 }]
+            }
+        }
+        SYSTEM_DEFINED => {
+            let media = NSEvent::eventWithCGEvent(event)
+                .filter(|e| e.subtype().0 == MEDIA_SUBTYPE)
+                .and_then(|e| keycodes::media_of_data(e.data1() as i64));
+            match media.and_then(|(kind, down)| Some((keycodes::media_key_of(kind)?, down))) {
+                Some((key, down)) => vec![KbmEvent::Key { key, down }],
+                None => Vec::new(),
             }
         }
         CGEventType::ScrollWheel => {
@@ -340,6 +356,26 @@ mod tests {
         assert_eq!(other_button(2), Some(MouseButton::Middle));
         assert_eq!(other_button(4), Some(MouseButton::X2));
         assert_eq!(other_button(7), None);
+    }
+
+    #[test]
+    fn media_keys_read_back_as_keys() {
+        let event = super::super::output::media_event(16, true).unwrap();
+        assert_eq!(
+            events_of(SYSTEM_DEFINED, &event),
+            [KbmEvent::Key {
+                key: Key::MediaPlayPause,
+                down: true
+            }]
+        );
+        let event = super::super::output::media_event(1, false).unwrap();
+        assert_eq!(
+            events_of(SYSTEM_DEFINED, &event),
+            [KbmEvent::Key {
+                key: Key::VolumeDown,
+                down: false
+            }]
+        );
     }
 
     #[test]

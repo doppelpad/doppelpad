@@ -1,11 +1,12 @@
 //! Keys as macOS numbers them: virtual key codes (`kVK_*` in Carbon's `Events.h`), which name
-//! a position on the ANSI keyboard, and the modifier flags of keyboard events.
+//! a position on the ANSI keyboard, the modifier flags of keyboard events, and the media keys,
+//! which are system events of their own (`NX_KEYTYPE_*` in IOKit's `ev_keymap.h`).
 
 use dp_core::keys::Key;
 
 /// The virtual key code of a key; `None` for keys a Mac keyboard does not have (Print Screen,
 /// Scroll Lock, Pause, the launch and browser keys) or that are not plain keys on macOS (the
-/// media and volume keys).
+/// media and volume keys: see [`media_key`]).
 pub fn keycode(key: Key) -> Option<u16> {
     use Key::*;
     Some(match key {
@@ -136,6 +137,43 @@ pub fn key(code: u16) -> Option<Key> {
     Key::ALL.iter().copied().find(|&k| keycode(k) == Some(code))
 }
 
+/// The media key type of a key (`NX_KEYTYPE_*`): volume, mute and the playback keys.
+pub fn media_key(key: Key) -> Option<u32> {
+    Some(match key {
+        Key::VolumeUp => 0,
+        Key::VolumeDown => 1,
+        Key::VolumeMute => 7,
+        Key::MediaPlayPause => 16,
+        Key::MediaNext => 17,
+        Key::MediaPrevious => 18,
+        _ => return None,
+    })
+}
+
+/// The key of a media key type.
+pub fn media_key_of(kind: u32) -> Option<Key> {
+    Key::ALL
+        .iter()
+        .copied()
+        .find(|&k| media_key(k) == Some(kind))
+}
+
+/// The `data1` of a media key's system event: its type, and whether it went down.
+pub fn media_data(kind: u32, down: bool) -> i64 {
+    i64::from(kind) << 16 | if down { 0xA00 } else { 0xB00 }
+}
+
+/// The media key type and whether it went down, from a system event's `data1`; `None` for
+/// other values.
+pub fn media_of_data(data: i64) -> Option<(u32, bool)> {
+    let kind = u32::try_from((data >> 16) & 0xFFFF).ok()?;
+    match (data >> 8) & 0xFF {
+        0x0A => Some((kind, true)),
+        0x0B => Some((kind, false)),
+        _ => None,
+    }
+}
+
 /// Modifier flags of keyboard events (`CGEventFlags`): the side-independent mask, and the
 /// device bit that says which side.
 pub mod flag {
@@ -229,6 +267,17 @@ mod tests {
         assert_eq!(keycode(Key::PrintScreen), None);
         assert_eq!(keycode(Key::MediaPlayPause), None);
         assert_eq!(key(0xFF), None);
+    }
+
+    #[test]
+    fn media_keys() {
+        assert_eq!(media_key(Key::MediaPlayPause), Some(16));
+        assert_eq!(media_key(Key::A), None);
+        assert_eq!(media_key_of(7), Some(Key::VolumeMute));
+        assert_eq!(media_data(16, true), 0x10_0A00);
+        assert_eq!(media_of_data(0x10_0A00), Some((16, true)));
+        assert_eq!(media_of_data(media_data(1, false)), Some((1, false)));
+        assert_eq!(media_of_data(0x10_0000), None);
     }
 
     #[test]
