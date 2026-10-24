@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Merged into the macOS app's Info.plist by `tauri build`: why the app asks for what macOS
+     guards. The shut-down, restart and log-out commands are Apple events to loginwindow. -->
+<plist version="1.0">
+<dict>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>Doppelpad asks macOS to shut down, restart or log out when one of your mappings says so.</string>
+</dict>
+</plist>
