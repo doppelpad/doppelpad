@@ -234,7 +234,9 @@ id (`_NET_WM_PID`). It then names the process from `/proc`:
 
 - For Wine / Proton games it uses the Windows executable name (`Game.exe`, read from the
   command line), so `processes = ["Game.exe"]` works for Proton games too.
-- For native programs it uses the binary's file name.
+- For native programs it uses the binary's file name. Names are compared with or without
+  `.exe`, so a game listed as `Game.exe` (in an imported Windows profile, say) is found when
+  its native build `Game` runs.
 
 On a Wayland desktop this works for XWayland windows, which includes Proton games, as long
 as the compositor maintains `_NET_ACTIVE_WINDOW` (KWin and Mutter do). Native Wayland

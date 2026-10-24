@@ -7,7 +7,8 @@ Unknown keys are rejected, so typos are caught by `doppelpad check`.
 format = 1                   # version of the file format (see Format versions); optional
 name = "My game"
 description = "..."
-processes = ["MyGame.exe"]   # auto-apply while one of these is in the foreground (daemon)
+processes = ["MyGame.exe"]   # auto-apply while one of these is in the foreground (daemon); any case,
+                             # with or without .exe, so "MyGame" on macOS and Linux matches too
 kbm_source = "all"            # all | physical | scripts: which keyboard/mouse input the mappings see
 
 [output]

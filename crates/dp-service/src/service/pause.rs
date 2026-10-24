@@ -1,5 +1,7 @@
 //! Pausing remapping: the editor in front, a locked desktop, the game not in front.
 
+use dp_config::library::same_program;
+
 use super::Service;
 
 impl Service {
@@ -45,7 +47,7 @@ impl Service {
             && self.state.remap_on
             && self.fg.now.as_deref().is_some_and(|fg| {
                 let games = self.game_processes();
-                !games.is_empty() && !games.iter().any(|g| g.eq_ignore_ascii_case(fg))
+                !games.is_empty() && !games.iter().any(|g| same_program(g, fg))
             });
         if paused != self.pause.focus_paused {
             tracing::info!(paused, "the config's game lost or got the focus");

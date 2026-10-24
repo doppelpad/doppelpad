@@ -2,6 +2,8 @@
 //! statement it rests on. Doppelpad only warns while such a game is in front; it never
 //! blocks anything. Add an entry only with a source that says so.
 
+use dp_config::library::same_program;
+
 pub struct AntiCheat {
     /// Executable names, compared without regard to case.
     pub processes: &'static [&'static str],
@@ -28,11 +30,12 @@ pub const LIST: &[AntiCheat] = &[
     },
 ];
 
-/// The entry for a foreground executable, if any.
+/// The entry for a foreground executable, if any (the native build of a game too, see
+/// [`same_program`]).
 pub fn lookup(exe: &str) -> Option<&'static AntiCheat> {
     let name = exe.rsplit(['\\', '/']).next().unwrap_or(exe);
     LIST.iter()
-        .find(|a| a.processes.iter().any(|p| p.eq_ignore_ascii_case(name)))
+        .find(|a| a.processes.iter().any(|p| same_program(p, name)))
 }
 
 impl AntiCheat {
