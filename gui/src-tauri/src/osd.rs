@@ -322,7 +322,7 @@ fn game_name(live: &LiveState, exe: &str) -> String {
 fn expire(app: &AppHandle) -> bool {
     let state = app.state::<OsdState>();
     let mut inner = state.inner.lock().unwrap();
-    if !inner.until.is_some_and(|u| Instant::now() >= u) {
+    if inner.until.is_none_or(|u| Instant::now() < u) {
         return false;
     }
     inner.until = None;

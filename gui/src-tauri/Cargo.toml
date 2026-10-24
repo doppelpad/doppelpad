@@ -21,7 +21,9 @@ serde.workspace = true
 serde_json.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
-tauri = { version = "2", features = ["tray-icon"] }
+# `macos-private-api`: transparent windows (the overlays) need AppKit's private API on macOS.
+# It does nothing elsewhere, and must match `app.macOSPrivateApi` in tauri.conf.json.
+tauri = { version = "2", features = ["tray-icon", "macos-private-api"] }
 tauri-plugin-dialog = "2"
 tauri-plugin-single-instance = "2"
 # Without `zip`: the update is the setup itself, not a zipped one (createUpdaterArtifacts).

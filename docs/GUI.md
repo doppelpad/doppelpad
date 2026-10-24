@@ -700,7 +700,8 @@ controller in use and why it was picked, controllers that went silent and were s
 again, and crashes. Each start begins a new log and keeps those of the five runs before;
 a single run stops logging after 16 MiB. `DOPPELPAD_LOG` sets the detail level (default `info`; for example
 `DOPPELPAD_LOG=debug`). On Linux the log is in `$XDG_STATE_HOME/doppelpad/logs`
-(default `~/.local/state/doppelpad/logs`).
+(default `~/.local/state/doppelpad/logs`), on macOS in
+`~/Library/Application Support/doppelpad/logs`.
 
 ## Building
 
