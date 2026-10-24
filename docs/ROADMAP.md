@@ -50,8 +50,7 @@ to keep. Linux stays a preview in 1.0 (see [Platforms](#platforms)).
   Joy-Cons, Bluetooth and other distributions.
 - macOS beyond the preview: tests on real hardware (keyboard and mouse, overlays over games,
   Bluetooth and other controllers), signing and notarization, release builds, virtual
-  controllers (an entitlement from Apple), Switch 2 controllers, the GameCube adapter (see
-  [Platforms](#platforms)).
+  controllers (an entitlement from Apple), the GameCube adapter (see [Platforms](#platforms)).
 - More controllers: Switch 2 over Bluetooth, Wii Remote, DualShock 3, analog keyboards.
 - More from imported JSON profiles: crosshair shapes, radial-menu icons, mouse regions, rumble
   mode, virtual gyro stick values.
@@ -118,7 +117,7 @@ to keep. Linux stays a preview in 1.0 (see [Platforms](#platforms)).
 | Xbox and XInput controllers | ✅ |
 | DualShock 4, DualSense, DualSense Edge | ✅ raw HID |
 | Nintendo Switch controllers (Pro Controller, Joy-Con paired or sideways, NSO and Switch-style wired pads; gyro, rumble) | ✅ Windows via raw HID (⏳ hardware testing); Linux through hid-nintendo |
-| Switch 2 controllers (Pro Controller, GameCube controller) | ✅ Windows over USB (⏳ hardware testing); ⏳ Bluetooth; ⏳ Linux |
+| Switch 2 controllers (Pro Controller, GameCube controller) | ✅ Windows over USB (⏳ hardware testing); macOS over USB (tried with a Pro Controller); ⏳ Bluetooth; ⏳ Linux |
 | Steam Controller (USB, wireless receiver) and Steam Deck, with Steam's desktop mode turned off while remapping | ✅ Windows (⏳ hardware testing); ⏳ Bluetooth LE; ⏳ Linux |
 | Generic HID gamepads and joysticks, with a wizard that identifies the buttons | ✅ Windows (⏳ hardware testing); Linux reads them through evdev |
 | GameCube USB adapter (official and Wii U-mode clones) | ✅ Windows (⏳ hardware testing); ⏳ Linux |
@@ -158,12 +157,12 @@ to keep. Linux stays a preview in 1.0 (see [Platforms](#platforms)).
    | Hardware testing | ✅ first pass on a Steam Deck (DualSense, Switch Pro Controller, keyboard and mouse, desktop app), second pass on SteamOS 3.9 (controller extras, DualSense over Bluetooth); ⏳ DualShock 4, Joy-Cons, Switch controllers over Bluetooth, Game Mode, other distributions |
 
    It requires a udev rule for `/dev/uinput` and the input devices, except on SteamOS.
-3. **macOS**: implemented in `dp-platform/src/macos`; unit-tested and tried with a DualSense
-   and a Switch Pro Controller on USB. Setup and limitations are in [MACOS.md](MACOS.md).
+3. **macOS**: implemented in `dp-platform/src/macos`; unit-tested and tried with a DualSense,
+   a Switch Pro Controller and a Switch 2 Pro Controller on USB. Setup and limitations are in [MACOS.md](MACOS.md).
 
    | Responsibility | Status |
    |---|---|
-   | Read controllers | ✅ IOKit HID with the Windows backend's drivers (Sony, Nintendo, Steam, generic pads through their report descriptor); Apple's stand-in Xbox 360 pads left out (tried with a DualSense and a Switch Pro Controller) |
+   | Read controllers | ✅ IOKit HID with the Windows backend's drivers (Sony, Nintendo, Steam, generic pads through their report descriptor), Switch 2 controllers started over their USB command channel; Apple's stand-in Xbox 360 pads left out (tried with a DualSense, a Switch Pro Controller and a Switch 2 Pro Controller) |
    | Hide physical controllers | ✅ seizing the device, which keeps it from the GameController framework too; for every config that asks, as there is no virtual controller (tried with a DualSense and a Switch Pro Controller) |
    | Virtual controller | ❌ needs Apple's entitlement for virtual HID devices; the GameController framework may still ignore one |
    | Keyboard/mouse output | ✅ Quartz events, media keys as system events (tried: motion, clicks, wheel, keys, media keys) |
@@ -173,4 +172,4 @@ to keep. Linux stays a preview in 1.0 (see [Platforms](#platforms)).
    | Controller extras | ✅ batteries, lights, trigger effects and rumble through the drivers (tried: battery, DualSense light bar, Switch player lights, rumble); keep-awake and the lock-screen pause (tried); ⏳ turning Sony pads off over Bluetooth |
    | Desktop app | ✅ menu bar, overlays over full-screen games without taking the focus (tried: notifications over another program; ⏳ testing in games), start at login, `.dpgame` from the Finder, permissions in the driver list and welcome guide |
    | Download | ⏳ the release workflow builds a universal `.dmg` and the command-line tool; on a tag only with the repository variable `MACOS_RELEASES`; signing and notarization need an Apple Developer ID |
-   | Not on macOS yet | virtual controllers, Switch 2 controllers, the GameCube adapter, Xbox controllers over USB, the crosshair magnifier, cursor clipping |
+   | Not on macOS yet | virtual controllers, the GameCube adapter, Xbox controllers over USB, the crosshair magnifier, cursor clipping |
