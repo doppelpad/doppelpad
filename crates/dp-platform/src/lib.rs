@@ -470,6 +470,13 @@ pub trait DeviceHider: Send {
     fn hide(&mut self, instance_paths: &[String]) -> Result<()>;
     /// Undo everything this hider changed.
     fn restore(&mut self) -> Result<()>;
+    /// Whether a config's controller is hidden even without a virtual controller standing in
+    /// for it. Where virtual controllers exist (Windows, Linux) hiding waits for one, so a game
+    /// keeps the controller under a config that has none; macOS has none yet and hides whenever
+    /// a config asks, so the game does not see input that a mapping turned into keys.
+    fn hides_without_virtual_pad(&self) -> bool {
+        false
+    }
     /// Connected devices the hiding driver hides from Doppelpad itself (set up for another
     /// tool, or left by an older install), as user-facing explanations. Asks the driver,
     /// so call it now and then rather than every tick.
@@ -591,14 +598,18 @@ pub fn windowed_programs() -> Vec<WindowedProgram> {
     }
 }
 
-/// The games the local stores (Steam, Epic, GOG) have installed (Windows only; none elsewhere
-/// for now).
+/// The games the local stores have installed: Steam, Epic and GOG on Windows, Steam and Epic
+/// on macOS (none on Linux for now).
 pub fn installed_games() -> Vec<stores::InstalledGame> {
     #[cfg(windows)]
     {
         windows::stores::installed_games()
     }
-    #[cfg(not(windows))]
+    #[cfg(target_os = "macos")]
+    {
+        macos::stores::installed_games()
+    }
+    #[cfg(not(any(windows, target_os = "macos")))]
     {
         Vec::new()
     }

@@ -490,7 +490,8 @@ impl Runtime {
         warnings.extend(engine.warnings().iter().cloned());
         let session = Session {
             owner,
-            hide_wanted: engine.profile().output.hide_physical && vpad.is_some(),
+            hide_wanted: engine.profile().output.hide_physical
+                && (vpad.is_some() || self.platform.hider.hides_without_virtual_pad()),
             needs_capture: capture,
             engine,
             path,

@@ -1,6 +1,6 @@
 //! Installed games of the local game stores (Steam, Epic, GOG), from their own files only (no
-//! network), to suggest games and their programs. The file formats are parsed here; finding the
-//! files is per OS (`windows::stores`).
+//! network), to suggest games and their programs. The file formats and the stores' folders are
+//! read here; where the stores keep them is per OS (`windows::stores`, `macos::stores`).
 
 use std::path::{Path, PathBuf};
 
@@ -250,13 +250,147 @@ pub fn programs_in(dir: &Path) -> Vec<String> {
 
 /// The programs of a game folder with the one the store names first.
 pub fn programs_with(first: Option<String>, dir: &Path) -> Vec<String> {
+    with_first(first, programs_in(dir))
+}
+
+/// `rest` after `first`, without `first` twice.
+fn with_first(first: Option<String>, rest: Vec<String>) -> Vec<String> {
     let mut out: Vec<String> = first.into_iter().collect();
-    for p in programs_in(dir) {
+    for p in rest {
         if !out.iter().any(|q| q.eq_ignore_ascii_case(&p)) {
             out.push(p);
         }
     }
     out
+}
+
+/// The programs of a Mac game folder: the executables of the app bundles in it (two levels
+/// deep), the bundle's own one first, biggest first otherwise.
+pub fn app_programs_in(dir: &Path) -> Vec<String> {
+    let mut found: Vec<(u64, String)> = Vec::new();
+    let mut level = vec![dir.to_path_buf()];
+    for _ in 0..2 {
+        let mut next = Vec::new();
+        for d in &level {
+            let Ok(entries) = std::fs::read_dir(d) else {
+                continue;
+            };
+            for e in entries.flatten() {
+                let p = e.path();
+                if !p.is_dir() {
+                    continue;
+                }
+                let is_app = p
+                    .extension()
+                    .and_then(|x| x.to_str())
+                    .is_some_and(|x| x.eq_ignore_ascii_case("app"));
+                if is_app {
+                    for (size, name) in bundle_programs(&p) {
+                        if !is_helper(&name) && !found.iter().any(|(_, n)| *n == name) {
+                            found.push((size, name));
+                        }
+                    }
+                } else {
+                    next.push(p);
+                }
+            }
+        }
+        level = next;
+    }
+    found.sort_by_key(|f| std::cmp::Reverse(f.0));
+    found.into_iter().map(|(_, n)| n).collect()
+}
+
+/// The files in an app bundle's `Contents/MacOS` with their sizes; the one named like the
+/// bundle (usually the one macOS starts) counts as the biggest.
+fn bundle_programs(app: &Path) -> Vec<(u64, String)> {
+    let stem = app.file_stem().map(|s| s.to_string_lossy().into_owned());
+    let Ok(entries) = std::fs::read_dir(app.join("Contents/MacOS")) else {
+        return Vec::new();
+    };
+    entries
+        .flatten()
+        .filter(|e| e.path().is_file())
+        .map(|e| {
+            let name = e.file_name().to_string_lossy().into_owned();
+            let size = if Some(&name) == stem.as_ref() {
+                u64::MAX
+            } else {
+                e.metadata().map(|m| m.len()).unwrap_or(0)
+            };
+            (size, name)
+        })
+        .collect()
+}
+
+/// The games of the Steam installation at `root`, in every library folder it lists, with the
+/// programs `programs` finds in each game's folder.
+pub fn steam_games(root: &Path, programs: fn(&Path) -> Vec<String>) -> Vec<InstalledGame> {
+    let folders = std::fs::read_to_string(root.join("steamapps").join("libraryfolders.vdf"))
+        .unwrap_or_default();
+    let mut libraries = steam_libraries(&folders);
+    if libraries.is_empty() {
+        libraries.push(root.to_path_buf());
+    }
+    let cache = root.join("appcache").join("librarycache");
+    let mut out = Vec::new();
+    for library in libraries {
+        let apps = library.join("steamapps");
+        let Ok(entries) = std::fs::read_dir(&apps) else {
+            continue;
+        };
+        for e in entries.flatten() {
+            let file = e.file_name().to_string_lossy().into_owned();
+            if !(file.starts_with("appmanifest_") && file.ends_with(".acf")) {
+                continue;
+            }
+            let Some((id, name, dir)) = std::fs::read_to_string(e.path())
+                .ok()
+                .as_deref()
+                .and_then(steam_app)
+            else {
+                continue;
+            };
+            let dir = apps.join("common").join(dir);
+            if !dir.is_dir() {
+                continue;
+            }
+            out.push(InstalledGame {
+                store: Store::Steam,
+                name,
+                programs: programs(&dir),
+                cover: steam_cover(&cache, &id),
+                dir,
+            });
+        }
+    }
+    out
+}
+
+/// The games in Epic's folder of install manifests, with the program each names first and the
+/// others `programs` finds in its folder after it.
+pub fn epic_games(manifests: &Path, programs: fn(&Path) -> Vec<String>) -> Vec<InstalledGame> {
+    let Ok(entries) = std::fs::read_dir(manifests) else {
+        return Vec::new();
+    };
+    entries
+        .flatten()
+        .filter(|e| {
+            e.path()
+                .extension()
+                .is_some_and(|x| x.eq_ignore_ascii_case("item"))
+        })
+        .filter_map(|e| std::fs::read_to_string(e.path()).ok())
+        .filter_map(|text| epic_item(&text))
+        .filter(|(_, dir, _)| dir.is_dir())
+        .map(|(name, dir, exe)| InstalledGame {
+            store: Store::Epic,
+            programs: with_first(Some(exe), programs(&dir)),
+            name,
+            dir,
+            cover: None,
+        })
+        .collect()
 }
 
 /// The cover of a Steam app in `appcache/librarycache`: the portrait capsule in the app's folder
@@ -380,5 +514,64 @@ mod tests {
             Some(cache.join("7_library_600x900.jpg"))
         );
         assert_eq!(steam_cover(&cache, "8"), None);
+    }
+
+    #[test]
+    fn programs_of_mac_app_bundles() {
+        let root = tempfile::tempdir().unwrap();
+        let game = root.path().join("Game");
+        let app = game.join("Game.app").join("Contents").join("MacOS");
+        std::fs::create_dir_all(&app).unwrap();
+        std::fs::write(app.join("Game"), vec![0; 10]).unwrap();
+        std::fs::write(app.join("CrashReporter"), vec![0; 900]).unwrap();
+        std::fs::write(app.join("Helper"), vec![0; 500]).unwrap();
+        let tools = game
+            .join("Tools")
+            .join("Editor.app")
+            .join("Contents")
+            .join("MacOS");
+        std::fs::create_dir_all(&tools).unwrap();
+        std::fs::write(tools.join("Editor"), vec![0; 50]).unwrap();
+        // The bundles' own programs first, the top level's before the folder below.
+        assert_eq!(app_programs_in(&game), ["Game", "Editor", "Helper"]);
+        assert!(app_programs_in(&root.path().join("missing")).is_empty());
+    }
+
+    #[test]
+    fn steam_and_epic_folders() {
+        let root = tempfile::tempdir().unwrap();
+        let steam = root.path().join("Steam");
+        let apps = steam.join("steamapps");
+        std::fs::create_dir_all(apps.join("common").join("Silksong")).unwrap();
+        std::fs::write(
+            apps.join("appmanifest_1030300.acf"),
+            "\"AppState\" { \"appid\" \"1030300\" \"name\" \"Hollow Knight: Silksong\" \"installdir\" \"Silksong\" }",
+        )
+        .unwrap();
+        std::fs::write(
+            apps.join("appmanifest_1.acf"),
+            "\"AppState\" { \"appid\" \"1\" \"name\" \"Gone\" \"installdir\" \"Gone\" }",
+        )
+        .unwrap();
+        let games = steam_games(&steam, |_| vec!["Silksong".into()]);
+        assert_eq!(games.len(), 1, "a game without its folder is left out");
+        assert_eq!(games[0].name, "Hollow Knight: Silksong");
+        assert_eq!(games[0].dir, apps.join("common").join("Silksong"));
+        assert_eq!(games[0].programs, ["Silksong"]);
+
+        let manifests = root.path().join("Manifests");
+        std::fs::create_dir_all(&manifests).unwrap();
+        let dir = root.path().join("Fortnite");
+        std::fs::create_dir_all(&dir).unwrap();
+        let item = serde_json::json!({
+            "DisplayName": "Fortnite",
+            "InstallLocation": dir,
+            "LaunchExecutable": "FortniteClient.app/Contents/MacOS/FortniteClient",
+        });
+        std::fs::write(manifests.join("a.item"), item.to_string()).unwrap();
+        let games = epic_games(&manifests, |_| {
+            vec!["Other".into(), "FortniteClient".into()]
+        });
+        assert_eq!(games[0].programs, ["FortniteClient", "Other"]);
     }
 }

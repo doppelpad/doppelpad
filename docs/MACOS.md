@@ -12,12 +12,15 @@ interfaces macOS has. No drivers are needed:
 | Keyboard / mouse capture | a Quartz event tap |
 | Per-game profiles | the frontmost window in the window server's list → its process |
 
-> **Status:** preview. Tried on a Mac with macOS 26 and a DualSense on USB: reading it
-> (sticks, buttons, motion, battery), its light bar and rumble, its feature reports, hiding it
-> from the GameController framework, the program in front, keeping the Mac awake and noticing
-> the lock screen. Keyboard and mouse, overlays over games, screenshots, closing windows, the
-> power commands and every other controller are untested, as are Bluetooth controllers.
-> Reports from Mac users are very welcome.
+> **Status:** preview. Tried on a Mac with macOS 26 with a DualSense and a Switch Pro
+> Controller on USB: reading them (buttons, sticks, triggers, motion, battery), the
+> DualSense's light bar, the Switch Pro Controller's player lights, rumble on both, hiding them
+> from the GameController framework, and in the app with the Accessibility permission: the
+> controller as mouse and keyboard (motion, clicks, wheel, keys, media keys), a key remapped on
+> the keyboard, the program in front, keeping the Mac awake and noticing the lock screen, and
+> notifications over other programs without taking their focus. Overlays over games in full
+> screen, screenshots, closing windows, the power commands, the other controllers and Bluetooth
+> are untested. Reports from Mac users are very welcome.
 
 ## Install
 
@@ -46,8 +49,9 @@ System Settings › Privacy & Security:
 
 The app shows a missing Accessibility permission in Settings › Drivers, in the welcome guide
 and at the bottom of the window. *Open settings* asks for it: macOS adds Doppelpad to the
-list, where it only has to be turned on. `doppelpad doctor` reports it too. If keyboard and
-mouse still do nothing after granting it, quit Doppelpad and start it again.
+list, where it only has to be turned on. `doppelpad doctor` reports it too. macOS tells a
+running program of the permission only when it starts again, so quit Doppelpad (⌘Q or *Quit*
+in the menu bar) and open it again after granting it.
 
 The permission belongs to the program as it is signed. An app signed ad hoc is a new program
 to macOS after every update, so the permission has to be granted again. A Developer ID
@@ -83,8 +87,11 @@ no other program gets the controller's input: the GameController framework (whic
 games use), Steam and games that read HID devices themselves see a controller that does
 nothing. Doppelpad keeps reading it. Letting go of it gives it back at once.
 
-Doppelpad hides a controller only for a profile with a virtual controller, as on Windows, and
-macOS has none yet (below), so for now nothing is hidden in practice.
+As macOS has no virtual controllers yet (below), Doppelpad hides the controller for every config
+that has *Hide the physical controller* on, not only for one with a virtual controller as on
+Windows and Linux: a game then gets only the keys and mouse input the mappings make. Turn the
+option off in a config that should leave the controller to the game and only add a few
+mappings on top.
 
 ## Virtual controller
 
@@ -115,7 +122,8 @@ Limitations:
 - Keyboards and mice are not told apart.
 - While a password field has secure input on, macOS keeps keys from every event tap.
 - Keys a Mac keyboard does not have (Print Screen, Scroll Lock, Pause, the launch and browser
-  keys) cannot be sent, nor can the media and volume keys yet.
+  keys, media Stop) cannot be sent. Play/pause, next, previous, volume and mute go out as the
+  system events a Mac keyboard's own keys make, and are captured as such.
 
 ## Per-game profiles
 
@@ -123,7 +131,8 @@ The program in front is the owner of the frontmost ordinary window; this needs n
 Its name is the file name of its executable: for an app, the one in its
 `Contents/MacOS` folder, which is usually the app's name. For games under Wine (CrossOver,
 Whisky, the Game Porting Toolkit) it is the Windows `.exe` name, as on Windows. Add the Mac
-name to a game's programs: the game picker in the app lists the programs with a window.
+name to a game's programs: the game picker in the app lists the programs with a window, and
+suggests the games Steam and Epic have installed, with the programs in their app bundles.
 
 ## Commands
 
