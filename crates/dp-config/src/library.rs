@@ -116,11 +116,26 @@ pub struct Library {
     pub errors: Vec<String>,
 }
 
+/// Whether two program names mean the same program: case-insensitively, and with or without
+/// `.exe`, so that a game listed by its Windows program is recognised where it runs natively,
+/// on macOS or Linux (`Hades.exe` and `Hades`).
+pub fn same_program(a: &str, b: &str) -> bool {
+    fn stem(name: &str) -> &str {
+        match name.len().checked_sub(4) {
+            Some(i) if name.is_char_boundary(i) && name[i..].eq_ignore_ascii_case(".exe") => {
+                &name[..i]
+            }
+            _ => name,
+        }
+    }
+    stem(a).eq_ignore_ascii_case(stem(b))
+}
+
 impl Library {
-    /// The config to switch to for the executable `exe` (case-insensitive): the default config
-    /// of a game that lists it, else a loose config that does.
+    /// The config to switch to for the executable `exe` (see [`same_program`]): the default
+    /// config of a game that lists it, else a loose config that does.
     pub fn config_for_process(&self, exe: &str) -> Option<PathBuf> {
-        let lists = |names: &[String]| names.iter().any(|n| n.eq_ignore_ascii_case(exe));
+        let lists = |names: &[String]| names.iter().any(|n| same_program(n, exe));
         self.games
             .iter()
             .filter(|g| lists(&g.meta.processes))
@@ -782,5 +797,28 @@ mod tests {
         let lib = scan(root.path());
         assert_eq!(lib.config_for_process("game.EXE"), Some(loose));
         assert!(lib.config_for_process("other.exe").is_none());
+    }
+
+    #[test]
+    fn programs_match_with_or_without_exe() {
+        assert!(same_program("Hades.exe", "Hades"));
+        assert!(same_program("hades", "HADES.EXE"));
+        assert!(same_program("Game", "game"));
+        assert!(!same_program("Game.exe", "Game2"));
+        assert!(!same_program("exe", "Game.exe"));
+        assert!(same_program("Ünïcode.exe", "Ünïcode"), "multi-byte names");
+        assert!(!same_program("é", "Ée"));
+
+        let root = tempfile::tempdir().unwrap();
+        std::fs::write(
+            root.path().join("hades.toml"),
+            "name = \"Hades\"\nprocesses = [\"Hades.exe\"]\n",
+        )
+        .unwrap();
+        let lib = scan(root.path());
+        assert!(
+            lib.config_for_process("Hades").is_some(),
+            "the native Mac or Linux program"
+        );
     }
 }
