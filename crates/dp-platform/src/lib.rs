@@ -591,14 +591,18 @@ pub fn windowed_programs() -> Vec<WindowedProgram> {
     }
 }
 
-/// The games the local stores (Steam, Epic, GOG) have installed (Windows only; none elsewhere
-/// for now).
+/// The games the local stores have installed: Steam, Epic and GOG on Windows, Steam and Epic
+/// on macOS (none on Linux for now).
 pub fn installed_games() -> Vec<stores::InstalledGame> {
     #[cfg(windows)]
     {
         windows::stores::installed_games()
     }
-    #[cfg(not(windows))]
+    #[cfg(target_os = "macos")]
+    {
+        macos::stores::installed_games()
+    }
+    #[cfg(not(any(windows, target_os = "macos")))]
     {
         Vec::new()
     }

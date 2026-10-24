@@ -31,6 +31,8 @@ mod process;
 #[cfg(target_os = "macos")]
 mod props;
 #[cfg(target_os = "macos")]
+pub mod stores;
+#[cfg(target_os = "macos")]
 mod system;
 #[cfg(target_os = "macos")]
 mod windows;
