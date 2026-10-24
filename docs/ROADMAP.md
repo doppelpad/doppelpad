@@ -168,7 +168,7 @@ to keep. Linux stays a preview in 1.0 (see [Platforms](#platforms)).
    | Virtual controller | ❌ needs Apple's entitlement for virtual HID devices; the GameController framework may still ignore one |
    | Keyboard/mouse output | ✅ Quartz events (⏳ testing with the Accessibility permission) |
    | Keyboard/mouse capture | ✅ event tap (⏳ testing with the Accessibility permission) |
-   | Foreground app | ✅ the window server's window list, Wine games by their `.exe` (tried) |
+   | Foreground app | ✅ the window server's window list, Wine games by their `.exe` (tried); installed Steam and Epic games suggested |
    | Power commands, close window, screenshots | ✅ `loginwindow`, `pmset`, the accessibility API, `screencapture` (⏳ testing); no hibernate |
    | Controller extras | ✅ batteries, lights, trigger effects and rumble through the drivers (tried: battery, light bar, rumble); keep-awake and the lock-screen pause (tried); ⏳ turning Sony pads off over Bluetooth |
    | Desktop app | ✅ menu bar, overlays over full-screen games without taking the focus (⏳ testing in games), start at login, `.dpgame` from the Finder, permissions in the driver list and welcome guide |
