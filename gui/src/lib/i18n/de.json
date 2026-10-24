@@ -15,7 +15,7 @@
       "text": "Für virtuelle Controller braucht Doppelpad ViGEmBus, zum Ausblenden des echten Controllers vor Spielen HidHide. Beide sind offen und kostenlos.",
       "after": "Nach der Installation neu prüfen: Einstellungen → Treiber. Ohne die Treiber funktionieren Tastatur- und Maus-Belegungen trotzdem.",
       "text_macos": "Unter macOS sendet und liest Doppelpad Tastatur und Maus, sobald du es unter Bedienungshilfen erlaubst. Controller werden ohne Treiber vor Spielen versteckt. Virtuelle Controller gibt es unter macOS noch nicht: Configs, die einen brauchen, starten dort nicht.",
-      "after_macos": "Wenn Tastatur und Maus danach noch nichts tun, beende Doppelpad und starte es neu."
+      "after_macos": "Nach dem Erlauben Doppelpad beenden (⌘Q) und neu öffnen: macOS teilt es einer laufenden App erst beim Start mit."
     },
     "controller": {
       "title": "Controller",
