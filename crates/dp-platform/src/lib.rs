@@ -3,14 +3,14 @@
 //! The mapping engine in `dp-core` is pure and platform-neutral. Everything that
 //! touches devices or drivers lives behind the traits in this crate:
 //!
-//! | Responsibility            | Windows                      | Linux                        | macOS (planned)      |
+//! | Responsibility            | Windows                      | Linux                        | macOS                |
 //! |---------------------------|------------------------------|------------------------------|----------------------|
-//! | read physical gamepads    | XInput, raw HID (Sony, Nintendo, Steam, generic), USB (GameCube adapter, Switch 2) | evdev (+ DS4/DS5/Switch motion, touchpad) | GameController.framework |
+//! | read physical gamepads    | XInput, raw HID (Sony, Nintendo, Steam, generic), USB (GameCube adapter, Switch 2) | evdev (+ DS4/DS5/Switch motion, touchpad) | IOKit HID (Sony, Nintendo, Steam, generic) |
 //! | hide physical gamepads    | HidHide                      | `EVIOCGRAB`                  | IOHID seize          |
 //! | create virtual gamepads   | ViGEmBus (X360, DS4)         | uinput (X360)                | -                    |
 //! | inject keyboard / mouse   | `SendInput`                  | uinput                       | `CGEventPost`        |
 //! | capture keyboard / mouse  | low-level hooks + raw input  | evdev grab + uinput passthrough | `CGEventTap`      |
-//! | foreground application    | `GetForegroundWindow`        | X11 / XWayland `_NET_ACTIVE_WINDOW` | `NSWorkspace` |
+//! | foreground application    | `GetForegroundWindow`        | X11 / XWayland `_NET_ACTIVE_WINDOW` | window server's window list |
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU8, AtomicU64, Ordering};

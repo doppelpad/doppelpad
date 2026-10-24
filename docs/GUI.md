@@ -9,6 +9,9 @@ The app is built with [Tauri 2](https://tauri.app) and a Svelte 5 + TypeScript f
 (`gui/`). The Rust side (`gui/src-tauri`, crate `dp-gui`) hosts `dp-service`. The frontend
 only edits profiles and sends commands.
 
+This guide describes the app on Windows. What differs on Linux and macOS is in
+[LINUX.md](LINUX.md#desktop-app) and [MACOS.md](MACOS.md#desktop-app).
+
 ## Window layout
 
 | Area | What it does |

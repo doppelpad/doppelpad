@@ -7,7 +7,7 @@
 
 <p align="center">
   <strong>Free, open-source controller remapping for Windows, written in Rust.</strong><br>
-  Linux in preview, macOS planned.
+  Linux in preview, macOS in development.
 </p>
 
 <p align="center">
@@ -42,8 +42,10 @@ from other remapping tools.
 > unit-tested, and real DualSense input has been verified. What 1.0 still needs is mostly
 > testing on real hardware and in games, above all of what Doppelpad sends to controllers
 > (light bars, trigger effects, turning them off) and of the virtual DualShock 4. The Linux
-> backend (evdev/uinput) passed a first test on a Steam Deck. What is left is listed under
-> [Road to 1.0](docs/ROADMAP.md#road-to-10). Expect rough edges.
+> backend (evdev/uinput) passed a first test on a Steam Deck. A macOS backend
+> ([docs/MACOS.md](docs/MACOS.md)) reads and hides controllers and drives keyboard and mouse,
+> without virtual controllers; it has been tried with a DualSense only. What is left is listed
+> under [Road to 1.0](docs/ROADMAP.md#road-to-10). Expect rough edges.
 
 ## Download
 
@@ -57,6 +59,9 @@ On Linux, take `Doppelpad_<version>_amd64.AppImage`, make it executable and star
 updates itself too. The command-line tool is in `doppelpad_<version>_linux-x86_64.tar.gz`.
 Access to the input devices may need a udev rule (not on SteamOS): see
 [docs/LINUX.md](docs/LINUX.md#install).
+
+macOS has no release builds yet: build it from source as described in
+[docs/MACOS.md](docs/MACOS.md#building).
 
 ## Highlights
 

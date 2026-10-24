@@ -48,7 +48,10 @@ to keep. Linux stays a preview in 1.0 (see [Platforms](#platforms)).
   controls, native Wayland (foreground app, overlays), screenshots, DualSense trigger effects,
   Switch 2 controllers, the GameCube adapter, generic-pad layouts; tests with DualShock 4,
   Joy-Cons, Bluetooth and other distributions.
-- macOS (see [Platforms](#platforms)).
+- macOS beyond the preview: tests on real hardware (keyboard and mouse, overlays over games,
+  Bluetooth and other controllers), signing and notarization, release builds, virtual
+  controllers (an entitlement from Apple), Switch 2 controllers, the GameCube adapter, media
+  keys (see [Platforms](#platforms)).
 - More controllers: Switch 2 over Bluetooth, Wii Remote, DualShock 3, analog keyboards.
 - More from imported JSON profiles: crosshair shapes, radial-menu icons, mouse regions, rumble
   mode, virtual gyro stick values.
@@ -155,9 +158,19 @@ to keep. Linux stays a preview in 1.0 (see [Platforms](#platforms)).
    | Hardware testing | ✅ first pass on a Steam Deck (DualSense, Switch Pro Controller, keyboard and mouse, desktop app), second pass on SteamOS 3.9 (controller extras, DualSense over Bluetooth); ⏳ DualShock 4, Joy-Cons, Switch controllers over Bluetooth, Game Mode, other distributions |
 
    It requires a udev rule for `/dev/uinput` and the input devices, except on SteamOS.
-3. **macOS**:
-   - Keyboard/mouse output and capture with `CGEventPost`/`CGEventTap`, which needs
-     Accessibility permission.
-   - Controller input via GameController.framework.
-   - A virtual gamepad needs a signed DriverKit HID extension, which requires an Apple
-     entitlement.
+3. **macOS**: implemented in `dp-platform/src/macos`; unit-tested and tried with a DualSense
+   on USB. Setup and limitations are in [MACOS.md](MACOS.md).
+
+   | Responsibility | Status |
+   |---|---|
+   | Read controllers | ✅ IOKit HID with the Windows backend's drivers (Sony, Nintendo, Steam, generic pads through their report descriptor); Apple's stand-in Xbox 360 pads left out (tried with a DualSense) |
+   | Hide physical controllers | ✅ seizing the device, which keeps it from the GameController framework too (tried with a DualSense) |
+   | Virtual controller | ❌ needs Apple's entitlement for virtual HID devices; the GameController framework may still ignore one |
+   | Keyboard/mouse output | ✅ Quartz events (⏳ testing with the Accessibility permission) |
+   | Keyboard/mouse capture | ✅ event tap (⏳ testing with the Accessibility permission) |
+   | Foreground app | ✅ the window server's window list, Wine games by their `.exe` (tried) |
+   | Power commands, close window, screenshots | ✅ `loginwindow`, `pmset`, the accessibility API, `screencapture` (⏳ testing); no hibernate |
+   | Controller extras | ✅ batteries, lights, trigger effects and rumble through the drivers (tried: battery, light bar, rumble); keep-awake and the lock-screen pause (tried); ⏳ turning Sony pads off over Bluetooth |
+   | Desktop app | ✅ menu bar, overlays over full-screen games without taking the focus (⏳ testing in games), start at login, `.dpgame` from the Finder, permissions in the driver list and welcome guide |
+   | Download | ⏳ the release workflow builds a universal `.dmg` and the command-line tool; on a tag only with the repository variable `MACOS_RELEASES`; signing and notarization need an Apple Developer ID |
+   | Not on macOS yet | virtual controllers, Switch 2 controllers, the GameCube adapter, Xbox controllers over USB, media and volume keys, the crosshair magnifier, cursor clipping |

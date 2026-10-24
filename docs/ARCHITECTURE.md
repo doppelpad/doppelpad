@@ -24,7 +24,8 @@ deterministic.
               │           LL hooks + raw input · HidHide · foreground window          │
               │  Linux:   evdev · uinput (X360 pad, kbd/mouse, passthrough) ·         │
               │           EVIOCGRAB (hiding + capture) · X11 _NET_ACTIVE_WINDOW       │
-              │  macOS:   null backends today                                         │
+              │  macOS:   IOKit HID (Sony/Nintendo/Steam/generic) · IOHID seize ·     │
+              │           Quartz events + event tap · window list                     │
               └───────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -34,7 +35,7 @@ deterministic.
 |---|---|---|
 | `dp-core` | `PadState`, `Key`, `Control` names, `Profile` model, and the engine | none |
 | `dp-config` | TOML (de)serialization, validation, JSON profile import, profile directories | none |
-| `dp-platform` | Backend traits; Windows and Linux implementations; null backends elsewhere | yes |
+| `dp-platform` | Backend traits; Windows, Linux and macOS implementations; null backends elsewhere | yes |
 | `dp-ipc` | `Request`/`Response` protocol and a tiny blocking client/server | local sockets |
 | `dp-service` | The runtime loop, slots, auto-switching, IPC handling, live snapshots, HTTP API and DSU server; shared by the daemon and the GUI | none |
 | `doppelpad` | CLI (apply, slots, remap on/off, status, devices), foreground runner, daemon | none |
@@ -122,6 +123,9 @@ On Windows:
 - **ViGEm notification thread** per virtual pad: rumble (and the DualShock 4 light bar)
   coming back from games.
 
+On Windows and macOS the HID controllers share one backend (`dp-platform/src/hidhost.rs`);
+each OS brings the scanner that finds and opens them.
+
 On Linux:
 
 - **one reader per evdev node:** gamepad, motion-sensor and touchpad nodes are merged per
@@ -130,6 +134,14 @@ On Linux:
 - **uinput FF thread** per virtual pad: answers games' rumble uploads.
 - **capture scanner plus one thread per grabbed keyboard/mouse:** these re-inject
   unsuppressed events through a passthrough device.
+
+On macOS:
+
+- **one per HID controller:** as on Windows, with the device's reports arriving on the
+  thread's own run loop.
+- **HID scanner:** device discovery every 2 s through an IOHIDManager.
+- **event tap thread:** the keyboard/mouse event tap on a run loop of its own, connected to
+  the loop by the same lock-free filter and channel as the Windows hooks.
 
 ## Windows drivers
 
@@ -167,6 +179,19 @@ Every uinput device Doppelpad creates has a `phys` starting with `doppelpad/`. T
 backends skip those devices, the way the Windows backends skip ViGEm devices. Setup (udev
 rule) and limitations are in [LINUX.md](LINUX.md).
 
+## macOS interfaces
+
+| Need | Doppelpad on macOS |
+|---|---|
+| Read controllers | IOKit HID: the Sony, Nintendo, Steam and generic drivers of the Windows backend, on the controllers' own reports; the stand-in Xbox 360 pads macOS makes (`GCSyntheticDevice`) are left out |
+| Hide the physical pad | opening it exclusively (`kIOHIDOptionsTypeSeizeDevice`), which keeps it from the GameController framework too |
+| Virtual controller | none: a virtual HID device needs an entitlement from Apple |
+| Keyboard/mouse capture | a Quartz event tap (Accessibility permission) |
+| Keyboard/mouse output | `CGEventPost` with a marker in the user data, which the tap skips |
+| Foreground app | the owner of the frontmost window in `CGWindowListCopyWindowInfo` → its executable, or the `.exe` under Wine |
+
+Setup (permissions) and limitations are in [MACOS.md](MACOS.md).
+
 ## Porting
 
 A new OS needs implementations of the six traits in `dp-platform`:
@@ -183,5 +208,6 @@ Plus one `Platform::native()` arm. Nothing else changes.
 - **Linux:** done (`dp-platform/src/linux`, see above). evdev provides reading and
   `EVIOCGRAB` (exclusive grab), and uinput provides the virtual X360 pad and the
   keyboard/mouse.
-- **macOS:** CGEventTap/CGEventPost cover keyboard and mouse. A virtual gamepad needs a signed
+- **macOS:** done (`dp-platform/src/macos`, see above). A virtual gamepad needs Apple's
+  entitlement for CoreHID virtual devices (`com.apple.developer.hid.virtual.device`), not a
   DriverKit extension.
