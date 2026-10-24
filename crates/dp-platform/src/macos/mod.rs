@@ -21,6 +21,8 @@ mod hidio;
 #[cfg(target_os = "macos")]
 mod output;
 #[cfg(target_os = "macos")]
+pub mod overlay;
+#[cfg(target_os = "macos")]
 pub mod permissions;
 #[cfg(target_os = "macos")]
 mod process;

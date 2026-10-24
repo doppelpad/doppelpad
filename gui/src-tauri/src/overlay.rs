@@ -234,6 +234,11 @@ fn window(app: &AppHandle, kind: OverlayKind) -> tauri::Result<(WebviewWindow, b
     if let Ok(hwnd) = w.hwnd() {
         dp_platform::windows::overlay::prepare(hwnd.0 as isize);
     }
+    #[cfg(target_os = "macos")]
+    on_main(&w, |ns| {
+        // SAFETY: the window's own NSWindow, on the main thread.
+        unsafe { dp_platform::macos::overlay::prepare(ns) }
+    });
     Ok((w, true))
 }
 
@@ -305,6 +310,17 @@ fn rect(
     ))
 }
 
+/// Run `f` with `w`'s NSWindow on the main thread, where AppKit wants it.
+#[cfg(target_os = "macos")]
+fn on_main(w: &WebviewWindow, f: impl FnOnce(*mut std::ffi::c_void) + Send + 'static) {
+    let window = w.clone();
+    let _ = w.run_on_main_thread(move || {
+        if let Ok(ns) = window.ns_window() {
+            f(ns);
+        }
+    });
+}
+
 /// Show `w` above everything else without activating it.
 fn raise(w: &WebviewWindow) {
     #[cfg(windows)]
@@ -312,6 +328,13 @@ fn raise(w: &WebviewWindow) {
         dp_platform::windows::overlay::show(hwnd.0 as isize);
         return;
     }
+    // `show` would bring Doppelpad to the front and take the focus from the game.
+    #[cfg(target_os = "macos")]
+    on_main(w, |ns| {
+        // SAFETY: the window's own NSWindow, on the main thread.
+        unsafe { dp_platform::macos::overlay::show(ns) }
+    });
+    #[cfg(not(target_os = "macos"))]
     let _ = w.show();
     // See `window`; repeating it on every show does no harm.
     #[cfg(target_os = "linux")]
@@ -324,5 +347,11 @@ pub fn hide(w: &WebviewWindow) {
         dp_platform::windows::overlay::hide(hwnd.0 as isize);
         return;
     }
+    #[cfg(target_os = "macos")]
+    on_main(w, |ns| {
+        // SAFETY: the window's own NSWindow, on the main thread.
+        unsafe { dp_platform::macos::overlay::hide(ns) }
+    });
+    #[cfg(not(target_os = "macos"))]
     let _ = w.hide();
 }
