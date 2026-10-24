@@ -1005,6 +1005,7 @@ dependencies = [
  "evdev",
  "libc",
  "nusb",
+ "objc2-app-kit",
  "objc2-application-services",
  "objc2-core-foundation",
  "objc2-core-graphics",

@@ -1,20 +1,26 @@
 # Builds the Windows setup and the Linux AppImage for a version tag and puts them on a draft
 # GitHub release, with their updater signatures (.sig) and latest.json, which installed
 # copies read to find updates (plugins.updater in gui/src-tauri/tauri.conf.json), and the
-# Linux command-line tool. Publishing the draft ships the update.
+# Linux command-line tool. Publishing the draft ships the update. With the repository
+# variable MACOS_RELEASES set to true, the macOS app (.dmg and the updater's .app.tar.gz, one
+# build for Apple silicon and Intel) and the macOS command-line tool go on the draft too.
 #
 # Release: set the version in Cargo.toml ([workspace.package]) and gui/package.json, commit,
 # then `git tag -a v<version>` with the release notes as the tag message (the update dialog
 # shows them) and push the tag. Tags with a hyphen (v1.2.0-beta.1) become prereleases, which
 # the updater does not offer.
 #
-# Test build before a tag: Actions → Release → Run workflow, on any branch, builds only the
-# Linux job and keeps the AppImage, the command-line tool, the list of the libraries in the
-# AppImage and the source of its GPL libraries as the run's artifact "doppelpad-linux". It
-# makes no release.
+# Test build before a tag: Actions → Release → Run workflow, on any branch, builds the Linux
+# and the macOS job and keeps the AppImage, the command-line tool, the list of the libraries in
+# the AppImage and the source of its GPL libraries as the run's artifact "doppelpad-linux", and
+# the macOS app and command-line tool as "doppelpad-macos". It makes no release.
 #
 # Secrets: TAURI_SIGNING_PRIVATE_KEY and TAURI_SIGNING_PRIVATE_KEY_PASSWORD, the updater key
-# that `tauri signer generate` made (see docs/GUI.md#updates).
+# that `tauri signer generate` made (see docs/GUI.md#updates). For a signed and notarized macOS
+# app also APPLE_CERTIFICATE (the Developer ID Application certificate as base64 .p12),
+# APPLE_CERTIFICATE_PASSWORD, APPLE_SIGNING_IDENTITY, APPLE_ID, APPLE_PASSWORD (an app-specific
+# password) and APPLE_TEAM_ID; without them the app is signed ad hoc, and Gatekeeper asks
+# before its first start (docs/MACOS.md#install).
 name: Release
 
 on:
@@ -288,5 +294,107 @@ jobs:
           path: |
             target/release/bundle/appimage/*.AppImage
             linux-files/
+          if-no-files-found: error
+          retention-days: 14
+
+  # Like the Linux job: after the others on a tag (adding its files and its entries in
+  # latest.json to the draft), alone when started by hand. On a tag only with the repository
+  # variable MACOS_RELEASES set to true.
+  macos:
+    needs: [windows, linux]
+    if: ${{ !failure() && !cancelled() && (github.event_name != 'push' || vars.MACOS_RELEASES == 'true') }}
+    runs-on: macos-latest
+    env:
+      RELEASE_ID: ${{ needs.windows.outputs.release_id }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: gui/package-lock.json
+      - name: Frontend dependencies
+        working-directory: gui
+        run: npm ci
+
+      # Without the Apple secrets the bundler signs ad hoc; set but empty, it would try a
+      # signing identity named "".
+      - name: Apple signing, if set up
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          if [ -z "$APPLE_SIGNING_IDENTITY" ]; then
+            echo "::warning::No Apple signing secrets: the macOS app is signed ad hoc"
+            exit 0
+          fi
+          for v in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID; do
+            {
+              echo "$v<<DP_SECRET"
+              printenv "$v"
+              echo "DP_SECRET"
+            } >> "$GITHUB_ENV"
+          done
+
+      # `tauri build` with tauri.macos.conf.json for both kinds of Mac: the .app, the .dmg and
+      # the updater's .app.tar.gz with its .sig. Like the Linux job, it adds them to the draft
+      # on a tag and only builds otherwise.
+      - uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          projectPath: gui
+          args: --target universal-apple-darwin
+          releaseId: ${{ env.RELEASE_ID }}
+          tagName: ${{ env.RELEASE_ID && github.ref_name || '' }}
+          releaseBody: ${{ needs.windows.outputs.notes }}
+          releaseDraft: true
+
+      # `doppelpad` for both kinds of Mac in one file, with its licenses.
+      - name: Command-line tool
+        id: cli
+        run: |
+          for t in aarch64-apple-darwin x86_64-apple-darwin; do
+            cargo build --release -p doppelpad --target "$t"
+          done
+          version=$(grep -m1 '^version = ' Cargo.toml | cut -d '"' -f 2)
+          name="doppelpad_${version}_macos-universal"
+          mkdir -p "macos-files/$name"
+          lipo -create -output "macos-files/$name/doppelpad" \
+            target/aarch64-apple-darwin/release/doppelpad target/x86_64-apple-darwin/release/doppelpad
+          cp LICENSE-MIT LICENSE-APACHE THIRD_PARTY_LICENSES.md "macos-files/$name/"
+          tar -czf "macos-files/$name.tar.gz" -C macos-files "$name"
+          rm -r "macos-files/$name"
+          echo "archive=macos-files/$name.tar.gz" >> "$GITHUB_OUTPUT"
+
+      - name: Command-line tool to the draft release
+        if: env.RELEASE_ID != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ARCHIVE: ${{ steps.cli.outputs.archive }}
+        run: |
+          curl -sSf -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Content-Type: application/gzip" \
+            --data-binary @"$ARCHIVE" \
+            "https://uploads.github.com/repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID/assets?name=$(basename "$ARCHIVE")" > /dev/null
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: doppelpad-macos
+          path: |
+            target/universal-apple-darwin/release/bundle/dmg/*.dmg
+            target/universal-apple-darwin/release/bundle/macos/*.app.tar.gz
+            macos-files/
           if-no-files-found: error
           retention-days: 14

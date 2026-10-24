@@ -10,7 +10,7 @@ use std::sync::Mutex;
 use serde::Serialize;
 use tauri::ipc::Channel;
 use tauri::{AppHandle, Manager, State};
-use tauri_plugin_updater::{Update, UpdaterExt};
+use tauri_plugin_updater::{Error as UpdaterError, Update, UpdaterExt};
 
 use crate::commands::AppState;
 
@@ -35,8 +35,8 @@ pub struct UpdateInfo {
 }
 
 /// Ask the update endpoints whether a newer version is out; `None` when this one is the newest.
-/// On Linux only the AppImage updates itself (it replaces its own file); a build from source
-/// asks for nothing.
+/// On Linux only the AppImage updates itself (it replaces its own file), on macOS only the app
+/// bundle (it replaces the bundle); a build from source asks for nothing.
 #[tauri::command]
 pub async fn update_check(
     app: AppHandle,
@@ -44,6 +44,10 @@ pub async fn update_check(
 ) -> CmdResult<Option<UpdateInfo>> {
     if cfg!(target_os = "linux") && std::env::var_os("APPIMAGE").is_none() {
         tracing::debug!("not an AppImage: no update check");
+        return Ok(None);
+    }
+    if cfg!(target_os = "macos") && !in_app_bundle() {
+        tracing::debug!("not in an app bundle: no update check");
         return Ok(None);
     }
     let handle = app.clone();
@@ -61,11 +65,19 @@ pub async fn update_check(
         .build()
         .map_err(err)?
         .check()
-        .await
-        .map_err(|e| {
+        .await;
+    let update = match update {
+        // A release without a build for this system (macOS before its first): nothing newer.
+        Err(e @ (UpdaterError::TargetNotFound(_) | UpdaterError::TargetsNotFound(_))) => {
+            tracing::info!("no update for this system: {e}");
+            None
+        }
+        Err(e) => {
             tracing::warn!("update check failed: {e}");
-            err(e)
-        })?;
+            return Err(err(e));
+        }
+        Ok(update) => update,
+    };
     let info = update.as_ref().map(|u| {
         tracing::info!("update available: {} -> {}", u.current_version, u.version);
         UpdateInfo {
@@ -76,6 +88,14 @@ pub async fn update_check(
     });
     *pending.0.lock().unwrap() = update;
     Ok(info)
+}
+
+/// Whether this program runs from an app bundle (`….app/Contents/MacOS/`).
+fn in_app_bundle() -> bool {
+    std::env::current_exe().is_ok_and(|exe| {
+        exe.parent()
+            .is_some_and(|dir| dir.ends_with("Contents/MacOS"))
+    })
 }
 
 /// Download the update the last check found and install it; `on_progress` gets the download's

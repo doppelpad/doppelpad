@@ -13,7 +13,9 @@
     "drivers": {
       "title": "Treiber",
       "text": "Für virtuelle Controller braucht Doppelpad ViGEmBus, zum Ausblenden des echten Controllers vor Spielen HidHide. Beide sind offen und kostenlos.",
-      "after": "Nach der Installation neu prüfen: Einstellungen → Treiber. Ohne die Treiber funktionieren Tastatur- und Maus-Belegungen trotzdem."
+      "after": "Nach der Installation neu prüfen: Einstellungen → Treiber. Ohne die Treiber funktionieren Tastatur- und Maus-Belegungen trotzdem.",
+      "text_macos": "Unter macOS sendet und liest Doppelpad Tastatur und Maus, sobald du es unter Bedienungshilfen erlaubst. Controller werden ohne Treiber vor Spielen versteckt. Virtuelle Controller gibt es unter macOS noch nicht: Configs, die einen brauchen, starten dort nicht.",
+      "after_macos": "Wenn Tastatur und Maus danach noch nichts tun, beende Doppelpad und starte es neu."
     },
     "controller": {
       "title": "Controller",
@@ -1130,6 +1132,7 @@
     "stay_live": "Remapping aktiv lassen, während dieses Fenster im Vordergrund ist",
     "hook_buttons": "Tasten durch Drücken am Controller auswählen",
     "autostart": "Mit Windows starten, im Tray",
+    "autostart_macos": "Bei der Anmeldung öffnen, in der Menüleiste",
     "profiles_dir": "Configs liegen in",
     "drivers": "Treiber",
     "recheck": "Erneut prüfen",
@@ -1255,6 +1258,7 @@
     "title": "Update verfügbar",
     "available": "Doppelpad {version} ist erschienen (installiert ist {current}). Beim Installieren schließt sich Doppelpad und das Remapping pausiert kurz. Windows fragt nach Administratorrechten, danach startet Doppelpad wieder.",
     "available_linux": "Doppelpad {version} ist erschienen (installiert ist {current}). Beim Installieren ersetzt das neue AppImage dieses hier, Doppelpad schließt sich und das Remapping pausiert kurz, danach startet Doppelpad wieder.",
+    "available_macos": "Doppelpad {version} ist erschienen (installiert ist {current}). Beim Installieren ersetzt die neue App diese hier, Doppelpad schließt sich und das Remapping pausiert kurz, danach startet Doppelpad wieder.",
     "install": "Installieren und neu starten",
     "later": "Später",
     "downloading": "Das Update wird heruntergeladen …",
@@ -1293,7 +1297,14 @@
     "device_hiding": "HidHide (echten Controller verstecken)",
     "missing": "nicht installiert",
     "missing_named": "{driver} nicht installiert",
-    "download": "Herunterladen"
+    "download": "Herunterladen",
+    "input_access": "Bedienungshilfen (Tastatur und Maus)",
+    "virtual_pads_macos": "Virtuelle Controller",
+    "device_hiding_macos": "Echten Controller verstecken",
+    "not_allowed": "nicht erlaubt",
+    "not_allowed_named": "{driver} nicht erlaubt",
+    "not_on_macos": "unter macOS noch nicht",
+    "open_settings": "Einstellungen öffnen"
   },
   "dirs": {
     "up": "Hoch",

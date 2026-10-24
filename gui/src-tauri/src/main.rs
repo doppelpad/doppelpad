@@ -135,6 +135,7 @@ fn main() {
                     &std::env::args().collect::<Vec<_>>(),
                     &std::env::current_dir().unwrap_or_default(),
                 )),
+                open_files_taken: AtomicBool::new(false),
                 live_generation: Arc::new(AtomicU64::new(0)),
                 main_focused: AtomicBool::new(false),
                 min_size_held: AtomicBool::new(false),
@@ -150,6 +151,7 @@ fn main() {
 
             // Started with Windows: only the tray icon shows.
             let visible = !autostart::started_hidden();
+            tray::show_in_dock(app.handle(), visible);
             let window = create_main_window(app, visible)?;
             commands::apply_zoom(&window, &app.state::<AppState>());
             // Only after the zoom: on Windows, setting the minimum size un-maximizes the
@@ -169,6 +171,7 @@ fn main() {
                         if let Some(w) = app_handle.get_webview_window(MAIN_WINDOW) {
                             let _ = w.hide();
                         }
+                        tray::show_in_dock(&app_handle, false);
                         // A hidden window has no focus, whether or not Windows reports it.
                         state.set_main_focused(false);
                     }
@@ -264,13 +267,24 @@ fn main() {
         ])
         .build(tauri::generate_context!())
         .expect("error while building the app")
-        .run(|app, event| {
-            if let tauri::RunEvent::ExitRequested { api, code, .. } = event
-                && code.is_none()
-            {
-                // Keep running in the tray when the last window closes; Quit exits explicitly.
+        .run(|app, event| match event {
+            // Keep running in the tray when the last window closes; Quit exits explicitly.
+            tauri::RunEvent::ExitRequested { api, code, .. } if code.is_none() => {
                 api.prevent_exit();
                 let _ = app;
             }
+            // A game bundle opened from the Finder, at start-up or later.
+            #[cfg(target_os = "macos")]
+            tauri::RunEvent::Opened { urls } => {
+                let files = urls.iter().filter_map(|u| u.to_file_path().ok()).collect();
+                open_file::opened(app, files);
+            }
+            // The Dock icon clicked while the window is closed.
+            #[cfg(target_os = "macos")]
+            tauri::RunEvent::Reopen {
+                has_visible_windows: false,
+                ..
+            } => tray::show_main(app),
+            _ => {}
         });
 }

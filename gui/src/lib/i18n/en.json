@@ -13,7 +13,9 @@
     "drivers": {
       "title": "Drivers",
       "text": "Doppelpad needs ViGEmBus for virtual controllers and HidHide to hide the real controller from games. Both are open and free.",
-      "after": "After installing, check again in Settings → Drivers. Keyboard and mouse mappings work without them."
+      "after": "After installing, check again in Settings → Drivers. Keyboard and mouse mappings work without them.",
+      "text_macos": "On macOS, Doppelpad sends and captures keyboard and mouse once you allow it under Accessibility. Controllers are hidden from games without a driver. Virtual controllers are not available on macOS yet: configs that need one do not start there.",
+      "after_macos": "If keyboard and mouse still do nothing after you allowed it, quit Doppelpad and start it again."
     },
     "controller": {
       "title": "Controller",
@@ -1130,6 +1132,7 @@
     "stay_live": "Keep remapping active while this window is focused",
     "hook_buttons": "Select controls by pressing them on the controller",
     "autostart": "Start with Windows, in the tray",
+    "autostart_macos": "Open at login, in the menu bar",
     "profiles_dir": "Configs are stored in",
     "drivers": "Drivers",
     "recheck": "Check again",
@@ -1276,6 +1279,7 @@
     "title": "Update available",
     "available": "Doppelpad {version} is out (you have {current}). Installing closes Doppelpad and pauses remapping for a moment. Windows asks for administrator permission, then Doppelpad starts again.",
     "available_linux": "Doppelpad {version} is out (you have {current}). Installing replaces this AppImage with the new one, closes Doppelpad and pauses remapping for a moment, then Doppelpad starts again.",
+    "available_macos": "Doppelpad {version} is out (you have {current}). Installing replaces the app with the new one, closes Doppelpad and pauses remapping for a moment, then Doppelpad starts again.",
     "install": "Install and restart",
     "later": "Later",
     "downloading": "Downloading the update…",
@@ -1293,7 +1297,14 @@
     "device_hiding": "HidHide (hide the physical controller)",
     "missing": "not installed",
     "missing_named": "{driver} not installed",
-    "download": "Download"
+    "download": "Download",
+    "input_access": "Accessibility (keyboard and mouse)",
+    "virtual_pads_macos": "Virtual controllers",
+    "device_hiding_macos": "Hide the physical controller",
+    "not_allowed": "not allowed",
+    "not_allowed_named": "{driver} not allowed",
+    "not_on_macos": "not on macOS yet",
+    "open_settings": "Open settings"
   },
   "dirs": {
     "up": "Up",

@@ -498,7 +498,7 @@ class AppState {
       if (manual) this.toast(t('updates.up_to_date'), 'ok');
       return;
     }
-    const available = platform === 'linux' ? 'updates.available_linux' : 'updates.available';
+    const available = { linux: 'updates.available_linux', macos: 'updates.available_macos', windows: 'updates.available' }[platform];
     const install = await this.confirmAsk(t(available, { version: update.version, current: update.current }), {
       title: t('updates.title'),
       details: update.notes,

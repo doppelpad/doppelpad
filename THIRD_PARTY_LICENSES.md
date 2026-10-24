@@ -9,15 +9,15 @@ uses. The license texts and notices follow, each with the crates and packages it
 
 The source code of every crate is available on <https://crates.io> and of every package on
 <https://www.npmjs.com>, at the version listed. The lists cover 64-bit Windows builds with
-the GNU and the MSVC toolchain and 64-bit Linux builds, so some crates appear that only
-one of them uses.
+the GNU and the MSVC toolchain, 64-bit Linux builds and macOS builds for Apple silicon and
+Intel, so some crates appear that only one of them uses.
 
 The drivers that the setup installs, the WebView2 loader, the runtime libraries of the
 compiler and the system libraries in the AppImage are covered in THIRD_PARTY_NOTICES.md.
 
 ## Rust crates
 
-411 crates.
+444 crates.
 
 | Crate | Version | License | Used under |
 |---|---|---|---|
@@ -43,6 +43,7 @@ compiler and the system libraries in the AppImage are covered in THIRD_PARTY_NOT
 | [atk](https://crates.io/crates/atk/0.18.2) | 0.18.2 | MIT | MIT |
 | [atk-sys](https://crates.io/crates/atk-sys/0.18.2) | 0.18.2 | MIT | MIT |
 | [atomic-waker](https://crates.io/crates/atomic-waker/1.1.2) | 1.1.2 | Apache-2.0 OR MIT | Apache-2.0 |
+| [base64](https://crates.io/crates/base64/0.21.7) | 0.21.7 | MIT OR Apache-2.0 | Apache-2.0 |
 | [base64](https://crates.io/crates/base64/0.22.1) | 0.22.1 | MIT OR Apache-2.0 | Apache-2.0 |
 | [base64](https://crates.io/crates/base64/0.23.1) | 0.23.1 | MIT OR Apache-2.0 | Apache-2.0 |
 | [bit-set](https://crates.io/crates/bit-set/0.8.0) | 0.8.0 | Apache-2.0 OR MIT | Apache-2.0 |
@@ -51,6 +52,7 @@ compiler and the system libraries in the AppImage are covered in THIRD_PARTY_NOT
 | [bitflags](https://crates.io/crates/bitflags/2.13.2) | 2.13.2 | MIT OR Apache-2.0 | Apache-2.0 |
 | [bitvec](https://crates.io/crates/bitvec/1.1.1) | 1.1.1 | MIT | MIT |
 | [block-buffer](https://crates.io/crates/block-buffer/0.10.4) | 0.10.4 | MIT OR Apache-2.0 | Apache-2.0 |
+| [block2](https://crates.io/crates/block2/0.6.2) | 0.6.2 | MIT | MIT |
 | [blocking](https://crates.io/crates/blocking/1.7.0) | 1.7.0 | Apache-2.0 OR MIT | Apache-2.0 |
 | [brotli](https://crates.io/crates/brotli/8.0.4) | 8.0.4 | BSD-3-Clause AND MIT | BSD-3-Clause AND MIT |
 | [brotli-decompressor](https://crates.io/crates/brotli-decompressor/5.0.3) | 5.0.3 | BSD-3-Clause OR MIT | BSD-3-Clause |
@@ -71,6 +73,11 @@ compiler and the system libraries in the AppImage are covered in THIRD_PARTY_NOT
 | [colorchoice](https://crates.io/crates/colorchoice/1.0.5) | 1.0.5 | MIT OR Apache-2.0 | Apache-2.0 |
 | [concurrent-queue](https://crates.io/crates/concurrent-queue/2.5.0) | 2.5.0 | Apache-2.0 OR MIT | Apache-2.0 |
 | [cookie](https://crates.io/crates/cookie/0.18.2) | 0.18.2 | MIT OR Apache-2.0 | Apache-2.0 |
+| [core-foundation](https://crates.io/crates/core-foundation/0.9.4) | 0.9.4 | MIT OR Apache-2.0 | Apache-2.0 |
+| [core-foundation](https://crates.io/crates/core-foundation/0.10.1) | 0.10.1 | MIT OR Apache-2.0 | Apache-2.0 |
+| [core-foundation-sys](https://crates.io/crates/core-foundation-sys/0.8.7) | 0.8.7 | MIT OR Apache-2.0 | Apache-2.0 |
+| [core-graphics](https://crates.io/crates/core-graphics/0.25.0) | 0.25.0 | MIT OR Apache-2.0 | Apache-2.0 |
+| [core-graphics-types](https://crates.io/crates/core-graphics-types/0.2.0) | 0.2.0 | MIT OR Apache-2.0 | Apache-2.0 |
 | [cpufeatures](https://crates.io/crates/cpufeatures/0.2.17) | 0.2.17 | MIT OR Apache-2.0 | Apache-2.0 |
 | [crc32fast](https://crates.io/crates/crc32fast/1.5.2) | 1.5.2 | MIT OR Apache-2.0 | Apache-2.0 |
 | [crossbeam-channel](https://crates.io/crates/crossbeam-channel/0.5.17) | 0.5.17 | MIT OR Apache-2.0 | Apache-2.0 |
@@ -91,6 +98,7 @@ compiler and the system libraries in the AppImage are covered in THIRD_PARTY_NOT
 | [digest](https://crates.io/crates/digest/0.10.7) | 0.10.7 | MIT OR Apache-2.0 | Apache-2.0 |
 | [dirs](https://crates.io/crates/dirs/6.0.0) | 6.0.0 | MIT OR Apache-2.0 | Apache-2.0 |
 | [dirs-sys](https://crates.io/crates/dirs-sys/0.5.0) | 0.5.0 | MIT OR Apache-2.0 | Apache-2.0 |
+| [dispatch2](https://crates.io/crates/dispatch2/0.3.1) | 0.3.1 | Zlib OR Apache-2.0 OR MIT | Apache-2.0 |
 | [displaydoc](https://crates.io/crates/displaydoc/0.2.7) | 0.2.7 | MIT OR Apache-2.0 | Apache-2.0 |
 | [dlopen2](https://crates.io/crates/dlopen2/0.8.2) | 0.8.2 | MIT | MIT |
 | [dlopen2_derive](https://crates.io/crates/dlopen2_derive/0.4.3) | 0.4.3 | MIT | MIT |
@@ -101,6 +109,7 @@ compiler and the system libraries in the AppImage are covered in THIRD_PARTY_NOT
 | [dtoa-short](https://crates.io/crates/dtoa-short/0.3.5) | 0.3.5 | MPL-2.0 | MPL-2.0 |
 | [dunce](https://crates.io/crates/dunce/1.0.5) | 1.0.5 | CC0-1.0 OR MIT-0 OR Apache-2.0 | Apache-2.0 |
 | [dyn-clone](https://crates.io/crates/dyn-clone/1.0.20) | 1.0.20 | MIT OR Apache-2.0 | Apache-2.0 |
+| [embed_plist](https://crates.io/crates/embed_plist/1.2.2) | 1.2.2 | MIT OR Apache-2.0 | Apache-2.0 |
 | [endi](https://crates.io/crates/endi/1.1.1) | 1.1.1 | MIT | MIT |
 | [enumflags2](https://crates.io/crates/enumflags2/0.7.12) | 0.7.12 | MIT OR Apache-2.0 | Apache-2.0 |
 | [enumflags2_derive](https://crates.io/crates/enumflags2_derive/0.7.12) | 0.7.12 | MIT OR Apache-2.0 | Apache-2.0 |
@@ -113,9 +122,13 @@ compiler and the system libraries in the AppImage are covered in THIRD_PARTY_NOT
 | [fastrand](https://crates.io/crates/fastrand/2.5.0) | 2.5.0 | Apache-2.0 OR MIT | Apache-2.0 |
 | [fdeflate](https://crates.io/crates/fdeflate/0.3.7) | 0.3.7 | MIT OR Apache-2.0 | Apache-2.0 |
 | [field-offset](https://crates.io/crates/field-offset/0.3.6) | 0.3.6 | MIT OR Apache-2.0 | Apache-2.0 |
+| [filetime](https://crates.io/crates/filetime/0.2.29) | 0.2.29 | MIT OR Apache-2.0 | Apache-2.0 |
 | [flate2](https://crates.io/crates/flate2/1.1.10) | 1.1.10 | MIT OR Apache-2.0 | Apache-2.0 |
 | [fnv](https://crates.io/crates/fnv/1.0.7) | 1.0.7 | Apache-2.0  OR  MIT | Apache-2.0 |
 | [foldhash](https://crates.io/crates/foldhash/0.2.0) | 0.2.0 | Zlib | Zlib |
+| [foreign-types](https://crates.io/crates/foreign-types/0.5.0) | 0.5.0 | MIT OR Apache-2.0 | Apache-2.0 |
+| [foreign-types-macros](https://crates.io/crates/foreign-types-macros/0.2.4) | 0.2.4 | MIT OR Apache-2.0 | Apache-2.0 |
+| [foreign-types-shared](https://crates.io/crates/foreign-types-shared/0.3.1) | 0.3.1 | MIT OR Apache-2.0 | Apache-2.0 |
 | [form_urlencoded](https://crates.io/crates/form_urlencoded/1.2.2) | 1.2.2 | MIT OR Apache-2.0 | Apache-2.0 |
 | [funty](https://crates.io/crates/funty/2.0.0) | 2.0.0 | MIT | MIT |
 | [futures-channel](https://crates.io/crates/futures-channel/0.3.34) | 0.3.34 | MIT OR Apache-2.0 | Apache-2.0 |
@@ -211,11 +224,24 @@ compiler and the system libraries in the AppImage are covered in THIRD_PARTY_NOT
 | [num-conv](https://crates.io/crates/num-conv/0.1.0) | 0.1.0 | MIT OR Apache-2.0 | Apache-2.0 |
 | [num-traits](https://crates.io/crates/num-traits/0.2.19) | 0.2.19 | MIT OR Apache-2.0 | Apache-2.0 |
 | [nusb](https://crates.io/crates/nusb/0.2.8) | 0.2.8 | Apache-2.0 OR MIT | Apache-2.0 |
+| [objc2](https://crates.io/crates/objc2/0.6.5) | 0.6.5 | MIT | MIT |
+| [objc2-app-kit](https://crates.io/crates/objc2-app-kit/0.3.2) | 0.3.2 | Zlib OR Apache-2.0 OR MIT | Apache-2.0 |
+| [objc2-application-services](https://crates.io/crates/objc2-application-services/0.3.2) | 0.3.2 | Zlib OR Apache-2.0 OR MIT | Apache-2.0 |
+| [objc2-core-foundation](https://crates.io/crates/objc2-core-foundation/0.3.2) | 0.3.2 | Zlib OR Apache-2.0 OR MIT | Apache-2.0 |
+| [objc2-core-graphics](https://crates.io/crates/objc2-core-graphics/0.3.2) | 0.3.2 | Zlib OR Apache-2.0 OR MIT | Apache-2.0 |
+| [objc2-encode](https://crates.io/crates/objc2-encode/4.1.0) | 4.1.0 | MIT | MIT |
+| [objc2-exception-helper](https://crates.io/crates/objc2-exception-helper/0.1.1) | 0.1.1 | Zlib OR Apache-2.0 OR MIT | Apache-2.0 |
+| [objc2-foundation](https://crates.io/crates/objc2-foundation/0.3.2) | 0.3.2 | MIT | MIT |
+| [objc2-io-kit](https://crates.io/crates/objc2-io-kit/0.3.2) | 0.3.2 | Zlib OR Apache-2.0 OR MIT | Apache-2.0 |
+| [objc2-metal](https://crates.io/crates/objc2-metal/0.3.2) | 0.3.2 | Zlib OR Apache-2.0 OR MIT | Apache-2.0 |
+| [objc2-osa-kit](https://crates.io/crates/objc2-osa-kit/0.3.2) | 0.3.2 | Zlib OR Apache-2.0 OR MIT | Apache-2.0 |
+| [objc2-web-kit](https://crates.io/crates/objc2-web-kit/0.3.2) | 0.3.2 | Zlib OR Apache-2.0 OR MIT | Apache-2.0 |
 | [once_cell](https://crates.io/crates/once_cell/1.21.4) | 1.21.4 | MIT OR Apache-2.0 | Apache-2.0 |
 | [once_cell_polyfill](https://crates.io/crates/once_cell_polyfill/1.70.2) | 1.70.2 | MIT OR Apache-2.0 | Apache-2.0 |
 | [openssl-probe](https://crates.io/crates/openssl-probe/0.2.1) | 0.2.1 | MIT OR Apache-2.0 | Apache-2.0 |
 | [option-ext](https://crates.io/crates/option-ext/0.2.0) | 0.2.0 | MPL-2.0 | MPL-2.0 |
 | [ordered-stream](https://crates.io/crates/ordered-stream/0.2.0) | 0.2.0 | MIT OR Apache-2.0 | Apache-2.0 |
+| [osakit](https://crates.io/crates/osakit/0.3.1) | 0.3.1 | MIT OR Apache-2.0 | Apache-2.0 |
 | [pango](https://crates.io/crates/pango/0.18.3) | 0.18.3 | MIT | MIT |
 | [pango-sys](https://crates.io/crates/pango-sys/0.18.0) | 0.18.0 | MIT | MIT |
 | [parking](https://crates.io/crates/parking/2.2.1) | 2.2.1 | Apache-2.0 OR MIT | Apache-2.0 |
@@ -263,6 +289,8 @@ compiler and the system libraries in the AppImage are covered in THIRD_PARTY_NOT
 | [schemars](https://crates.io/crates/schemars/0.8.22) | 0.8.22 | MIT | MIT |
 | [schemars_derive](https://crates.io/crates/schemars_derive/0.8.22) | 0.8.22 | MIT | MIT |
 | [scopeguard](https://crates.io/crates/scopeguard/1.2.0) | 1.2.0 | MIT OR Apache-2.0 | Apache-2.0 |
+| [security-framework](https://crates.io/crates/security-framework/3.7.0) | 3.7.0 | MIT OR Apache-2.0 | Apache-2.0 |
+| [security-framework-sys](https://crates.io/crates/security-framework-sys/2.17.0) | 2.17.0 | MIT OR Apache-2.0 | Apache-2.0 |
 | [selectors](https://crates.io/crates/selectors/0.36.1) | 0.36.1 | MPL-2.0 | MPL-2.0 |
 | [semver](https://crates.io/crates/semver/1.0.28) | 1.0.28 | MIT OR Apache-2.0 | Apache-2.0 |
 | [serde](https://crates.io/crates/serde/1.0.229) | 1.0.229 | MIT OR Apache-2.0 | Apache-2.0 |
@@ -293,13 +321,17 @@ compiler and the system libraries in the AppImage are covered in THIRD_PARTY_NOT
 | [string_cache](https://crates.io/crates/string_cache/0.9.0) | 0.9.0 | MIT OR Apache-2.0 | Apache-2.0 |
 | [strsim](https://crates.io/crates/strsim/0.11.1) | 0.11.1 | MIT | MIT |
 | [subtle](https://crates.io/crates/subtle/2.6.1) | 2.6.1 | BSD-3-Clause | BSD-3-Clause |
+| [swift-rs](https://crates.io/crates/swift-rs/1.0.9) | 1.0.9 | MIT OR Apache-2.0 | Apache-2.0 |
 | [syn](https://crates.io/crates/syn/1.0.109) | 1.0.109 | MIT OR Apache-2.0 | Apache-2.0 |
 | [syn](https://crates.io/crates/syn/2.0.119) | 2.0.119 | MIT OR Apache-2.0 | Apache-2.0 |
 | [syn](https://crates.io/crates/syn/3.0.9) | 3.0.9 | MIT OR Apache-2.0 | Apache-2.0 |
 | [sync_wrapper](https://crates.io/crates/sync_wrapper/1.0.2) | 1.0.2 | Apache-2.0 | Apache-2.0 |
 | [synstructure](https://crates.io/crates/synstructure/0.14.0) | 0.14.0 | MIT | MIT |
+| [system-configuration](https://crates.io/crates/system-configuration/0.7.0) | 0.7.0 | MIT OR Apache-2.0 | Apache-2.0 |
+| [system-configuration-sys](https://crates.io/crates/system-configuration-sys/0.6.0) | 0.6.0 | MIT OR Apache-2.0 | Apache-2.0 |
 | [tao](https://crates.io/crates/tao/0.35.3) | 0.35.3 | Apache-2.0 | Apache-2.0 |
 | [tap](https://crates.io/crates/tap/1.0.1) | 1.0.1 | MIT | MIT |
+| [tar](https://crates.io/crates/tar/0.4.46) | 0.4.46 | MIT OR Apache-2.0 | Apache-2.0 |
 | [tauri](https://crates.io/crates/tauri/2.11.6) | 2.11.6 | Apache-2.0 OR MIT | Apache-2.0 |
 | [tauri-codegen](https://crates.io/crates/tauri-codegen/2.6.3) | 2.6.3 | Apache-2.0 OR MIT | Apache-2.0 |
 | [tauri-macros](https://crates.io/crates/tauri-macros/2.6.3) | 2.6.3 | Apache-2.0 OR MIT | Apache-2.0 |
@@ -417,6 +449,7 @@ compiler and the system libraries in the AppImage are covered in THIRD_PARTY_NOT
 | [x11-dl](https://crates.io/crates/x11-dl/2.21.0) | 2.21.0 | MIT | MIT |
 | [x11rb](https://crates.io/crates/x11rb/0.13.2) | 0.13.2 | MIT OR Apache-2.0 | Apache-2.0 |
 | [x11rb-protocol](https://crates.io/crates/x11rb-protocol/0.13.2) | 0.13.2 | MIT OR Apache-2.0 | Apache-2.0 |
+| [xattr](https://crates.io/crates/xattr/1.6.1) | 1.6.1 | MIT OR Apache-2.0 | Apache-2.0 |
 | [yoke](https://crates.io/crates/yoke/0.8.3) | 0.8.3 | Unicode-3.0 | Unicode-3.0 |
 | [yoke-derive](https://crates.io/crates/yoke-derive/0.8.4) | 0.8.4 | Unicode-3.0 | Unicode-3.0 |
 | [zbus](https://crates.io/crates/zbus/5.13.2) | 5.13.2 | MIT | MIT |
@@ -493,7 +526,7 @@ PERFORMANCE OF THIS SOFTWARE.
 
 ### Apache-2.0
 
-Used by: async-channel 2.5.0, async-executor 1.14.0, async-io 2.6.0, async-lock 3.4.2, async-process 2.5.0, async-signal 0.2.14, async-task 4.7.1, atomic-waker 1.1.2, base64 0.22.1, base64 0.23.1, bit-set 0.8.0, bit-vec 0.8.0, bitflags 1.3.2, bitflags 2.13.2, block-buffer 0.10.4, blocking 1.7.0, camino 1.2.6, cfg-if 1.0.5, concurrent-queue 2.5.0, cpufeatures 0.2.17, crossbeam-channel 0.5.17, crossbeam-utils 0.8.23, crypto-common 0.1.7, digest 0.10.7, displaydoc 0.2.7, equivalent 1.0.3, errno 0.3.14, event-listener 5.4.2, event-listener-strategy 0.5.4, fastrand 2.5.0, flate2 1.1.10, fnv 1.0.7, form_urlencoded 1.2.2, futures-lite 2.6.1, gethostname 1.1.0, glob 0.3.4, hashbrown 0.17.1, heck 0.4.1, heck 0.5.0, html5ever 0.38.0, httparse 1.10.1, hyper-rustls 0.27.10, idna 1.1.0, idna_adapter 1.2.1, indexmap 2.14.2, keyboard-types 0.7.0, lazy_static 1.5.1, libappindicator 0.9.0, linux-raw-sys 0.12.1, lock_api 0.4.14, log 0.4.34, markup5ever 0.38.0, mime 0.3.17, muda 0.19.3, num-traits 0.2.19, nusb 0.2.8, once_cell 1.21.4, openssl-probe 0.2.1, ordered-stream 0.2.0, parking 2.2.1, parking_lot 0.12.5, parking_lot_core 0.9.12, percent-encoding 2.3.2, piper 0.2.5, png 0.17.16, png 0.18.1, polling 3.11.0, regex 1.13.1, regex-automata 0.4.18, regex-syntax 0.8.11, ring 0.17.14, rustix 1.1.5, rustls 0.23.46, rustls-native-certs 0.8.5, rustls-platform-verifier 0.7.1, scopeguard 1.2.0, serde_with 3.17.0, serde_with_macros 3.17.0, serialize-to-javascript 0.1.2, serialize-to-javascript-impl 0.1.2, servo_arc 0.4.3, sha2 0.10.9, signal-hook-registry 1.4.8, siphasher 1.0.4, smallvec 1.16.3, socket2 0.6.5, stable_deref_trait 1.2.1, string_cache 0.9.0, syn 1.0.109, tempfile 3.27.0, tendril 0.5.1, thread_local 1.1.10, toml_datetime 0.6.3, tray-icon 0.24.2, unicode-segmentation 1.13.3, url 2.5.8, utf8_iter 1.0.4, uuid 1.26.1, web_atoms 0.2.6, window-vibrancy 0.6.0, wry 0.55.1, x11rb 0.13.2, x11rb-protocol 0.13.2, zeroize 1.9.1
+Used by: async-channel 2.5.0, async-executor 1.14.0, async-io 2.6.0, async-lock 3.4.2, async-process 2.5.0, async-signal 0.2.14, async-task 4.7.1, atomic-waker 1.1.2, base64 0.21.7, base64 0.22.1, base64 0.23.1, bit-set 0.8.0, bit-vec 0.8.0, bitflags 1.3.2, bitflags 2.13.2, block-buffer 0.10.4, blocking 1.7.0, camino 1.2.6, cfg-if 1.0.5, concurrent-queue 2.5.0, core-foundation 0.10.1, core-foundation 0.9.4, core-foundation-sys 0.8.7, core-graphics 0.25.0, core-graphics-types 0.2.0, cpufeatures 0.2.17, crossbeam-channel 0.5.17, crossbeam-utils 0.8.23, crypto-common 0.1.7, digest 0.10.7, displaydoc 0.2.7, embed_plist 1.2.2, equivalent 1.0.3, errno 0.3.14, event-listener 5.4.2, event-listener-strategy 0.5.4, fastrand 2.5.0, filetime 0.2.29, flate2 1.1.10, fnv 1.0.7, form_urlencoded 1.2.2, futures-lite 2.6.1, gethostname 1.1.0, glob 0.3.4, hashbrown 0.17.1, heck 0.4.1, heck 0.5.0, html5ever 0.38.0, httparse 1.10.1, hyper-rustls 0.27.10, idna 1.1.0, idna_adapter 1.2.1, indexmap 2.14.2, keyboard-types 0.7.0, lazy_static 1.5.1, libappindicator 0.9.0, linux-raw-sys 0.12.1, lock_api 0.4.14, log 0.4.34, markup5ever 0.38.0, mime 0.3.17, muda 0.19.3, num-traits 0.2.19, nusb 0.2.8, once_cell 1.21.4, openssl-probe 0.2.1, ordered-stream 0.2.0, parking 2.2.1, parking_lot 0.12.5, parking_lot_core 0.9.12, percent-encoding 2.3.2, piper 0.2.5, png 0.17.16, png 0.18.1, polling 3.11.0, regex 1.13.1, regex-automata 0.4.18, regex-syntax 0.8.11, ring 0.17.14, rustix 1.1.5, rustls 0.23.46, rustls-native-certs 0.8.5, rustls-platform-verifier 0.7.1, scopeguard 1.2.0, security-framework 3.7.0, security-framework-sys 2.17.0, serde_with 3.17.0, serde_with_macros 3.17.0, serialize-to-javascript 0.1.2, serialize-to-javascript-impl 0.1.2, servo_arc 0.4.3, sha2 0.10.9, signal-hook-registry 1.4.8, siphasher 1.0.4, smallvec 1.16.3, socket2 0.6.5, stable_deref_trait 1.2.1, string_cache 0.9.0, syn 1.0.109, system-configuration 0.7.0, system-configuration-sys 0.6.0, tar 0.4.46, tempfile 3.27.0, tendril 0.5.1, thread_local 1.1.10, toml_datetime 0.6.3, tray-icon 0.24.2, unicode-segmentation 1.13.3, url 2.5.8, utf8_iter 1.0.4, uuid 1.26.1, web_atoms 0.2.6, window-vibrancy 0.6.0, wry 0.55.1, x11rb 0.13.2, x11rb-protocol 0.13.2, xattr 1.6.1, zeroize 1.9.1
 
 ```text
                                  Apache License
@@ -701,7 +734,7 @@ Used by: async-channel 2.5.0, async-executor 1.14.0, async-io 2.6.0, async-lock 
 
 ### Apache-2.0
 
-Used by: anyhow 1.0.104, async-trait 0.1.92, dirs 6.0.0, dirs-sys 0.5.0, dtoa 1.0.11, dunce 1.0.5, dyn-clone 1.0.20, erased-serde 0.4.10, evdev 0.13.2, fdeflate 0.3.7, field-offset 0.3.6, ident_case 1.0.1, interprocess 2.4.6, itoa 1.0.18, libappindicator-sys 0.9.0, libc 0.2.191, miniz_oxide 0.8.9, miniz_oxide 0.9.1, pin-project-lite 0.2.17, proc-macro2 1.0.107, quote 1.0.47, raw-window-handle 0.6.2, rustc-hash 2.1.3, semver 1.0.28, serde 1.0.229, serde-untagged 0.1.9, serde_core 1.0.229, serde_derive 1.0.229, serde_derive_internals 0.29.1, serde_json 1.0.154, serde_repr 0.1.21, syn 2.0.119, syn 3.0.9, sync_wrapper 1.0.2, tauri 2.11.6, tauri-codegen 2.6.3, tauri-macros 2.6.3, tauri-plugin-dialog 2.7.3, tauri-plugin-fs 2.5.2, tauri-plugin-single-instance 2.4.5, tauri-plugin-updater 2.12.0, tauri-runtime 2.11.3, tauri-runtime-wry 2.11.4, tauri-utils 2.9.3, thiserror 1.0.69, thiserror 2.0.21, thiserror-impl 1.0.69, thiserror-impl 2.0.21, time 0.3.45, time-core 0.1.7, time-macros 0.2.25, typeid 1.0.3, unic-char-property 0.9.0, unic-char-range 0.9.0, unic-common 0.9.0, unic-ucd-ident 0.9.0, unic-ucd-version 0.9.0, unicode-ident 1.0.27, utf8parse 0.2.2, widestring 1.2.1, winapi-x86_64-pc-windows-gnu 0.4.0
+Used by: anyhow 1.0.104, async-trait 0.1.92, dirs 6.0.0, dirs-sys 0.5.0, dispatch2 0.3.1, dtoa 1.0.11, dunce 1.0.5, dyn-clone 1.0.20, erased-serde 0.4.10, evdev 0.13.2, fdeflate 0.3.7, field-offset 0.3.6, ident_case 1.0.1, interprocess 2.4.6, itoa 1.0.18, libappindicator-sys 0.9.0, libc 0.2.191, miniz_oxide 0.8.9, miniz_oxide 0.9.1, objc2-app-kit 0.3.2, objc2-application-services 0.3.2, objc2-core-foundation 0.3.2, objc2-core-graphics 0.3.2, objc2-exception-helper 0.1.1, objc2-io-kit 0.3.2, objc2-metal 0.3.2, objc2-osa-kit 0.3.2, objc2-web-kit 0.3.2, osakit 0.3.1, pin-project-lite 0.2.17, proc-macro2 1.0.107, quote 1.0.47, raw-window-handle 0.6.2, rustc-hash 2.1.3, semver 1.0.28, serde 1.0.229, serde-untagged 0.1.9, serde_core 1.0.229, serde_derive 1.0.229, serde_derive_internals 0.29.1, serde_json 1.0.154, serde_repr 0.1.21, syn 2.0.119, syn 3.0.9, sync_wrapper 1.0.2, tauri 2.11.6, tauri-codegen 2.6.3, tauri-macros 2.6.3, tauri-plugin-dialog 2.7.3, tauri-plugin-fs 2.5.2, tauri-plugin-single-instance 2.4.5, tauri-plugin-updater 2.12.0, tauri-runtime 2.11.3, tauri-runtime-wry 2.11.4, tauri-utils 2.9.3, thiserror 1.0.69, thiserror 2.0.21, thiserror-impl 1.0.69, thiserror-impl 2.0.21, time 0.3.45, time-core 0.1.7, time-macros 0.2.25, typeid 1.0.3, unic-char-property 0.9.0, unic-char-range 0.9.0, unic-common 0.9.0, unic-ucd-ident 0.9.0, unic-ucd-version 0.9.0, unicode-ident 1.0.27, utf8parse 0.2.2, widestring 1.2.1, winapi-x86_64-pc-windows-gnu 0.4.0
 
 ```text
 Apache License
@@ -989,7 +1022,7 @@ Used by: windows 0.61.3, windows 0.62.2, windows-collections 0.2.0, windows-coll
 
 ### Apache-2.0
 
-Used by: anstream 1.0.0, anstyle 1.0.14, anstyle-parse 1.0.0, anstyle-query 1.1.5, anstyle-wincon 3.0.11, colorchoice 1.0.5, crc32fast 1.5.2, hex 0.4.3, is_terminal_polyfill 1.70.2, json-patch 3.0.1, once_cell_polyfill 1.70.2, toml 0.9.12+spec-1.1.0, toml_datetime 0.7.5+spec-1.1.0, toml_edit 0.19.15, toml_edit 0.20.2, winapi 0.3.9
+Used by: anstream 1.0.0, anstyle 1.0.14, anstyle-parse 1.0.0, anstyle-query 1.1.5, anstyle-wincon 3.0.11, colorchoice 1.0.5, crc32fast 1.5.2, foreign-types 0.5.0, foreign-types-macros 0.2.4, foreign-types-shared 0.3.1, hex 0.4.3, is_terminal_polyfill 1.70.2, json-patch 3.0.1, once_cell_polyfill 1.70.2, toml 0.9.12+spec-1.1.0, toml_datetime 0.7.5+spec-1.1.0, toml_edit 0.19.15, toml_edit 0.20.2, winapi 0.3.9
 
 ```text
                                  Apache License
@@ -6430,6 +6463,214 @@ Apache License
 
 ### Apache-2.0
 
+Used by: swift-rs 1.0.9
+
+```text
+                                 Apache License
+                           Version 2.0, January 2004
+                        http://www.apache.org/licenses/
+
+   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+   1. Definitions.
+
+      "License" shall mean the terms and conditions for use, reproduction,
+      and distribution as defined by Sections 1 through 9 of this document.
+
+      "Licensor" shall mean the copyright owner or entity authorized by
+      the copyright owner that is granting the License.
+
+      "Legal Entity" shall mean the union of the acting entity and all
+      other entities that control, are controlled by, or are under common
+      control with that entity. For the purposes of this definition,
+      "control" means (i) the power, direct or indirect, to cause the
+      direction or management of such entity, whether by contract or
+      otherwise, or (ii) ownership of fifty percent (50%) or more of the
+      outstanding shares, or (iii) beneficial ownership of such entity.
+
+      "You" (or "Your") shall mean an individual or Legal Entity
+      exercising permissions granted by this License.
+
+      "Source" form shall mean the preferred form for making modifications,
+      including but not limited to software source code, documentation
+      source, and configuration files.
+
+      "Object" form shall mean any form resulting from mechanical
+      transformation or translation of a Source form, including but
+      not limited to compiled object code, generated documentation,
+      and conversions to other media types.
+
+      "Work" shall mean the work of authorship, whether in Source or
+      Object form, made available under the License, as indicated by a
+      copyright notice that is included in or attached to the work
+      (an example is provided in the Appendix below).
+
+      "Derivative Works" shall mean any work, whether in Source or Object
+      form, that is based on (or derived from) the Work and for which the
+      editorial revisions, annotations, elaborations, or other modifications
+      represent, as a whole, an original work of authorship. For the purposes
+      of this License, Derivative Works shall not include works that remain
+      separable from, or merely link (or bind by name) to the interfaces of,
+      the Work and Derivative Works thereof.
+
+      "Contribution" shall mean any work of authorship, including
+      the original version of the Work and any modifications or additions
+      to that Work or Derivative Works thereof, that is intentionally
+      submitted to Licensor for inclusion in the Work by the copyright owner
+      or by an individual or Legal Entity authorized to submit on behalf of
+      the copyright owner. For the purposes of this definition, "submitted"
+      means any form of electronic, verbal, or written communication sent
+      to the Licensor or its representatives, including but not limited to
+      communication on electronic mailing lists, source code control systems,
+      and issue tracking systems that are managed by, or on behalf of, the
+      Licensor for the purpose of discussing and improving the Work, but
+      excluding communication that is conspicuously marked or otherwise
+      designated in writing by the copyright owner as "Not a Contribution."
+
+      "Contributor" shall mean Licensor and any individual or Legal Entity
+      on behalf of whom a Contribution has been received by Licensor and
+      subsequently incorporated within the Work.
+
+   2. Grant of Copyright License. Subject to the terms and conditions of
+      this License, each Contributor hereby grants to You a perpetual,
+      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+      copyright license to reproduce, prepare Derivative Works of,
+      publicly display, publicly perform, sublicense, and distribute the
+      Work and such Derivative Works in Source or Object form.
+
+   3. Grant of Patent License. Subject to the terms and conditions of
+      this License, each Contributor hereby grants to You a perpetual,
+      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+      (except as stated in this section) patent license to make, have made,
+      use, offer to sell, sell, import, and otherwise transfer the Work,
+      where such license applies only to those patent claims licensable
+      by such Contributor that are necessarily infringed by their
+      Contribution(s) alone or by combination of their Contribution(s)
+      with the Work to which such Contribution(s) was submitted. If You
+      institute patent litigation against any entity (including a
+      cross-claim or counterclaim in a lawsuit) alleging that the Work
+      or a Contribution incorporated within the Work constitutes direct
+      or contributory patent infringement, then any patent licenses
+      granted to You under this License for that Work shall terminate
+      as of the date such litigation is filed.
+
+   4. Redistribution. You may reproduce and distribute copies of the
+      Work or Derivative Works thereof in any medium, with or without
+      modifications, and in Source or Object form, provided that You
+      meet the following conditions:
+
+      (a) You must give any other recipients of the Work or
+          Derivative Works a copy of this License; and
+
+      (b) You must cause any modified files to carry prominent notices
+          stating that You changed the files; and
+
+      (c) You must retain, in the Source form of any Derivative Works
+          that You distribute, all copyright, patent, trademark, and
+          attribution notices from the Source form of the Work,
+          excluding those notices that do not pertain to any part of
+          the Derivative Works; and
+
+      (d) If the Work includes a "NOTICE" text file as part of its
+          distribution, then any Derivative Works that You distribute must
+          include a readable copy of the attribution notices contained
+          within such NOTICE file, excluding those notices that do not
+          pertain to any part of the Derivative Works, in at least one
+          of the following places: within a NOTICE text file distributed
+          as part of the Derivative Works; within the Source form or
+          documentation, if provided along with the Derivative Works; or,
+          within a display generated by the Derivative Works, if and
+          wherever such third-party notices normally appear. The contents
+          of the NOTICE file are for informational purposes only and
+          do not modify the License. You may add Your own attribution
+          notices within Derivative Works that You distribute, alongside
+          or as an addendum to the NOTICE text from the Work, provided
+          that such additional attribution notices cannot be construed
+          as modifying the License.
+
+      You may add Your own copyright statement to Your modifications and
+      may provide additional or different license terms and conditions
+      for use, reproduction, or distribution of Your modifications, or
+      for any such Derivative Works as a whole, provided Your use,
+      reproduction, and distribution of the Work otherwise complies with
+      the conditions stated in this License.
+
+   5. Submission of Contributions. Unless You explicitly state otherwise,
+      any Contribution intentionally submitted for inclusion in the Work
+      by You to the Licensor shall be under the terms and conditions of
+      this License, without any additional terms or conditions.
+      Notwithstanding the above, nothing herein shall supersede or modify
+      the terms of any separate license agreement you may have executed
+      with Licensor regarding such Contributions.
+
+   6. Trademarks. This License does not grant permission to use the trade
+      names, trademarks, service marks, or product names of the Licensor,
+      except as required for reasonable and customary use in describing the
+      origin of the Work and reproducing the content of the NOTICE file.
+
+   7. Disclaimer of Warranty. Unless required by applicable law or
+      agreed to in writing, Licensor provides the Work (and each
+      Contributor provides its Contributions) on an "AS IS" BASIS,
+      WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+      implied, including, without limitation, any warranties or conditions
+      of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A
+      PARTICULAR PURPOSE. You are solely responsible for determining the
+      appropriateness of using or redistributing the Work and assume any
+      risks associated with Your exercise of permissions under this License.
+
+   8. Limitation of Liability. In no event and under no legal theory,
+      whether in tort (including negligence), contract, or otherwise,
+      unless required by applicable law (such as deliberate and grossly
+      negligent acts) or agreed to in writing, shall any Contributor be
+      liable to You for damages, including any direct, indirect, special,
+      incidental, or consequential damages of any character arising as a
+      result of this License or out of the use or inability to use the
+      Work (including but not limited to damages for loss of goodwill,
+      work stoppage, computer failure or malfunction, or any and all
+      other commercial damages or losses), even if such Contributor
+      has been advised of the possibility of such damages.
+
+   9. Accepting Warranty or Additional Liability. While redistributing
+      the Work or Derivative Works thereof, You may choose to offer,
+      and charge a fee for, acceptance of support, warranty, indemnity,
+      or other liability obligations and/or rights consistent with this
+      License. However, in accepting such obligations, You may act only
+      on Your own behalf and on Your sole responsibility, not on behalf
+      of any other Contributor, and only if You agree to indemnify,
+      defend, and hold each Contributor harmless for any liability
+      incurred by, or claims asserted against, such Contributor by reason
+      of your accepting any such warranty or additional liability.
+
+   END OF TERMS AND CONDITIONS
+
+   APPENDIX: How to apply the Apache License to your work.
+
+      To apply the Apache License to your work, attach the following
+      boilerplate notice, with the fields enclosed by brackets "{}"
+      replaced with your own identifying information. (Don't include
+      the brackets!)  The text should be enclosed in the appropriate
+      comment syntax for the file format. We also recommend that a
+      file or class name and description of purpose be included on the
+      same "printed page" as the copyright notice for easier
+      identification within third-party archives.
+
+   Copyright 2023 The swift-rs developers
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+```
+
+### Apache-2.0
+
 Used by: tokio-rustls 0.26.6
 
 ```text
@@ -7550,6 +7791,31 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT
 
+Used by: block2 0.6.2, dlopen2 0.8.2, dlopen2_derive 0.4.3, minisign-verify 0.2.5, objc2 0.6.5, objc2-encode 4.1.0, objc2-foundation 0.3.2
+
+```text
+MIT License
+
+Copyright (c) <year> <copyright holders>
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and
+associated documentation files (the "Software"), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the
+following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial
+portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT
+LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO
+EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
+USE OR OTHER DEALINGS IN THE SOFTWARE.
+```
+
+### MIT
+
 Used by: tracing 0.1.44, tracing-attributes 0.1.31, tracing-core 0.1.36, tracing-log 0.2.0, tracing-subscriber 0.3.23
 
 ```text
@@ -7693,31 +7959,6 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-```
-
-### MIT
-
-Used by: dlopen2 0.8.2, dlopen2_derive 0.4.3, minisign-verify 0.2.5
-
-```text
-MIT License
-
-Copyright (c) <year> <copyright holders>
-
-Permission is hereby granted, free of charge, to any person obtaining a copy of this software and
-associated documentation files (the "Software"), to deal in the Software without restriction, including
-without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the
-following conditions:
-
-The above copyright notice and this permission notice shall be included in all copies or substantial
-portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT
-LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO
-EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
-USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
 ### MIT
@@ -10208,6 +10449,20 @@ library.
 
 ### COPYRIGHT
 
+From: core-graphics 0.25.0, unicode-segmentation 1.13.3
+
+```text
+Licensed under the Apache License, Version 2.0
+<LICENSE-APACHE or
+http://www.apache.org/licenses/LICENSE-2.0> or the MIT
+license <LICENSE-MIT or http://opensource.org/licenses/MIT>,
+at your option. All files in the project carrying such
+notice may not be copied, modified, or distributed except
+according to those terms.
+```
+
+### COPYRIGHT
+
 From: linux-raw-sys 0.12.1
 
 ```text
@@ -10276,20 +10531,6 @@ is licensed under:
    <http://opensource.org/licenses/MIT>,
 
 at your option.
-```
-
-### COPYRIGHT
-
-From: unicode-segmentation 1.13.3
-
-```text
-Licensed under the Apache License, Version 2.0
-<LICENSE-APACHE or
-http://www.apache.org/licenses/LICENSE-2.0> or the MIT
-license <LICENSE-MIT or http://opensource.org/licenses/MIT>,
-at your option. All files in the project carrying such
-notice may not be copied, modified, or distributed except
-according to those terms.
 ```
 
 ### COPYRIGHT
@@ -11007,4 +11248,114 @@ http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
 <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
 option. All files in the project carrying such notice may not be
 copied, modified, or distributed except according to those terms.
+```
+
+### THIRD_PARTY
+
+From: security-framework 3.7.0
+
+```text
+This project contains documentation adapted from Apple Inc.'s Security Framework
+under the following license:
+
+APPLE PUBLIC SOURCE LICENSE
+Version 2.0 -  August 6, 2003
+
+Please read this License carefully before downloading this software.  By downloading or using this software, you are agreeing to be bound by the terms of this License.  If you do not or cannot agree to the terms of this License, please do not download or use the software.
+
+Apple Note:  In January 2007, Apple changed its corporate name from "Apple Computer, Inc." to "Apple Inc."  This change has been reflected below and copyright years updated, but no other changes have been made to the APSL 2.0.
+
+1.  General; Definitions.  This License applies to any program or other work which Apple Inc. ("Apple") makes publicly available and which contains a notice placed by Apple identifying such program or work as "Original Code" and stating that it is subject to the terms of this Apple Public Source License version 2.0 ("License").  As used in this License:
+
+1.1  "Applicable Patent Rights" mean:  (a) in the case where Apple is the grantor of rights, (i) claims of patents that are now or hereafter acquired, owned by or assigned to Apple and (ii) that cover subject matter contained in the Original Code, but only to the extent necessary to use, reproduce and/or distribute the Original Code without infringement; and (b) in the case where You are the grantor of rights, (i) claims of patents that are now or hereafter acquired, owned by or assigned to You and (ii) that cover subject matter in Your Modifications, taken alone or in combination with Original Code.
+
+1.2 "Contributor" means any person or entity that creates or contributes to the creation of Modifications.
+
+1.3  "Covered Code" means the Original Code, Modifications, the combination of Original Code and any Modifications, and/or any respective portions thereof.
+
+1.4 "Externally Deploy" means: (a) to sublicense, distribute or otherwise make Covered Code available, directly or indirectly, to anyone other than You; and/or (b) to use Covered Code, alone or as part of a Larger Work, in any way to provide a service, including but not limited to delivery of content, through electronic communication with a client other than You.
+
+1.5 "Larger Work" means a work which combines Covered Code or portions thereof with code not governed by the terms of this License.
+
+1.6 "Modifications" mean any addition to, deletion from, and/or change to, the substance and/or structure of the Original Code, any previous Modifications, the combination of Original Code and any previous Modifications, and/or any respective portions thereof.  When code is released as a series of files, a Modification is:  (a) any addition to or deletion from the contents of a file containing Covered Code; and/or (b) any new file or other representation of computer program statements that contains any part of Covered Code.
+
+1.7 "Original Code" means (a) the Source Code of a program or other work as originally made available by Apple under this License, including the Source Code of any updates or upgrades to such programs or works made available by Apple under this License, and that has been expressly identified by Apple as such in the header file(s) of such work; and (b) the object code compiled from such Source Code and originally made available by Apple under this License
+
+1.8 "Source Code" means the human readable form of a program or other work that is suitable for making modifications to it, including all modules it contains, plus any associated interface definition files, scripts used to control compilation and installation of an executable (object code).
+
+1.9 "You" or "Your" means an individual or a legal entity exercising rights under this License.  For legal entities, "You" or "Your" includes any entity which controls, is controlled by, or is under common control with, You, where "control" means (a) the power, direct or indirect, to cause the direction or management of such entity, whether by contract or otherwise, or (b) ownership of fifty percent (50%) or more of the outstanding shares or beneficial ownership of such entity.
+
+2.  Permitted Uses; Conditions & Restrictions.   Subject to the terms and conditions of this License, Apple hereby grants You, effective on the date You accept this License and download the Original Code, a world-wide, royalty-free, non-exclusive license, to the extent of Apple's Applicable Patent Rights and copyrights covering the Original Code, to do the following:
+
+2.1 Unmodified Code.  You may use, reproduce, display, perform, internally distribute within Your organization, and Externally Deploy verbatim, unmodified copies of the Original Code, for commercial or non-commercial purposes, provided that in each instance:
+
+(a) You must retain and reproduce in all copies of Original Code the copyright and other proprietary notices and disclaimers of Apple as they appear in the Original Code, and keep intact all notices in the Original Code that refer to this License; and
+
+(b)     You must include a copy of this License with every copy of Source Code of Covered Code and documentation You distribute or Externally Deploy, and You may not offer or impose any terms on such Source Code that alter or restrict this License or the recipients' rights hereunder, except as permitted under Section 6.
+
+2.2 Modified Code.  You may modify Covered Code and use, reproduce, display, perform, internally distribute within Your organization, and Externally Deploy Your Modifications and Covered Code, for commercial or non-commercial purposes, provided that in each instance You also meet all of these conditions:
+
+(a) You must satisfy all the conditions of Section 2.1 with respect to the Source Code of the Covered Code;
+
+(b) You must duplicate, to the extent it does not already exist, the notice in Exhibit A in each file of the Source Code of all Your Modifications, and cause the modified files to carry prominent notices stating that You changed the files and the date of any change; and
+
+(c) If You Externally Deploy Your Modifications, You must make Source Code of all Your Externally Deployed Modifications either available to those to whom You have Externally Deployed Your Modifications, or publicly available.  Source Code of Your Externally Deployed Modifications must be released under the terms set forth in this License, including the license grants set forth in Section 3 below, for as long as you Externally Deploy the Covered Code or twelve (12) months from the date of initial External Deployment, whichever is longer. You should preferably distribute the Source Code of Your Externally Deployed Modifications electronically (e.g. download from a web site).
+
+2.3 Distribution of Executable Versions.  In addition, if You Externally Deploy Covered Code (Original Code and/or Modifications) in object code, executable form only, You must include a prominent notice, in the code itself as well as in related documentation, stating that Source Code of the Covered Code is available under the terms of this License with information on how and where to obtain such Source Code.
+
+2.4 Third Party Rights.  You expressly acknowledge and agree that although Apple and each Contributor grants the licenses to their respective portions of the Covered Code set forth herein, no assurances are provided by Apple or any Contributor that the Covered Code does not infringe the patent or other intellectual property rights of any other entity. Apple and each Contributor disclaim any liability to You for claims brought by any other entity based on infringement of intellectual property rights or otherwise. As a condition to exercising the rights and licenses granted hereunder, You hereby assume sole responsibility to secure any other intellectual property rights needed, if any. For example, if a third party patent license is required to allow You to distribute the Covered Code, it is Your responsibility to acquire that license before distributing the Covered Code.
+
+3.  Your Grants.  In consideration of, and as a condition to, the licenses granted to You under this License, You hereby grant to any person or entity receiving or distributing Covered Code under this License a non-exclusive, royalty-free, perpetual, irrevocable license, under Your Applicable Patent Rights and other intellectual property rights (other than patent) owned or controlled by You, to use, reproduce, display, perform, modify, sublicense, distribute and Externally Deploy Your Modifications of the same scope and extent as Apple's licenses under Sections 2.1 and 2.2 above.
+
+4.  Larger Works.  You may create a Larger Work by combining Covered Code with other code not governed by the terms of this License and distribute the Larger Work as a single product.  In each such instance, You must make sure the requirements of this License are fulfilled for the Covered Code or any portion thereof.
+
+5.  Limitations on Patent License.   Except as expressly stated in Section 2, no other patent rights, express or implied, are granted by Apple herein.  Modifications and/or Larger Works may require additional patent licenses from Apple which Apple may grant in its sole discretion.
+
+6.  Additional Terms.  You may choose to offer, and to charge a fee for, warranty, support, indemnity or liability obligations and/or other rights consistent with the scope of the license granted herein ("Additional Terms") to one or more recipients of Covered Code. However, You may do so only on Your own behalf and as Your sole responsibility, and not on behalf of Apple or any Contributor. You must obtain the recipient's agreement that any such Additional Terms are offered by You alone, and You hereby agree to indemnify, defend and hold Apple and every Contributor harmless for any liability incurred by or claims asserted against Apple or such Contributor by reason of any such Additional Terms.
+
+7.  Versions of the License.  Apple may publish revised and/or new versions of this License from time to time.  Each version will be given a distinguishing version number.  Once Original Code has been published under a particular version of this License, You may continue to use it under the terms of that version. You may also choose to use such Original Code under the terms of any subsequent version of this License published by Apple.  No one other than Apple has the right to modify the terms applicable to Covered Code created under this License.
+
+8.  NO WARRANTY OR SUPPORT.  The Covered Code may contain in whole or in part pre-release, untested, or not fully tested works.  The Covered Code may contain errors that could cause failures or loss of data, and may be incomplete or contain inaccuracies.  You expressly acknowledge and agree that use of the Covered Code, or any portion thereof, is at Your sole and entire risk.  THE COVERED CODE IS PROVIDED "AS IS" AND WITHOUT WARRANTY, UPGRADES OR SUPPORT OF ANY KIND AND APPLE AND APPLE'S LICENSOR(S) (COLLECTIVELY REFERRED TO AS "APPLE" FOR THE PURPOSES OF SECTIONS 8 AND 9) AND ALL CONTRIBUTORS EXPRESSLY DISCLAIM ALL WARRANTIES AND/OR CONDITIONS, EXPRESS OR IMPLIED, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES AND/OR CONDITIONS OF MERCHANTABILITY, OF SATISFACTORY QUALITY, OF FITNESS FOR A PARTICULAR PURPOSE, OF ACCURACY, OF QUIET ENJOYMENT, AND NONINFRINGEMENT OF THIRD PARTY RIGHTS.  APPLE AND EACH CONTRIBUTOR DOES NOT WARRANT AGAINST INTERFERENCE WITH YOUR ENJOYMENT OF THE COVERED CODE, THAT THE FUNCTIONS CONTAINED IN THE COVERED CODE WILL MEET YOUR REQUIREMENTS, THAT THE OPERATION OF THE COVERED CODE WILL BE UNINTERRUPTED OR ERROR-FREE, OR THAT DEFECTS IN THE COVERED CODE WILL BE CORRECTED.  NO ORAL OR WRITTEN INFORMATION OR ADVICE GIVEN BY APPLE, AN APPLE AUTHORIZED REPRESENTATIVE OR ANY CONTRIBUTOR SHALL CREATE A WARRANTY.  You acknowledge that the Covered Code is not intended for use in the operation of nuclear facilities, aircraft navigation, communication systems, or air traffic control machines in which case the failure of the Covered Code could lead to death, personal injury, or severe physical or environmental damage.
+
+9.  LIMITATION OF LIABILITY. TO THE EXTENT NOT PROHIBITED BY LAW, IN NO EVENT SHALL APPLE OR ANY CONTRIBUTOR BE LIABLE FOR ANY INCIDENTAL, SPECIAL, INDIRECT OR CONSEQUENTIAL DAMAGES ARISING OUT OF OR RELATING TO THIS LICENSE OR YOUR USE OR INABILITY TO USE THE COVERED CODE, OR ANY PORTION THEREOF, WHETHER UNDER A THEORY OF CONTRACT, WARRANTY, TORT (INCLUDING NEGLIGENCE), PRODUCTS LIABILITY OR OTHERWISE, EVEN IF APPLE OR SUCH CONTRIBUTOR HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGES AND NOTWITHSTANDING THE FAILURE OF ESSENTIAL PURPOSE OF ANY REMEDY. SOME JURISDICTIONS DO NOT ALLOW THE LIMITATION OF LIABILITY OF INCIDENTAL OR CONSEQUENTIAL DAMAGES, SO THIS LIMITATION MAY NOT APPLY TO YOU. In no event shall Apple's total liability to You for all damages (other than as may be required by applicable law) under this License exceed the amount of fifty dollars ($50.00).
+
+10. Trademarks.  This License does not grant any rights to use the trademarks or trade names  "Apple", "Mac", "Mac OS", "QuickTime", "QuickTime Streaming Server" or any other trademarks, service marks, logos or trade names belonging to Apple (collectively "Apple Marks") or to any trademark, service mark, logo or trade name belonging to any Contributor.  You agree not to use any Apple Marks in or as part of the name of products derived from the Original Code or to endorse or promote products derived from the Original Code other than as expressly permitted by and in strict compliance at all times with Apple's third party trademark usage guidelines which are posted at http://www.apple.com/legal/guidelinesfor3rdparties.html.
+
+11. Ownership. Subject to the licenses granted under this License, each Contributor retains all rights, title and interest in and to any Modifications made by such Contributor.  Apple retains all rights, title and interest in and to the Original Code and any Modifications made by or on behalf of Apple ("Apple Modifications"), and such Apple Modifications will not be automatically subject to this License.  Apple may, at its sole discretion, choose to license such Apple Modifications under this License, or on different terms from those contained in this License or may choose not to license them at all.
+
+12. Termination.
+
+12.1    Termination.  This License and the rights granted hereunder will terminate:
+
+(a) automatically without notice from Apple if You fail to comply with any term(s) of this License and fail to cure such breach within 30 days of becoming aware of such breach;
+(b) immediately in the event of the circumstances described in Section 13.5(b); or
+(c) automatically without notice from Apple if You, at any time during the term of this License, commence an action for patent infringement against Apple; provided that Apple did not first commence an action for patent infringement against You in that instance.
+
+12.2    Effect of Termination.  Upon termination, You agree to immediately stop any further use, reproduction, modification, sublicensing and distribution of the Covered Code.  All sublicenses to the Covered Code which have been properly granted prior to termination shall survive any termination of this License.  Provisions which, by their nature, should remain in effect beyond the termination of this License shall survive, including but not limited to Sections 3, 5, 8, 9, 10, 11, 12.2 and 13.  No party will be liable to any other for compensation, indemnity or damages of any sort solely as a result of terminating this License in accordance with its terms, and termination of this License will be without prejudice to any other right or remedy of any party.
+
+13.     Miscellaneous.
+
+13.1    Government End Users.   The Covered Code is a "commercial item" as defined in FAR 2.101.  Government software and technical data rights in the Covered Code include only those rights customarily provided to the public as defined in this License. This customary commercial license in technical data and software is provided in accordance with FAR 12.211 (Technical Data) and 12.212 (Computer Software) and, for Department of Defense purchases, DFAR 252.227-7015 (Technical Data -- Commercial Items) and 227.7202-3 (Rights in Commercial Computer Software or Computer Software Documentation).  Accordingly, all U.S. Government End Users acquire Covered Code with only those rights set forth herein.
+
+13.2    Relationship of Parties.  This License will not be construed as creating an agency, partnership, joint venture or any other form of legal association between or among You, Apple or any Contributor, and You will not represent to the contrary, whether expressly, by implication, appearance or otherwise.
+
+13.3    Independent Development.   Nothing in this License will impair Apple's right to acquire, license, develop, have others develop for it, market and/or distribute technology or products that perform the same or similar functions as, or otherwise compete with, Modifications, Larger Works, technology or products that You may develop, produce, market or distribute.
+
+13.4    Waiver; Construction.  Failure by Apple or any Contributor to enforce any provision of this License will not be deemed a waiver of future enforcement of that or any other provision.  Any law or regulation which provides that the language of a contract shall be construed against the drafter will not apply to this License.
+
+13.5    Severability.  (a) If for any reason a court of competent jurisdiction finds any provision of this License, or portion thereof, to be unenforceable, that provision of the License will be enforced to the maximum extent permissible so as to effect the economic benefits and intent of the parties, and the remainder of this License will continue in full force and effect.  (b) Notwithstanding the foregoing, if applicable law prohibits or restricts You from fully and/or specifically complying with Sections 2 and/or 3 or prevents the enforceability of either of those Sections, this License will immediately terminate and You must immediately discontinue any use of the Covered Code and destroy all copies of it that are in your possession or control.
+
+13.6    Dispute Resolution.  Any litigation or other dispute resolution between You and Apple relating to this License shall take place in the Northern District of California, and You and Apple hereby consent to the personal jurisdiction of, and venue in, the state and federal courts within that District with respect to this License. The application of the United Nations Convention on Contracts for the International Sale of Goods is expressly excluded.
+
+13.7    Entire Agreement; Governing Law.  This License constitutes the entire agreement between the parties with respect to the subject matter hereof.  This License shall be governed by the laws of the United States and the State of California, except that body of California law concerning conflicts of law.
+
+Where You are located in the province of Quebec, Canada, the following clause applies:  The parties hereby confirm that they have requested that this License and all related documents be drafted in English.  Les parties ont exigé que le présent contrat et tous les documents connexes soient rédigés en anglais.
+
+EXHIBIT A.
+
+"Portions Copyright (c) 1999-2007 Apple Inc.  All Rights Reserved.
+
+This file contains Original Code and/or Modifications of Original Code as defined in and that are subject to the Apple Public Source License Version 2.0 (the 'License').  You may not use this file except in compliance with the License.  Please obtain a copy of the License at http://www.opensource.apple.com/apsl/ and read it before using this file.
+
+The Original Code and all software distributed under the License are distributed on an 'AS IS' basis, WITHOUT WARRANTY OF ANY KIND, EITHER EXPRESS OR IMPLIED, AND APPLE HEREBY DISCLAIMS ALL SUCH WARRANTIES, INCLUDING WITHOUT LIMITATION, ANY WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, QUIET ENJOYMENT OR NON-INFRINGEMENT.  Please see the License for the specific language governing rights and limitations under the License."
 ```

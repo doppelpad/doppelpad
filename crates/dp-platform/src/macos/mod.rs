@@ -11,6 +11,8 @@
 mod keycodes;
 
 #[cfg(target_os = "macos")]
+pub mod autostart;
+#[cfg(target_os = "macos")]
 mod capture;
 #[cfg(target_os = "macos")]
 mod foreground;
@@ -20,6 +22,8 @@ mod hid;
 mod hidio;
 #[cfg(target_os = "macos")]
 mod output;
+#[cfg(target_os = "macos")]
+pub mod overlay;
 #[cfg(target_os = "macos")]
 pub mod permissions;
 #[cfg(target_os = "macos")]
@@ -112,6 +116,7 @@ pub fn platform() -> crate::Platform {
         probe_drivers: || crate::DriverReport {
             virtual_pads: Err(crate::PlatformError::Unsupported(NO_VIRTUAL_PADS)),
             device_hiding: Ok(()),
+            input_access: permissions::check(),
             hiding_problems: Vec::new(),
         },
         gamepads: vec![Box::new(crate::joycon::JoyConCombiner::new(gamepads))],
