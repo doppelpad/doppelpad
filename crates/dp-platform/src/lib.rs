@@ -92,6 +92,14 @@ pub fn host_command(program: impl AsRef<std::ffi::OsStr>) -> std::process::Comma
     }
 }
 
+/// Start `cmd` without waiting for it. A thread collects its exit status, or on Linux it
+/// would stay behind as a zombie process until Doppelpad ends.
+pub fn spawn_detached(cmd: &mut std::process::Command) -> std::io::Result<()> {
+    let mut child = cmd.spawn()?;
+    std::thread::spawn(move || child.wait());
+    Ok(())
+}
+
 /// Stable identifier of a physical device, unique while it is connected.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct DeviceId(pub String);
