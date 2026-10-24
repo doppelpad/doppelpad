@@ -1,6 +1,6 @@
 //! Overlapped HID device handle.
 //!
-//! One read is always pending; [`HidIo::wait`] waits for it, for a timeout, or for the
+//! One read is always pending; [`HidHandle::wait`] waits for it, for a timeout, or for the
 //! [`Waker`] that another thread can signal. Writes and feature reports use their own
 //! `OVERLAPPED`, so they never queue behind the pending read the way they would on a
 //! synchronous handle.
@@ -31,6 +31,7 @@ use windows_sys::Win32::System::Threading::{SetEvent, WaitForMultipleObjects};
 use super::hidparse::PreparsedData;
 use super::overlapped::{EventReset, event, run_overlapped};
 use super::{OwnedHandle, from_wide, wide};
+use crate::hidhost::{HidHandle, Wait, Wake};
 use crate::padio::ReportIo;
 
 /// `CTL_CODE(FILE_DEVICE_KEYBOARD, 100, METHOD_OUT_DIRECT, FILE_ANY_ACCESS)`.
@@ -47,11 +48,11 @@ pub struct HidCaps {
     pub feature_len: usize,
 }
 
-/// Wakes a thread blocked in [`HidIo::wait`].
+/// Wakes a thread blocked in [`HidHandle::wait`].
 pub struct Waker(OwnedHandle);
 
-impl Waker {
-    pub fn wake(&self) {
+impl Wake for Waker {
+    fn wake(&self) {
         // SAFETY: valid event handle.
         unsafe { SetEvent(self.0.raw()) };
     }
@@ -63,13 +64,6 @@ struct PendingRead {
     ov: OVERLAPPED,
     buf: Vec<u8>,
     event: OwnedHandle,
-}
-
-pub enum Wait {
-    /// A report of this many bytes is in [`HidIo::report`].
-    Report(usize),
-    Woken,
-    Timeout,
 }
 
 pub struct HidIo {
@@ -175,15 +169,6 @@ impl HidIo {
             .then_some((attrs.VendorID, attrs.ProductID))
     }
 
-    pub fn waker(&self) -> Arc<Waker> {
-        self.waker.clone()
-    }
-
-    /// The report completed by the last [`Wait::Report`].
-    pub fn report(&self) -> &[u8] {
-        &self.read.buf[..self.last_len]
-    }
-
     fn start_read(&mut self) -> io::Result<()> {
         if self.pending {
             return Ok(());
@@ -213,7 +198,7 @@ impl HidIo {
     }
 
     /// Wait for the next report, a wake-up, or the timeout.
-    pub fn wait(&mut self, timeout: Duration) -> io::Result<Wait> {
+    fn wait_report(&mut self, timeout: Duration) -> io::Result<Wait> {
         self.start_read()?;
         let handles: [HANDLE; 2] = [self.read.event.raw(), self.waker.0.raw()];
         let ms = timeout.as_millis().min(u128::from(u32::MAX) - 1) as u32;
@@ -301,7 +286,7 @@ impl ReportIo for HidIo {
         let deadline = std::time::Instant::now() + timeout;
         loop {
             let left = deadline.saturating_duration_since(std::time::Instant::now());
-            match self.wait(left)? {
+            match self.wait_report(left)? {
                 Wait::Report(n) => {
                     let n = n.min(buf.len());
                     buf[..n].copy_from_slice(&self.read.buf[..n]);
@@ -320,6 +305,20 @@ impl ReportIo for HidIo {
 
     fn set_feature(&mut self, buf: &[u8]) -> io::Result<()> {
         HidIo::set_feature(self, buf)
+    }
+}
+
+impl HidHandle for HidIo {
+    fn wait(&mut self, timeout: Duration) -> io::Result<Wait> {
+        self.wait_report(timeout)
+    }
+
+    fn report(&self) -> &[u8] {
+        &self.read.buf[..self.last_len]
+    }
+
+    fn waker(&self) -> Arc<dyn Wake> {
+        self.waker.clone()
     }
 }
 
