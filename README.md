@@ -221,8 +221,9 @@ examples in [`profiles/examples/`](profiles/examples).
 | Keyboard/mouse capture | ✅ hooks | ✅ evdev grab + passthrough | planned |
 | Per-game auto-switching | ✅ | ✅ X11 / XWayland | planned |
 
-The Linux column was tested on a Steam Deck (SteamOS 3.8, desktop mode) with a DualSense and
-a Switch Pro Controller; DualShock 4, Joy-Cons and Bluetooth are untested. Linux setup (udev
+The Linux column was tested on a Steam Deck (SteamOS 3.8 and 3.9, desktop mode) with a
+DualSense over USB and Bluetooth and a Switch Pro Controller over USB; DualShock 4, Joy-Cons
+and Switch controllers over Bluetooth are untested. Linux setup (udev
 rule for `/dev/uinput` and `/dev/input`, not needed on SteamOS) is in
 [docs/LINUX.md](docs/LINUX.md), the hardware test checklist and its results in
 [docs/LINUX-TESTING.md](docs/LINUX-TESTING.md).
