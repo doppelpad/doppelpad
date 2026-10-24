@@ -438,6 +438,8 @@ fn doctor() -> Result<()> {
             "ViGEmBus (virtual controllers):",
             "HidHide (hide physical pads):",
         )
+    } else if cfg!(target_os = "macos") {
+        ("virtual controllers:", "seize (hide physical pads):")
     } else {
         (
             "uinput (virtual controllers):",
@@ -446,6 +448,15 @@ fn doctor() -> Result<()> {
     };
     println!("{pads:<32}{}", ok(drivers.virtual_pads));
     println!("{hiding:<32}{}", ok(drivers.device_hiding));
+    #[cfg(target_os = "macos")]
+    println!(
+        "Accessibility (keyboard/mouse): {}",
+        if dp_platform::macos::permissions::granted() {
+            "ok"
+        } else {
+            "NOT GRANTED — System Settings › Privacy & Security › Accessibility"
+        }
+    );
     match dp_config::portable_dir() {
         Some(dir) => println!(
             "portable mode:                  everything in {}",
