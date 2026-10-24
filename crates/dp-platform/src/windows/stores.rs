@@ -1,4 +1,4 @@
-//! Finding the installed games of Steam, Epic and GOG on Windows (their files are parsed in
+//! Finding the installed games of Steam, Epic and GOG on Windows (their files are read in
 //! `crate::stores`). Only local files and the registry are read.
 
 use std::path::{Path, PathBuf};
@@ -18,78 +18,22 @@ pub fn installed_games() -> Vec<InstalledGame> {
 }
 
 fn steam() -> Vec<InstalledGame> {
-    let Some(root) = registry::get_path(HKEY_CURRENT_USER, r"Software\Valve\Steam", "SteamPath")
-    else {
-        return Vec::new();
-    };
-    let root = PathBuf::from(root.replace('/', "\\"));
-    let folders =
-        std::fs::read_to_string(root.join(r"steamapps\libraryfolders.vdf")).unwrap_or_default();
-    let mut libraries = stores::steam_libraries(&folders);
-    if libraries.is_empty() {
-        libraries.push(root.clone());
-    }
-    let cache = root.join(r"appcache\librarycache");
-    let mut out = Vec::new();
-    for library in libraries {
-        let apps = library.join("steamapps");
-        let Ok(entries) = std::fs::read_dir(&apps) else {
-            continue;
-        };
-        for e in entries.flatten() {
-            let file = e.file_name().to_string_lossy().into_owned();
-            if !(file.starts_with("appmanifest_") && file.ends_with(".acf")) {
-                continue;
-            }
-            let Some((id, name, dir)) = std::fs::read_to_string(e.path())
-                .ok()
-                .as_deref()
-                .and_then(stores::steam_app)
-            else {
-                continue;
-            };
-            let dir = apps.join("common").join(dir);
-            if !dir.is_dir() {
-                continue;
-            }
-            out.push(InstalledGame {
-                store: Store::Steam,
-                name,
-                programs: stores::programs_in(&dir),
-                cover: stores::steam_cover(&cache, &id),
-                dir,
-            });
+    match registry::get_path(HKEY_CURRENT_USER, r"Software\Valve\Steam", "SteamPath") {
+        Some(root) => {
+            stores::steam_games(&PathBuf::from(root.replace('/', "\\")), stores::programs_in)
         }
+        None => Vec::new(),
     }
-    out
 }
 
 fn epic() -> Vec<InstalledGame> {
-    let Some(data) = std::env::var_os("ProgramData") else {
-        return Vec::new();
-    };
-    let manifests = Path::new(&data).join(r"Epic\EpicGamesLauncher\Data\Manifests");
-    let Ok(entries) = std::fs::read_dir(manifests) else {
-        return Vec::new();
-    };
-    entries
-        .flatten()
-        .filter(|e| {
-            e.path()
-                .extension()
-                .is_some_and(|x| x.eq_ignore_ascii_case("item"))
-        })
-        .filter_map(|e| std::fs::read_to_string(e.path()).ok())
-        .filter_map(|text| stores::epic_item(&text))
-        .filter(|(_, dir, _)| dir.is_dir())
-        .map(|(name, dir, exe)| InstalledGame {
-            store: Store::Epic,
-            programs: stores::programs_with(Some(exe), &dir),
-            name,
-            dir,
-            cover: None,
-        })
-        .collect()
+    match std::env::var_os("ProgramData") {
+        Some(data) => stores::epic_games(
+            &Path::new(&data).join(r"Epic\EpicGamesLauncher\Data\Manifests"),
+            stores::programs_in,
+        ),
+        None => Vec::new(),
+    }
 }
 
 fn gog() -> Vec<InstalledGame> {
