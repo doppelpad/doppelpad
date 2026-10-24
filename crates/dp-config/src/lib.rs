@@ -4,6 +4,7 @@
 pub mod bundle;
 mod compat;
 mod diag;
+mod format;
 pub mod history;
 pub mod launches;
 pub mod library;
@@ -23,7 +24,8 @@ use dp_core::profile::{
     Profile, RadialMenu, StickConfig, Sticks, TriggerEffect, Triggers, Vibration, VirtualMotion,
     VirtualPadType, VirtualSticks,
 };
-pub use store::{load_toml_or_default, save_toml, write_atomic};
+pub use format::{FileFormat, Migration};
+pub use store::{Loaded, load_toml_or_default, save_toml, set_aside, write_atomic};
 
 #[derive(Debug, thiserror::Error)]
 pub enum LoadError {
@@ -69,9 +71,13 @@ pub(crate) fn looks_like_json(text: &str) -> bool {
         .starts_with('{')
 }
 
-/// Parse a native TOML profile.
+/// The format of TOML profiles. A change that older profiles do not survive as they are
+/// (a renamed, moved or reinterpreted field) adds a migration here.
+pub const PROFILE_FORMAT: FileFormat = FileFormat::new(&[]);
+
+/// Parse a native TOML profile, bringing one of an older format up to date.
 pub fn parse_toml(src: &str) -> Result<Profile, toml::de::Error> {
-    toml::from_str(src)
+    PROFILE_FORMAT.parse(src)
 }
 
 /// Serialize a profile as TOML. Arrays of values stay on one line (`trigger = ["LB", "RB"]`,
@@ -80,8 +86,9 @@ pub fn parse_toml(src: &str) -> Result<Profile, toml::de::Error> {
 pub fn to_toml(p: &Profile) -> Result<String, toml::ser::Error> {
     let body = toml::to_string(p)?;
     Ok(format!(
-        "{PROFILE_HEADER} — {}\n{body}",
-        env!("CARGO_PKG_REPOSITORY")
+        "{PROFILE_HEADER} — {}\n{}",
+        env!("CARGO_PKG_REPOSITORY"),
+        PROFILE_FORMAT.stamp(&body)
     ))
 }
 

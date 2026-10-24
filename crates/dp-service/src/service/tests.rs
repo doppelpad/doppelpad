@@ -324,7 +324,7 @@ fn a_moved_library_keeps_its_slots_and_the_running_config() {
     assert_eq!(active_name(&s).as_deref(), Some("A"));
     assert_eq!(s.loose_profiles(), 1, "the new folder is scanned");
     assert_eq!(
-        crate::slots::SlotState::load(&state).shared.slots[1],
+        crate::slots::SlotState::load(&state).value.shared.slots[1],
         Some(moved),
         "saved"
     );
@@ -575,7 +575,7 @@ fn hotkeys_select_slots_and_switch_remapping() {
         .into_result()
         .is_err()
     );
-    let saved = crate::hotkeys::load(&dir.path().join("hotkeys.toml"));
+    let saved = crate::hotkeys::load(&dir.path().join("hotkeys.toml")).value;
     assert_eq!(saved.remap, vec![Guide], "settings persisted");
 }
 

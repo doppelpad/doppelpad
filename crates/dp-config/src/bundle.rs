@@ -10,9 +10,9 @@ use std::path::{Path, PathBuf};
 use dp_core::profile::{AnalogMapping, Layer, Mapping, Profile};
 use serde::{Deserialize, Serialize};
 
-use crate::Format;
 use crate::launches::{self, Launch};
 use crate::library::{self, Game, GameMeta, LibraryError, Result, io};
+use crate::{FileFormat, Format};
 
 /// Format version of game bundles.
 const BUNDLE_VERSION: u32 = 1;
@@ -291,9 +291,14 @@ pub fn list_presets(profiles: &Path) -> Vec<PresetEntry> {
     out
 }
 
+/// The format of layer presets; see [`crate::PROFILE_FORMAT`].
+const PRESET_FORMAT: FileFormat = FileFormat::new(&[]);
+
 pub fn load_preset(path: &Path) -> Result<LayerPreset> {
     let text = std::fs::read_to_string(path).map_err(io(path))?;
-    toml::from_str(&text).map_err(|e| LibraryError::Preset(path.to_path_buf(), e))
+    PRESET_FORMAT
+        .parse(&text)
+        .map_err(|e| LibraryError::Preset(path.to_path_buf(), e))
 }
 
 /// Store a preset under its name; a preset of the same name is replaced, and one whose name
@@ -310,8 +315,8 @@ pub fn save_preset(profiles: &Path, preset: &LayerPreset) -> Result<PathBuf> {
     };
     let text =
         toml::to_string_pretty(preset).map_err(|e| LibraryError::Serialize(path.clone(), e))?;
-    crate::store::write_atomic(&path, format!("# Doppelpad layer preset\n{text}"))
-        .map_err(io(&path))?;
+    let text = format!("# Doppelpad layer preset\n{}", PRESET_FORMAT.stamp(&text));
+    crate::store::write_atomic(&path, text).map_err(io(&path))?;
     Ok(path)
 }
 

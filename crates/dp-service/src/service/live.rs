@@ -28,6 +28,7 @@ impl Service {
         w.extend(self.drivers.hiding_problems.iter().cloned());
         w.extend(self.rt.device_problems());
         w.extend(self.errors.last.clone());
+        w.extend(self.errors.settings.iter().cloned());
         w.extend(
             self.fg
                 .now

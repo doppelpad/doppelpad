@@ -4,6 +4,7 @@ A profile is a TOML file. Every section is optional except `[[mappings]]` entrie
 Unknown keys are rejected, so typos are caught by `doppelpad check`.
 
 ```toml
+format = 1                   # version of the file format (see Format versions); optional
 name = "My game"
 description = "..."
 processes = ["MyGame.exe"]   # auto-apply while one of these is in the foreground (daemon)
@@ -553,6 +554,24 @@ wheel_repeat_ms = 0         # held wheel actions repeat this often (0 = once per
 The GUI's *Test a full turn* sends `counts_per_turn` after 3 seconds; tune it until the game
 turns exactly once around. A turn action `{ turn = 90.0 }` (degrees, positive = right) uses the
 same calibration.
+
+## Format versions
+
+Profiles Doppelpad writes start with `format = 1`, the version of this format. A profile
+without it counts as version 1, so hand-written profiles may leave it out.
+
+When a later Doppelpad changes the format in a way that older profiles would not survive as
+they are (a key renamed, moved or read differently), the version goes up, and Doppelpad brings
+older profiles up to date as it reads them. Saving writes them in the new format. New
+optional keys keep the version; an older Doppelpad rejects them as unknown keys. A profile
+from a newer Doppelpad, with a higher `format`, is refused with a message that says so instead
+of being misread.
+
+Layer presets (`presets/*.toml`), each game's `game.toml` and the settings files
+(`state.toml`, `hotkeys.toml`, `calibration.toml`, `gui.toml`) carry a `format` of their own,
+in the same way. A settings file that cannot be used, because it is broken or from a newer
+Doppelpad, is kept as `<file>.bak` beside it, and the defaults apply. The app's warnings and
+`doppelpad status` name the file (for `gui.toml`, only the log).
 
 ## Importing JSON profiles
 

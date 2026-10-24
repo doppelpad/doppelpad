@@ -5,6 +5,7 @@
 use std::collections::BTreeMap;
 use std::path::Path;
 
+use dp_config::{FileFormat, Loaded};
 use dp_core::pad::PadState;
 use serde::{Deserialize, Serialize};
 
@@ -47,6 +48,9 @@ impl Default for DeviceCalibration {
 struct CalibrationFile {
     devices: BTreeMap<String, DeviceCalibration>,
 }
+
+/// The format of `calibration.toml`.
+const FORMAT: FileFormat = FileFormat::new(&[]);
 
 /// What the GUI shows for one controller.
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -93,10 +97,10 @@ fn dist(a: [f32; 3], b: [f32; 3]) -> f32 {
 }
 
 impl Calibrator {
-    /// Load from `path`; a missing or unreadable file gives defaults (with a warning).
-    pub fn load(path: &Path) -> Calibrator {
-        let file: CalibrationFile = dp_config::load_toml_or_default(path);
-        Calibrator {
+    /// Load from `path`; a missing or unreadable file gives defaults (with the problem).
+    pub fn load(path: &Path) -> Loaded<Calibrator> {
+        let file: Loaded<CalibrationFile> = dp_config::load_toml_or_default(path, &FORMAT);
+        file.map(|file| Calibrator {
             devices: file
                 .devices
                 .into_iter()
@@ -109,7 +113,7 @@ impl Calibrator {
                 })
                 .collect(),
             ..Default::default()
-        }
+        })
     }
 
     /// Write to `path` atomically.
@@ -122,7 +126,7 @@ impl Calibrator {
                 .map(|(id, d)| (id.clone(), d.cal.clone()))
                 .collect(),
         };
-        dp_config::save_toml(path, &file)?;
+        dp_config::save_toml(path, &file, &FORMAT)?;
         self.dirty = false;
         self.urgent = false;
         Ok(())
@@ -308,7 +312,7 @@ mod tests {
         assert!(c.needs_save(false));
         c.save(&path).unwrap();
         assert!(!c.needs_save(true));
-        let c = Calibrator::load(&path);
+        let c = Calibrator::load(&path).value;
         assert!(!c.status("a", 0).auto);
         assert!(c.status("b", 0).auto, "default entries are not written");
     }

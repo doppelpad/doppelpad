@@ -5,6 +5,7 @@ use std::ops::RangeInclusive;
 use std::path::PathBuf;
 use std::time::Duration;
 
+use dp_config::FileFormat;
 use serde::{Deserialize, Serialize};
 
 /// Size of a notification, in percent.
@@ -211,9 +212,16 @@ fn path() -> PathBuf {
     dp_config::config_dir().join("gui.toml")
 }
 
+/// The format of `gui.toml`.
+const FORMAT: FileFormat = FileFormat::new(&[]);
+
 impl GuiSettings {
+    /// The stored preferences; the defaults if `gui.toml` is missing or cannot be used (which
+    /// is logged, and the file kept aside).
     pub fn load() -> GuiSettings {
-        dp_config::load_toml_or_default::<GuiSettings>(&path()).clamped()
+        dp_config::load_toml_or_default::<GuiSettings>(&path(), &FORMAT)
+            .value
+            .clamped()
     }
 
     /// The settings with every number in its range: the window keeps to the ranges, a file
@@ -238,7 +246,7 @@ impl GuiSettings {
 
     /// Write atomically (temporary file, then rename).
     pub fn save(&self) -> std::io::Result<()> {
-        dp_config::save_toml(&path(), self)
+        dp_config::save_toml(&path(), self, &FORMAT)
     }
 }
 

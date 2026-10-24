@@ -342,6 +342,27 @@ impl LiveSummary {
     }
 }
 
+/// The version of the API, in `/api/status`. It goes up only when a path, field or request
+/// changes or goes away; additions keep it.
+pub const API_VERSION: u32 = 1;
+
+/// An answer with the API's version added.
+#[derive(Serialize)]
+struct WithVersion {
+    #[serde(flatten)]
+    answer: Response,
+    api: u32,
+}
+
+impl WithVersion {
+    fn new(answer: Response) -> WithVersion {
+        WithVersion {
+            answer,
+            api: API_VERSION,
+        }
+    }
+}
+
 /// The API's paths and the method each takes; another method gets 405.
 const ROUTES: [(&str, &str); 5] = [
     ("GET", "/api/status"),
@@ -362,7 +383,7 @@ fn json_reply(ok: u16, value: &impl Serialize) -> (u16, String) {
 fn route(req: &HttpRequest, link: &Link) -> (u16, String) {
     let tx = &link.jobs;
     match (req.method.as_str(), req.path.as_str()) {
-        ("GET", "/api/status") => json_reply(200, &ask_ipc(tx, Request::Status)),
+        ("GET", "/api/status") => json_reply(200, &WithVersion::new(ask_ipc(tx, Request::Status))),
         ("GET", "/api/devices") => json_reply(200, &ask_ipc(tx, Request::Devices)),
         ("GET", "/api/live") => json_reply(200, &*link.live.get()),
         ("POST", "/api") => {
@@ -597,5 +618,30 @@ mod tests {
             r#"{"active_slot":1,"devices":[{"battery":null,"id":"hid:1","name":"Pad"}],"layer":0,"layer_name":null,"profile":null,"remap_on":false,"suspended":false,"warnings":["careful"]}"#,
             "the stream's text, keys in the order it always had"
         );
+    }
+
+    #[test]
+    fn the_status_carries_the_api_version() {
+        let status = Response::Status(dp_ipc::Status {
+            profile: None,
+            profile_path: None,
+            layer: 0,
+            auto_switch: true,
+            foreground: None,
+            virtual_pad: None,
+            hidden_devices: 0,
+            warnings: Vec::new(),
+            slots: vec![None; 4],
+            active_slot: 1,
+            remap_on: true,
+        });
+        let json = serde_json::to_string(&WithVersion::new(status)).unwrap();
+        assert!(
+            json.starts_with(r#"{"type":"status","profile":null,"#),
+            "{json}"
+        );
+        assert!(json.ends_with(r#""remap_on":true,"api":1}"#), "{json}");
+        let error = serde_json::to_string(&WithVersion::new(Response::error("no"))).unwrap();
+        assert_eq!(error, r#"{"type":"error","message":"no","api":1}"#);
     }
 }

@@ -165,6 +165,8 @@ struct Errors {
     unsaved: Option<String>,
     /// Applying a controller's own profile, by device id.
     devices: std::collections::BTreeMap<String, String>,
+    /// Settings files that could not be used at start-up.
+    settings: Vec<String>,
 }
 
 pub struct Service {
@@ -223,19 +225,26 @@ pub fn ipc_devices(rt: &Runtime) -> Vec<Device> {
 impl Service {
     /// Create the service and apply the initial profile (or the active slot).
     pub fn new(mut rt: Runtime, opts: ServiceOptions) -> Result<Service> {
-        let mut state = opts
-            .state_path
-            .as_deref()
-            .map(SlotState::load)
-            .unwrap_or_default();
+        let mut errors = Errors::default();
+        let mut state = match opts.state_path.as_deref().map(SlotState::load) {
+            Some(loaded) => {
+                errors.settings.extend(loaded.problem);
+                loaded.value
+            }
+            None => SlotState::default(),
+        };
         if let Some(a) = opts.auto_switch {
             state.auto_switch = a;
         }
         if let Some(path) = &opts.hotkeys_path {
-            rt.set_hotkeys(crate::hotkeys::load(path));
+            let loaded = crate::hotkeys::load(path);
+            errors.settings.extend(loaded.problem);
+            rt.set_hotkeys(loaded.value);
         }
         if let Some(path) = &opts.calibration_path {
-            *rt.calibration_mut() = crate::calibration::Calibrator::load(path);
+            let loaded = crate::calibration::Calibrator::load(path);
+            errors.settings.extend(loaded.problem);
+            *rt.calibration_mut() = loaded.value;
         }
         let probe = rt.driver_probe();
         let mut svc = Service {
@@ -251,7 +260,7 @@ impl Service {
                 switched_for: None,
             },
             drivers: DriverWatch::start(probe),
-            errors: Errors::default(),
+            errors,
             connected: Vec::new(),
             dsu: Listener::default(),
             http: Listener::default(),

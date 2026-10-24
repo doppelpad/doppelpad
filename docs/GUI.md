@@ -657,7 +657,9 @@ reports a running reWASD.
 
 The app saves atomically (it writes a temporary file, then renames it). Before it
 overwrites a profile that it did not write itself, it keeps one `.bak` copy. Deleting
-moves files to the recycle bin.
+moves files to the recycle bin. Every TOML file it writes starts with the version of its
+format (`format = 1`), and a settings file it cannot use is kept as `<file>.bak` before the
+defaults replace it (see [Format versions](PROFILES.md#format-versions)).
 
 Each time the app saves a config over its file, the version before is kept (the last 20 per
 config). **Earlier versions…** in the config's options menu lists them by date; opening one

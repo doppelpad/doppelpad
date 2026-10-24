@@ -12,10 +12,12 @@ use dp_core::profile::Profile;
 use serde::{Deserialize, Serialize};
 
 use crate::launches::{self, Launch};
-use crate::{Diagnostics, Format, LoadError, compat, is_profile_file, load, to_toml};
+use crate::{Diagnostics, FileFormat, Format, LoadError, compat, is_profile_file, load, to_toml};
 
 /// File holding a game's metadata inside its folder.
 pub(crate) const GAME_FILE: &str = "game.toml";
+/// The format of `game.toml`; see [`crate::PROFILE_FORMAT`].
+const GAME_FORMAT: FileFormat = FileFormat::new(&[]);
 /// First line of every file written by Doppelpad (see [`to_toml`]).
 
 #[derive(Debug, thiserror::Error)]
@@ -170,8 +172,9 @@ fn is_config_file(path: &Path) -> bool {
 fn read_meta(dir: &Path) -> Result<GameMeta> {
     let meta_path = game_file(dir)?;
     let src = std::fs::read_to_string(&meta_path).map_err(io(&meta_path))?;
-    let mut meta: GameMeta =
-        toml::from_str(&src).map_err(|e| LibraryError::Meta(meta_path.clone(), e))?;
+    let mut meta: GameMeta = GAME_FORMAT
+        .parse(&src)
+        .map_err(|e| LibraryError::Meta(meta_path.clone(), e))?;
     if meta.name.is_empty() {
         meta.name = dir
             .file_name()
@@ -280,7 +283,7 @@ fn write_meta(dir: &Path, meta: &GameMeta) -> Result<()> {
     let path = dir.join(GAME_FILE);
     let text =
         toml::to_string_pretty(meta).map_err(|e| LibraryError::Serialize(path.clone(), e))?;
-    write_atomic(&path, &text)
+    write_atomic(&path, &GAME_FORMAT.stamp(&text))
 }
 
 /// Create a new game folder with one empty config named "Default".
