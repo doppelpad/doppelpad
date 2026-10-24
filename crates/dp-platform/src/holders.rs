@@ -10,7 +10,10 @@ const KNOWN: &[(&str, &str)] = &[
     ("BetterJoy.exe", "BetterJoy"),
     ("BetterJoyForCemu.exe", "BetterJoy"),
     ("Dolphin.exe", "Dolphin"),
+    // Dolphin and Steam as macOS names them.
+    ("Dolphin", "Dolphin"),
     ("steam.exe", "Steam"),
+    ("steam_osx", "Steam"),
 ];
 
 /// The running program that most likely holds a controller; `running` tells whether an
