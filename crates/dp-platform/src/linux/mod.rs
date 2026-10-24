@@ -7,10 +7,12 @@
 //! devices (the Linux counterpart of the `VirtualIgnoreList` on Windows).
 //!
 //! The pure translation code (`codes`, `padmap`, `x360`, `kbmmap`, `procname`, `sysfs`,
-//! `logind`) also compiles in tests on other OSes, so it is unit-tested everywhere.
+//! `logind`, `appimage`) also compiles in tests on other OSes, so it is unit-tested
+//! everywhere.
 
 #![cfg_attr(not(target_os = "linux"), allow(dead_code))]
 
+mod appimage;
 mod codes;
 mod kbmmap;
 mod logind;
@@ -33,6 +35,8 @@ mod system;
 mod uinput;
 #[cfg(target_os = "linux")]
 mod x11;
+
+pub use appimage::host_command;
 
 /// The distribution's name and the kernel version.
 #[cfg(target_os = "linux")]

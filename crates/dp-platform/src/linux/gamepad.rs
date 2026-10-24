@@ -19,7 +19,6 @@ use std::collections::{BTreeMap, HashSet};
 use std::io;
 use std::os::fd::{AsFd, AsRawFd};
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -326,7 +325,7 @@ fn disconnect(device: &str) {
         "org.bluez.Device1",
         "Disconnect",
     ];
-    match Command::new("busctl").args(args).output() {
+    match super::host_command("busctl").args(args).output() {
         Ok(out) if out.status.success() => {}
         Ok(out) => tracing::warn!(
             device,

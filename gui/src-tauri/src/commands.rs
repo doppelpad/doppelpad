@@ -362,7 +362,7 @@ pub fn open_driver_page(driver: Driver) -> CmdResult<()> {
     #[cfg(windows)]
     let opened = std::process::Command::new("explorer").arg(url).spawn();
     #[cfg(not(windows))]
-    let opened = std::process::Command::new("xdg-open").arg(url).spawn();
+    let opened = dp_platform::host_command("xdg-open").arg(url).spawn();
     opened.map(drop).map_err(err)
 }
 
@@ -552,7 +552,7 @@ fn reveal_path(path: &Path) -> std::io::Result<()> {
         } else {
             path.parent().unwrap_or(path)
         };
-        std::process::Command::new("xdg-open")
+        dp_platform::host_command("xdg-open")
             .arg(dir)
             .spawn()
             .map(drop)

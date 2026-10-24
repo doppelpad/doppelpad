@@ -55,7 +55,7 @@ impl Runtime {
             }
             Command::Launch { path, args } => {
                 let args: Vec<&str> = args.split_whitespace().collect();
-                if let Err(e) = std::process::Command::new(&path).args(&args).spawn() {
+                if let Err(e) = dp_platform::host_command(&path).args(&args).spawn() {
                     tracing::warn!("cannot launch {path}: {e}");
                 }
             }
