@@ -17,7 +17,7 @@ compiler and the system libraries in the AppImage are covered in THIRD_PARTY_NOT
 
 ## Rust crates
 
-446 crates.
+447 crates.
 
 | Crate | Version | License | Used under |
 |---|---|---|---|
@@ -229,6 +229,7 @@ compiler and the system libraries in the AppImage are covered in THIRD_PARTY_NOT
 | [objc2](https://crates.io/crates/objc2/0.6.5) | 0.6.5 | MIT | MIT |
 | [objc2-app-kit](https://crates.io/crates/objc2-app-kit/0.3.2) | 0.3.2 | Zlib OR Apache-2.0 OR MIT | Apache-2.0 |
 | [objc2-application-services](https://crates.io/crates/objc2-application-services/0.3.2) | 0.3.2 | Zlib OR Apache-2.0 OR MIT | Apache-2.0 |
+| [objc2-core-bluetooth](https://crates.io/crates/objc2-core-bluetooth/0.3.2) | 0.3.2 | Zlib OR Apache-2.0 OR MIT | Apache-2.0 |
 | [objc2-core-foundation](https://crates.io/crates/objc2-core-foundation/0.3.2) | 0.3.2 | Zlib OR Apache-2.0 OR MIT | Apache-2.0 |
 | [objc2-core-graphics](https://crates.io/crates/objc2-core-graphics/0.3.2) | 0.3.2 | Zlib OR Apache-2.0 OR MIT | Apache-2.0 |
 | [objc2-encode](https://crates.io/crates/objc2-encode/4.1.0) | 4.1.0 | MIT | MIT |
@@ -736,7 +737,7 @@ Used by: async-channel 2.5.0, async-executor 1.14.0, async-io 2.6.0, async-lock 
 
 ### Apache-2.0
 
-Used by: anyhow 1.0.104, async-trait 0.1.92, dirs 6.0.0, dirs-sys 0.5.0, dispatch2 0.3.1, dtoa 1.0.11, dunce 1.0.5, dyn-clone 1.0.20, erased-serde 0.4.10, evdev 0.13.2, fdeflate 0.3.7, field-offset 0.3.6, ident_case 1.0.1, interprocess 2.4.6, itoa 1.0.18, libappindicator-sys 0.9.0, libc 0.2.191, mach2 0.5.0, miniz_oxide 0.8.9, miniz_oxide 0.9.1, objc2-app-kit 0.3.2, objc2-application-services 0.3.2, objc2-core-foundation 0.3.2, objc2-core-graphics 0.3.2, objc2-exception-helper 0.1.1, objc2-io-kit 0.3.2, objc2-metal 0.3.2, objc2-osa-kit 0.3.2, objc2-web-kit 0.3.2, osakit 0.3.1, pin-project-lite 0.2.17, proc-macro2 1.0.107, quote 1.0.47, raw-window-handle 0.6.2, rustc-hash 2.1.3, semver 1.0.28, serde 1.0.229, serde-untagged 0.1.9, serde_core 1.0.229, serde_derive 1.0.229, serde_derive_internals 0.29.1, serde_json 1.0.154, serde_repr 0.1.21, syn 2.0.119, syn 3.0.9, sync_wrapper 1.0.2, tauri 2.11.6, tauri-codegen 2.6.3, tauri-macros 2.6.3, tauri-plugin-dialog 2.7.3, tauri-plugin-fs 2.5.2, tauri-plugin-single-instance 2.4.5, tauri-plugin-updater 2.12.0, tauri-runtime 2.11.3, tauri-runtime-wry 2.11.4, tauri-utils 2.9.3, thiserror 1.0.69, thiserror 2.0.21, thiserror-impl 1.0.69, thiserror-impl 2.0.21, time 0.3.45, time-core 0.1.7, time-macros 0.2.25, typeid 1.0.3, unic-char-property 0.9.0, unic-char-range 0.9.0, unic-common 0.9.0, unic-ucd-ident 0.9.0, unic-ucd-version 0.9.0, unicode-ident 1.0.27, utf8parse 0.2.2, widestring 1.2.1, winapi-x86_64-pc-windows-gnu 0.4.0
+Used by: anyhow 1.0.104, async-trait 0.1.92, dirs 6.0.0, dirs-sys 0.5.0, dispatch2 0.3.1, dtoa 1.0.11, dunce 1.0.5, dyn-clone 1.0.20, erased-serde 0.4.10, evdev 0.13.2, fdeflate 0.3.7, field-offset 0.3.6, ident_case 1.0.1, interprocess 2.4.6, itoa 1.0.18, libappindicator-sys 0.9.0, libc 0.2.191, mach2 0.5.0, miniz_oxide 0.8.9, miniz_oxide 0.9.1, objc2-app-kit 0.3.2, objc2-application-services 0.3.2, objc2-core-bluetooth 0.3.2, objc2-core-foundation 0.3.2, objc2-core-graphics 0.3.2, objc2-exception-helper 0.1.1, objc2-io-kit 0.3.2, objc2-metal 0.3.2, objc2-osa-kit 0.3.2, objc2-web-kit 0.3.2, osakit 0.3.1, pin-project-lite 0.2.17, proc-macro2 1.0.107, quote 1.0.47, raw-window-handle 0.6.2, rustc-hash 2.1.3, semver 1.0.28, serde 1.0.229, serde-untagged 0.1.9, serde_core 1.0.229, serde_derive 1.0.229, serde_derive_internals 0.29.1, serde_json 1.0.154, serde_repr 0.1.21, syn 2.0.119, syn 3.0.9, sync_wrapper 1.0.2, tauri 2.11.6, tauri-codegen 2.6.3, tauri-macros 2.6.3, tauri-plugin-dialog 2.7.3, tauri-plugin-fs 2.5.2, tauri-plugin-single-instance 2.4.5, tauri-plugin-updater 2.12.0, tauri-runtime 2.11.3, tauri-runtime-wry 2.11.4, tauri-utils 2.9.3, thiserror 1.0.69, thiserror 2.0.21, thiserror-impl 1.0.69, thiserror-impl 2.0.21, time 0.3.45, time-core 0.1.7, time-macros 0.2.25, typeid 1.0.3, unic-char-property 0.9.0, unic-char-range 0.9.0, unic-common 0.9.0, unic-ucd-ident 0.9.0, unic-ucd-version 0.9.0, unicode-ident 1.0.27, utf8parse 0.2.2, widestring 1.2.1, winapi-x86_64-pc-windows-gnu 0.4.0
 
 ```text
 Apache License

@@ -10,6 +10,7 @@
 pub mod gcadapter;
 pub mod switch1;
 pub mod switch2;
+pub mod switch2ble;
 pub mod wired;
 
 use dp_core::pad::{Axis, PadButton, PadState};

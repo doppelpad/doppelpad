@@ -71,6 +71,9 @@ pub fn platform() -> Platform {
             virtual_pads: vigem::available(),
             device_hiding: hidhide::available(),
             input_access: Ok(()),
+            bluetooth: Err(crate::PlatformError::Unsupported(
+                "Switch 2 controllers over Bluetooth",
+            )),
             hiding_problems: hidhide::problems(),
         },
         gamepads: vec![

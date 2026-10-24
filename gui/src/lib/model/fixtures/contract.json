@@ -154,6 +154,10 @@
       "input_access": {
         "available": false,
         "error": null
+      },
+      "bluetooth": {
+        "available": false,
+        "error": null
       }
     },
     "device_slots": [

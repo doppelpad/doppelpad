@@ -1,10 +1,14 @@
-//! Switch 2 controllers over USB: Pro Controller 2, GameCube controller, Joy-Con 2.
+//! Switch 2 controllers: Pro Controller 2, GameCube controller, Joy-Con 2.
 //!
-//! The pads are composite USB devices. Interface 0 is an ordinary HID game pad; interface 1
-//! is a vendor interface with two bulk endpoints that takes 8-byte-header commands. The
-//! HID interface stays silent until the vendor interface has been told to start output,
-//! after which it streams input report 0x05 at about 250 Hz. Rumble goes out as HID
-//! output reports.
+//! Over USB the pads are composite devices. Interface 0 is an ordinary HID game pad;
+//! interface 1 is a vendor interface with two bulk endpoints that takes 8-byte-header
+//! commands. The HID interface stays silent until the vendor interface has been told to
+//! start output, after which it streams input report 0x05 at about 250 Hz. Rumble goes out
+//! as HID output reports.
+//!
+//! Over Bluetooth LE the same reports and commands travel through Nintendo's own GATT
+//! characteristics (see the macOS `ble` module). Input starts as soon as the host subscribes
+//! to it, as often as the host's connection interval allows (about 33 Hz on macOS).
 
 use std::io;
 use std::time::{Duration, Instant};
@@ -21,9 +25,11 @@ use crate::{JoyConSide, Leds, PadFamily};
 
 /// Feature mask: buttons, sticks, IMU and rumble.
 const FEATURES: u8 = 0x27;
-const INPUT_REPORT: u8 = 0x05;
+pub(crate) const INPUT_REPORT: u8 = 0x05;
 
 const COMMAND_TIMEOUT: Duration = Duration::from_millis(200);
+/// Over Bluetooth a reply waits for the next connection event, and some take 200 ms.
+const BLUETOOTH_COMMAND_TIMEOUT: Duration = Duration::from_millis(600);
 /// How long to wait for input when another program started the pad.
 const FOREIGN_INIT_WAIT: Duration = Duration::from_millis(1500);
 /// Full strength is capped below the actuators' maximum, as the console does.
@@ -31,42 +37,81 @@ const RUMBLE_MAX: f32 = 29000.0;
 const HIGH_FREQ: u16 = 0x187;
 const LOW_FREQ: u16 = 0x112;
 
-/// One vendor command: `[cmd, 0x91 (host to device), 0x00 (USB), sub, 0, len, 0, 0] + payload`.
-pub fn command(cmd: u8, sub: u8, payload: &[u8]) -> Vec<u8> {
-    let mut c = vec![cmd, 0x91, 0x00, sub, 0x00, payload.len() as u8, 0x00, 0x00];
+/// How a pad is connected, which its command headers name.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Transport {
+    Usb,
+    Bluetooth,
+}
+
+impl Transport {
+    /// How long a command may take to answer.
+    fn timeout(self) -> Duration {
+        match self {
+            Transport::Usb => COMMAND_TIMEOUT,
+            Transport::Bluetooth => BLUETOOTH_COMMAND_TIMEOUT,
+        }
+    }
+}
+
+/// One vendor command: `[cmd, 0x91 (host to device), transport, sub, 0, len, 0, 0] + payload`.
+pub fn command(transport: Transport, cmd: u8, sub: u8, payload: &[u8]) -> Vec<u8> {
+    let link = match transport {
+        Transport::Usb => 0x00,
+        Transport::Bluetooth => 0x01,
+    };
+    let mut c = vec![cmd, 0x91, link, sub, 0x00, payload.len() as u8, 0x00, 0x00];
     c.extend_from_slice(payload);
     c
 }
 
-/// The start-up sequence the console sends. Only the last command ("start output") is
-/// strictly needed; the second-to-last selects input report 0x05.
-fn init_commands(features: u8) -> Vec<Vec<u8>> {
+/// Rumble settings the console sends at the start.
+fn vibration_config() -> Vec<u8> {
     let mut vibration = vec![0x01];
     vibration.extend_from_slice(&[0xFF; 8]);
     vibration.extend_from_slice(&[0x35, 0x00, 0x46, 0x00]);
     vibration.resize(20, 0);
+    vibration
+}
+
+/// The start-up sequence the console sends over USB. Only the last command ("start
+/// output") is strictly needed; the second-to-last selects input report 0x05.
+fn init_commands(features: u8) -> Vec<Vec<u8>> {
+    let usb = |cmd, sub, payload: &[u8]| command(Transport::Usb, cmd, sub, payload);
     vec![
-        command(0x07, 0x01, &[]),
-        command(0x0C, 0x02, &[features, 0, 0, 0]),
-        command(0x11, 0x01, &[]),
-        command(0x0A, 0x08, &vibration),
-        command(0x0C, 0x04, &[features, 0, 0, 0]),
-        command(0x01, 0x0C, &[]),
-        command(0x01, 0x01, &[]),
+        usb(0x07, 0x01, &[]),
+        usb(0x0C, 0x02, &[features, 0, 0, 0]),
+        usb(0x11, 0x01, &[]),
+        usb(0x0A, 0x08, &vibration_config()),
+        usb(0x0C, 0x04, &[features, 0, 0, 0]),
+        usb(0x01, 0x0C, &[]),
+        usb(0x01, 0x01, &[]),
         // Enables GL/GR on the charging grip.
-        command(0x08, 0x02, &[0x01, 0, 0, 0]),
+        usb(0x08, 0x02, &[0x01, 0, 0, 0]),
         select_report_command(),
         start_output_command(),
     ]
 }
 
+/// Over Bluetooth input already flows; the features (motion) and rumble are switched on as
+/// the console does it.
+fn bluetooth_init_commands(features: u8) -> Vec<Vec<u8>> {
+    let bt = |cmd, sub, payload: &[u8]| command(Transport::Bluetooth, cmd, sub, payload);
+    vec![
+        bt(0x0C, 0x02, &[features, 0, 0, 0]),
+        bt(0x0A, 0x08, &vibration_config()),
+        bt(0x0C, 0x04, &[features, 0, 0, 0]),
+    ]
+}
+
 fn select_report_command() -> Vec<u8> {
-    command(0x03, 0x0A, &[INPUT_REPORT, 0, 0, 0])
+    command(Transport::Usb, 0x03, 0x0A, &[INPUT_REPORT, 0, 0, 0])
 }
 
 /// The trailing six bytes are a host address; any value works.
 fn start_output_command() -> Vec<u8> {
     command(
+        Transport::Usb,
         0x03,
         0x0D,
         &[0x01, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF],
@@ -74,9 +119,9 @@ fn start_output_command() -> Vec<u8> {
 }
 
 /// Read a 0x40-byte flash block.
-fn flash_read_command(addr: u32) -> Vec<u8> {
+fn flash_read_command(transport: Transport, addr: u32) -> Vec<u8> {
     let a = addr.to_le_bytes();
-    command(0x02, 0x01, &[0, 0, 0, 0, a[0], a[1], a[2], a[3]])
+    command(transport, 0x02, 0x01, &[0, 0, 0, 0, a[0], a[1], a[2], a[3]])
 }
 
 /// Length of a flash-read reply; the block starts at offset 0x10.
@@ -117,8 +162,8 @@ fn flash_block(reply: &[u8]) -> Option<&[u8]> {
 }
 
 /// Player LEDs: bits 0..3 are LEDs 1..4.
-fn player_led_command(mask: u8) -> Vec<u8> {
-    command(0x09, 0x07, &[mask, 0, 0, 0, 0, 0, 0, 0])
+fn player_led_command(transport: Transport, mask: u8) -> Vec<u8> {
+    command(transport, 0x09, 0x07, &[mask, 0, 0, 0, 0, 0, 0, 0])
 }
 
 /// Nine bytes: neutral x/y, distance to the maximum x/y, distance to the minimum x/y.
@@ -246,17 +291,22 @@ fn report_id(model: Switch2Model) -> u8 {
 }
 
 /// Rumble output report for the HD-rumble pads (everything but the GameCube controller):
-/// report ID, `0x50 | seq`, one HD sample; the Pro Controller's second motor repeats the
-/// five bytes after the report ID at 0x11.
-pub fn rumble_report(model: Switch2Model, seq: u8, r: Rumble) -> [u8; 64] {
+/// report ID, then a 16-byte block per motor: `0x50 | seq` and up to three HD samples the
+/// motor plays one after the other. The Pro Controller's second motor's block repeats the
+/// first at 0x11. Over USB, with a report every 12 ms, one sample is enough; over Bluetooth
+/// a report arrives only every 30 ms or so, and with fewer samples the motor runs in bursts.
+pub fn rumble_report(model: Switch2Model, seq: u8, r: Rumble, samples: usize) -> [u8; 64] {
     let amp = |v: f32| (v.clamp(0.0, 1.0) * RUMBLE_MAX) as u16;
+    let sample = hd_sample(HIGH_FREQ, amp(r.high), LOW_FREQ, amp(r.low));
     let mut out = [0u8; 64];
     out[0] = report_id(model);
     out[1] = 0x50 | (seq & 0x0F);
-    out[2..7].copy_from_slice(&hd_sample(HIGH_FREQ, amp(r.high), LOW_FREQ, amp(r.low)));
+    for i in 0..samples.clamp(1, 3) {
+        out[2 + 5 * i..7 + 5 * i].copy_from_slice(&sample);
+    }
     if model == Switch2Model::Pro {
         // Second motor.
-        out.copy_within(1..7, 0x11);
+        out.copy_within(1..0x11, 0x11);
     }
     out
 }
@@ -322,6 +372,7 @@ enum Vendor {
 
 pub struct Switch2Driver {
     model: Switch2Model,
+    transport: Transport,
     vendor: Vendor,
     /// The vendor interface arrived late and the limitation notice is gone.
     notice_cleared: bool,
@@ -341,6 +392,7 @@ impl Switch2Driver {
         };
         Switch2Driver {
             model,
+            transport: Transport::Usb,
             vendor,
             notice_cleared: false,
             cal: Calibration::default(),
@@ -356,6 +408,21 @@ impl Switch2Driver {
         }
     }
 
+    /// A pad connected over Bluetooth LE, with its command channel. Rumble goes out twice
+    /// per connection interval, and the stop three times: a write the link has no room for
+    /// is dropped.
+    pub fn bluetooth(model: Switch2Model, commands: Box<dyn BulkIo>) -> Self {
+        Switch2Driver {
+            transport: Transport::Bluetooth,
+            pacer: RumblePacer::new(
+                Duration::from_millis(15),
+                Some(Duration::from_millis(15)),
+                3,
+            ),
+            ..Switch2Driver::new(model, Ok(commands))
+        }
+    }
+
     /// Take over the vendor interface when it arrives through `late` (it was busy at the
     /// start); until then the pad runs on another program's initialisation.
     pub fn with_retry(mut self, retry: LateBulk) -> Self {
@@ -363,6 +430,14 @@ impl Switch2Driver {
             *late = Some(retry);
         }
         self
+    }
+
+    /// HD samples per rumble report (see [`rumble_report`]).
+    fn rumble_samples(&self) -> usize {
+        match self.transport {
+            Transport::Usb => 1,
+            Transport::Bluetooth => 3,
+        }
     }
 
     /// Read the calibration and (re)start output through a vendor interface that became
@@ -375,7 +450,7 @@ impl Switch2Driver {
             return;
         };
         *late = None;
-        match start(self.model, &mut self.cal, bulk.as_mut()) {
+        match start(self.model, self.transport, &mut self.cal, bulk.as_mut()) {
             Ok(()) => {
                 tracing::info!("Switch 2 controller: took over its USB command interface");
                 self.vendor = Vendor::Ready(bulk);
@@ -405,10 +480,19 @@ fn identity(model: Switch2Model, notice: Option<String>) -> Identity {
 }
 
 /// Read the calibration blocks that are there into `cal`.
-fn read_calibration(model: Switch2Model, cal: &mut Calibration, bulk: &mut dyn BulkIo) {
+fn read_calibration(
+    model: Switch2Model,
+    transport: Transport,
+    cal: &mut Calibration,
+    bulk: &mut dyn BulkIo,
+) {
     let mut read = |addr: u32| -> Option<Vec<u8>> {
         let reply = bulk
-            .command(&flash_read_command(addr), FLASH_REPLY_LEN, COMMAND_TIMEOUT)
+            .command(
+                &flash_read_command(transport, addr),
+                FLASH_REPLY_LEN,
+                transport.timeout(),
+            )
             .map_err(|e| tracing::debug!(addr, "flash read failed: {e}"))
             .ok()?;
         flash_block(&reply).map(<[u8]>::to_vec)
@@ -454,31 +538,47 @@ fn read_calibration(model: Switch2Model, cal: &mut Calibration, bulk: &mut dyn B
     }
 }
 
-fn send(bulk: &mut dyn BulkIo, cmd: &[u8]) -> io::Result<Vec<u8>> {
-    bulk.command(cmd, 64, COMMAND_TIMEOUT)
+fn send(bulk: &mut dyn BulkIo, transport: Transport, cmd: &[u8]) -> io::Result<Vec<u8>> {
+    bulk.command(cmd, 64, transport.timeout())
 }
 
 /// Read the calibration, then switch the pad's input and output on.
 fn start(
     model: Switch2Model,
+    transport: Transport,
     cal: &mut Calibration,
     bulk: &mut dyn BulkIo,
 ) -> Result<(), InitError> {
-    read_calibration(model, cal, bulk);
+    read_calibration(model, transport, cal, bulk);
+    let commands = match transport {
+        Transport::Usb => init_commands(FEATURES),
+        Transport::Bluetooth => bluetooth_init_commands(FEATURES),
+    };
     let mut ok = true;
-    for cmd in init_commands(FEATURES) {
-        if let Err(e) = send(bulk, &cmd) {
+    for cmd in commands {
+        if let Err(e) = send(bulk, transport, &cmd) {
             tracing::debug!(cmd = cmd[0], sub = cmd[3], "init command failed: {e}");
             ok = false;
             break;
         }
     }
-    if !ok {
-        // Fall back to the two commands that matter.
-        let _ = send(bulk, &select_report_command());
-        send(bulk, &start_output_command())?;
+    match (ok, transport) {
+        (true, _) => {}
+        (false, Transport::Usb) => {
+            // Fall back to the two commands that matter.
+            let _ = send(bulk, transport, &select_report_command());
+            send(bulk, transport, &start_output_command())?;
+        }
+        // Input flows without them, only motion and rumble may be missing.
+        (false, Transport::Bluetooth) => {
+            tracing::warn!("Switch 2 controller: switching on motion and rumble failed");
+        }
     }
-    if let Err(e) = send(bulk, &player_led_command(FIRST_PLAYER)) {
+    if let Err(e) = send(
+        bulk,
+        transport,
+        &player_led_command(transport, FIRST_PLAYER),
+    ) {
         tracing::debug!("player LED: {e}");
     }
     Ok(())
@@ -498,7 +598,7 @@ impl PadDriver for Switch2Driver {
         let model = self.model;
         match &mut self.vendor {
             Vendor::Ready(bulk) => {
-                start(model, &mut self.cal, bulk.as_mut())?;
+                start(model, self.transport, &mut self.cal, bulk.as_mut())?;
                 Ok(identity(model, None))
             }
             Vendor::Missing { reason, late } => {
@@ -540,7 +640,11 @@ impl PadDriver for Switch2Driver {
         // The change waits until the vendor interface is there.
         if let Vendor::Ready(bulk) = &mut self.vendor
             && let Some(mask) = self.lights.take_change()
-            && let Err(e) = send(bulk.as_mut(), &player_led_command(mask))
+            && let Err(e) = send(
+                bulk.as_mut(),
+                self.transport,
+                &player_led_command(self.transport, mask),
+            )
         {
             tracing::debug!("player LED: {e}");
         }
@@ -563,7 +667,7 @@ impl PadDriver for Switch2Driver {
             };
             gamecube_rumble_report(seq, state)
         } else {
-            rumble_report(self.model, seq, r)
+            rumble_report(self.model, seq, r, self.rumble_samples())
         };
         io.write(&report)
     }
@@ -580,7 +684,7 @@ impl PadDriver for Switch2Driver {
         let report = if self.model == Switch2Model::GameCube {
             gamecube_rumble_report(self.seq.get(), 2)
         } else {
-            rumble_report(self.model, self.seq.get(), Rumble::default())
+            rumble_report(self.model, self.seq.get(), Rumble::default(), 1)
         };
         let _ = io.write(&report);
     }
@@ -634,9 +738,16 @@ mod tests {
             ]
         );
         assert_eq!(
-            flash_read_command(0x0013_0080),
+            flash_read_command(Transport::Usb, 0x0013_0080),
             [
                 0x02, 0x91, 0x00, 0x01, 0x00, 0x08, 0x00, 0x00, 0, 0, 0, 0, 0x80, 0x00, 0x13, 0x00
+            ]
+        );
+        // As a Pro Controller answered it over Bluetooth.
+        assert_eq!(
+            flash_read_command(Transport::Bluetooth, 0x0001_3080),
+            [
+                0x02, 0x91, 0x01, 0x01, 0x00, 0x08, 0x00, 0x00, 0, 0, 0, 0, 0x80, 0x30, 0x01, 0x00
             ]
         );
         let seq = init_commands(FEATURES);
@@ -838,22 +949,81 @@ mod tests {
         );
         let s = hd_sample(0x3FF, 0xFFFF, 0x3FF, 0xFFFF);
         assert_eq!(s, [0xFF; 5]);
-        let r = rumble_report(
-            Switch2Model::Pro,
-            3,
-            Rumble {
-                low: 1.0,
-                high: 0.0,
-            },
-        );
+        let full_low = Rumble {
+            low: 1.0,
+            high: 0.0,
+        };
+        let r = rumble_report(Switch2Model::Pro, 3, full_low, 1);
         assert_eq!(r[0], 0x02);
         assert_eq!(r[1], 0x53);
         assert_eq!(r[0x11..0x17], r[1..7], "second motor mirrors the first");
         let la = u32::from((u16::from(r[5]) >> 6) | u16::from(r[6]) << 2);
         assert_eq!(la, 29000 >> 6);
-        let jc = rumble_report(Switch2Model::JoyConLeft, 0, Rumble::default());
+        assert!(r[7..0x11].iter().all(|&b| b == 0), "one sample");
+        let jc = rumble_report(Switch2Model::JoyConLeft, 0, Rumble::default(), 1);
         assert_eq!(jc[0], 0x01);
         assert!(jc[0x11..].iter().all(|&b| b == 0));
+
+        let r = rumble_report(Switch2Model::Pro, 3, full_low, 3);
+        assert_eq!(r[2..7], r[7..12]);
+        assert_eq!(r[2..7], r[12..17], "three samples");
+        assert_eq!(r[0x11..0x21], r[1..0x11], "for both motors");
+        assert!(r[0x21..].iter().all(|&b| b == 0));
+    }
+
+    #[test]
+    fn bluetooth_start() {
+        let (bulk, sent) = fake_bulk(Vec::new());
+        let mut d = Switch2Driver::bluetooth(Switch2Model::Pro, Box::new(bulk));
+        let mut io = ScriptIo::silent();
+        let id = d.init(&mut io).unwrap();
+        assert!(id.notice.is_none());
+        let sent = sent.lock().unwrap().clone();
+        assert!(
+            sent.iter().all(|c| c[2] == 0x01),
+            "every header says Bluetooth"
+        );
+        assert!(
+            sent.iter().all(|c| c[0] != 0x03),
+            "no USB start-up: input already flows"
+        );
+        let steps: Vec<[u8; 2]> = sent.iter().map(|c| [c[0], c[3]]).collect();
+        let features = steps.iter().position(|s| *s == [0x0C, 0x02]).unwrap();
+        assert_eq!(
+            steps[features..],
+            [[0x0C, 0x02], [0x0A, 0x08], [0x0C, 0x04], [0x09, 0x07]]
+        );
+        assert!(
+            steps[..features].iter().all(|s| *s == [0x02, 0x01]),
+            "calibration first"
+        );
+    }
+
+    #[test]
+    fn bluetooth_rumble() {
+        let (bulk, _) = fake_bulk(Vec::new());
+        let mut d = Switch2Driver::bluetooth(Switch2Model::Pro, Box::new(bulk));
+        let mut io = ScriptIo::silent();
+        let half = Rumble {
+            low: 0.5,
+            high: 0.5,
+        };
+        for _ in 0..4 {
+            d.service(&mut io, half).unwrap();
+            io.advance(15 * MS);
+        }
+        let writes = io.writes();
+        assert_eq!(writes.len(), 4, "one report per 15 ms");
+        assert_eq!(writes[0][2..7], writes[0][12..17], "three samples");
+        for _ in 0..5 {
+            d.service(&mut io, Rumble::default()).unwrap();
+            io.advance(15 * MS);
+        }
+        let stops = io.writes()[4..]
+            .iter()
+            .filter(|w| w[2..7] == hd_sample(HIGH_FREQ, 0, LOW_FREQ, 0))
+            .count();
+        assert_eq!(stops, 3, "the stop goes out three times");
     }
 
     #[test]

@@ -56,6 +56,8 @@ pub enum Driver {
     DeviceHiding,
     /// What keyboard and mouse need from the OS: on macOS the Accessibility permission.
     InputAccess,
+    /// Switch 2 controllers over Bluetooth: on macOS the Bluetooth permission.
+    Bluetooth,
 }
 
 pub struct AppState {
@@ -357,7 +359,7 @@ pub fn config_from_template(
 }
 
 /// Open the download page of a driver Doppelpad uses, or on macOS the settings where the
-/// user allows keyboard and mouse.
+/// user allows keyboard and mouse, or Bluetooth.
 #[tauri::command]
 pub fn open_driver_page(driver: Driver) -> CmdResult<()> {
     let url = match driver {
@@ -369,8 +371,18 @@ pub fn open_driver_page(driver: Driver) -> CmdResult<()> {
             dp_platform::macos::permissions::request();
             "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
         }
+        #[cfg(target_os = "macos")]
+        Driver::Bluetooth => {
+            // The first time macOS asks by itself; once refused, only its settings can allow it.
+            if dp_platform::macos::ble::request() {
+                return Ok(());
+            }
+            "x-apple.systempreferences:com.apple.preference.security?Privacy_Bluetooth"
+        }
         #[cfg(not(target_os = "macos"))]
-        Driver::InputAccess => return Err("nothing to allow on this system".into()),
+        Driver::InputAccess | Driver::Bluetooth => {
+            return Err("nothing to allow on this system".into());
+        }
     };
     #[cfg(windows)]
     let opened = std::process::Command::new("explorer")

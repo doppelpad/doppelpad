@@ -577,7 +577,7 @@ export interface Battery {
 }
 
 /** The drivers Doppelpad uses, by what they do, and what keyboard and mouse need from the OS (`Driver` in commands.rs). */
-export type Driver = 'virtual_pads' | 'device_hiding' | 'input_access';
+export type Driver = 'virtual_pads' | 'device_hiding' | 'input_access' | 'bluetooth';
 
 /** A newer version than the running one (`UpdateInfo` in updates.rs). */
 export interface UpdateInfo {
@@ -633,8 +633,10 @@ export interface LiveState {
   virtual_pad: string | null;
   hidden_devices: number;
   warnings: string[];
-  /** `input_access`: on macOS the Accessibility permission keyboard and mouse need; available elsewhere. */
-  drivers: { virtual_pads: DriverState; device_hiding: DriverState; input_access: DriverState };
+  /** `input_access`: on macOS the Accessibility permission keyboard and mouse need; available elsewhere.
+   * `bluetooth`: on macOS the Bluetooth permission Switch 2 controllers over Bluetooth need; not available
+   * elsewhere yet. */
+  drivers: { virtual_pads: DriverState; device_hiding: DriverState; input_access: DriverState; bluetooth: DriverState };
   /** Controllers with slots of their own. */
   device_slots: { id: string; slots: (string | null)[]; active_slot: number }[];
   /** Running profiles, the default session (`owner` null) first. */

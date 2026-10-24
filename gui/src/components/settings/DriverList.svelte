@@ -19,7 +19,9 @@
   // The drivers and whether they are installed. `icon` (settings): a green or warning icon,
   // "missing" at the right and the error as tooltip; `row` (welcome guide): a missing driver's
   // row in the warning colour, with a download button. On macOS the permission keyboard and
-  // mouse need instead, with a button to its settings, and virtual controllers as not there yet.
+  // mouse need instead, with a button to its settings, and virtual controllers as not there yet;
+  // in the settings also the Bluetooth permission, which only Switch 2 controllers over
+  // Bluetooth need, so it is never missing.
   import { CircleAlert, CircleCheck } from '@lucide/svelte';
   import { api } from '../../lib/api';
   import { t } from '../../lib/i18n/index.svelte';
@@ -35,18 +37,24 @@
   const macPads = $derived(
     mac && tone === 'icon' && app.live ? [{ key: 'virtual_pads' as const, state: app.live.drivers.virtual_pads }] : [],
   );
+  const macBluetooth = $derived(
+    mac && tone === 'icon' && app.live ? [{ key: 'bluetooth' as const, state: app.live.drivers.bluetooth }] : [],
+  );
+
+  /** A permission the user gives in macOS's settings rather than a driver to install. */
+  const permission = (key: Driver) => key === 'input_access' || key === 'bluetooth';
 
   function name(key: Driver) {
-    return t(mac && key !== 'input_access' ? `drivers.${key}_macos` : `drivers.${key}`);
+    return t(mac && !permission(key) ? `drivers.${key}_macos` : `drivers.${key}`);
   }
 
   function missing(key: Driver) {
-    if (key === 'input_access') return t('drivers.not_allowed');
+    if (permission(key)) return t('drivers.not_allowed');
     return t(mac ? 'drivers.not_on_macos' : 'drivers.missing');
   }
 </script>
 
-{#each [...macPads, ...drivers] as d (d.key)}
+{#each [...macPads, ...drivers, ...macBluetooth] as d (d.key)}
   <div class="driver {tone}" class:missing={!d.state.available} use:tip={tone === 'icon' ? (d.state.error ?? '') : undefined}>
     {#if d.state.available}<CircleCheck size={15} />{:else}<CircleAlert size={15} />{/if}
     <span class="name">{name(d.key)}</span>
@@ -55,6 +63,8 @@
         <span class="state">{missing(d.key)}</span>
         {#if d.key === 'input_access'}
           <button class="btn" onclick={() => app.attempt(api.openDriverPage(d.key))}>{t('drivers.open_settings')}</button>
+        {:else if d.key === 'bluetooth'}
+          <button class="btn" onclick={() => app.attempt(api.openDriverPage(d.key))}>{t('drivers.allow')}</button>
         {/if}
       {:else if d.key === 'input_access'}
         <button class="btn" onclick={() => app.attempt(api.openDriverPage(d.key))}>{t('drivers.open_settings')}</button>
@@ -64,6 +74,9 @@
     {/if}
   </div>
 {/each}
+{#if macBluetooth[0]?.state.available}
+  <p class="hint">{t('drivers.bluetooth_hint')}</p>
+{/if}
 
 <style>
   .driver {

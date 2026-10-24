@@ -449,10 +449,13 @@ fn doctor() -> Result<()> {
     println!("{pads:<32}{}", ok(drivers.virtual_pads));
     println!("{hiding:<32}{}", ok(drivers.device_hiding));
     #[cfg(target_os = "macos")]
-    println!(
-        "Accessibility (keyboard/mouse): {}",
-        ok(drivers.input_access)
-    );
+    {
+        println!(
+            "Accessibility (keyboard/mouse): {}",
+            ok(drivers.input_access)
+        );
+        println!("Bluetooth (Switch 2 pads):      {}", ok(drivers.bluetooth));
+    }
     match dp_config::portable_dir() {
         Some(dir) => println!(
             "portable mode:                  everything in {}",
