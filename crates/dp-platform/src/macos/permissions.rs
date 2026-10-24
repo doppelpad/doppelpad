@@ -10,6 +10,19 @@ pub fn granted() -> bool {
     CGPreflightPostEventAccess()
 }
 
+/// The permission as a driver check: what to do when it is missing.
+pub fn check() -> crate::Result<()> {
+    if granted() {
+        Ok(())
+    } else {
+        Err(crate::PlatformError::Other(
+            "keyboard and mouse need the Accessibility permission (System Settings › Privacy & \
+             Security › Accessibility)"
+                .into(),
+        ))
+    }
+}
+
 /// Ask for the permission if it is missing: macOS shows its prompt, which leads to System
 /// Settings, once per program.
 pub fn request() {

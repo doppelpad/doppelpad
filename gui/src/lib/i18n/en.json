@@ -13,7 +13,9 @@
     "drivers": {
       "title": "Drivers",
       "text": "Doppelpad needs ViGEmBus for virtual controllers and HidHide to hide the real controller from games. Both are open and free.",
-      "after": "After installing, check again in Settings → Drivers. Keyboard and mouse mappings work without them."
+      "after": "After installing, check again in Settings → Drivers. Keyboard and mouse mappings work without them.",
+      "text_macos": "On macOS, Doppelpad sends and captures keyboard and mouse once you allow it under Accessibility. Controllers are hidden from games without a driver. Virtual controllers are not available on macOS yet: configs that need one do not start there.",
+      "after_macos": "If keyboard and mouse still do nothing after you allowed it, quit Doppelpad and start it again."
     },
     "controller": {
       "title": "Controller",
@@ -1293,7 +1295,14 @@
     "device_hiding": "HidHide (hide the physical controller)",
     "missing": "not installed",
     "missing_named": "{driver} not installed",
-    "download": "Download"
+    "download": "Download",
+    "input_access": "Accessibility (keyboard and mouse)",
+    "virtual_pads_macos": "Virtual controllers",
+    "device_hiding_macos": "Hide the physical controller",
+    "not_allowed": "not allowed",
+    "not_allowed_named": "{driver} not allowed",
+    "not_on_macos": "not on macOS yet",
+    "open_settings": "Open settings"
   },
   "dirs": {
     "up": "Up",

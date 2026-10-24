@@ -112,6 +112,7 @@ pub fn platform() -> crate::Platform {
         probe_drivers: || crate::DriverReport {
             virtual_pads: Err(crate::PlatformError::Unsupported(NO_VIRTUAL_PADS)),
             device_hiding: Ok(()),
+            input_access: permissions::check(),
             hiding_problems: Vec::new(),
         },
         gamepads: vec![Box::new(crate::joycon::JoyConCombiner::new(gamepads))],

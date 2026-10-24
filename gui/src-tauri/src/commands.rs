@@ -54,6 +54,8 @@ pub enum Notice {
 pub enum Driver {
     VirtualPads,
     DeviceHiding,
+    /// What keyboard and mouse need from the OS: on macOS the Accessibility permission.
+    InputAccess,
 }
 
 pub struct AppState {
@@ -352,19 +354,30 @@ pub fn config_from_template(
     })
 }
 
-/// Open the download page of a driver Doppelpad uses.
+/// Open the download page of a driver Doppelpad uses, or on macOS the settings where the
+/// user allows keyboard and mouse.
 #[tauri::command]
 pub fn open_driver_page(driver: Driver) -> CmdResult<()> {
     let url = match driver {
         Driver::VirtualPads => dp_platform::VIGEM_RELEASES,
         Driver::DeviceHiding => dp_platform::HIDHIDE_RELEASES,
+        #[cfg(target_os = "macos")]
+        Driver::InputAccess => {
+            // The prompt adds Doppelpad to the list, where the user only has to turn it on.
+            dp_platform::macos::permissions::request();
+            "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
+        }
+        #[cfg(not(target_os = "macos"))]
+        Driver::InputAccess => return Err("nothing to allow on this system".into()),
     };
     #[cfg(windows)]
     let opened = std::process::Command::new("explorer")
         .arg(url)
         .spawn()
         .map(drop);
-    #[cfg(not(windows))]
+    #[cfg(target_os = "macos")]
+    let opened = dp_platform::spawn_detached(std::process::Command::new("open").arg(url));
+    #[cfg(not(any(windows, target_os = "macos")))]
     let opened = dp_platform::spawn_detached(dp_platform::host_command("xdg-open").arg(url));
     opened.map_err(err)
 }
