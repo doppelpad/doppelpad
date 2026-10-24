@@ -115,7 +115,8 @@ Limitations:
 - Keyboards and mice are not told apart.
 - While a password field has secure input on, macOS keeps keys from every event tap.
 - Keys a Mac keyboard does not have (Print Screen, Scroll Lock, Pause, the launch and browser
-  keys) cannot be sent, nor can the media and volume keys yet.
+  keys, media Stop) cannot be sent. Play/pause, next, previous, volume and mute go out as the
+  system events a Mac keyboard's own keys make, and are captured as such.
 
 ## Per-game profiles
 

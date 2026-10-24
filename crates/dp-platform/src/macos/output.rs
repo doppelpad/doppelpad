@@ -17,6 +17,8 @@ use objc2_core_graphics::{
     CGWarpMouseCursorPosition,
 };
 
+use objc2_app_kit::{NSEvent, NSEventModifierFlags, NSEventType};
+
 use super::keycodes::{self, flag};
 use crate::KbmOutput;
 use crate::remainder::{MotionRemainder, Remainder};
@@ -140,8 +142,32 @@ impl EventOutput {
     }
 }
 
+/// A media key (volume, mute, playback) as the system event the keyboard's own keys make.
+pub fn media_event(kind: u32, down: bool) -> Option<CFRetained<CGEvent>> {
+    let flags = NSEventModifierFlags(if down { 0xA00 } else { 0xB00 });
+    let event = NSEvent::otherEventWithType_location_modifierFlags_timestamp_windowNumber_context_subtype_data1_data2(
+        NSEventType::SystemDefined,
+        CGPoint { x: 0.0, y: 0.0 },
+        flags,
+        0.0,
+        0,
+        None,
+        MEDIA_SUBTYPE,
+        keycodes::media_data(kind, down) as isize,
+        -1,
+    )?;
+    event.CGEvent().map(Into::into)
+}
+
+/// The subtype of system events that carry the media keys (`NX_SUBTYPE_AUX_CONTROL_BUTTONS`).
+pub const MEDIA_SUBTYPE: i16 = 8;
+
 impl KbmOutput for EventOutput {
     fn key(&mut self, key: Key, down: bool) {
+        if let Some(kind) = keycodes::media_key(key) {
+            Self::post(media_event(kind, down));
+            return;
+        }
         let Some(code) = keycodes::keycode(key) else {
             tracing::debug!(?key, "no such key on macOS");
             return;

@@ -50,8 +50,8 @@ to keep. Linux stays a preview in 1.0 (see [Platforms](#platforms)).
   Joy-Cons, Bluetooth and other distributions.
 - macOS beyond the preview: tests on real hardware (keyboard and mouse, overlays over games,
   Bluetooth and other controllers), signing and notarization, release builds, virtual
-  controllers (an entitlement from Apple), Switch 2 controllers, the GameCube adapter, media
-  keys (see [Platforms](#platforms)).
+  controllers (an entitlement from Apple), Switch 2 controllers, the GameCube adapter (see
+  [Platforms](#platforms)).
 - More controllers: Switch 2 over Bluetooth, Wii Remote, DualShock 3, analog keyboards.
 - More from imported JSON profiles: crosshair shapes, radial-menu icons, mouse regions, rumble
   mode, virtual gyro stick values.
@@ -173,4 +173,4 @@ to keep. Linux stays a preview in 1.0 (see [Platforms](#platforms)).
    | Controller extras | ✅ batteries, lights, trigger effects and rumble through the drivers (tried: battery, light bar, rumble); keep-awake and the lock-screen pause (tried); ⏳ turning Sony pads off over Bluetooth |
    | Desktop app | ✅ menu bar, overlays over full-screen games without taking the focus (⏳ testing in games), start at login, `.dpgame` from the Finder, permissions in the driver list and welcome guide |
    | Download | ⏳ the release workflow builds a universal `.dmg` and the command-line tool; on a tag only with the repository variable `MACOS_RELEASES`; signing and notarization need an Apple Developer ID |
-   | Not on macOS yet | virtual controllers, Switch 2 controllers, the GameCube adapter, Xbox controllers over USB, media and volume keys, the crosshair magnifier, cursor clipping |
+   | Not on macOS yet | virtual controllers, Switch 2 controllers, the GameCube adapter, Xbox controllers over USB, the crosshair magnifier, cursor clipping |
