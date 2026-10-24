@@ -213,6 +213,8 @@ struct Pad {
     /// Why its lights cannot be set, for [`GamepadBackend::problems`]. They are not tried
     /// again until the controller reconnects.
     lights_problem: Option<String>,
+    /// When it connected, for [`LIGHTS_SETTLE`].
+    opened: Instant,
 }
 
 impl Pad {
@@ -280,6 +282,16 @@ impl Pad {
         self.lightbar_written = Some(c);
         self.lightbar_at = Some(now);
         self.write_lights(|leds| lightbar_writes(leds, c));
+    }
+
+    /// Write the lights once more. Steam takes a controller over through hidraw just after
+    /// it connects and sets its lights then, past the driver, which still reports ours.
+    fn rewrite_lights(&mut self) {
+        if let Some(n) = self.player {
+            self.write_lights(|leds| player_writes(leds, n));
+        }
+        // The next poll writes the light bar.
+        self.lightbar_written = None;
     }
 
     /// Write the lights `plan` picks from the LEDs the driver registered. Without write
@@ -366,6 +378,11 @@ const FIRST_SCAN: Duration = Duration::from_secs(1);
 
 /// The shortest time between two light bar colours written to a controller.
 const LIGHTBAR_EVERY: Duration = Duration::from_millis(30);
+
+/// How long after a controller connects every scan writes its lights again, so they
+/// outlast Steam setting its own (see [`Pad::rewrite_lights`]). Not for longer: on Switch
+/// controllers each light is a subcommand the driver waits for.
+const LIGHTS_SETTLE: Duration = Duration::from_secs(6);
 
 pub struct EvdevBackend {
     shared: SharedRef,
@@ -460,6 +477,9 @@ impl Scanner {
         for pad in shared.pads.values_mut() {
             pad.nodes.retain(|n| n.alive.load(Ordering::Relaxed));
             pad.battery = pad.parent.as_deref().and_then(read_battery);
+            if now < pad.opened + LIGHTS_SETTLE {
+                pad.rewrite_lights();
+            }
         }
         shared.unreadable.retain(|path, _| present.contains(path));
         let known: HashSet<PathBuf> = shared
@@ -624,6 +644,7 @@ fn open_pad(path: &Path, dev: Device) -> io::Result<Pad> {
         lightbar_at: None,
         player: None,
         lights_problem: None,
+        opened: Instant::now(),
     })
 }
 
