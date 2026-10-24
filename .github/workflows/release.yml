@@ -9,8 +9,9 @@
 # the updater does not offer.
 #
 # Test build before a tag: Actions → Release → Run workflow, on any branch, builds only the
-# Linux job and keeps the AppImage, the command-line tool and the list of the libraries in
-# the AppImage as the run's artifact "doppelpad-linux". It makes no release.
+# Linux job and keeps the AppImage, the command-line tool, the list of the libraries in the
+# AppImage and the source of its GPL libraries as the run's artifact "doppelpad-linux". It
+# makes no release.
 #
 # Secrets: TAURI_SIGNING_PRIVATE_KEY and TAURI_SIGNING_PRIVATE_KEY_PASSWORD, the updater key
 # that `tauri signer generate` made (see docs/GUI.md#updates).
@@ -201,7 +202,8 @@ jobs:
           {
             echo "Libraries in $(basename "$appimage"), by the Ubuntu 22.04 package they come from"
             echo "(- for none), with its source package and version. The source code of each is at"
-            echo "https://launchpad.net/ubuntu/+source/<source package>/<version>."
+            echo "https://launchpad.net/ubuntu/+source/<source package>/<version>; for the libraries"
+            echo "under the GPL alone it is also in $(basename "$appimage" .AppImage)_gpl_sources.tar."
             echo "The copyright file of every package and the license texts they refer to follow."
             for pkg in $(cut -d'|' -f1 "$RUNNER_TEMP/libs.txt" | sort -u); do
               echo
@@ -233,12 +235,41 @@ jobs:
           echo "License texts: $(echo $licenses)"
           echo "list=$list" >> "$GITHUB_OUTPUT"
 
-      - name: Command-line tool and library list to the draft release
+      # Ubuntu's source packages of the libraries under the GPL alone, of the versions the
+      # AppImage carries: with them in the process, the GPL covers the AppImage as a whole
+      # (THIRD_PARTY_NOTICES.md). GPL_ONLY names their binary packages; a library list with
+      # another one needs a look (docs/LINUX-TESTING.md, L9.8).
+      - name: Source of the GPL libraries
+        id: sources
+        env:
+          GPL_ONLY: libayatana-indicator3-7
+        run: |
+          appimage=$(ls target/release/bundle/appimage/*.AppImage)
+          archive="linux-files/$(basename "$appimage" .AppImage)_gpl_sources.tar"
+          for suite in jammy jammy-updates jammy-security; do
+            echo "deb-src http://archive.ubuntu.com/ubuntu $suite main universe"
+          done | sudo tee /etc/apt/sources.list.d/doppelpad-sources.list > /dev/null
+          sudo apt-get update
+          dir="$RUNNER_TEMP/gpl-sources"
+          rm -rf "$dir" && mkdir -p "$dir"
+          for pkg in $GPL_ONLY; do
+            if ! grep -q "^$pkg|" "$RUNNER_TEMP/libs.txt"; then
+              echo "::error::$pkg is no longer in the AppImage: take it out of GPL_ONLY"
+              exit 1
+            fi
+            (cd "$dir" && apt-get source --download-only "$(dpkg-query -W -f '${source:Package}=${source:Version}' "$pkg")")
+          done
+          tar -cf "$archive" -C "$dir" .
+          tar -tvf "$archive"
+          echo "archive=$archive" >> "$GITHUB_OUTPUT"
+
+      - name: Command-line tool, library list and sources to the draft release
         if: env.RELEASE_ID != ''
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ARCHIVE: ${{ steps.cli.outputs.archive }}
           LIST: ${{ steps.libs.outputs.list }}
+          SOURCES: ${{ steps.sources.outputs.archive }}
         run: |
           upload() {
             curl -sSf -X POST \
@@ -249,6 +280,7 @@ jobs:
           }
           upload "$ARCHIVE" application/gzip
           upload "$LIST" text/plain
+          upload "$SOURCES" application/x-tar
 
       - uses: actions/upload-artifact@v4
         with:

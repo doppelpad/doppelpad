@@ -620,7 +620,9 @@ host, outside any container: `chmod +x Doppelpad_*.AppImage && ./Doppelpad_*.App
 - `Doppelpad_*_libraries.txt` lists the libraries in the AppImage, each with a package,
   followed by each package's copyright file and the license texts they name. A library
   under `-` (no package) or a package whose licenses name only the GPL, not the LGPL, needs
-  a look before the release.
+  a look before the release. `libtiff5` and `libjbig0` are not in it (K13).
+- `Doppelpad_*_gpl_sources.tar` holds Ubuntu's source package of libayatana-indicator, of
+  the version in the list.
 
 ## Known issues
 
@@ -704,6 +706,9 @@ Found in the third run and left for the maintainer:
   Leaving the TIFF loader out of the AppImage would drop `libtiff5` and `libjbig0`. The
   other GPL licenses in the list cover Debian's packaging files, documentation or are one
   choice of several.
+  *Decided after the run:* the release workflow leaves the TIFF loader out. The AppImage as
+  a whole is distributed under the GPL version 3 (THIRD_PARTY_NOTICES.md), with Ubuntu's
+  source package of libayatana-indicator beside it.
 
 ## Results
 
