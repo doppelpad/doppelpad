@@ -159,18 +159,18 @@ to keep. Linux stays a preview in 1.0 (see [Platforms](#platforms)).
 
    It requires a udev rule for `/dev/uinput` and the input devices, except on SteamOS.
 3. **macOS**: implemented in `dp-platform/src/macos`; unit-tested and tried with a DualSense
-   on USB. Setup and limitations are in [MACOS.md](MACOS.md).
+   and a Switch Pro Controller on USB. Setup and limitations are in [MACOS.md](MACOS.md).
 
    | Responsibility | Status |
    |---|---|
-   | Read controllers | ✅ IOKit HID with the Windows backend's drivers (Sony, Nintendo, Steam, generic pads through their report descriptor); Apple's stand-in Xbox 360 pads left out (tried with a DualSense) |
-   | Hide physical controllers | ✅ seizing the device, which keeps it from the GameController framework too (tried with a DualSense) |
+   | Read controllers | ✅ IOKit HID with the Windows backend's drivers (Sony, Nintendo, Steam, generic pads through their report descriptor); Apple's stand-in Xbox 360 pads left out (tried with a DualSense and a Switch Pro Controller) |
+   | Hide physical controllers | ✅ seizing the device, which keeps it from the GameController framework too; for every config that asks, as there is no virtual controller (tried with a DualSense and a Switch Pro Controller) |
    | Virtual controller | ❌ needs Apple's entitlement for virtual HID devices; the GameController framework may still ignore one |
-   | Keyboard/mouse output | ✅ Quartz events (⏳ testing with the Accessibility permission) |
-   | Keyboard/mouse capture | ✅ event tap (⏳ testing with the Accessibility permission) |
+   | Keyboard/mouse output | ✅ Quartz events, media keys as system events (tried: motion, clicks, wheel, keys, media keys) |
+   | Keyboard/mouse capture | ✅ event tap (tried: a key remapped) |
    | Foreground app | ✅ the window server's window list, Wine games by their `.exe` (tried); installed Steam and Epic games suggested |
    | Power commands, close window, screenshots | ✅ `loginwindow`, `pmset`, the accessibility API, `screencapture` (⏳ testing); no hibernate |
-   | Controller extras | ✅ batteries, lights, trigger effects and rumble through the drivers (tried: battery, light bar, rumble); keep-awake and the lock-screen pause (tried); ⏳ turning Sony pads off over Bluetooth |
+   | Controller extras | ✅ batteries, lights, trigger effects and rumble through the drivers (tried: battery, DualSense light bar, Switch player lights, rumble); keep-awake and the lock-screen pause (tried); ⏳ turning Sony pads off over Bluetooth |
    | Desktop app | ✅ menu bar, overlays over full-screen games without taking the focus (⏳ testing in games), start at login, `.dpgame` from the Finder, permissions in the driver list and welcome guide |
    | Download | ⏳ the release workflow builds a universal `.dmg` and the command-line tool; on a tag only with the repository variable `MACOS_RELEASES`; signing and notarization need an Apple Developer ID |
    | Not on macOS yet | virtual controllers, Switch 2 controllers, the GameCube adapter, Xbox controllers over USB, the crosshair magnifier, cursor clipping |

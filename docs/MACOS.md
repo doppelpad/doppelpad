@@ -12,12 +12,14 @@ interfaces macOS has. No drivers are needed:
 | Keyboard / mouse capture | a Quartz event tap |
 | Per-game profiles | the frontmost window in the window server's list → its process |
 
-> **Status:** preview. Tried on a Mac with macOS 26 and a DualSense on USB: reading it
-> (sticks, buttons, motion, battery), its light bar and rumble, its feature reports, hiding it
-> from the GameController framework, the program in front, keeping the Mac awake and noticing
-> the lock screen. Keyboard and mouse, overlays over games, screenshots, closing windows, the
-> power commands and every other controller are untested, as are Bluetooth controllers.
-> Reports from Mac users are very welcome.
+> **Status:** preview. Tried on a Mac with macOS 26 with a DualSense and a Switch Pro
+> Controller on USB: reading them (buttons, sticks, triggers, motion, battery), the
+> DualSense's light bar, the Switch Pro Controller's player lights, rumble on both, hiding them
+> from the GameController framework, and in the app with the Accessibility permission: the
+> controller as mouse and keyboard (motion, clicks, wheel, keys, media keys), a key remapped on
+> the keyboard, the program in front, keeping the Mac awake and noticing the lock screen.
+> Overlays over games, screenshots, closing windows, the power commands, the other controllers
+> and Bluetooth are untested. Reports from Mac users are very welcome.
 
 ## Install
 
@@ -46,8 +48,9 @@ System Settings › Privacy & Security:
 
 The app shows a missing Accessibility permission in Settings › Drivers, in the welcome guide
 and at the bottom of the window. *Open settings* asks for it: macOS adds Doppelpad to the
-list, where it only has to be turned on. `doppelpad doctor` reports it too. If keyboard and
-mouse still do nothing after granting it, quit Doppelpad and start it again.
+list, where it only has to be turned on. `doppelpad doctor` reports it too. macOS tells a
+running program of the permission only when it starts again, so quit Doppelpad (⌘Q or *Quit*
+in the menu bar) and open it again after granting it.
 
 The permission belongs to the program as it is signed. An app signed ad hoc is a new program
 to macOS after every update, so the permission has to be granted again. A Developer ID
