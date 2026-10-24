@@ -19,6 +19,7 @@ import type { Copied } from '../model/clipboard';
 import type { MenuItem } from '../../components/ui/Menu.svelte';
 import type { OutputPage } from '../../components/OutputPanel.svelte';
 import { SETTINGS_PLACEHOLDER } from './settings';
+import { platform } from './window.svelte';
 import type {
   Action,
   Activator,
@@ -497,7 +498,8 @@ class AppState {
       if (manual) this.toast(t('updates.up_to_date'), 'ok');
       return;
     }
-    const install = await this.confirmAsk(t('updates.available', { version: update.version, current: update.current }), {
+    const available = platform === 'linux' ? 'updates.available_linux' : 'updates.available';
+    const install = await this.confirmAsk(t(available, { version: update.version, current: update.current }), {
       title: t('updates.title'),
       details: update.notes,
       ok: t('updates.install'),

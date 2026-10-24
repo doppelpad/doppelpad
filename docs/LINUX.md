@@ -16,8 +16,26 @@ Doppelpad runs on Linux with only kernel interfaces. No extra drivers are needed
 > app. A second run on SteamOS 3.9 covered batteries, lights, turning off over Bluetooth,
 > keeping awake and the lock screen with a DualSense. The [results](LINUX-TESTING.md#results)
 > list what works and what is still open.
-> DualShock 4, Joy-Cons, Bluetooth, other distributions and Game Mode are untested. Reports
+> DualShock 4, Joy-Cons, Switch controllers over Bluetooth, other distributions and Game Mode
+> are untested. Reports
 > from Linux users are very welcome.
+
+## Install
+
+Each release has a build for 64-bit Linux, made on Ubuntu 22.04 (it needs glibc 2.35 or
+newer):
+
+- `Doppelpad_<version>_amd64.AppImage`: the desktop app, with the libraries it needs
+  (WebKitGTK included). Make it executable and start it:
+  `chmod +x Doppelpad_*.AppImage && ./Doppelpad_*.AppImage`. It hosts the remapping service
+  itself, keeps running in the tray, and updates itself: when a new version is out it asks,
+  then replaces its own file and starts again.
+- `doppelpad_<version>_linux-x86_64.tar.gz`: the command-line tool `doppelpad` (`doctor`,
+  `daemon`, `status`, …), for checking the setup and for running without the app.
+
+Then give your user access as described under [Setup](#setup); on SteamOS nothing needs
+setting up. To build from source instead, see [Desktop app](#desktop-app). A build from
+source doesn't look for updates.
 
 ## Setup
 
@@ -243,8 +261,12 @@ desktops such as KDE Plasma set while their lock screen shows.
 
 ## Desktop app
 
-The app builds and runs on Linux (see [LINUX-TESTING.md § 9](LINUX-TESTING.md#9-desktop-app);
-on SteamOS it needs a container with WebKitGTK). On a Wayland desktop it is a native Wayland
+The [AppImage](#install) brings WebKitGTK along, so it runs on SteamOS without a container.
+Built from source, the app needs WebKitGTK on the system; on SteamOS that means a container
+(see [LINUX-TESTING.md § 9](LINUX-TESTING.md#9-desktop-app)). There, `npx tauri build` in
+`gui/` makes the AppImage too (`tauri.linux.conf.json`), and `--no-bundle` only the program.
+
+On a Wayland desktop the app is a native Wayland
 window, and the compositor decides where windows go: the OSD and the controller overlay
 appear in the middle of the screen instead of the chosen corner. Over a fullscreen game an
 overlay takes the focus and then ends up behind the game.

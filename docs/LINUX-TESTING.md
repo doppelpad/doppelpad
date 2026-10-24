@@ -556,7 +556,8 @@ optional. Do them last, and only with the person's OK.
 
 ## 9. Desktop app
 
-The app has never been built on Linux. This section is a smoke test.
+A smoke test of the app built from source (L9.1–L9.7), and of the AppImage the release
+workflow builds (L9.8).
 
 1. Install Tauri's Linux dependencies. On Arch (in the container on SteamOS):
    `sudo pacman -S --needed webkit2gtk-4.1 gtk3 libappindicator-gtk3 librsvg nodejs npm`.
@@ -568,7 +569,8 @@ The app has never been built on Linux. This section is a smoke test.
    npx tauri build --no-bundle
    ```
 
-   The bundle settings only target the Windows installer, hence `--no-bundle`.
+   `--no-bundle` leaves out the AppImage (`tauri.linux.conf.json`), which these checks don't
+   need.
 3. The binary is `target/release/doppelpad-gui`.
    - On SteamOS, run it inside the container, because it needs the container's WebKitGTK.
    - Don't run it while `doppelpad daemon` runs: the app hosts the service itself.
@@ -600,6 +602,22 @@ The app has never been built on Linux. This section is a smoke test.
 
 **L9.7 Overlays.** Try a crosshair and the pad overlay (`pad_overlay`).
 *Record:* whether they show above other windows and above a game.
+
+**L9.8 AppImage.** Before a release: on GitHub, *Actions → Release → Run workflow* on the
+branch to release, then download the run's artifact `doppelpad-linux`. After a tag: the
+AppImage and the `.tar.gz` of the draft release. Quit every other Doppelpad, then on the
+host, outside any container: `chmod +x Doppelpad_*.AppImage && ./Doppelpad_*.AppImage`.
+*Expected:*
+- It starts without a container and without `DBUS_SYSTEM_BUS_ADDRESS`: the window,
+  controllers in the device bar, the tray icon.
+- L9.3–L9.5 hold as in the container. Keeping awake and the lock-screen pause work (L8.6,
+  L8.7).
+- Update check (*Settings → General → Updates → Check now*): as long as the newest
+  published release has no AppImage, it says that the release has no `linux-x86_64` build.
+  Once one has, it says the app is up to date, or offers the newer version, which replaces
+  the AppImage file and starts again.
+- `doppelpad doctor` from the `.tar.gz` runs on the host.
+- `Doppelpad_*_libraries.txt` lists the libraries in the AppImage, each with a package.
 
 ## Known issues
 
@@ -671,6 +689,8 @@ Found in the second run and left for the maintainer:
   example when a game starts, was not checked.
 - **K12, update check.** The app warns at every start that no `linux-x86_64` build is in the
   update response. Without a Linux release it could stay quiet.
+  *Decided after the run:* releases get an AppImage and a `linux-x86_64` entry in
+  `latest.json`, and only the AppImage looks for updates; a build from source doesn't (L9.8).
 
 ## Results
 
@@ -764,3 +784,4 @@ Driver = kernel driver of the gamepad node. Columns are the checks.
 | L9.5 Tray | ✅ | quitting from the tray releases everything. Second run: per-controller icons failed for ids with a slash, fixed in `8a0d69f`, and a reconnected controller's icon stayed hidden, fixed in `3acb566` (K9). |
 | L9.6 Log file | ✅ | `~/.local/state/doppelpad/logs` |
 | L9.7 Overlays | ⚠️ | Fixed in `374edfa`: the first overlay crashed the app (tao panicked). They now show above other windows, but in the middle of the screen, and over a fullscreen game they take the focus (K6). |
+| L9.8 AppImage | ➖ | not run yet: the release workflow builds it since the second run |

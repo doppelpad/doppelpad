@@ -2,7 +2,8 @@
 //! in `tauri.conf.json`). The window asks whether a newer version is out and whether to
 //! install it. Installing downloads the setup and checks its signature, stops the remapping
 //! service (it shows hidden controllers again), then starts the setup in passive mode and
-//! exits. The setup replaces the files and starts the app again.
+//! exits. The setup replaces the files and starts the app again. On Linux the download is
+//! the new AppImage, which replaces the running one's file before the app restarts.
 
 use std::sync::Mutex;
 
@@ -34,11 +35,17 @@ pub struct UpdateInfo {
 }
 
 /// Ask the update endpoints whether a newer version is out; `None` when this one is the newest.
+/// On Linux only the AppImage updates itself (it replaces its own file); a build from source
+/// asks for nothing.
 #[tauri::command]
 pub async fn update_check(
     app: AppHandle,
     pending: State<'_, PendingUpdate>,
 ) -> CmdResult<Option<UpdateInfo>> {
+    if cfg!(target_os = "linux") && std::env::var_os("APPIMAGE").is_none() {
+        tracing::debug!("not an AppImage: no update check");
+        return Ok(None);
+    }
     let handle = app.clone();
     let update = app
         .updater_builder()

@@ -95,12 +95,12 @@ to keep. Linux stays a preview in 1.0 (see [Platforms](#platforms)).
 | Hide physical controller | ✅ via HidHide; Linux: `EVIOCGRAB` (tested on a Steam Deck) |
 | Ignore list and controller groups (several pads as one) | ✅ |
 | On-screen overlays: notifications (remap, slot, layer, controllers, battery), crosshairs with magnifier, radial menus, controller overlay, mappings sheet | ✅ Windows, in the app (not in `doppelpad daemon`; ⏳ testing in games) |
-| Battery levels (DualShock 4, DualSense, Switch controllers, Xbox) in the app, tray and notifications | ✅ Windows (⏳ hardware testing); Linux: Sony and Switch controllers through sysfs (⏳ hardware testing) |
-| Light bar colours and animations, the game's light bar colour, player LEDs per slot, DualSense mic LED | ✅ USB and Bluetooth (⏳ hardware testing); Linux: light bar and player LEDs through the driver's LED devices, no mic LED (⏳ hardware testing) |
+| Battery levels (DualShock 4, DualSense, Switch controllers, Xbox) in the app, tray and notifications | ✅ Windows (⏳ hardware testing); Linux: Sony and Switch controllers through sysfs (tested with a DualSense) |
+| Light bar colours and animations, the game's light bar colour, player LEDs per slot, DualSense mic LED | ✅ USB and Bluetooth (⏳ hardware testing); Linux: light bar and player LEDs through the driver's LED devices, no mic LED (tested with a DualSense) |
 | DualSense adaptive trigger effects (presets and custom) | ✅ (⏳ hardware testing) |
 | Vibration settings (motor strength, swap, minimum gap); rumble for Sony controllers over Bluetooth | ✅ (⏳ hardware testing) |
-| Turn wireless controllers off (command and idle timeout) | ✅ Windows (⏳ hardware testing); Linux: Sony and Switch controllers over Bluetooth through BlueZ (⏳ hardware testing) |
-| Keep the PC awake while mappings run, pause on the lock screen, optional pause when the game is not in front | ✅ Windows; Linux: keep-awake and the lock-screen pause through logind (⏳ hardware testing) |
+| Turn wireless controllers off (command and idle timeout) | ✅ Windows (⏳ hardware testing); Linux: Sony and Switch controllers over Bluetooth through BlueZ (tested with a DualSense) |
+| Keep the PC awake while mappings run, pause on the lock screen, optional pause when the game is not in front | ✅ Windows; Linux: keep-awake and the lock-screen pause through logind (tested on a Steam Deck) |
 | DSU (cemuhook) motion server for emulators | ✅ (⏳ testing with emulators) |
 | Local HTTP API with event stream ([API.md](API.md)) | ✅ off by default; localhost only, network access with a token |
 | Per-device keyboard/mouse capture | ⏳ Windows needs the Interception driver backend; Linux grabs per device already |
@@ -129,8 +129,8 @@ to keep. Linux stays a preview in 1.0 (see [Platforms](#platforms)).
 | Desktop app: editor, tray, 4 slots per controller, autodetect, English/German, analog editors, controller drawings | ✅ |
 | First-run guide and config templates (virtual Xbox, virtual DualShock 4, desktop, keyboard/mouse) | ✅ |
 | Sharing: games as `.dpgame` bundles, printable bindings sheet, layer presets | ✅ |
-| Installer | ✅ Windows setup (NSIS) that installs missing ViGEmBus/HidHide; ⏳ code signing, test on a clean Windows install |
-| Updates from GitHub Releases: check at start-up (can be turned off) and *Check now*, signed setups, release workflow for version tags | ✅ (0.4.0 updated itself to 0.5.0) |
+| Installer | ✅ Windows setup (NSIS) that installs missing ViGEmBus/HidHide; ⏳ code signing, test on a clean Windows install. Linux: an AppImage, and the command-line tool as a `.tar.gz` (⏳ the AppImage on a Steam Deck) |
+| Updates from GitHub Releases: check at start-up (can be turned off) and *Check now*, signed setups, release workflow for version tags | ✅ (0.4.0 updated itself to 0.5.0); Linux: the AppImage updates itself (⏳ from the first release with an AppImage to the next) |
 
 ## Platforms
 
@@ -150,10 +150,11 @@ to keep. Linux stays a preview in 1.0 (see [Platforms](#platforms)).
    | Foreground app | ✅ X11 / XWayland; ⏳ native Wayland (compositor-specific protocols) |
    | Power commands, close window | ✅ `systemctl` / `loginctl`, EWMH |
    | Controller extras | ✅ batteries and lights through sysfs, turning off over Bluetooth through BlueZ, keep-awake and the lock-screen pause through logind (tried with a DualSense; Switch controllers not yet) |
+   | Download | ✅ the app as an AppImage that updates itself, built on Ubuntu 22.04; the command-line tool as a `.tar.gz` (⏳ the AppImage on a Steam Deck) |
    | Not on Linux yet | screenshots, DualSense trigger effects and microphone LED, Steam controllers (the Deck's trackpads, ··· and analog triggers with Steam closed), Switch 2 controllers, generic-pad layouts, GameCube adapter; overlays that keep their place and stay over fullscreen games on Wayland |
    | Hardware testing | ✅ first pass on a Steam Deck (DualSense, Switch Pro Controller, keyboard and mouse, desktop app), second pass on SteamOS 3.9 (controller extras, DualSense over Bluetooth); ⏳ DualShock 4, Joy-Cons, Switch controllers over Bluetooth, Game Mode, other distributions |
 
-   It requires a udev rule for `/dev/uinput` and the input devices.
+   It requires a udev rule for `/dev/uinput` and the input devices, except on SteamOS.
 3. **macOS**:
    - Keyboard/mouse output and capture with `CGEventPost`/`CGEventTap`, which needs
      Accessibility permission.
