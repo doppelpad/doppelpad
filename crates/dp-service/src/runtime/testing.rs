@@ -33,6 +33,8 @@ pub struct World {
     pub powered_off: Vec<DeviceId>,
     /// Instance paths hidden from games right now.
     pub hidden: Vec<String>,
+    /// The hider hides controllers without a virtual one (as on macOS).
+    pub hide_without_pad: bool,
 }
 
 pub type Shared = Arc<Mutex<World>>;
@@ -161,6 +163,9 @@ impl dp_platform::DeviceHider for FakeHider {
     fn restore(&mut self) -> dp_platform::Result<()> {
         self.0.lock().unwrap().hidden.clear();
         Ok(())
+    }
+    fn hides_without_virtual_pad(&self) -> bool {
+        self.0.lock().unwrap().hide_without_pad
     }
 }
 

@@ -12,7 +12,8 @@ kbm_source = "all"            # all | physical | scripts: which keyboard/mouse i
 
 [output]
 virtual_pad = "xbox360"      # "xbox360" | "dual_shock4" | "none"
-hide_physical = true         # hide the real pad via HidHide while active
+hide_physical = true         # hide the real pad while active (HidHide on Windows); with a virtual
+                             # pad only, except on macOS, which has none
 passthrough = true           # mirror unmapped physical controls to the virtual pad
 mute_mapped_inputs = true    # swallow keys/mouse buttons that trigger a mapping
 

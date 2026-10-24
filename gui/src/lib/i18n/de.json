@@ -225,6 +225,7 @@
     "kbm_source_hint": "Mit \"nur von Skripten\" steuern Programme wie AutoHotkey die Belegung, etwa den virtuellen Controller, und deine echte Tastatur und Maus bleiben unberührt. \"Nur echte Geräte\" lässt eingespeiste Eingaben unverändert durch.",
     "driver_missing": "{driver} ist nicht installiert – diese Config lässt sich noch nicht anwenden.",
     "hide_missing": "HidHide ist nicht installiert — Spiele sehen den echten Controller weiterhin.",
+    "no_virtual_pads_macos": "Unter macOS gibt es noch keine virtuellen Controller — diese Config lässt sich nicht anwenden. Wähle stattdessen „Kein virtueller Controller“.",
     "mouse": "Maus",
     "mouse_hint": "Gehaltene Mausrad-Aktionen wiederholen sich in diesem Abstand (0: eine Raste pro Druck). Die Zonen sind Geschwindigkeiten der echten Maus (Counts pro Sekunde) für MouseMove-Belegungen; die niedrige ist auch, wo ihre Richtungen beginnen.",
     "wheel_repeat": "Mausrad-Wiederholung",
