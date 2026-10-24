@@ -27,10 +27,15 @@ const OUT_FILE = join(REPO_ROOT, 'THIRD_PARTY_LICENSES.md');
 
 const CARGO_ABOUT = 'cargo-about 0.9.2';
 // The Windows setup is built with the GNU toolchain. The file covers MSVC builds too, which
-// use a few other crates, so that it stays complete for either, and the Linux AppImage.
-// cargo-about resolves all the targets it gets at once, so a crate only Linux builds use
-// would bring its Windows-only dependencies along; each group is resolved on its own.
-const TARGET_GROUPS = [['x86_64-pc-windows-gnu', 'x86_64-pc-windows-msvc'], ['x86_64-unknown-linux-gnu']];
+// use a few other crates, so that it stays complete for either, the Linux AppImage and the
+// macOS app (one binary for Apple silicon and Intel). cargo-about resolves all the targets it
+// gets at once, so a crate only Linux builds use would bring its Windows-only dependencies
+// along; each group is resolved on its own.
+const TARGET_GROUPS = [
+  ['x86_64-pc-windows-gnu', 'x86_64-pc-windows-msvc'],
+  ['x86_64-unknown-linux-gnu'],
+  ['aarch64-apple-darwin', 'x86_64-apple-darwin'],
+];
 const TARGETS = TARGET_GROUPS.flat();
 // `tauri build` turns this on.
 const FEATURES = 'dp-gui/custom-protocol';
@@ -318,8 +323,8 @@ function render(crates, packages, groups) {
     '',
     'The source code of every crate is available on <https://crates.io> and of every package on',
     '<https://www.npmjs.com>, at the version listed. The lists cover 64-bit Windows builds with',
-    'the GNU and the MSVC toolchain and 64-bit Linux builds, so some crates appear that only',
-    'one of them uses.',
+    'the GNU and the MSVC toolchain, 64-bit Linux builds and macOS builds for Apple silicon and',
+    'Intel, so some crates appear that only one of them uses.',
     '',
     'The drivers that the setup installs, the WebView2 loader, the runtime libraries of the',
     'compiler and the system libraries in the AppImage are covered in THIRD_PARTY_NOTICES.md.',

@@ -2,8 +2,8 @@
 
 This file covers the parts of Doppelpad that are not Rust crates or npm packages. The
 licenses of the crates and packages compiled into `doppelpad-gui` and `doppelpad` (`.exe`
-on Windows) are in [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md), which the setup and
-the AppImage carry next to this file.
+on Windows) are in [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md), which the setup, the
+AppImage and the macOS app carry next to this file.
 
 ## Bundled drivers
 
@@ -414,3 +414,9 @@ version 3. Doppelpad's own code stays under the MIT or the Apache 2.0 license, w
 allow this, and its source is in this repository at the release's tag. Ubuntu's source
 package of libayatana-indicator, of the version the AppImage carries, is in
 `Doppelpad_<version>_amd64_gpl_sources.tar` beside the AppImage.
+
+## The macOS app
+
+The macOS app contains no third-party libraries besides the Rust crates and npm packages. It
+uses the frameworks of macOS itself (AppKit, WebKit, IOKit and the others), which are part of
+the system and not shipped with the app.
