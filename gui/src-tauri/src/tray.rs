@@ -368,7 +368,12 @@ fn render_pads(app: &AppHandle, tray: &Tray, pads: Vec<PadView>, lang: &str, t: 
     shown.retain(|id, _| {
         let keep = pads.iter().any(|p| &p.id == id);
         if !keep {
-            let _ = app.remove_tray_by_id(&pad_tray_id(id));
+            // Hidden, not removed: on Linux a removed icon stays with the desktop's tray as
+            // a passive item, and one built again with its id never shows. The controller
+            // gets this one back when it returns.
+            if let Some(icon) = app.tray_by_id(&pad_tray_id(id)) {
+                let _ = icon.set_visible(false);
+            }
         }
         keep
     });
@@ -388,6 +393,9 @@ fn render_pads(app: &AppHandle, tray: &Tray, pads: Vec<PadView>, lang: &str, t: 
                     let _ = icon.set_icon(Some(image));
                     let _ = icon.set_tooltip(Some(tip));
                     let _ = icon.set_menu(Some(menu));
+                    if !shown.contains_key(&v.id) {
+                        let _ = icon.set_visible(true);
+                    }
                 } else if let Err(e) = TrayIconBuilder::with_id(pad_tray_id(&v.id))
                     .icon(image)
                     .tooltip(tip)
