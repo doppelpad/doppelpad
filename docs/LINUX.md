@@ -13,7 +13,9 @@ Doppelpad runs on Linux with only kernel interfaces. No extra drivers are needed
 
 > **Status:** first tested on real hardware on a Steam Deck (SteamOS 3.8, desktop mode) with
 > a DualSense and a Switch Pro Controller over USB, a USB keyboard and mouse, and the desktop
-> app. The [results](LINUX-TESTING.md#results) list what works and what is still open.
+> app. A second run on SteamOS 3.9 covered batteries, lights, turning off over Bluetooth,
+> keeping awake and the lock screen with a DualSense. The [results](LINUX-TESTING.md#results)
+> list what works and what is still open.
 > DualShock 4, Joy-Cons, Bluetooth, other distributions and Game Mode are untested. Reports
 > from Linux users are very welcome.
 
@@ -57,8 +59,10 @@ On **SteamOS** you can skip these steps. Steam's udev rules (`60-steam-input.rul
 (its Bluetooth adapter is a USB device). `doppelpad doctor` confirms it. Without the rule,
 the user can't read virtual keyboards and mice that other programs create through uinput, so
 capture leaves them alone. The nodes that stay unreadable, such as the touchscreen and the
-audio jacks, are not needed. Only to set controllers' lights, put the LED rule in a file of
-its own under `/etc/udev/rules.d` and run the two `udevadm` commands.
+audio jacks, are not needed. SteamOS 3.9 also ships `70-steam-jupiter-leds.rules`, which
+gives the `deck` user the brightness and colour of every LED, so controllers' lights need no
+rule either. Where that file is missing, put the LED rule in a file of its own under
+`/etc/udev/rules.d` and run the two `udevadm` commands.
 
 ## Controllers
 
@@ -109,9 +113,14 @@ goes to the controller's HID device in sysfs, and to BlueZ:
   `…:rgb:indicator` and `…:white:player-1` to `player-5` on a DualSense, `…:red`, `…:green`
   and `…:blue` on a DualShock 4, `…:green:player-1` to `player-4` on Switch controllers.
   Writing them needs the LED rule from [Setup](#setup). Without it the app shows a warning.
+  Steam sets the lights of a controller it takes over just after it connects, through
+  hidraw and past the driver, so Doppelpad writes them again for a few seconds after a
+  controller connects.
 - **Turning off** (the `power_off` command, and controllers turned off after the idle time):
   Doppelpad ends the Bluetooth connection through BlueZ (`busctl`), and DualShock 4,
-  DualSense and Switch controllers switch off. A controller on its cable stays on.
+  DualSense and Switch controllers switch off. A controller on its cable stays on. The
+  adapter is taken from where the HID device sits in sysfs. With BlueZ's `UserspaceHID`, as
+  on SteamOS 3.9, it sits under `uhid` instead, and the first adapter (`hci0`) is assumed.
 - **Not available:** DualSense trigger effects, and its microphone LED, which hid-playstation
   drives from the mute button itself.
 
@@ -145,7 +154,9 @@ Steam makes a virtual pad (`28de:11ff`, named "Microsoft X-Box 360 pad N") for e
 controller it drives, Doppelpad's own virtual pad included. Doppelpad lists them, but never
 picks one on its own, and the app doesn't announce them or give them a tray icon of their
 own. To use one, pick it in the app. While Steam runs, that is the only way to the Steam
-Deck's own controls (below).
+Deck's own controls (below). Steam's pads have no serial number or port, so their id is the
+event node (`evdev:28de:11ff:/dev/input/event10`): after Steam or the computer restarts, a
+pick can point to another of Steam's pads, or to none.
 
 While Steam drives a controller it also changes what its evdev nodes deliver:
 
@@ -156,8 +167,10 @@ While Steam drives a controller it also changes what its evdev nodes deliver:
   (and `b true` to restore it).
 
 **Steam Deck controls.** While Steam runs, they exist only as Steam's virtual pad, with the
-Xbox 360 layout: no back buttons, trackpads or gyro. Pick that pad in the app to remap them. With Steam closed, hid-steam offers a
-"Steam Deck" controller and a motion node, but starts in lizard mode, in which the controls
+Xbox 360 layout: no back buttons, trackpads or gyro. Pick that pad in the app to remap them.
+In desktop mode Steam's desktop configuration turns the controls into mouse and keyboard and
+its pad stays silent: hold the Menu button (≡) to switch Steam to gamepad mode, and again to
+switch back. With Steam closed, hid-steam offers a "Steam Deck" controller and a motion node, but starts in lizard mode, in which the controls
 act as keyboard and mouse and the gamepad node stays silent. Hold the Menu button (≡) to
 switch to gamepad mode. Doppelpad then reads the buttons, L4/R4/L5/R5 as the four paddles,
 the sticks and the gyro. The trackpads, the ··· button and the analog triggers are not read
@@ -235,6 +248,16 @@ on SteamOS it needs a container with WebKitGTK). On a Wayland desktop it is a na
 window, and the compositor decides where windows go: the OSD and the controller overlay
 appear in the middle of the screen instead of the chosen corner. Over a fullscreen game an
 overlay takes the focus and then ends up behind the game.
+
+Tray icons go through libappindicator, which cannot remove an icon. The icon of a
+controller that went away is hidden, and desktops such as KDE Plasma list it among the
+tray's hidden icons until the controller is back or the app quits.
+
+Keeping awake, the lock-screen pause and turning controllers off talk to the system bus. A
+container may not share it: the Arch Distrobox container on SteamOS has no `/run/dbus`.
+There, start the app with
+`DBUS_SYSTEM_BUS_ADDRESS=unix:path=/run/host/run/dbus/system_bus_socket`; otherwise they
+fail without a warning.
 
 ## Troubleshooting
 

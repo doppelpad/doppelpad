@@ -7,6 +7,7 @@ use super::codes::*;
 pub use crate::nintendo::NINTENDO_VID;
 use crate::nintendo::{imu_to_pad, pid};
 use crate::sony::{SONY_VID, SonyModel, model_for};
+use crate::steam::{VALVE_VID, is_virtual_pad};
 use crate::{JoyConSide, MICROSOFT_VID, PadFamily};
 
 /// Value range of one absolute axis (`struct input_absinfo`).
@@ -97,6 +98,8 @@ pub fn family_for(vendor: u16, product: u16) -> PadFamily {
             None => PadFamily::Generic,
         },
         MICROSOFT_VID => PadFamily::Xbox,
+        // Steam's virtual pads are laid out and named like an Xbox 360 pad.
+        VALVE_VID if is_virtual_pad(vendor, product) => PadFamily::Xbox,
         // Joy-Con (L) and joycond's combined Joy-Cons; the right Joy-Con shares its PID with
         // the NES controllers, see [`joycon_side`].
         NINTENDO_VID if matches!(product, pid::JOYCON_L | pid::JOYCOND_PAIR) => PadFamily::JoyCon,
@@ -741,7 +744,17 @@ mod tests {
         assert_eq!(family_for(0x054C, 0x0CE6), PadFamily::DualSense);
         assert_eq!(family_for(0x054C, 0x09CC), PadFamily::DualShock4);
         assert_eq!(family_for(0x045E, 0x028E), PadFamily::Xbox);
+        assert_eq!(
+            family_for(0x28DE, 0x11FF),
+            PadFamily::Xbox,
+            "Steam's virtual pad"
+        );
         assert_eq!(family_for(0x057E, 0x2009), PadFamily::SwitchPro);
+        assert_eq!(
+            family_for(0x28DE, 0x1205),
+            PadFamily::Generic,
+            "the Deck's own controls"
+        );
         assert_eq!(family_for(0x1234, 0x5678), PadFamily::Generic);
     }
 

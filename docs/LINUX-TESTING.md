@@ -109,9 +109,18 @@ Work in desktop mode.
     with a newer glibc than SteamOS's.
   - If something works on one side but not the other, suspect the container before
     Doppelpad.
+  - The Arch container has no `/run/dbus`, so the app can't reach logind or BlueZ from it
+    (L8.4, L8.6, L8.7). Start it with
+    `DBUS_SYSTEM_BUS_ADDRESS=unix:path=/run/host/run/dbus/system_bus_socket`.
 - Access needs no setup on SteamOS: Steam's udev rules already give the logged-in user
   everything Doppelpad needs ([LINUX.md § Setup](LINUX.md#setup)). So step 4 above is only
   a check with `doppelpad doctor`.
+- To see the messages for missing access anyway (L1.2, L8.4), hide a device file in a
+  namespace of its own, without root. A bind mount of a file only root can read makes it
+  unreadable for Doppelpad, for example a controller's node:
+  `unshare -r -m sh -c 'mount --bind /etc/shadow /dev/input/event10 && doppelpad doctor'`.
+  The same works for `/dev/uinput` and for the `brightness` and `multi_intensity` files of a
+  controller's LEDs.
 - `sudo` needs a password, which a new Deck doesn't have yet. Set one with `passwd` when you
   need it, for example to turn on SSH with `sudo systemctl enable --now sshd`. A second
   computer can then run commands, and it can stop Doppelpad if input gets stuck.
@@ -502,20 +511,25 @@ actions = [{ command = "sleep" }]
 
 **L8.4 Turning off and lights** ([K2](#known-issues)).
 1. Press B on a controller connected over Bluetooth, then on one on its cable.
-2. Run a profile with `lightbar = { mode = "breath", colors = ["#14b8a6", "#8b5cf6"] }` on a
+2. Run a profile with
+   `lightbar = { mode = "breath", colors = ["#14b8a6", "#8b5cf6"], cycle = true }` on a
    DualSense or DualShock 4: first without the LED rule from
    [LINUX.md § Setup](LINUX.md#setup), then with it (reconnect the controller after adding
-   the rule).
+   the rule). SteamOS 3.9 makes the LEDs writable without the rule; simulate its absence as
+   described under [Steam Deck](#steam-deck-steamos).
 3. In the app, turn on the player lights (*Settings → Controllers → Controller lights*) and
    switch slots, on a DualSense and on a Switch controller.
+4. With Steam running, unplug the controller and plug it back in.
 
 *Expected:*
 - Over Bluetooth the controller switches off. On its cable the log says that it cannot be
   turned off.
 - Without the LED rule the app warns that the lights cannot be set. With it the light bar
-  breathes smoothly between the two colours, and the player lights show the slot's number
+  breathes smoothly, one colour per breath, and the player lights show the slot's number
   as on Windows: on a DualSense from the centre outwards, on a Switch controller filling up
   from the first light.
+- After reconnecting, the player lights may flash and go dark as Steam takes the controller
+  over, but they are back within a few seconds.
 
 **L8.5 `sleep`.** Ask the person first. Then press LB+RB+Start.
 *Expected:*
@@ -598,7 +612,8 @@ Found while writing this checklist, and fixed in the first run on a Steam Deck:
   `crates/dp-platform/src/lib.rs`. LINUX.md says so now.
   *After the run:* batteries, the light bar and player lights now go through sysfs, and
   turning off over Bluetooth through BlueZ (L2.7, L8.4). Trigger effects and the DualSense's
-  microphone LED stay unavailable.
+  microphone LED stay unavailable. *Second run:* tested with a DualSense; Switch controllers
+  not yet.
 
 Found in the first run and left for the maintainer, with what was seen:
 
@@ -611,7 +626,11 @@ Found in the first run and left for the maintainer, with what was seen:
   our own pad (nothing in the device tells which pad Steam mirrors).
   *Decided after the run:* Steam's pads are still listed and can be picked in the app, but
   are never picked on their own, are not announced, and get a tray icon only while in use.
-  Not yet checked on the Deck (L6.1, L6.2).
+  *Second run:* checked (L6.1, L6.2, L6.4); their tray icons needed fixes (`8a0d69f`,
+  `3acb566`). Still open: their ids come from the event node, so a pick in the app can point
+  to another of Steam's pads after Steam restarts. The app drew them as a generic
+  controller, because the family came from Valve's vendor id; they are drawn as the Xbox 360
+  pad they imitate now.
 - **K4, Steam and hidraw.** While Steam Input drives a controller, Steam reads it through
   hidraw, so hiding doesn't reach Steam: a game with Steam Input on gets the controller
   twice (L6.3). Steam also turns the Switch Pro Controller's IMU off, and SteamOS's
@@ -636,49 +655,72 @@ Found in the first run and left for the maintainer, with what was seen:
   `uaccess` on the USB node) would carry over; what is missing is a Linux backend that runs
   HID pad drivers over hidraw.
 
+Found in the second run and left for the maintainer:
+
+- **K9, tray icons can't be removed on Linux** (L9.5). libappindicator 0.9 never frees an
+  icon, and tray-icon only makes it passive. Since `3acb566` a controller that goes away
+  keeps its hidden icon, which KDE Plasma lists among its hidden icons until the controller
+  is back or the app quits. Removing it would need a change in libappindicator or tray-icon.
+- **K10, no system bus, no warning.** When `systemd-inhibit` and `busctl` can't reach the
+  system bus, as in the Arch container without `DBUS_SYSTEM_BUS_ADDRESS`, keeping awake, the
+  lock-screen pause and turning off fail silently: the inhibitor exits at once, and the lock
+  watch gives up with a debug line. A warning in the app would help.
+- **K11, Steam sets controllers' lights.** Steam writes a controller's lights through hidraw
+  when it takes the controller over, past the driver. Doppelpad now writes its own again for
+  6 s after a controller connects (`a2cc63a`). Whether Steam sets them again later, for
+  example when a game starts, was not checked.
+- **K12, update check.** The app warns at every start that no `linux-x86_64` build is in the
+  update response. Without a Linux release it could stay quiet.
+
 ## Results
 
 ### Test machine
 
-| | |
-|---|---|
-| Machine | Steam Deck LCD ("Jupiter"), desktop mode |
-| Distribution (`PRETTY_NAME` in `/etc/os-release`) | SteamOS 3.8.28 (build 20260922.1) |
-| Kernel (`uname -r`) | 6.18.50-valve2-1-neptune-618-gc7289a96b14d |
-| Desktop and session type | KDE Plasma 6.4.3, Wayland (`DISPLAY=:0` for XWayland) |
-| Steam running | yes, except for L2.6 and the Switch Pro's L2.3 |
-| Doppelpad commit (`git rev-parse --short HEAD`) | `ca8c455` plus the fixes on `linux-hardware-test` |
-| Date | 2026-10-23 |
+| | First run | Second run |
+|---|---|---|
+| Machine | Steam Deck LCD ("Jupiter"), desktop mode | the same |
+| Distribution (`VERSION_ID` and `BUILD_ID` in `/etc/os-release`) | SteamOS 3.8.28 (build 20260922.1) | SteamOS 3.9.5 (build 20261023.100) |
+| Kernel (`uname -r`) | 6.18.50-valve2-1-neptune-618-gc7289a96b14d | 7.2.7-valve2-2-neptune-72-g31504582a073 |
+| Desktop and session type | KDE Plasma 6.4.3, Wayland (`DISPLAY=:0` for XWayland) | KDE Plasma 6.7.3, Wayland |
+| Steam running | yes, except for L2.6 and the Switch Pro's L2.3 | yes |
+| Doppelpad commit (`git rev-parse --short HEAD`) | `ca8c455` plus the fixes on `linux-hardware-test` | `989add8` plus the fixes on `linux-device-test` |
+| Date | 2026-10-23 | 2026-10-24 |
 
 The CLI was built in a Debian 13 container and run on the host; the app was built and run in
 an Arch container ([setup](#steam-deck-steamos)). Checks marked *fake pad* were driven by a
 uinput test gamepad (`045e:028e`, with `FF_RUMBLE`) instead of hands; *fixed* names the
-commit on `linux-hardware-test` without which the check failed.
+commit on `linux-hardware-test` or `linux-device-test` without which the check failed.
+
+The second run tested what changed after the first: batteries, lights, turning off, keeping
+awake, the lock screen and Steam's virtual pads (K3), with a DualSense over USB and
+Bluetooth. After the SteamOS update it also ran L1.1–L1.4, L3.1–L3.3, L4.1, L4.2, L5.2 and
+L5.4 again, all ✅.
 
 ### Controllers
 
 Driver = kernel driver of the gamepad node. Columns are the checks.
 
-| Controller | Connection | Driver | L2.1 | L2.2 | L2.3 | L2.5 | L3.5 | L4.1 | Notes |
-|---|---|---|---|---|---|---|---|---|---|
-| DualSense `054c:0ce6` | USB | playstation | ✅ | ⚠️ | ⚠️ | ✅ | ✅ | ✅ | Mute never arrives (see L2.2). Gyro signs right. Touchpad: phantom touch at (0,0) fixed in `020954d`; with Steam running, `steamos-manager` inhibits the touchpad node (K4), with `InhibitDs` off touch and click work. L3.5: rumble kept running after a stop, fixed in `fcbeaf3` and measured with the controller's accelerometer. |
-| Switch Pro Controller `057e:2009` | USB | nintendo | ✅ | ✅ | ⚠️ | ➖ | ➖ | ✅ | Capture is `Misc`, ZL/ZR digital. IMU silent while Steam drives the controller (K4); with Steam closed, gravity confirms the axes Doppelpad assumes. |
-| Switch 2 Pro Controller `057e:2069` | USB | usbhid | ⚠️ | ➖ | ➖ | ➖ | ➖ | ➖ | Skipped with "not supported on Linux yet", as documented (K8). |
-| Steam Deck controls `28de:1205` | built in | hid-steam | ⚠️ | ⚠️ | ⚠️ | ➖ | ➖ | ➖ | See L2.6 and L6.4. |
-| Fake pad `045e:028e` | uinput | — | ✅ | ✅ | ➖ | ✅ | ✅ | ✅ | Stable id from `phys`. |
+| Controller | Connection | Driver | L2.1 | L2.2 | L2.3 | L2.5 | L2.7 | L3.5 | L4.1 | Notes |
+|---|---|---|---|---|---|---|---|---|---|---|
+| DualSense `054c:0ce6` | Bluetooth | playstation | ✅ | ➖ | ➖ | ✅ | ✅ | ➖ | ➖ | Second run. Its id is its Bluetooth address, which hid-playstation also gives it on USB, so switching between USB and Bluetooth keeps the id and the profile. The HID device sits under uhid (BlueZ `UserspaceHID`). |
+| DualSense `054c:0ce6` | USB | playstation | ✅ | ⚠️ | ⚠️ | ✅ | ✅ | ✅ | ✅ | Mute never arrives (see L2.2). Gyro signs right. Touchpad: phantom touch at (0,0) fixed in `020954d`; with Steam running, `steamos-manager` inhibits the touchpad node (K4), with `InhibitDs` off touch and click work. L3.5: rumble kept running after a stop, fixed in `fcbeaf3` and measured with the controller's accelerometer. |
+| Switch Pro Controller `057e:2009` | USB | nintendo | ✅ | ✅ | ⚠️ | ➖ | ➖ | ➖ | ✅ | Capture is `Misc`, ZL/ZR digital. IMU silent while Steam drives the controller (K4); with Steam closed, gravity confirms the axes Doppelpad assumes. |
+| Switch 2 Pro Controller `057e:2069` | USB | usbhid | ⚠️ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | Skipped with "not supported on Linux yet", as documented (K8). |
+| Steam Deck controls `28de:1205` | built in | hid-steam | ⚠️ | ⚠️ | ⚠️ | ➖ | ➖ | ➖ | ➖ | See L2.6 and L6.4. |
+| Fake pad `045e:028e` | uinput | — | ✅ | ✅ | ➖ | ✅ | ➖ | ✅ | ✅ | Stable id from `phys`. |
 
 ### Checks
 
 | Check | Result | Notes |
 |---|---|---|
-| L1.1 Unit tests run natively | ✅ | 144 passed (147 with the tests the fixes added) |
-| L1.2 Messages without access | ✅ | Simulated in containers: a missing and an unwritable `/dev/uinput` and an unreadable controller each get their message. On SteamOS nothing needed setting up. The warning used to name the first unreadable node, an HDMI audio jack; fixed in `b2cb3c0`. |
-| L1.3 Doctor | ✅ | Fixed in `098cd6b`: evdev 0.13.2 sends `UI_SET_PHYS` with the wrong size, so no uinput device could be created at all (EINVAL). Labels fixed in `e673a14` (K1). `doctor` printed the uinput warning twice when uinput was missing, because it set up the backends twice; fixed after the run. |
-| L1.4 Daemon and IPC | ✅ | Also after `kill -9`. `devices` right after the daemon started could say "no controllers found" until the first scan; the backend now waits for that scan when it starts (fixed after the run). |
+| L1.1 Unit tests run natively | ✅ | 144 passed (147 with the tests the fixes added); 152 in the second run |
+| L1.2 Messages without access | ✅ | Simulated in containers: a missing and an unwritable `/dev/uinput` and an unreadable controller each get their message. On SteamOS nothing needed setting up. The warning used to name the first unreadable node, an HDMI audio jack; fixed in `b2cb3c0`. Second run, simulated with `unshare` and bind mounts: a missing or unwritable `/dev/uinput` warns once, an unreadable controller gets a `problem:` line, and LEDs without write access warn once in the log and in the warnings. |
+| L1.3 Doctor | ✅ | Fixed in `098cd6b`: evdev 0.13.2 sends `UI_SET_PHYS` with the wrong size, so no uinput device could be created at all (EINVAL). Labels fixed in `e673a14` (K1). `doctor` printed the uinput warning twice when uinput was missing, because it set up the backends twice; fixed after the run (`06ffaeb`), once in the second run. |
+| L1.4 Daemon and IPC | ✅ | Also after `kill -9`. `devices` right after the daemon started could say "no controllers found" until the first scan; the backend now waits for that scan when it starts (`4653bbc`); in the second run `devices` listed every controller at once. |
 | L2.1–L2.3, L2.5 | ⚠️ | see [Controllers](#controllers) |
 | L2.4 Joy-Cons | ➖ | none at hand |
 | L2.6 Steam Deck controls, Steam closed | ⚠️ | A "Steam Deck" controller (`28de:1205`, id from its serial) with its motion node. hid-steam starts in lizard mode (keyboard and mouse) and its gamepad node stays silent until the Menu button (≡) is held. Then buttons, L4/R4/L5/R5 (`PaddleUL`/`UR`/`LL`/`LR`), sticks, d-pad and gyro arrive; trackpads, ··· and analog triggers don't (K5). |
-| L2.7 Battery | ➖ | added after the first run |
+| L2.7 Battery | ✅ | Second run, DualSense: 75 % as in sysfs, charging on its cable and discharging over Bluetooth, in the app and in the tray's tooltip. No Switch controller at hand. |
 | L3.1 Virtual pad exists | ✅ | after `098cd6b` |
 | L3.2 Virtual pad input | ⚠️ | All controls, ranges and A→B as expected (DualSense, fake pad). At rest the DualSense keeps sending stick events (K7). |
 | L3.3 Own pad ignored | ✅ | Steam's mirror of it is listed (K3). |
@@ -698,27 +740,27 @@ Driver = kernel driver of the gamepad node. Columns are the checks.
 | L5.6 What isn't captured | ✅ | touchscreen, power buttons and a Wacom tablet stay untouched |
 | L5.7 Lock keys | ➖ | the keyboard has no Caps Lock LED |
 | L5.8 Deck controls during capture | ✅ | trackpad cursor and buttons keep working through the passthrough devices |
-| L6.1 Inventory | ⚠️ | Steam opens the hidraw nodes of the controllers it drives and makes a `28de:11ff` pad for each, Doppelpad's pad included (K3). SteamOS 3.8's Steam has no switch to turn Steam Input off per controller type. |
-| L6.2 Feedback loop | ✅ | No loop: Steam mirrors Doppelpad's pad and Doppelpad lists the mirror, but a session keeps the controller it has; one press gives one press. |
+| L6.1 Inventory | ⚠️ | Steam opens the hidraw nodes of the controllers it drives and makes a `28de:11ff` pad for each, Doppelpad's pad included (K3). SteamOS 3.8's Steam has no switch to turn Steam Input off per controller type. Second run: Steam's pads are listed but never picked on their own, and the app's notices name each controller once. |
+| L6.2 Feedback loop | ✅ | No loop: Steam mirrors Doppelpad's pad and Doppelpad lists the mirror, but a session keeps the controller it has; one press gives one press. Second run: the session picks the fake pad, not Steam's pad 0. When the fake pad goes away no controller is in use, instead of Steam's mirror of Doppelpad's pad, and the fake pad is picked again when it is back. |
 | L6.3 What a game sees | ⚠️ | Silksong with `hidden.toml` on a Switch Pro Controller. (a) Steam Input on: three pads, the controller twice, once through Steam unremapped (K4); Steam also takes Capture for its screenshots. (b) Steam Input off for the game: it opens Doppelpad's pad and the grabbed (silent) physical node, so one controller, remapped. (c) not available (L6.1). |
-| L6.4 Deck controls with Steam running | ✅ | Only as Steam's "Microsoft X-Box 360 pad 0": the Xbox 360 layout, without paddles, trackpads or gyro. Remapping those needs native support, for example through hidraw like the Windows `steam` driver. |
+| L6.4 Deck controls with Steam running | ✅ | Only as Steam's "Microsoft X-Box 360 pad 0": the Xbox 360 layout, without paddles, trackpads or gyro. Remapping those needs native support, for example through hidraw like the Windows `steam` driver. Second run: picked in the app, it gets a tray icon and moves the controller view once Steam is in gamepad mode (hold ≡); in desktop mode Steam keeps it silent. |
 | L7.1 Session | ✅ | Wayland, `DISPLAY=:0`, Plasma 6.4.3 |
-| L7.2 Foreground names | ✅ | XWayland windows by name (`kdialog`, `Hollow Knight Silksong`); native Wayland ones `?`. From the containerised app the name was cut to 15 bytes; fixed in `4e651fa`. No Proton game tested. |
+| L7.2 Foreground names | ✅ | XWayland windows by name (`kdialog`, `Hollow Knight Silksong`); native Wayland ones `?`. From the containerised app the name was cut to 15 bytes; fixed in `4e651fa`. No Proton game tested. Second run: argv[0] is used only when comm has 15 bytes (`c49a0bf`); from the app, `averyveryverylongname` and `kdialog` came out whole. |
 | L7.3 Automatic switching | ✅ | in and out within 0.5 s |
 | L7.4 Native Wayland windows | ✅ | `?`, nothing in the log |
 | L7.5 Game Mode | ➖ | skipped (optional) |
 | L8.1 `close_window` | ✅ | Fixed in `d12b70f`: the window almost never closed, because the connection closed before the X server handled the request. Tested on a dialog, not on an editor with unsaved text. |
 | L8.2 `screenshot` | ✅ | |
 | L8.3 `launch` | ✅ | |
-| L8.4 Turning off and lights | ✅ | First run: logs "this controller cannot be turned off"; light bar not tried (K2). Turning off over Bluetooth, the light bar and player lights were added after the run and are not tested yet. |
+| L8.4 Turning off and lights | ✅ | Second run, DualSense: over Bluetooth B turns it off (BlueZ; `hci0` is assumed because the HID device sits under uhid); on its cable the log says it cannot be turned off. The light bar breathes smoothly, one colour per breath with `cycle = true`. Player lights 2 and 4 for slot 2; after a reconnect Steam turned them off past the driver, fixed in `a2cc63a` (K11). SteamOS 3.9.5's `70-steam-jupiter-leds.rules` makes the LEDs writable without the LED rule; a simulated missing rule warns once. Switch controllers not tried. |
 | L8.5 `sleep` | ✅ | suspends; after waking, the controllers and the profile keep working |
-| L8.6 Keeping awake | ➖ | added after the first run |
-| L8.7 The lock screen | ➖ | added after the first run |
+| L8.6 Keeping awake | ✅ | Second run: a `Doppelpad` `idle` lock while a toggle holds output, gone after toggling off, after `stop` and after `kill -9`; from the daemon and from the app (with the system bus, K10). |
+| L8.7 The lock screen | ✅ | Second run, locked and unlocked with `loginctl lock-session` and `unlock-session`: the log says `locked=true` and `remapping paused`; while locked, mapped buttons give nothing on the virtual pad and keyboard, and they work again after unlocking. Daemon and app. |
 | L8.8 Other power commands | ➖ | skipped |
 | L9.1 App builds | ✅ | `npm ci` and `tauri build --no-bundle` in the Arch container; two Linux-only clippy warnings fixed in `3e5b87f` |
 | L9.2 Window | ✅ | Fixed in `601b203`: the 1320 × 820 window was larger than the Deck's screen, which cut off the close button and the bottom bar. |
 | L9.3 Controller view | ✅ | |
 | L9.4 Apply to a slot | ✅ | `doppelpad status` reaches the app's service |
-| L9.5 Tray | ✅ | quitting from the tray releases everything |
+| L9.5 Tray | ✅ | quitting from the tray releases everything. Second run: per-controller icons failed for ids with a slash, fixed in `8a0d69f`, and a reconnected controller's icon stayed hidden, fixed in `3acb566` (K9). |
 | L9.6 Log file | ✅ | `~/.local/state/doppelpad/logs` |
 | L9.7 Overlays | ⚠️ | Fixed in `374edfa`: the first overlay crashed the app (tao panicked). They now show above other windows, but in the middle of the screen, and over a fullscreen game they take the focus (K6). |

@@ -204,8 +204,15 @@ fn pad_tooltip(v: &PadView, t: &Texts) -> String {
     truncate_utf16(&tip, TOOLTIP_MAX)
 }
 
-/// The tray id of a controller's icon.
+/// The tray id of a controller's icon. On Linux the icon is written to a file named after
+/// it, so the slashes in evdev ids (`…:usb-0000:04:00.3-1/input0`, `…:/dev/input/event10`)
+/// are escaped; they would point into folders that don't exist.
 fn pad_tray_id(id: &str) -> String {
+    format!("pad|{}", id.replace('%', "%25").replace('/', "%2F"))
+}
+
+/// The start of a controller's menu entries, which [`pad_command`] reads the device from.
+fn pad_menu_id(id: &str) -> String {
     format!("pad|{id}")
 }
 
@@ -361,7 +368,12 @@ fn render_pads(app: &AppHandle, tray: &Tray, pads: Vec<PadView>, lang: &str, t: 
     shown.retain(|id, _| {
         let keep = pads.iter().any(|p| &p.id == id);
         if !keep {
-            let _ = app.remove_tray_by_id(&pad_tray_id(id));
+            // Hidden, not removed: on Linux a removed icon stays with the desktop's tray as
+            // a passive item, and one built again with its id never shows. The controller
+            // gets this one back when it returns.
+            if let Some(icon) = app.tray_by_id(&pad_tray_id(id)) {
+                let _ = icon.set_visible(false);
+            }
         }
         keep
     });
@@ -381,6 +393,9 @@ fn render_pads(app: &AppHandle, tray: &Tray, pads: Vec<PadView>, lang: &str, t: 
                     let _ = icon.set_icon(Some(image));
                     let _ = icon.set_tooltip(Some(tip));
                     let _ = icon.set_menu(Some(menu));
+                    if !shown.contains_key(&v.id) {
+                        let _ = icon.set_visible(true);
+                    }
                 } else if let Err(e) = TrayIconBuilder::with_id(pad_tray_id(&v.id))
                     .icon(image)
                     .tooltip(tip)
@@ -422,7 +437,7 @@ fn pad_menu(app: &AppHandle, v: &PadView, t: &Texts) -> tauri::Result<Menu<Wry>>
                 let checked = path.is_some() && v.remap_on && v.active_slot == i;
                 let item = CheckMenuItem::with_id(
                     app,
-                    format!("{}|slot|{i}", pad_tray_id(id)),
+                    format!("{}|slot|{i}", pad_menu_id(id)),
                     menu_text(&text),
                     path.is_some(),
                     checked,
@@ -432,7 +447,7 @@ fn pad_menu(app: &AppHandle, v: &PadView, t: &Texts) -> tauri::Result<Menu<Wry>>
             }
         }
         None => {
-            let own = format!("{}|own", pad_tray_id(id));
+            let own = format!("{}|own", pad_menu_id(id));
             menu.append(&MenuItem::with_id(
                 app,
                 own,
@@ -746,6 +761,30 @@ mod tests {
         );
         assert_eq!(pad_command("slot-1"), None);
         assert_eq!(pad_command("pad|x|slot|nine"), None);
+        // evdev ids carry slashes; the menu gives them back whole.
+        let id = "evdev:045e:028e:usb-0000:04:00.3-1/input0";
+        assert_eq!(
+            pad_command(&format!("{}|slot|0", pad_menu_id(id))),
+            Some(ServiceCmd::SelectSlot {
+                device: Some(id.into()),
+                slot: 0
+            })
+        );
+    }
+
+    #[test]
+    fn icon_ids_make_file_names() {
+        let ids = [
+            "evdev:045e:028e:usb-0000:04:00.3-1/input0",
+            "evdev:28de:11ff:/dev/input/event10",
+            "evdev:28de:11ff:%2Fdev%2Finput%2Fevent10",
+            "hid:a",
+        ];
+        let tray_ids: Vec<String> = ids.iter().map(|id| pad_tray_id(id)).collect();
+        assert!(tray_ids.iter().all(|t| !t.contains('/')));
+        assert_eq!(tray_ids[1], "pad|evdev:28de:11ff:%2Fdev%2Finput%2Fevent10");
+        assert_ne!(tray_ids[1], tray_ids[2]);
+        assert_eq!(tray_ids[3], "pad|hid:a");
     }
 
     #[test]
