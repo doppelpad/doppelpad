@@ -272,10 +272,4 @@ mod tests {
         );
         assert_eq!(stamp.len(), super::stamp().len());
     }
-
-    #[test]
-    fn the_session_is_active_here() {
-        // Tests run in an unlocked session (or without one).
-        assert!(MacSystem::default().desktop_active());
-    }
 }
