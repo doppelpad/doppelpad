@@ -620,7 +620,9 @@ host, outside any container: `chmod +x Doppelpad_*.AppImage && ./Doppelpad_*.App
 - `Doppelpad_*_libraries.txt` lists the libraries in the AppImage, each with a package,
   followed by each package's copyright file and the license texts they name. A library
   under `-` (no package) or a package whose licenses name only the GPL, not the LGPL, needs
-  a look before the release.
+  a look before the release. `libtiff5` and `libjbig0` are not in it (K13).
+- `Doppelpad_*_gpl_sources.tar` holds Ubuntu's source package of libayatana-indicator, of
+  the version in the list.
 
 ## Known issues
 
@@ -704,6 +706,10 @@ Found in the third run and left for the maintainer:
   Leaving the TIFF loader out of the AppImage would drop `libtiff5` and `libjbig0`. The
   other GPL licenses in the list cover Debian's packaging files, documentation or are one
   choice of several.
+  *Decided after the run:* the release workflow leaves the TIFF loader out. The AppImage as
+  a whole is distributed under the GPL version 3 (THIRD_PARTY_NOTICES.md), with Ubuntu's
+  source package of libayatana-indicator beside it. Checked in the AppImage built from
+  `e7acb0a`: the source package matches the version in the library list and its checksums.
 
 ## Results
 
@@ -803,4 +809,4 @@ Driver = kernel driver of the gamepad node. Columns are the checks.
 | L9.5 Tray | ✅ | quitting from the tray releases everything. Second run: per-controller icons failed for ids with a slash, fixed in `8a0d69f`, and a reconnected controller's icon stayed hidden, fixed in `3acb566` (K9). |
 | L9.6 Log file | ✅ | `~/.local/state/doppelpad/logs` |
 | L9.7 Overlays | ⚠️ | Fixed in `374edfa`: the first overlay crashed the app (tao panicked). They now show above other windows, but in the middle of the screen, and over a fullscreen game they take the focus (K6). |
-| L9.8 AppImage | ✅ | Third run, started from Dolphin on the host: window, controllers and tray icon, without a container or `DBUS_SYSTEM_BUS_ADDRESS`. L9.3–L9.5 as in the container; quitting from the tray removes the virtual devices and releases the grab. Keeping awake and the lock-screen pause work (L8.6, L8.7). *Check now* says that no `linux-x86_64` build was found, as v0.5.0 has none. `doctor` from the `.tar.gz` runs on the host; the tool needs glibc 2.35. The library list had every library under `-` and no copyright files, because `dpkg -S` takes `/libfoo.so.1` for a whole path; fixed in `cfa4e13`. Two libraries are GPL only (K13). A `launch` of Konsole failed (`version XZ_5.4 not found`), because programs Doppelpad started inherited the AppImage's `LD_LIBRARY_PATH` and more; fixed in `2ae9ff1`. They also stayed behind as zombie processes; fixed in `2d08949`. The AppImage built from `72f0671` has the full library list and starts Konsole without the AppImage's environment. Programs still started in the AppImage's `usr` folder, which goes away when Doppelpad ends; fixed in `d86007c`, so far checked by unit tests only. |
+| L9.8 AppImage | ✅ | Third run, started from Dolphin on the host: window, controllers and tray icon, without a container or `DBUS_SYSTEM_BUS_ADDRESS`. L9.3–L9.5 as in the container; quitting from the tray removes the virtual devices and releases the grab. Keeping awake and the lock-screen pause work (L8.6, L8.7). *Check now* says that no `linux-x86_64` build was found, as v0.5.0 has none. `doctor` from the `.tar.gz` runs on the host; the tool needs glibc 2.35. The library list had every library under `-` and no copyright files, because `dpkg -S` takes `/libfoo.so.1` for a whole path; fixed in `cfa4e13`. Two libraries are GPL only (K13). A `launch` of Konsole failed (`version XZ_5.4 not found`), because programs Doppelpad started inherited the AppImage's `LD_LIBRARY_PATH` and more; fixed in `2ae9ff1`. They also stayed behind as zombie processes; fixed in `2d08949`. The AppImage built from `72f0671` has the full library list and starts Konsole without the AppImage's environment. Programs still started in the AppImage's `usr` folder, which goes away when Doppelpad ends; fixed in `d86007c`. The AppImage built from `e7acb0a` starts them in the folder it was started from, carries neither `libtiff5` nor `libjbig0`, and has the GPL source beside it (K13). |

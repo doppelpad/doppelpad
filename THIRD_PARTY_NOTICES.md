@@ -406,3 +406,11 @@ the Ubuntu package it comes from and that package's source package and version, 
 each package's copyright file in full and the license texts (LGPL, GPL and others) these
 refer to. The source code of each package is available from Ubuntu at
 <https://launchpad.net/ubuntu/+source/SOURCE-PACKAGE/VERSION>.
+
+One of these libraries is under the GNU General Public License version 3 alone:
+libayatana-indicator, which libayatana-appindicator loads for the tray icon. As it runs in
+the app's process, the AppImage as a whole is distributed under the terms of the GPL
+version 3. Doppelpad's own code stays under the MIT or the Apache 2.0 license, which both
+allow this, and its source is in this repository at the release's tag. Ubuntu's source
+package of libayatana-indicator, of the version the AppImage carries, is in
+`Doppelpad_<version>_amd64_gpl_sources.tar` beside the AppImage.
