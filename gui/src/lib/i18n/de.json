@@ -1258,6 +1258,7 @@
     "title": "Update verfügbar",
     "available": "Doppelpad {version} ist erschienen (installiert ist {current}). Beim Installieren schließt sich Doppelpad und das Remapping pausiert kurz. Windows fragt nach Administratorrechten, danach startet Doppelpad wieder.",
     "available_linux": "Doppelpad {version} ist erschienen (installiert ist {current}). Beim Installieren ersetzt das neue AppImage dieses hier, Doppelpad schließt sich und das Remapping pausiert kurz, danach startet Doppelpad wieder.",
+    "available_macos": "Doppelpad {version} ist erschienen (installiert ist {current}). Beim Installieren ersetzt die neue App diese hier, Doppelpad schließt sich und das Remapping pausiert kurz, danach startet Doppelpad wieder.",
     "install": "Installieren und neu starten",
     "later": "Später",
     "downloading": "Das Update wird heruntergeladen …",
