@@ -9,7 +9,7 @@ use objc2_io_kit::{
     kIORegistryIterateRecursively, kIOServicePlane,
 };
 
-use super::descriptor;
+use crate::hiddesc;
 
 #[derive(Clone, Debug, Default)]
 pub struct Props {
@@ -28,7 +28,9 @@ pub struct Props {
     pub max_input: usize,
     pub max_output: usize,
     pub max_feature: usize,
-    /// The device numbers its reports (see [`descriptor::numbered`]).
+    /// The report descriptor.
+    pub descriptor: Vec<u8>,
+    /// The device numbers its reports (see [`hiddesc::numbered`]).
     pub numbered: bool,
     /// macOS made the device up for a controller it supports itself (`GCSyntheticDevice`), so
     /// that older games see an Xbox 360 pad.
@@ -53,6 +55,9 @@ impl Props {
                 .filter(|s| !s.is_empty())
         };
         let service = device.service();
+        let descriptor = property(device, "ReportDescriptor")
+            .and_then(|v| v.downcast_ref::<CFData>().map(CFData::to_vec))
+            .unwrap_or_default();
         Props {
             vid: u16_of("VendorID"),
             pid: u16_of("ProductID"),
@@ -65,9 +70,8 @@ impl Props {
             max_input: len_of("MaxInputReportSize"),
             max_output: len_of("MaxOutputReportSize"),
             max_feature: len_of("MaxFeatureReportSize"),
-            numbered: property(device, "ReportDescriptor")
-                .and_then(|v| v.downcast_ref::<CFData>().map(CFData::to_vec))
-                .is_some_and(|d| descriptor::numbered(&d)),
+            numbered: hiddesc::numbered(&descriptor),
+            descriptor,
             synthetic: property(device, "GCSyntheticDevice")
                 .and_then(|v| v.downcast_ref::<CFBoolean>().map(CFBoolean::as_bool))
                 .unwrap_or(false),

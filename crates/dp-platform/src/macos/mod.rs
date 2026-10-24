@@ -1,11 +1,6 @@
 //! macOS backends: IOKit HID input, with controllers hidden by seizing them.
 //!
-//! Reading controllers needs no permission. The pure parts (`descriptor`) also compile in
-//! tests on other OSes, so they are unit-tested everywhere.
-
-#![cfg_attr(not(target_os = "macos"), allow(dead_code))]
-
-mod descriptor;
+//! Reading controllers needs no permission.
 
 #[cfg(target_os = "macos")]
 mod hid;
