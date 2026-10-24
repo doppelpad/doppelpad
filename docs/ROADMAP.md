@@ -49,7 +49,11 @@ to keep. Linux stays a preview in 1.0 (see [Platforms](#platforms)).
 - macOS beyond the preview: tests on real hardware (keyboard and mouse, overlays over games,
   Bluetooth and other controllers), signing and notarization, release builds, virtual
   controllers (an entitlement from Apple), the GameCube adapter (see [Platforms](#platforms)).
-- More controllers: Switch 2 over Bluetooth, Wii Remote, DualShock 3, analog keyboards.
+- More controllers: Switch 2 over Bluetooth, Wii Remote, DualShock 3, analog keyboards. Switch 2
+  controllers speak Bluetooth Low Energy with Nintendo's own protocol, not HID: no system pairs
+  them as a controller, so Doppelpad would connect them itself (CoreBluetooth on macOS, WinRT
+  on Windows, BlueZ on Linux). Hobby projects read their input that way on macOS; motion and
+  rumble are not worked out there yet.
 - More from imported JSON profiles: crosshair shapes, radial-menu icons, mouse regions, rumble
   mode, virtual gyro stick values.
 - Overlays in `doppelpad daemon`, not only in the app.
@@ -115,7 +119,7 @@ to keep. Linux stays a preview in 1.0 (see [Platforms](#platforms)).
 | Xbox and XInput controllers | ✅ |
 | DualShock 4, DualSense, DualSense Edge | ✅ raw HID |
 | Nintendo Switch controllers (Pro Controller, Joy-Con paired or sideways, NSO and Switch-style wired pads; gyro, rumble) | ✅ Windows via raw HID (⏳ hardware testing); Linux through hid-nintendo |
-| Switch 2 controllers (Pro Controller, GameCube controller) | ✅ Windows over USB (⏳ hardware testing); macOS over USB (tried with a Pro Controller); ⏳ Bluetooth; ⏳ Linux |
+| Switch 2 controllers (Pro Controller, GameCube controller) | ✅ Windows over USB (⏳ hardware testing); macOS over USB (tried with a Pro Controller); ⏳ Bluetooth (Low Energy with Nintendo's own protocol, see Later); ⏳ Linux |
 | Steam Controller (USB, wireless receiver) and Steam Deck, with Steam's desktop mode turned off while remapping | ✅ Windows (⏳ hardware testing); ⏳ Bluetooth LE; ⏳ Linux |
 | Generic HID gamepads and joysticks, with a wizard that identifies the buttons | ✅ Windows (⏳ hardware testing); Linux reads them through evdev |
 | GameCube USB adapter (official and Wii U-mode clones) | ✅ Windows (⏳ hardware testing); ⏳ Linux |
@@ -160,7 +164,7 @@ to keep. Linux stays a preview in 1.0 (see [Platforms](#platforms)).
 
    | Responsibility | Status |
    |---|---|
-   | Read controllers | ✅ IOKit HID with the Windows backend's drivers (Sony, Nintendo, Steam, generic pads through their report descriptor), Switch 2 controllers started over their USB command channel; Apple's stand-in Xbox 360 pads left out (tried with a DualSense, a Switch Pro Controller and a Switch 2 Pro Controller) |
+   | Read controllers | ✅ IOKit HID with the Windows backend's drivers (Sony, Nintendo, Steam, generic pads through their report descriptor), Switch 2 controllers started over their USB command channel; Apple's stand-in Xbox 360 pads left out (tried with a DualSense, a Switch Pro Controller and a Switch 2 Pro Controller on USB, and the Switch Pro Controller over Bluetooth) |
    | Hide physical controllers | ✅ seizing the device, which keeps it from the GameController framework too; for every config that asks, as there is no virtual controller (tried with a DualSense and a Switch Pro Controller) |
    | Virtual controller | ❌ needs Apple's entitlement for virtual HID devices; the GameController framework may still ignore one |
    | Keyboard/mouse output | ✅ Quartz events, media keys as system events (tried: motion, clicks, wheel, keys, media keys) |
