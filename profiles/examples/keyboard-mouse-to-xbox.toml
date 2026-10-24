@@ -8,6 +8,7 @@
 #
 # Emergency stop: Ctrl+C in the terminal.
 
+format = 1
 name = "Keyboard & mouse → Xbox controller"
 
 [output]

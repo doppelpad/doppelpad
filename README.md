@@ -193,6 +193,7 @@ known by their XInput slot).
 Profiles are TOML. A minimal one:
 
 ```toml
+format = 1                        # version of the file format, not of Doppelpad
 name = "My game"
 processes = ["MyGame.exe"]
 

@@ -3,6 +3,7 @@
 # Right stick moves the mouse, triggers click, the d-pad sends arrow keys.
 # No virtual controller is created.
 
+format = 1
 name = "Controller desktop mode"
 
 [output]

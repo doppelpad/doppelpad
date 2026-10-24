@@ -1,6 +1,7 @@
 # Advanced features in one place: combos, long press, double tap, a shift layer,
 # turbo, macros and gyro aiming. Meant as a reference — adapt it to your game.
 
+format = 1
 name = "Shooter (advanced example)"
 processes = ["MyShooter.exe"]   # applied automatically by `doppelpad daemon` when this game has focus
 
