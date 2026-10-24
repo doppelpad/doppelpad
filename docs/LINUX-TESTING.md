@@ -695,29 +695,45 @@ Found in the second run and left for the maintainer:
   *Decided after the run:* releases get an AppImage and a `linux-x86_64` entry in
   `latest.json`, and only the AppImage looks for updates; a build from source doesn't (L9.8).
 
+Found in the third run and left for the maintainer:
+
+- **K13, GPL libraries in the AppImage** (L9.8). Two of the libraries the AppImage carries
+  are under the GPL alone, not the LGPL: `libayatana-indicator3-7` (GPL-3), which
+  `libayatana-appindicator3` loads for the tray icon, and `libjbig0` (GPL-2+), which only
+  gdk-pixbuf's TIFF loader needs (`libpixbufloader-tiff.so` → `libtiff5` → `libjbig0`).
+  Leaving the TIFF loader out of the AppImage would drop `libtiff5` and `libjbig0`. The
+  other GPL licenses in the list cover Debian's packaging files, documentation or are one
+  choice of several.
+
 ## Results
 
 ### Test machine
 
-| | First run | Second run |
-|---|---|---|
-| Machine | Steam Deck LCD ("Jupiter"), desktop mode | the same |
-| Distribution (`VERSION_ID` and `BUILD_ID` in `/etc/os-release`) | SteamOS 3.8.28 (build 20260922.1) | SteamOS 3.9.5 (build 20261023.100) |
-| Kernel (`uname -r`) | 6.18.50-valve2-1-neptune-618-gc7289a96b14d | 7.2.7-valve2-2-neptune-72-g31504582a073 |
-| Desktop and session type | KDE Plasma 6.4.3, Wayland (`DISPLAY=:0` for XWayland) | KDE Plasma 6.7.3, Wayland |
-| Steam running | yes, except for L2.6 and the Switch Pro's L2.3 | yes |
-| Doppelpad commit (`git rev-parse --short HEAD`) | `ca8c455` plus the fixes on `linux-hardware-test` | `989add8` plus the fixes on `linux-device-test` |
-| Date | 2026-10-23 | 2026-10-24 |
+| | First run | Second run | Third run |
+|---|---|---|---|
+| Machine | Steam Deck LCD ("Jupiter"), desktop mode | the same | the same |
+| Distribution (`VERSION_ID` and `BUILD_ID` in `/etc/os-release`) | SteamOS 3.8.28 (build 20260922.1) | SteamOS 3.9.5 (build 20261023.100) | the same |
+| Kernel (`uname -r`) | 6.18.50-valve2-1-neptune-618-gc7289a96b14d | 7.2.7-valve2-2-neptune-72-g31504582a073 | the same |
+| Desktop and session type | KDE Plasma 6.4.3, Wayland (`DISPLAY=:0` for XWayland) | KDE Plasma 6.7.3, Wayland | the same |
+| Steam running | yes, except for L2.6 and the Switch Pro's L2.3 | yes | yes |
+| Doppelpad commit (`git rev-parse --short HEAD`) | `ca8c455` plus the fixes on `linux-hardware-test` | `989add8` plus the fixes on `linux-device-test` | `4b7548d` (the release workflow's AppImage) plus the fixes on `linux-appimage-test` |
+| Date | 2026-10-23 | 2026-10-24 | 2026-10-24 |
 
 The CLI was built in a Debian 13 container and run on the host; the app was built and run in
 an Arch container ([setup](#steam-deck-steamos)). Checks marked *fake pad* were driven by a
 uinput test gamepad (`045e:028e`, with `FF_RUMBLE`) instead of hands; *fixed* names the
-commit on `linux-hardware-test` or `linux-device-test` without which the check failed.
+commit on `linux-hardware-test`, `linux-device-test` or `linux-appimage-test` without which
+the check failed.
 
 The second run tested what changed after the first: batteries, lights, turning off, keeping
 awake, the lock screen and Steam's virtual pads (K3), with a DualSense over USB and
 Bluetooth. After the SteamOS update it also ran L1.1–L1.4, L3.1–L3.3, L4.1, L4.2, L5.2 and
 L5.4 again, all ✅.
+
+The third run tested what the release workflow builds for Linux (L9.8): the artifact
+`doppelpad-linux` of a *Run workflow* on `main`, with a DualSense over Bluetooth. On the way
+it found that a stick's whole-stick choices in the editor (mouse, WASD, arrow keys, flick
+stick) did nothing, on every OS; fixed in `6678de4`.
 
 ### Controllers
 
@@ -787,4 +803,4 @@ Driver = kernel driver of the gamepad node. Columns are the checks.
 | L9.5 Tray | ✅ | quitting from the tray releases everything. Second run: per-controller icons failed for ids with a slash, fixed in `8a0d69f`, and a reconnected controller's icon stayed hidden, fixed in `3acb566` (K9). |
 | L9.6 Log file | ✅ | `~/.local/state/doppelpad/logs` |
 | L9.7 Overlays | ⚠️ | Fixed in `374edfa`: the first overlay crashed the app (tao panicked). They now show above other windows, but in the middle of the screen, and over a fullscreen game they take the focus (K6). |
-| L9.8 AppImage | ➖ | not run yet: the release workflow builds it since the second run |
+| L9.8 AppImage | ⚠️ | Third run, started from Dolphin on the host: window, controllers and tray icon, without a container or `DBUS_SYSTEM_BUS_ADDRESS`. L9.3–L9.5 as in the container; quitting from the tray removes the virtual devices and releases the grab. Keeping awake and the lock-screen pause work (L8.6, L8.7). *Check now* says that no `linux-x86_64` build was found, as v0.5.0 has none. `doctor` from the `.tar.gz` runs on the host; the tool needs glibc 2.35. The library list had every library under `-` and no copyright files, because `dpkg -S` takes `/libfoo.so.1` for a whole path; fixed in `cfa4e13`, checked by running the step on this AppImage in an Ubuntu 22.04 container. Two libraries are GPL only (K13). A `launch` of Konsole failed (`version XZ_5.4 not found`), because programs Doppelpad started inherited the AppImage's `LD_LIBRARY_PATH` and more; fixed in `2ae9ff1`, checked with the command-line tool in the AppImage's environment. They also stayed behind as zombie processes; fixed in `2d08949`, checked in the app built from source. The environment fix needs a new AppImage to check in the app itself. |
