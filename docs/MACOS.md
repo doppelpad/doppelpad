@@ -17,9 +17,10 @@ interfaces macOS has. No drivers are needed:
 > DualSense's light bar, the Switch Pro Controller's player lights, rumble on both, hiding them
 > from the GameController framework, and in the app with the Accessibility permission: the
 > controller as mouse and keyboard (motion, clicks, wheel, keys, media keys), a key remapped on
-> the keyboard, the program in front, keeping the Mac awake and noticing the lock screen.
-> Overlays over games, screenshots, closing windows, the power commands, the other controllers
-> and Bluetooth are untested. Reports from Mac users are very welcome.
+> the keyboard, the program in front, keeping the Mac awake and noticing the lock screen, and
+> notifications over other programs without taking their focus. Overlays over games in full
+> screen, screenshots, closing windows, the power commands, the other controllers and Bluetooth
+> are untested. Reports from Mac users are very welcome.
 
 ## Install
 
