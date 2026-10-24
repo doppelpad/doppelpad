@@ -10,7 +10,8 @@ use std::time::{Duration, Instant};
 use evdev::{AbsInfo, AbsoluteAxisCode, Device, KeyCode, RelativeAxisCode};
 
 use super::padmap::{AbsRange, bitmap_has};
-use crate::{PlatformError, Result};
+use super::sysfs::{self, LedWrite};
+use crate::{Battery, PlatformError, Result};
 
 /// `phys` prefix of every uinput device Doppelpad creates.
 pub const OWN_PHYS: &str = "doppelpad/";
@@ -213,6 +214,40 @@ pub fn parent_device(node: &Path) -> Option<PathBuf> {
             .join("device/device"),
     )
     .ok()
+}
+
+/// The battery a controller's driver reports under its device (see [`parent_device`]).
+pub fn read_battery(device: &Path) -> Option<Battery> {
+    let supplies = std::fs::read_dir(device.join("power_supply")).ok()?;
+    supplies.flatten().find_map(|s| {
+        let attr = |name: &str| std::fs::read_to_string(s.path().join(name)).ok();
+        sysfs::battery(
+            attr("capacity").as_deref(),
+            attr("capacity_level").as_deref(),
+            attr("status").as_deref(),
+        )
+    })
+}
+
+/// Names of the LEDs a controller's driver registers under its device.
+pub fn led_names(device: &Path) -> Vec<String> {
+    let Ok(leds) = std::fs::read_dir(device.join("leds")) else {
+        return Vec::new();
+    };
+    let mut names: Vec<String> = leds
+        .flatten()
+        .filter_map(|l| l.file_name().into_string().ok())
+        .collect();
+    names.sort();
+    names
+}
+
+/// Write LED attributes under a controller's device; stops at the first that fails.
+pub fn write_leds(device: &Path, writes: &[LedWrite]) -> io::Result<()> {
+    for (led, attr, value) in writes {
+        std::fs::write(device.join("leds").join(led).join(attr), value)?;
+    }
+    Ok(())
 }
 
 /// Supported absolute axes with their ranges and current values.

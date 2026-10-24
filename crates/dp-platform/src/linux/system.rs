@@ -1,16 +1,29 @@
 //! Power and window commands: systemd (`systemctl`, `loginctl`) for power, the EWMH
 //! `_NET_CLOSE_WINDOW` request for closing the focused X11 window. Screenshots are not
-//! available yet.
+//! available yet. Keeping the computer awake and noticing the lock screen go through
+//! systemd-logind (`systemd-inhibit`, `busctl`).
 
 use std::path::PathBuf;
-use std::process::Command;
+use std::process::{Child, Command, Stdio};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, OnceLock};
+use std::time::Duration;
 
 use x11rb::protocol::xproto::{ClientMessageEvent, ConnectionExt, EventMask};
 
+use super::logind::{LOCKED_HINT_QUERY, locked_hint};
 use super::x11::X11;
 use crate::{PlatformError, PowerAction, Result, SystemControl};
 
-pub struct LinuxSystem;
+#[derive(Default)]
+pub struct LinuxSystem {
+    /// `systemd-inhibit` holding logind's idle lock while it runs. The command it runs reads
+    /// our pipe, so it ends when the pipe closes: when remapping no longer needs the lock,
+    /// or when Doppelpad ends in any way.
+    inhibitor: Option<Child>,
+    /// Whether the user's session is locked, followed from the first question on.
+    lock: OnceLock<LockWatch>,
+}
 
 fn run(program: &str, args: &[&str]) -> Result<()> {
     let status = Command::new(program)
@@ -79,4 +92,104 @@ impl SystemControl for LinuxSystem {
     fn close_foreground_window(&mut self) -> Result<()> {
         close_active_x11_window()
     }
+
+    /// Takes logind's idle lock: the computer does not count as idle, so it does not go to
+    /// sleep on its own. Whether the desktop's own power settings follow the lock is up to
+    /// the desktop.
+    fn keep_awake(&mut self, on: bool) {
+        if on == self.inhibitor.is_some() {
+            return;
+        }
+        if on {
+            let spawned = Command::new("systemd-inhibit")
+                .args([
+                    "--what=idle",
+                    "--who=Doppelpad",
+                    "--why=Remapping plays input back",
+                    "--mode=block",
+                    "cat",
+                ])
+                .stdin(Stdio::piped())
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .spawn();
+            match spawned {
+                Ok(child) => self.inhibitor = Some(child),
+                Err(e) => tracing::debug!("cannot keep the computer awake (systemd-inhibit): {e}"),
+            }
+        } else if let Some(mut child) = self.inhibitor.take() {
+            // Closing its input ends `cat`, and with it the lock.
+            drop(child.stdin.take());
+            std::thread::spawn(move || child.wait());
+        }
+    }
+
+    fn desktop_active(&self) -> bool {
+        !self
+            .lock
+            .get_or_init(LockWatch::start)
+            .locked
+            .load(Ordering::Relaxed)
+    }
+}
+
+/// How often to ask logind whether the session is locked.
+const LOCK_POLL: Duration = Duration::from_secs(1);
+
+/// Answers in a row that logind may fail before the watch gives up.
+const LOCK_TRIES: u32 = 3;
+
+/// A thread asking logind for the session's `LockedHint` until it is dropped. Without an
+/// answer (no systemd, no session) it gives up, and the desktop counts as active.
+struct LockWatch {
+    locked: Arc<AtomicBool>,
+    stop: Arc<AtomicBool>,
+}
+
+impl LockWatch {
+    fn start() -> LockWatch {
+        let locked = Arc::new(AtomicBool::new(false));
+        let stop = Arc::new(AtomicBool::new(false));
+        let (locked2, stop2) = (locked.clone(), stop.clone());
+        let spawned = std::thread::Builder::new()
+            .name("dp-logind-lock".into())
+            .spawn(move || {
+                let mut failed = 0;
+                while !stop2.load(Ordering::Relaxed) && failed < LOCK_TRIES {
+                    match locked_now() {
+                        Some(hint) => {
+                            failed = 0;
+                            locked2.store(hint, Ordering::Relaxed);
+                        }
+                        None => failed += 1,
+                    }
+                    std::thread::sleep(LOCK_POLL);
+                }
+                if failed >= LOCK_TRIES {
+                    tracing::debug!("logind does not tell whether the session is locked");
+                    locked2.store(false, Ordering::Relaxed);
+                }
+            });
+        if let Err(e) = spawned {
+            tracing::debug!("cannot watch for the lock screen: {e}");
+        }
+        LockWatch { locked, stop }
+    }
+}
+
+impl Drop for LockWatch {
+    fn drop(&mut self) {
+        self.stop.store(true, Ordering::Relaxed);
+    }
+}
+
+fn locked_now() -> Option<bool> {
+    let out = Command::new("busctl")
+        .args(LOCKED_HINT_QUERY)
+        .output()
+        .ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    locked_hint(&String::from_utf8_lossy(&out.stdout))
 }

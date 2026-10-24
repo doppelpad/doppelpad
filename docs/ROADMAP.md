@@ -97,7 +97,8 @@ unit-tested but have not run against the real device yet.
    | Keyboard/mouse capture | ✅ per-device grab + uinput passthrough; keyboard LEDs not mirrored yet |
    | Foreground app | ✅ X11 / XWayland; ⏳ native Wayland (compositor-specific protocols) |
    | Power commands, close window | ✅ `systemctl` / `loginctl`, EWMH |
-   | Not on Linux yet | screenshots, battery levels, turning controllers off, Steam controllers (the Deck's trackpads, ··· and analog triggers with Steam closed), Switch 2 controllers, generic-pad layouts, GameCube adapter, keep-awake and lock-screen pause, device problems (missing permissions) in the app's warnings — only logged; overlays that keep their place and stay over fullscreen games on Wayland |
+   | Controller extras | batteries and lights through sysfs, turning off over Bluetooth through BlueZ, keep-awake and the lock-screen pause through logind (not yet tried on hardware) |
+   | Not on Linux yet | screenshots, DualSense trigger effects and microphone LED, Steam controllers (the Deck's trackpads, ··· and analog triggers with Steam closed), Switch 2 controllers, generic-pad layouts, GameCube adapter; overlays that keep their place and stay over fullscreen games on Wayland |
    | Hardware testing | ✅ first pass on a Steam Deck (DualSense, Switch Pro Controller, keyboard and mouse, desktop app); ⏳ DualShock 4, Joy-Cons, Bluetooth, Game Mode, other distributions |
 
    It requires a udev rule for `/dev/uinput` and the input devices.

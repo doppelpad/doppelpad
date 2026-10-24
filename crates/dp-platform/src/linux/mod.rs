@@ -6,15 +6,17 @@
 //! `phys` starting with `doppelpad/`, which the input backends use to skip their own
 //! devices (the Linux counterpart of the `VirtualIgnoreList` on Windows).
 //!
-//! The pure translation code (`codes`, `padmap`, `x360`, `kbmmap`, `procname`) also compiles in
-//! tests on other OSes, so it is unit-tested everywhere.
+//! The pure translation code (`codes`, `padmap`, `x360`, `kbmmap`, `procname`, `sysfs`,
+//! `logind`) also compiles in tests on other OSes, so it is unit-tested everywhere.
 
 #![cfg_attr(not(target_os = "linux"), allow(dead_code))]
 
 mod codes;
 mod kbmmap;
+mod logind;
 mod padmap;
 mod procname;
+mod sysfs;
 mod x360;
 
 #[cfg(target_os = "linux")]
@@ -63,6 +65,6 @@ pub fn platform() -> crate::Platform {
         kbm_capture: Box::new(capture::GrabCapture::default()),
         hider: Box::new(hider),
         foreground: Box::new(foreground::X11Foreground::default()),
-        system: Box::new(system::LinuxSystem),
+        system: Box::new(system::LinuxSystem::default()),
     }
 }

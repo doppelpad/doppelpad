@@ -98,6 +98,14 @@ fn seal(r: &mut [u8]) {
 /// DualSense player lights for players 1–5 (centre first, then outwards).
 const DUALSENSE_PLAYERS: [u8; 5] = [0x04, 0x0A, 0x15, 0x1B, 0x1F];
 
+/// The five DualSense player lights for player `n` (bit 0 is the left one); 0 turns them off.
+pub(crate) fn dualsense_player_lights(n: u8) -> u8 {
+    match n {
+        0 => 0,
+        n => DUALSENSE_PLAYERS[(n as usize - 1).min(4)],
+    }
+}
+
 /// The common part of a DualShock 4 output report (10 bytes from the first flag byte).
 fn ds4_common(c: &mut [u8], o: &SonyOutput) {
     c[0] = 0x01; // rumble valid
@@ -124,10 +132,7 @@ fn dualsense_common(c: &mut [u8], o: &SonyOutput) {
     }
     if let Some(p) = o.leds.player {
         c[1] |= 0x10; // player LED control
-        c[43] = match p {
-            0 => 0,
-            n => DUALSENSE_PLAYERS[(n as usize - 1).min(4)],
-        };
+        c[43] = dualsense_player_lights(p);
     }
     if let Some(l) = o.lightbar {
         c[1] |= 0x04; // light bar control

@@ -1,0 +1,251 @@
+//! What sysfs tells about a controller's HID device besides its input: the battery under
+//! `power_supply/` and the lights under `leds/` (hid-playstation, hid-sony, hid-nintendo),
+//! and for a Bluetooth controller the adapter it is connected through. Names and values are
+//! the drivers' (see `docs/LINUX.md#sources`). No I/O, so it is unit-tested on every OS.
+
+use dp_core::pad::Rgb;
+
+use crate::Battery;
+
+/// A battery from its `power_supply` attributes: `capacity` in percent (hid-playstation) or
+/// `capacity_level` (hid-nintendo), and `status`. Levels give the percentages the Windows
+/// driver reads from the same report. `None` until the driver has had a report.
+pub fn battery(
+    capacity: Option<&str>,
+    capacity_level: Option<&str>,
+    status: Option<&str>,
+) -> Option<Battery> {
+    let status = status?.trim();
+    if status == "Unknown" {
+        return None;
+    }
+    let level = match capacity {
+        Some(c) => c.trim().parse::<u8>().ok()?.min(100),
+        None => match capacity_level?.trim() {
+            "Full" => 100,
+            "High" => 60,
+            "Normal" => 30,
+            "Low" => 10,
+            "Critical" => 0,
+            _ => return None,
+        },
+    };
+    Some(Battery {
+        level,
+        charging: matches!(status, "Charging" | "Full"),
+        wired: false,
+    })
+}
+
+/// One attribute to write: the LED's directory under `leds/`, the attribute, the value.
+pub type LedWrite = (String, &'static str, String);
+
+/// What to write for a light bar colour, given the names of the device's LEDs. The
+/// DualSense's light bar is one multicolour LED (`…:rgb:indicator`, red, green, blue), the
+/// DualShock 4's are three (`…:red`, `…:green`, `…:blue`); all go up to 255.
+pub fn lightbar_writes(leds: &[String], c: Rgb) -> Vec<LedWrite> {
+    if let Some(led) = leds.iter().find(|l| l.ends_with(":rgb:indicator")) {
+        return vec![
+            (
+                led.clone(),
+                "multi_intensity",
+                format!("{} {} {}", c.r, c.g, c.b),
+            ),
+            (led.clone(), "brightness", "255".into()),
+        ];
+    }
+    [(":red", c.r), (":green", c.g), (":blue", c.b)]
+        .into_iter()
+        .filter_map(|(colour, value)| {
+            let led = leds.iter().find(|l| l.ends_with(colour))?;
+            Some((led.clone(), "brightness", value.to_string()))
+        })
+        .collect()
+}
+
+/// What to write for player `n`'s lights (0 turns them off), lit as the Windows drivers light
+/// them: the DualSense's five white `…:white:player-1` … `player-5` from the centre outwards,
+/// the four green ones of Switch controllers filling up from the first. (A Switch
+/// controller's blue `…:blue:player-5` is its home button.)
+pub fn player_writes(leds: &[String], n: u8) -> Vec<LedWrite> {
+    let lights = |colour: &str| -> Vec<(u32, &String)> {
+        let prefix = format!(":{colour}:player-");
+        leds.iter()
+            .filter_map(|l| {
+                let (_, index) = l.rsplit_once(prefix.as_str())?;
+                Some((index.parse().ok()?, l))
+            })
+            .filter(|&(i, _)| (1..=8).contains(&i))
+            .collect()
+    };
+    let (lights, mask) = match (lights("white"), lights("green")) {
+        (white, _) if !white.is_empty() => (white, crate::sony::dualsense_player_lights(n)),
+        (_, green) => (green, crate::nintendo::player_mask(n)),
+    };
+    lights
+        .into_iter()
+        .map(|(i, l)| {
+            let on = mask & (1 << (i - 1)) != 0;
+            (l.clone(), "brightness", u8::from(on).to_string())
+        })
+        .collect()
+}
+
+/// BlueZ's object path for the device with Bluetooth address `mac` whose HID device is
+/// `hid_device` (`/sys/devices/…/bluetooth/hci0/hci0:256/0005:054C:0CE6.0003`): the adapter
+/// comes from that path, else it is `hci0`.
+pub fn bluez_device_path(hid_device: &str, mac: &str) -> Option<String> {
+    let bytes: Vec<&str> = mac.trim().split(':').collect();
+    let valid = |b: &&str| b.len() == 2 && b.chars().all(|c| c.is_ascii_hexdigit());
+    if bytes.len() != 6 || !bytes.iter().all(valid) {
+        return None;
+    }
+    let mut parts = hid_device.split('/');
+    let adapter = parts
+        .find(|&p| p == "bluetooth")
+        .and_then(|_| parts.next())
+        .filter(|a| a.starts_with("hci"))
+        .unwrap_or("hci0");
+    Some(format!(
+        "/org/bluez/{adapter}/dev_{}",
+        bytes.join("_").to_ascii_uppercase()
+    ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn batteries() {
+        let b = |level, charging| {
+            Some(Battery {
+                level,
+                charging,
+                wired: false,
+            })
+        };
+        // hid-playstation
+        assert_eq!(
+            battery(Some("55\n"), None, Some("Discharging\n")),
+            b(55, false)
+        );
+        assert_eq!(battery(Some("100"), None, Some("Full")), b(100, true));
+        assert_eq!(battery(Some("40"), None, Some("Charging")), b(40, true));
+        assert_eq!(
+            battery(Some("40"), None, Some("Not charging")),
+            b(40, false)
+        );
+        assert_eq!(
+            battery(Some("0"), None, Some("Unknown")),
+            None,
+            "no report yet"
+        );
+        // hid-nintendo
+        assert_eq!(
+            battery(None, Some("High"), Some("Discharging")),
+            b(60, false)
+        );
+        assert_eq!(
+            battery(None, Some("Critical"), Some("Charging")),
+            b(0, true)
+        );
+        assert_eq!(battery(None, Some("Unknown"), Some("Discharging")), None);
+        assert_eq!(battery(None, None, Some("Discharging")), None);
+        assert_eq!(battery(Some("55"), None, None), None);
+    }
+
+    fn names(list: &[&str]) -> Vec<String> {
+        list.iter()
+            .map(|n| format!("0005:054C:0CE6.0003:{n}"))
+            .collect()
+    }
+
+    #[test]
+    fn light_bars() {
+        let c = Rgb {
+            r: 255,
+            g: 0,
+            b: 64,
+        };
+        let dualsense = names(&["rgb:indicator", "white:player-1", "white:player-2"]);
+        assert_eq!(
+            lightbar_writes(&dualsense, c),
+            [
+                (dualsense[0].clone(), "multi_intensity", "255 0 64".into()),
+                (dualsense[0].clone(), "brightness", "255".into()),
+            ]
+        );
+        let ds4 = names(&["red", "green", "blue", "global"]);
+        assert_eq!(
+            lightbar_writes(&ds4, c),
+            [
+                (ds4[0].clone(), "brightness", "255".into()),
+                (ds4[1].clone(), "brightness", "0".into()),
+                (ds4[2].clone(), "brightness", "64".into()),
+            ]
+        );
+        let switch = names(&["green:player-1", "blue:player-5"]);
+        assert!(lightbar_writes(&switch, c).is_empty(), "no light bar");
+    }
+
+    fn lit(writes: &[LedWrite]) -> String {
+        writes.iter().map(|w| w.2.as_str()).collect()
+    }
+
+    #[test]
+    fn player_lights() {
+        let dualsense = names(&[
+            "rgb:indicator",
+            "white:player-1",
+            "white:player-2",
+            "white:player-3",
+            "white:player-4",
+            "white:player-5",
+        ]);
+        assert_eq!(lit(&player_writes(&dualsense, 1)), "00100");
+        assert_eq!(lit(&player_writes(&dualsense, 2)), "01010");
+        assert_eq!(lit(&player_writes(&dualsense, 4)), "11011");
+        assert_eq!(lit(&player_writes(&dualsense, 0)), "00000");
+        assert!(
+            player_writes(&dualsense, 1)
+                .iter()
+                .all(|w| w.1 == "brightness")
+        );
+
+        // A Pro Controller: four player lights and the home button's light.
+        let pro = names(&[
+            "green:player-1",
+            "green:player-2",
+            "green:player-3",
+            "green:player-4",
+            "blue:player-5",
+        ]);
+        let p3 = player_writes(&pro, 3);
+        assert_eq!(lit(&p3), "1110");
+        assert!(p3.iter().all(|w| !w.0.ends_with("blue:player-5")));
+        assert_eq!(lit(&player_writes(&pro, 1)), "1000");
+
+        assert!(player_writes(&names(&["red", "green", "blue"]), 1).is_empty());
+    }
+
+    #[test]
+    fn bluez_paths() {
+        let hid = "/sys/devices/pci0000:00/0000:00:14.0/usb1/1-1/1-1:1.0/bluetooth/hci1/hci1:256/0005:054C:0CE6.0003";
+        assert_eq!(
+            bluez_device_path(hid, "a0:b1:c2:d3:e4:f5").as_deref(),
+            Some("/org/bluez/hci1/dev_A0_B1_C2_D3_E4_F5")
+        );
+        // Bluetooth LE through uhid: no adapter in the path.
+        assert_eq!(
+            bluez_device_path(
+                "/sys/devices/virtual/misc/uhid/0005:045E:0B13.0004",
+                "a0:b1:c2:d3:e4:f5"
+            )
+            .as_deref(),
+            Some("/org/bluez/hci0/dev_A0_B1_C2_D3_E4_F5")
+        );
+        assert_eq!(bluez_device_path(hid, ""), None);
+        assert_eq!(bluez_device_path(hid, "usb-0000:00:14.0-1/input0"), None);
+    }
+}

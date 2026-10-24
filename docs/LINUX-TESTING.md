@@ -129,8 +129,9 @@ crate on Linux, so this is its first native run.
 *Expected:* all tests pass.
 
 **L1.2 Messages without access.** This uses the `doctor` output from setup step 3.
-- *Expected:* the virtual-controller line names `/dev/uinput`. If an event node can't be
-  read, a warning points to the udev rule in docs/LINUX.md. Nothing crashes.
+- *Expected:* the virtual-controller line names `/dev/uinput`. If a controller's event node
+  can't be read, a `problem:` line names the controller and points to the udev rule in
+  docs/LINUX.md, and the app shows the same warning. Nothing crashes.
 - On SteamOS, Steam's own udev rules may already give the logged-in user some of this
   access. Note which lines were already fine.
 
@@ -233,6 +234,13 @@ Record which of these work:
 Native Steam Deck support on Linux is still open in the roadmap, so this is groundwork. For
 each control that doesn't arrive, note what `evtest` shows. Starting Steam again, or going
 back to Game Mode, restores the Deck's normal controls.
+
+**L2.7 Battery.** Look at each wireless controller's battery in the app and the tray. Then
+plug it in.
+*Expected:*
+- DualSense and DualShock 4 show a percentage, Switch controllers one of 0, 10, 30, 60 and
+  100 %, close to `cat /sys/class/power_supply/*/capacity*`.
+- On the cable the battery shows as charging. Wired pads show none.
 
 ## 3. Virtual controller and rumble
 
@@ -492,10 +500,22 @@ actions = [{ command = "sleep" }]
 **L8.3 `launch`.** Press A.
 *Expected:* a terminal opens.
 
-**L8.4 `power_off` and other controller settings** ([K2](#known-issues)). Press B on a
-wireless controller. Then run a profile with a `[lightbar]` section on a DualShock 4 or
-DualSense.
-*Record:* what happens (expected: nothing) and whether the log says so or stays silent.
+**L8.4 Turning off and lights** ([K2](#known-issues)).
+1. Press B on a controller connected over Bluetooth, then on one on its cable.
+2. Run a profile with `lightbar = { mode = "breath", colors = ["#14b8a6", "#8b5cf6"] }` on a
+   DualSense or DualShock 4: first without the LED rule from
+   [LINUX.md § Setup](LINUX.md#setup), then with it (reconnect the controller after adding
+   the rule).
+3. In the app, turn on the player lights (*Settings → Controllers → Controller lights*) and
+   switch slots, on a DualSense and on a Switch controller.
+
+*Expected:*
+- Over Bluetooth the controller switches off. On its cable the log says that it cannot be
+  turned off.
+- Without the LED rule the app warns that the lights cannot be set. With it the light bar
+  breathes smoothly between the two colours, and the player lights show the slot's number
+  as on Windows: on a DualSense from the centre outwards, on a Switch controller filling up
+  from the first light.
 
 **L8.5 `sleep`.** Ask the person first. Then press LB+RB+Start.
 *Expected:*
@@ -503,7 +523,18 @@ DualSense.
 - After waking, the controllers come back (a Bluetooth controller may need a button press),
   and the profile keeps working.
 
-**L8.6 Other power commands** (`shutdown`, `restart`, `log_off`, `hibernate`). These are
+**L8.6 Keeping awake.** Turn on *Keep the PC awake while a mapping plays input* in the app's
+settings. Start a mapping that keeps playing input, such as a toggle or a repeating macro,
+and run `systemd-inhibit --list`. Stop it, and once more end Doppelpad with `kill -9` while it
+plays.
+*Expected:* a Doppelpad `idle` lock is listed while the input plays, and is gone after it
+stops and after `kill -9`.
+
+**L8.7 The lock screen.** With a profile running, lock the session (Meta+L on KDE).
+*Expected:* the log says `the user's desktop changed locked=true`, and remapping pauses: a
+mapped key doesn't type into the lock screen. After unlocking, remapping resumes.
+
+**L8.8 Other power commands** (`shutdown`, `restart`, `log_off`, `hibernate`). These are
 optional. Do them last, and only with the person's OK.
 *Expected:* each one runs, or polkit refuses with a message in the log.
 - On a Deck, `log_off` leaves desktop mode for Game Mode.
@@ -565,6 +596,9 @@ Found while writing this checklist, and fixed in the first run on a Steam Deck:
 - **K2:** the evdev backend has no controller power-off, light bar, player LEDs or DualSense
   trigger effects. These use the do-nothing defaults of `GamepadBackend` in
   `crates/dp-platform/src/lib.rs`. LINUX.md says so now.
+  *After the run:* batteries, the light bar and player lights now go through sysfs, and
+  turning off over Bluetooth through BlueZ (L2.7, L8.4). Trigger effects and the DualSense's
+  microphone LED stay unavailable.
 
 Found in the first run and left for the maintainer, with what was seen:
 
@@ -644,6 +678,7 @@ Driver = kernel driver of the gamepad node. Columns are the checks.
 | L2.1–L2.3, L2.5 | ⚠️ | see [Controllers](#controllers) |
 | L2.4 Joy-Cons | ➖ | none at hand |
 | L2.6 Steam Deck controls, Steam closed | ⚠️ | A "Steam Deck" controller (`28de:1205`, id from its serial) with its motion node. hid-steam starts in lizard mode (keyboard and mouse) and its gamepad node stays silent until the Menu button (≡) is held. Then buttons, L4/R4/L5/R5 (`PaddleUL`/`UR`/`LL`/`LR`), sticks, d-pad and gyro arrive; trackpads, ··· and analog triggers don't (K5). |
+| L2.7 Battery | ➖ | added after the first run |
 | L3.1 Virtual pad exists | ✅ | after `098cd6b` |
 | L3.2 Virtual pad input | ⚠️ | All controls, ranges and A→B as expected (DualSense, fake pad). At rest the DualSense keeps sending stick events (K7). |
 | L3.3 Own pad ignored | ✅ | Steam's mirror of it is listed (K3). |
@@ -675,9 +710,11 @@ Driver = kernel driver of the gamepad node. Columns are the checks.
 | L8.1 `close_window` | ✅ | Fixed in `d12b70f`: the window almost never closed, because the connection closed before the X server handled the request. Tested on a dialog, not on an editor with unsaved text. |
 | L8.2 `screenshot` | ✅ | |
 | L8.3 `launch` | ✅ | |
-| L8.4 `power_off`, light bar | ✅ | logs "this controller cannot be turned off"; light bar not tried (K2) |
+| L8.4 Turning off and lights | ✅ | First run: logs "this controller cannot be turned off"; light bar not tried (K2). Turning off over Bluetooth, the light bar and player lights were added after the run and are not tested yet. |
 | L8.5 `sleep` | ✅ | suspends; after waking, the controllers and the profile keep working |
-| L8.6 Other power commands | ➖ | skipped |
+| L8.6 Keeping awake | ➖ | added after the first run |
+| L8.7 The lock screen | ➖ | added after the first run |
+| L8.8 Other power commands | ➖ | skipped |
 | L9.1 App builds | ✅ | `npm ci` and `tauri build --no-bundle` in the Arch container; two Linux-only clippy warnings fixed in `3e5b87f` |
 | L9.2 Window | ✅ | Fixed in `601b203`: the 1320 × 820 window was larger than the Deck's screen, which cut off the close button and the bottom bar. |
 | L9.3 Controller view | ✅ | |

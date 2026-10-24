@@ -28,7 +28,12 @@ Don't run it as root. Give your user access instead:
    # Doppelpad: let members of the "input" group read input devices and create uinput devices.
    KERNEL=="uinput", SUBSYSTEM=="misc", MODE="0660", GROUP="input", OPTIONS+="static_node=uinput"
    KERNEL=="event*", SUBSYSTEM=="input", MODE="0660", GROUP="input"
+   # Controllers' light bars and player lights (hid-playstation, hid-sony, hid-nintendo).
+   SUBSYSTEM=="leds", ACTION=="add", DRIVERS=="playstation|sony|nintendo", RUN+="/bin/sh -c 'chmod a+w /sys%p/brightness /sys%p/multi_intensity 2>/dev/null'"
    ```
+
+   The last rule, the LED rule, lets every user set these controllers' lights, and nothing
+   else.
 
 2. Load uinput now and at every boot, reload the rules, and join the group:
 
@@ -52,7 +57,8 @@ On **SteamOS** you can skip these steps. Steam's udev rules (`60-steam-input.rul
 (its Bluetooth adapter is a USB device). `doppelpad doctor` confirms it. Without the rule,
 the user can't read virtual keyboards and mice that other programs create through uinput, so
 capture leaves them alone. The nodes that stay unreadable, such as the touchscreen and the
-audio jacks, are not needed.
+audio jacks, are not needed. Only to set controllers' lights, put the LED rule in a file of
+its own under `/etc/udev/rules.d` and run the two `udevadm` commands.
 
 ## Controllers
 
@@ -93,10 +99,21 @@ hid-playstation and hid-nintendo create extra nodes, "… Motion Sensors" / "(IM
 
 Rumble uses `FF_RUMBLE`.
 
-Turning a controller off, the light bar, player LEDs and DualSense trigger effects are not
-available on Linux yet, because evdev has no interface for them. The `power_off` command logs
-that the controller cannot be turned off, and a profile's `[lightbar]`, LEDs and trigger
-effects are ignored.
+evdev has no interface for batteries, lights or turning a controller off. For those Doppelpad
+goes to the controller's HID device in sysfs, and to BlueZ:
+
+- **Battery:** the level and charging state the driver reports under `power_supply/`.
+  hid-playstation reports percent, hid-nintendo steps (shown as 0, 10, 30, 60 and 100 %, as
+  on Windows). Wired pads have none.
+- **Light bar and player lights:** through the LED devices the driver registers:
+  `…:rgb:indicator` and `…:white:player-1` to `player-5` on a DualSense, `…:red`, `…:green`
+  and `…:blue` on a DualShock 4, `…:green:player-1` to `player-4` on Switch controllers.
+  Writing them needs the LED rule from [Setup](#setup). Without it the app shows a warning.
+- **Turning off** (the `power_off` command, and controllers turned off after the idle time):
+  Doppelpad ends the Bluetooth connection through BlueZ (`busctl`), and DualShock 4,
+  DualSense and Switch controllers switch off. A controller on its cable stays on.
+- **Not available:** DualSense trigger effects, and its microphone LED, which hid-playstation
+  drives from the mute button itself.
 
 Controller ids look like `evdev:054c:0ce6:a0:b1:c2:d3:e4:f5`: vendor and product id, then the
 Bluetooth address, the USB port or the device node, so a controller keeps its id when it
@@ -203,6 +220,14 @@ The power commands run `systemctl poweroff`, `reboot`, `suspend` and `hibernate`
 user may do that. `close_window` sends the EWMH `_NET_CLOSE_WINDOW` request for the active
 X11 window. The `screenshot` command is not available on Linux yet.
 
+While macros or toggles play input back, Doppelpad takes logind's idle lock
+(`systemd-inhibit --what=idle`), so the computer doesn't count as idle and doesn't go to sleep
+on its own. Whether the desktop's own power settings follow that lock is up to the desktop.
+
+Remapping pauses while the session is locked, so nothing a controller does reaches the lock
+screen. Doppelpad asks logind once a second for the session's `LockedHint` (`busctl`), which
+desktops such as KDE Plasma set while their lock screen shows.
+
 ## Desktop app
 
 The app builds and runs on Linux (see [LINUX-TESTING.md § 9](LINUX-TESTING.md#9-desktop-app);
@@ -233,6 +258,9 @@ The backend was written from public kernel interfaces and documentation:
 - `Documentation/input/gamepad.rst`
 - `include/uapi/linux/input.h`, `input-event-codes.h` and `uinput.h`
 - the open-source `xpad`, `hid-playstation` and `hid-nintendo` drivers, for button codes and
-  axis ranges
+  axis ranges, and the names of their batteries and LEDs
+- `Documentation/ABI/testing/sysfs-class-power` and `sysfs-class-led-multicolor`
+- the D-Bus interfaces of systemd-logind (`org.freedesktop.login1`) and BlueZ
+  (`org.bluez.Device1`)
 
 It uses the MIT/Apache-licensed `evdev` and `x11rb` crates.

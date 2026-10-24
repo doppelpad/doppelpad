@@ -7,6 +7,9 @@
 mod output;
 mod virtual_ds4;
 
+// For the Linux backend, which sets the lights through the kernel's LED devices.
+#[cfg(any(target_os = "linux", test))]
+pub(crate) use self::output::dualsense_player_lights;
 pub use self::virtual_ds4::{DS4_REPORT_LEN, Ds4Calibration, Ds4ReportBuilder};
 
 use std::time::Instant;
