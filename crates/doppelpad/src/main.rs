@@ -13,7 +13,6 @@ use clap::{Parser, Subcommand, ValueEnum};
 use dp_core::pad::{Axis, PadButton};
 use dp_core::profile::Profile;
 use dp_ipc::{Request, Response};
-use dp_platform::Platform;
 
 use dp_platform::timer::TimerResolution;
 use dp_service::{Runtime, on_off};
@@ -407,16 +406,23 @@ fn run_foreground(path: &Path, echo: bool) -> Result<()> {
 /// Poll backends long enough for the HID scanner to find devices.
 fn scan_devices() -> Runtime {
     let mut rt = Runtime::new();
+    scan(&mut rt);
+    rt
+}
+
+fn scan(rt: &mut Runtime) {
     let start = Instant::now();
     while start.elapsed() < Duration::from_secs(3) {
         rt.tick();
         std::thread::sleep(Duration::from_millis(50));
     }
-    rt
 }
 
 fn doctor() -> Result<()> {
-    let platform = Platform::native();
+    // One runtime for all of it: on Linux each one opens a keyboard and mouse through
+    // uinput, and warns again when it cannot.
+    let mut rt = Runtime::new();
+    let drivers = rt.driver_probe()();
     let ok = |r: dp_platform::Result<()>| match r {
         Ok(()) => "ok".to_string(),
         Err(e) => format!("NOT AVAILABLE — {e}"),
@@ -438,9 +444,8 @@ fn doctor() -> Result<()> {
             "EVIOCGRAB (hide physical pads):",
         )
     };
-    println!("{pads:<32}{}", ok(platform.virtual_pads.available()));
-    println!("{hiding:<32}{}", ok(platform.hider.available()));
-    drop(platform);
+    println!("{pads:<32}{}", ok(drivers.virtual_pads));
+    println!("{hiding:<32}{}", ok(drivers.device_hiding));
     match dp_config::portable_dir() {
         Some(dir) => println!(
             "portable mode:                  everything in {}",
@@ -467,7 +472,7 @@ fn doctor() -> Result<()> {
         );
     }
     println!();
-    let rt = scan_devices();
+    scan(&mut rt);
     for p in rt.hiding_problems().into_iter().chain(rt.device_problems()) {
         println!("problem: {p}");
     }

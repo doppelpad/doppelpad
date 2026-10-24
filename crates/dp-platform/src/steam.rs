@@ -34,6 +34,13 @@ pub fn model_for(vid: u16, pid: u16) -> Option<SteamModel> {
     }
 }
 
+/// Whether the device is a virtual pad Steam Input makes for a controller it reads (SDL calls
+/// the id `USB_PRODUCT_STEAM_VIRTUAL_GAMEPAD`). On Linux Steam names them "Microsoft X-Box
+/// 360 pad N".
+pub fn is_virtual_pad(vid: u16, pid: u16) -> bool {
+    (vid, pid) == (VALVE_VID, 0x11FF)
+}
+
 const CMD_CLEAR_MAPPINGS: u8 = 0x81;
 const CMD_DEFAULT_MAPPINGS: u8 = 0x85;
 const CMD_SET_SETTINGS: u8 = 0x87;
@@ -520,6 +527,10 @@ mod tests {
             None,
             "Bluetooth LE is not supported"
         );
+        assert!(is_virtual_pad(0x28DE, 0x11FF));
+        assert_eq!(model_for(0x28DE, 0x11FF), None);
+        assert!(!is_virtual_pad(0x28DE, 0x1205), "the Deck's own controls");
+        assert!(!is_virtual_pad(0x045E, 0x028E), "a real Xbox 360 pad");
     }
 
     #[test]

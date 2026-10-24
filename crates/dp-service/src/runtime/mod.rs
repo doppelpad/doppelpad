@@ -438,7 +438,7 @@ impl Runtime {
     }
 
     /// The platform's driver probe (it can run on another thread).
-    pub(crate) fn driver_probe(&self) -> fn() -> DriverReport {
+    pub fn driver_probe(&self) -> fn() -> DriverReport {
         self.platform.probe_drivers
     }
 

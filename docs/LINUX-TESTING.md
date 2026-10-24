@@ -575,6 +575,9 @@ Found in the first run and left for the maintainer, with what was seen:
   path, so it can be one of Steam's mirrors. Options: skip `28de:11ff` (but Steam's pad is
   the only way to the Deck's controls while Steam runs, L6.4), or only skip the mirror of
   our own pad (nothing in the device tells which pad Steam mirrors).
+  *Decided after the run:* Steam's pads are still listed and can be picked in the app, but
+  are never picked on their own, are not announced, and get a tray icon only while in use.
+  Not yet checked on the Deck (L6.1, L6.2).
 - **K4, Steam and hidraw.** While Steam Input drives a controller, Steam reads it through
   hidraw, so hiding doesn't reach Steam: a game with Steam Input on gets the controller
   twice (L6.3). Steam also turns the Switch Pro Controller's IMU off, and SteamOS's
@@ -636,8 +639,8 @@ Driver = kernel driver of the gamepad node. Columns are the checks.
 |---|---|---|
 | L1.1 Unit tests run natively | ✅ | 144 passed (147 with the tests the fixes added) |
 | L1.2 Messages without access | ✅ | Simulated in containers: a missing and an unwritable `/dev/uinput` and an unreadable controller each get their message. On SteamOS nothing needed setting up. The warning used to name the first unreadable node, an HDMI audio jack; fixed in `b2cb3c0`. |
-| L1.3 Doctor | ✅ | Fixed in `098cd6b`: evdev 0.13.2 sends `UI_SET_PHYS` with the wrong size, so no uinput device could be created at all (EINVAL). Labels fixed in `e673a14` (K1). `doctor` prints the uinput warning twice when uinput is missing. |
-| L1.4 Daemon and IPC | ✅ | Also after `kill -9`. `devices` right after the daemon starts can say "no controllers found" until the first scan. |
+| L1.3 Doctor | ✅ | Fixed in `098cd6b`: evdev 0.13.2 sends `UI_SET_PHYS` with the wrong size, so no uinput device could be created at all (EINVAL). Labels fixed in `e673a14` (K1). `doctor` printed the uinput warning twice when uinput was missing, because it set up the backends twice; fixed after the run. |
+| L1.4 Daemon and IPC | ✅ | Also after `kill -9`. `devices` right after the daemon started could say "no controllers found" until the first scan; the backend now waits for that scan when it starts (fixed after the run). |
 | L2.1–L2.3, L2.5 | ⚠️ | see [Controllers](#controllers) |
 | L2.4 Joy-Cons | ➖ | none at hand |
 | L2.6 Steam Deck controls, Steam closed | ⚠️ | A "Steam Deck" controller (`28de:1205`, id from its serial) with its motion node. hid-steam starts in lizard mode (keyboard and mouse) and its gamepad node stays silent until the Menu button (≡) is held. Then buttons, L4/R4/L5/R5 (`PaddleUL`/`UR`/`LL`/`LR`), sticks, d-pad and gyro arrive; trackpads, ··· and analog triggers don't (K5). |

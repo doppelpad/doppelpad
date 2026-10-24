@@ -174,6 +174,7 @@ fn contract_fixture_is_current() {
             axes: vec![0.5],
             hats: vec![Some(2), None],
         }),
+        mirror: false,
     };
     let live = LiveState {
         devices: vec![device],

@@ -94,6 +94,7 @@ const device = {
   gyro_calibration: true,
   battery: true,
   raw: true,
+  mirror: true,
 } satisfies Keys<LiveDevice>;
 
 const padState = { buttons: true, axes: true, motion: true, touch: true } satisfies Keys<PadState>;

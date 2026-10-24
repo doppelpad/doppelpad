@@ -31,6 +31,7 @@
           gyro_calibration: null,
           battery: null,
           raw: null,
+          mirror: false,
         }
       : null,
   );

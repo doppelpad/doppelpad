@@ -64,6 +64,9 @@ pub struct LiveDevice {
     pub battery: Option<Battery>,
     /// Unmapped input of a generic pad, for identifying its buttons.
     pub raw: Option<RawInput>,
+    /// Another program's virtual pad for a controller it reads (Steam's on Linux): never
+    /// picked on its own and not announced. See `dp_platform::DeviceInfo::mirror`.
+    pub mirror: bool,
 }
 
 /// The local HTTP API.

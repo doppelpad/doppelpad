@@ -587,6 +587,7 @@ mod tests {
                 gyro_calibration: None,
                 battery: None,
                 raw: None,
+                mirror: false,
             }],
             warnings: vec!["careful".into()],
             ..LiveState::default()

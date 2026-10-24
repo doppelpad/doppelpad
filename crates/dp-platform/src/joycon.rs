@@ -115,6 +115,7 @@ fn pair_info(left: &DeviceInfo, right: &DeviceInfo) -> Arc<DeviceInfo> {
         has_motion: left.has_motion || right.has_motion,
         has_touchpad: false,
         has_rumble: left.has_rumble || right.has_rumble,
+        mirror: false,
     })
 }
 
@@ -339,6 +340,7 @@ mod tests {
                 has_motion: true,
                 has_touchpad: false,
                 has_rumble: true,
+                mirror: false,
             }),
             state,
             battery: None,

@@ -25,14 +25,18 @@ pub fn process_name(pid: u32) -> Option<String> {
     (!comm.is_empty()).then(|| comm.to_owned())
 }
 
-/// The file name in `argv[0]` when `comm` is its start, so the whole name `comm` cut short.
+/// The kernel cuts `comm` to this many bytes.
+const COMM_LEN: usize = 15;
+
+/// The file name in `argv[0]` when `comm` is its start cut to [`COMM_LEN`], so the whole name.
 /// For when `exe` cannot be read: from a container or sandbox, other processes' `exe` links
 /// are off limits, but their command lines are not.
 pub fn argv0_name(cmdline: &[u8], comm: &str) -> Option<String> {
     let argv0 = cmdline.split(|&b| b == 0).next()?;
     let argv0 = String::from_utf8_lossy(argv0);
     let name = argv0.rsplit('/').next()?;
-    (!comm.is_empty() && name.len() > comm.len() && name.starts_with(comm)).then(|| name.to_owned())
+    (comm.len() >= COMM_LEN && name.len() > comm.len() && name.starts_with(comm))
+        .then(|| name.to_owned())
 }
 
 /// Wine sets `argv[0]` of a Windows process to its Windows path (`C:\games\foo.exe`);
@@ -70,6 +74,8 @@ mod tests {
         );
         // Not cut short: comm is the whole name already.
         assert_eq!(argv0_name(b"/usr/bin/firefox\0", "firefox"), None);
+        // A program that named itself after the start of its file name keeps that name.
+        assert_eq!(argv0_name(b"/opt/app/app-launcher\0", "app"), None);
         // A script under an interpreter: argv[0] names the interpreter.
         assert_eq!(argv0_name(b"/usr/bin/python3\0game.py\0", "game.py"), None);
         assert_eq!(argv0_name(b"", "x"), None);

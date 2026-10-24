@@ -17,7 +17,7 @@ use std::os::fd::{AsFd, AsRawFd};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use dp_core::pad::{Motion, PadButton, PadState, Rumble, TouchPoint, unit_to_u16_trunc};
 use evdev::{
@@ -283,6 +283,9 @@ impl Shared {
 
 type SharedRef = Arc<Mutex<Shared>>;
 
+/// How long setting up the backend waits for its first scan.
+const FIRST_SCAN: Duration = Duration::from_secs(1);
+
 pub struct EvdevBackend {
     shared: SharedRef,
     /// Woken for an immediate scan that also retries nodes that could not be opened.
@@ -298,7 +301,14 @@ impl EvdevBackend {
             warned_access: false,
             warned_switch2: false,
         };
-        let scanner = Rescanner::spawn("dp-evdev-scan", RESCAN, move |pass| scan.scan(pass));
+        let (scanned, first_scan) = std::sync::mpsc::sync_channel(1);
+        let scanner = Rescanner::spawn("dp-evdev-scan", RESCAN, move |pass| {
+            scan.scan(pass);
+            let _ = scanned.try_send(());
+        });
+        // The controllers connected now are there from the first poll, so `devices` right
+        // after the daemon starts lists them.
+        let _ = first_scan.recv_timeout(FIRST_SCAN);
         EvdevBackend { shared, scanner }
     }
 
@@ -496,6 +506,7 @@ fn open_pad(path: &Path, dev: Device) -> io::Result<Pad> {
         has_rumble: dev
             .supported_ff()
             .is_some_and(|ff| ff.contains(FFEffectCode::FF_RUMBLE)),
+        mirror: crate::steam::is_virtual_pad(vendor, product),
     };
     let uniq = dev.unique_name().map(str::to_owned);
     let parts = Arc::new(Mutex::new(Parts::default()));

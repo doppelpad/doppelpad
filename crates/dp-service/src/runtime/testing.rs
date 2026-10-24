@@ -51,6 +51,7 @@ pub fn pad(id: &str, family: PadFamily) -> PadSnapshot {
             has_motion: true,
             has_touchpad: true,
             has_rumble: true,
+            mirror: false,
         }),
         state: PadState::default(),
         battery: None,
