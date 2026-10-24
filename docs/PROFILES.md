@@ -126,7 +126,7 @@ every 25 ms; only a virtual DualShock 4 has motion sensors.
 
 | Syntax | Meaning |
 |---|---|
-| `A` `B` `X` `Y` | Face buttons by Xbox position. Aliases: `Cross`, `Circle`, `Square`, `Triangle` |
+| `A` `B` `X` `Y` | Face buttons by Xbox position: on a Nintendo controller `A` is the button printed B, `X` the one printed Y (the app shows the printed names). Aliases: `Cross`, `Circle`, `Square`, `Triangle` |
 | `LB` `RB` `LS` `RS` | Shoulders, stick clicks. Aliases: `L1`, `R1`, `L3`, `R3` |
 | `Back` `Start` `Guide` | Aliases: `View`, `Share`, `Create`, `Menu`, `Options`, `Home`, `PS` |
 | `DpadUp` … `DpadRight` | D-pad |
@@ -271,7 +271,7 @@ Several mappings can share a trigger with different activators.
 | Stick deflection | `{ stick = "left", x = 0.0, y = 1.0 }` (up is +y); added to the physical stick. `absolute = true` sets the axes it names (both when centred) instead, so the physical stick and routes do not reach them. Held in a hold mapping, a small relative pull such as `{ stick = "right", x = 0.0, y = -0.15 }` on `RT` works as anti-recoil |
 | Trigger pull | `{ trigger = "right", value = 0.5 }` |
 | Mouse movement | `{ mouse_move = "right", speed = 800, acceleration = 1.0 }` (pixels/s while active; `acceleration` adds that much of the speed per second held, up to 20 ×) |
-| Cursor position | `{ mouse_to = [0.5, 0.5] }` moves the cursor to a point of the primary screen (fractions); `{ mouse_clip = [0.25, 0.25, 0.75, 0.75] }` keeps it inside a rectangle while held. Windows only |
+| Cursor position | `{ mouse_to = [0.5, 0.5] }` moves the cursor to a point of the primary screen (fractions; Windows and macOS); `{ mouse_clip = [0.25, 0.25, 0.75, 0.75] }` keeps it inside a rectangle while held (Windows only) |
 | Pause | `{ pause = 250 }` (ms) |
 | Rumble | `{ rumble = 150, low = 0.8, high = 0.8 }` |
 | Turn | `{ turn = -90.0 }`: turns in the game by that many degrees with mouse motion (positive = right), see `[virtual.mouse]` |
