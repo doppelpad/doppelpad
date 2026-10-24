@@ -83,8 +83,11 @@ no other program gets the controller's input: the GameController framework (whic
 games use), Steam and games that read HID devices themselves see a controller that does
 nothing. Doppelpad keeps reading it. Letting go of it gives it back at once.
 
-Doppelpad hides a controller only for a profile with a virtual controller, as on Windows, and
-macOS has none yet (below), so for now nothing is hidden in practice.
+As macOS has no virtual controllers yet (below), Doppelpad hides the controller for every config
+that has *Hide the physical controller* on, not only for one with a virtual controller as on
+Windows and Linux: a game then gets only the keys and mouse input the mappings make. Turn the
+option off in a config that should leave the controller to the game and only add a few
+mappings on top.
 
 ## Virtual controller
 

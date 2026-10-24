@@ -259,6 +259,10 @@ impl DeviceHider for SeizeHider {
         self.devices.set_hidden(&[]);
         Ok(())
     }
+
+    fn hides_without_virtual_pad(&self) -> bool {
+        true
+    }
 }
 
 #[cfg(test)]

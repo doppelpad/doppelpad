@@ -5,6 +5,7 @@
   import { Gamepad2, Keyboard, TriangleAlert } from '@lucide/svelte';
   import { t } from '../../lib/i18n/index.svelte';
   import { app } from '../../lib/state/app.svelte';
+  import { platform } from '../../lib/state/window.svelte';
   import type { Output, VirtualPadType } from '../../lib/types';
   import Toggle from '../ui/Toggle.svelte';
   import { outputConfig } from '../../lib/model/output';
@@ -41,7 +42,7 @@
 {#if out.virtual_pad !== 'none' && drivers && !drivers.virtual_pads.available}
   <div class="warn">
     <TriangleAlert size={15} />
-    {t('output.driver_missing', { driver: 'ViGEmBus' })}
+    {platform === 'macos' ? t('output.no_virtual_pads_macos') : t('output.driver_missing', { driver: 'ViGEmBus' })}
   </div>
 {/if}
 

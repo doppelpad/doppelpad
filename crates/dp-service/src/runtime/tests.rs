@@ -140,6 +140,19 @@ fn picking_another_controller_moves_the_hiding() {
 }
 
 #[test]
+fn hiding_without_a_virtual_pad_where_the_platform_does() {
+    let mut keys_only = Profile::default();
+    keys_only.output.virtual_pad = dp_core::profile::VirtualPadType::None;
+    for (platform_hides, hidden) in [(false, &[][..]), (true, &["path-pro".to_owned()][..])] {
+        let (mut rt, world) = testing::runtime_with(&[("pro", PadFamily::SwitchPro)]);
+        world.lock().unwrap().hide_without_pad = platform_hides;
+        rt.apply(keys_only.clone(), None).unwrap();
+        rt.tick();
+        assert_eq!(world.lock().unwrap().hidden, hidden, "{platform_hides}");
+    }
+}
+
+#[test]
 fn mirrors_are_used_only_when_picked() {
     let (mut rt, world) =
         testing::runtime_with(&[("steam", PadFamily::Xbox), ("ds", PadFamily::DualSense)]);
