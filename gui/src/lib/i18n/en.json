@@ -1275,6 +1275,7 @@
     "check_failed": "Could not check for updates: {error}",
     "title": "Update available",
     "available": "Doppelpad {version} is out (you have {current}). Installing closes Doppelpad and pauses remapping for a moment. Windows asks for administrator permission, then Doppelpad starts again.",
+    "available_linux": "Doppelpad {version} is out (you have {current}). Installing replaces this AppImage with the new one, closes Doppelpad and pauses remapping for a moment, then Doppelpad starts again.",
     "install": "Install and restart",
     "later": "Later",
     "downloading": "Downloading the update…",

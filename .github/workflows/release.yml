@@ -1,11 +1,16 @@
-# Builds the Windows setup for a version tag and puts it on a draft GitHub release, with its
-# updater signature (.sig) and latest.json, which installed copies read to find updates
-# (plugins.updater in gui/src-tauri/tauri.conf.json). Publishing the draft ships the update.
+# Builds the Windows setup and the Linux AppImage for a version tag and puts them on a draft
+# GitHub release, with their updater signatures (.sig) and latest.json, which installed
+# copies read to find updates (plugins.updater in gui/src-tauri/tauri.conf.json), and the
+# Linux command-line tool. Publishing the draft ships the update.
 #
 # Release: set the version in Cargo.toml ([workspace.package]) and gui/package.json, commit,
 # then `git tag -a v<version>` with the release notes as the tag message (the update dialog
 # shows them) and push the tag. Tags with a hyphen (v1.2.0-beta.1) become prereleases, which
 # the updater does not offer.
+#
+# Test build before a tag: Actions → Release → Run workflow, on any branch, builds only the
+# Linux job and keeps the AppImage, the command-line tool and the list of the libraries in
+# the AppImage as the run's artifact "doppelpad-linux". It makes no release.
 #
 # Secrets: TAURI_SIGNING_PRIVATE_KEY and TAURI_SIGNING_PRIVATE_KEY_PASSWORD, the updater key
 # that `tauri signer generate` made (see docs/GUI.md#updates).
@@ -14,6 +19,7 @@ name: Release
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -26,7 +32,11 @@ env:
 
 jobs:
   windows:
+    if: github.event_name == 'push'
     runs-on: windows-latest
+    outputs:
+      release_id: ${{ steps.tauri.outputs.releaseId }}
+      notes: ${{ steps.notes.outputs.notes }}
     steps:
       - uses: actions/checkout@v4
 
@@ -83,6 +93,7 @@ jobs:
       # `tauri build`: the setup, its .sig (bundle.createUpdaterArtifacts) and latest.json,
       # uploaded to a draft release for the tag.
       - uses: tauri-apps/tauri-action@v1
+        id: tauri
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -95,3 +106,146 @@ jobs:
           releaseDraft: true
           prerelease: ${{ contains(github.ref_name, '-') }}
           updaterJsonPreferNsis: true
+
+  # On a tag it runs after the Windows job and adds its files to that job's draft, and
+  # tauri-action adds the Linux entry to the draft's latest.json (two jobs at once would each
+  # write a latest.json of their own). Started by hand it runs alone and only builds.
+  linux:
+    needs: windows
+    if: ${{ !failure() && !cancelled() }}
+    # The oldest Ubuntu runner: the AppImage needs at least the glibc it is built with (2.35).
+    runs-on: ubuntu-22.04
+    env:
+      # The Windows job's draft; empty when started by hand.
+      RELEASE_ID: ${{ needs.windows.outputs.release_id }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: System libraries for the app
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev patchelf file xdg-utils
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: gui/package-lock.json
+      - name: Frontend dependencies
+        working-directory: gui
+        run: npm ci
+
+      # `tauri build` with tauri.linux.conf.json: the AppImage and its .sig. On a tag they go to
+      # the draft; without a release id and tag, tauri-action only builds. It writes
+      # latest.json anew with releaseBody as the notes, so it gets the Windows job's.
+      - uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          projectPath: gui
+          releaseId: ${{ env.RELEASE_ID }}
+          tagName: ${{ env.RELEASE_ID && github.ref_name || '' }}
+          releaseBody: ${{ needs.windows.outputs.notes }}
+          releaseDraft: true
+
+      # `doppelpad` for `doctor`, `daemon` and scripts, with its licenses.
+      - name: Command-line tool
+        id: cli
+        run: |
+          cargo build --release -p doppelpad
+          version=$(grep -m1 '^version = ' Cargo.toml | cut -d '"' -f 2)
+          name="doppelpad_${version}_linux-x86_64"
+          mkdir -p "linux-files/$name"
+          cp target/release/doppelpad LICENSE-MIT LICENSE-APACHE THIRD_PARTY_LICENSES.md "linux-files/$name/"
+          tar -czf "linux-files/$name.tar.gz" -C linux-files "$name"
+          rm -r "linux-files/$name"
+          echo "archive=linux-files/$name.tar.gz" >> "$GITHUB_OUTPUT"
+
+      # The system libraries the AppImage carries, for THIRD_PARTY_NOTICES.md: each with the
+      # Ubuntu package it comes from, then every package's copyright file in full, then the
+      # license texts those files point to in /usr/share/common-licenses.
+      - name: Libraries in the AppImage
+        id: libs
+        run: |
+          appimage=$(ls target/release/bundle/appimage/*.AppImage)
+          list="linux-files/$(basename "$appimage" .AppImage)_libraries.txt"
+          extracted="$RUNNER_TEMP/appimage"
+          rm -rf "$extracted" && mkdir -p "$extracted"
+          (cd "$extracted" && "$GITHUB_WORKSPACE/$appimage" --appimage-extract > /dev/null)
+          find "$extracted/squashfs-root" \( -name '*.so' -o -name '*.so.*' \) -printf '%f\n' | sort -u |
+            while read -r lib; do
+              pkg=$(dpkg -S "/$lib" 2> /dev/null | head -n1 | cut -d: -f1)
+              echo "${pkg:--}|$lib"
+            done | sort > "$RUNNER_TEMP/libs.txt"
+          packages=$(cut -d'|' -f1 "$RUNNER_TEMP/libs.txt" | sort -u | grep -vx -- -) || true
+          copyrights=$(for pkg in $packages; do echo "/usr/share/doc/$pkg/copyright"; done)
+          # The texts the copyright files name; LGPL 3 (also as plain LGPL) is a set of
+          # permissions on top of GPL 3.
+          licenses=$(cat $copyrights 2> /dev/null | grep -o '/usr/share/common-licenses/[A-Za-z0-9.+_-]*' |
+            sed 's|.*/||; s/\.$//' | sort -u) || true
+          if echo "$licenses" | grep -qxE 'LGPL(-3)?'; then licenses=$(printf '%s\nGPL-3\n' "$licenses" | sort -u); fi
+          rule() { printf '\n%s\n%s\n%s\n\n' "================================================================" "$1" "================================================================"; }
+          {
+            echo "Libraries in $(basename "$appimage"), by the Ubuntu 22.04 package they come from"
+            echo "(- for none), with its source package and version. The source code of each is at"
+            echo "https://launchpad.net/ubuntu/+source/<source package>/<version>."
+            echo "The copyright file of every package and the license texts they refer to follow."
+            for pkg in $(cut -d'|' -f1 "$RUNNER_TEMP/libs.txt" | sort -u); do
+              echo
+              if [ "$pkg" = - ]; then
+                echo "-"
+              else
+                echo "$pkg (source $(dpkg-query -W -f '${source:Package} ${source:Version}' "$pkg"))"
+              fi
+              echo "  files: $(awk -F'|' -v p="$pkg" '$1 == p { print $2 }' "$RUNNER_TEMP/libs.txt" | paste -sd ' ')"
+              if [ -f "/usr/share/doc/$pkg/copyright" ]; then
+                echo "  licenses: $(grep -h '^License:' "/usr/share/doc/$pkg/copyright" | sed 's/^License: *//' | sort -u | paste -sd ';' | sed 's/;/; /g')"
+              fi
+            done
+          } > "$RUNNER_TEMP/summary.txt"
+          {
+            cat "$RUNNER_TEMP/summary.txt"
+            for pkg in $packages; do
+              rule "Copyright file of $pkg"
+              cat "/usr/share/doc/$pkg/copyright" 2> /dev/null || echo "(the package has no copyright file)"
+            done
+            for license in $licenses; do
+              [ -f "/usr/share/common-licenses/$license" ] || continue
+              rule "License text: $license (/usr/share/common-licenses/$license)"
+              cat "/usr/share/common-licenses/$license"
+            done
+          } > "$list"
+          cat "$RUNNER_TEMP/summary.txt"
+          echo
+          echo "License texts: $(echo $licenses)"
+          echo "list=$list" >> "$GITHUB_OUTPUT"
+
+      - name: Command-line tool and library list to the draft release
+        if: env.RELEASE_ID != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ARCHIVE: ${{ steps.cli.outputs.archive }}
+          LIST: ${{ steps.libs.outputs.list }}
+        run: |
+          upload() {
+            curl -sSf -X POST \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Content-Type: $2" \
+              --data-binary @"$1" \
+              "https://uploads.github.com/repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID/assets?name=$(basename "$1")" > /dev/null
+          }
+          upload "$ARCHIVE" application/gzip
+          upload "$LIST" text/plain
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: doppelpad-linux
+          path: |
+            target/release/bundle/appimage/*.AppImage
+            linux-files/
+          if-no-files-found: error
+          retention-days: 14

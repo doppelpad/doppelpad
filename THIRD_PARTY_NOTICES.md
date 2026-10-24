@@ -1,9 +1,9 @@
 # Third-party notices
 
 This file covers the parts of Doppelpad that are not Rust crates or npm packages. The
-licenses of the crates and packages compiled into `doppelpad-gui.exe` and `doppelpad.exe`
-are in [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md), which the setup installs next to
-this file.
+licenses of the crates and packages compiled into `doppelpad-gui` and `doppelpad` (`.exe`
+on Windows) are in [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md), which the setup and
+the AppImage carry next to this file.
 
 ## Bundled drivers
 
@@ -394,3 +394,15 @@ but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 Lesser General Public License for more details.
 ```
+
+## Libraries in the Linux AppImage
+
+The Linux AppImage carries the system libraries the app needs from Ubuntu 22.04, unmodified:
+WebKitGTK, which draws the app's window, GTK and the libraries they use, and
+libayatana-appindicator for the tray icon. They are separate shared libraries under their
+own licenses, most of them the GNU Lesser General Public License. Each release has
+`Doppelpad_<version>_amd64_libraries.txt` beside the AppImage. It lists every library with
+the Ubuntu package it comes from and that package's source package and version, then gives
+each package's copyright file in full and the license texts (LGPL, GPL and others) these
+refer to. The source code of each package is available from Ubuntu at
+<https://launchpad.net/ubuntu/+source/SOURCE-PACKAGE/VERSION>.

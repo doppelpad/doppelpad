@@ -53,6 +53,11 @@ installs ViGEmBus and HidHide when they are missing. The setup is not code-signe
 Windows SmartScreen warns about it: choose *More info*, then *Run anyway*. Once installed,
 Doppelpad offers new versions itself.
 
+On Linux, take `Doppelpad_<version>_amd64.AppImage`, make it executable and start it; it
+updates itself too. The command-line tool is in `doppelpad_<version>_linux-x86_64.tar.gz`.
+Access to the input devices may need a udev rule (not on SteamOS): see
+[docs/LINUX.md](docs/LINUX.md#install).
+
 ## Highlights
 
 <table>
