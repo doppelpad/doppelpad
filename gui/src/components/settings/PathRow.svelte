@@ -3,13 +3,14 @@
   import { FolderOpen } from '@lucide/svelte';
   import { api } from '../../lib/api';
   import { app } from '../../lib/state/app.svelte';
+  import { tip } from '../../lib/tooltip.svelte';
 
   let { path, revealLabel }: { path: string; /** Tooltip of the button. */ revealLabel: string } = $props();
 </script>
 
 <div class="path">
   <code>{path}</code>
-  <button class="icon-btn" title={revealLabel} onclick={() => path && app.attempt(api.reveal(path))}>
+  <button class="icon-btn" use:tip={revealLabel} onclick={() => path && app.attempt(api.reveal(path))}>
     <FolderOpen size={15} />
   </button>
 </div>

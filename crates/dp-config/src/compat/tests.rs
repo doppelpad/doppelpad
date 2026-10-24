@@ -3,7 +3,7 @@ use dp_core::keys::Key;
 use dp_core::pad::{PadButton, Stick, Trigger};
 use dp_core::profile::{
     Action, Command, JitterPattern, KbmSource, KeyRepeat, LightMode, Magnifier, Mode, Press,
-    RadialApply, RadialSelect, ShakeAxis, Unlock, Vibration, VirtualPadType,
+    RadialApply, RadialPosition, RadialSelect, ShakeAxis, Unlock, Vibration, VirtualPadType,
 };
 
 use super::ids::{gamepad_control, key_from_description};
@@ -329,7 +329,8 @@ fn radial_menus_sectors_and_navigation() {
       "devices": { "hardware": [ { "id": 1, "name": "gamepad" } ] },
       "shifts": [ { "id": 2, "type": "radialMenu" } ],
       "radialMenuCircles": [ { "id": 1, "sectors": [ 1, 2 ], "isTintedBackground": true, "tintBackground": 40 },
-                             { "id": 2, "parentSectorId": 2, "sectors": [ 3 ] } ],
+                             { "id": 2, "parentSectorId": 2, "sectors": [ 3 ],
+                               "horizontalAlignment": "Right", "verticalAlignment": "Top" } ],
       "radialMenuSectors": [ { "id": 1, "parentCircleId": 1, "description": "Heal", "color": [0, 255, 0] },
                              { "id": 2, "parentCircleId": 1, "childCircleId": 2, "description": "More" },
                              { "id": 3, "parentCircleId": 2, "description": "Map", "isCloseOnApply": false } ],
@@ -365,6 +366,8 @@ fn radial_menus_sectors_and_navigation() {
         "a sub-menu has no layer of its own"
     );
     assert!(!p.radial_menus[1].sectors[0].close);
+    assert_eq!(root.position, RadialPosition::Center);
+    assert_eq!(p.radial_menus[1].position, RadialPosition::TopRight);
     assert_eq!(
         p.mappings.len(),
         1,

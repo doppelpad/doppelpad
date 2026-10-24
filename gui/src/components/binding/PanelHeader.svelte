@@ -5,6 +5,7 @@
   import { t } from '../../lib/i18n/index.svelte';
   import LayerBadge from '../ui/LayerBadge.svelte';
   import Menu, { type MenuItem } from '../ui/Menu.svelte';
+  import { tip } from '../../lib/tooltip.svelte';
 
   let { title, layer, menu, onclose }: { title: string; layer: number; menu?: MenuItem[]; onclose: () => void } = $props();
 </script>
@@ -20,7 +21,7 @@
         {#snippet trigger()}<span class="icon-btn"><Ellipsis size={16} /></span>{/snippet}
       </Menu>
     {/if}
-    <button class="icon-btn" title={t('common.close')} onclick={onclose}><X size={16} /></button>
+    <button class="icon-btn" use:tip={t('common.close')} onclick={onclose}><X size={16} /></button>
   </div>
 </div>
 

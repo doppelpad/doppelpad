@@ -5,6 +5,7 @@
   import { t } from '../../lib/i18n/index.svelte';
   import { app } from '../../lib/state/app.svelte';
   import type { OsdSettings } from '../../lib/types';
+  import Select from '../ui/Select.svelte';
   import Slider from '../ui/Slider.svelte';
   import Toggle from '../ui/Toggle.svelte';
   import CornerSelect from './CornerSelect.svelte';
@@ -47,11 +48,15 @@
       {/each}
     </div>
     <SettingRow label={t('settings.osd.monitor')}>
-      <select value={osd.monitor} onchange={(e) => set({ monitor: Number(e.currentTarget.value) })}>
-        {#each monitors as size, i (i)}
-          <option value={i}>{i === 0 ? t('settings.osd.primary', { size }) : t('settings.osd.monitor_n', { n: i + 1, size })}</option>
-        {/each}
-      </select>
+      <Select
+        value={osd.monitor}
+        class="setting"
+        options={monitors.map((size, i) => ({
+          value: i,
+          label: i === 0 ? t('settings.osd.primary', { size }) : t('settings.osd.monitor_n', { n: i + 1, size }),
+        }))}
+        onchange={(monitor) => set({ monitor })}
+      />
     </SettingRow>
     <CornerSelect value={osd.corner} onchange={(corner) => set({ corner })} />
     <Slider
@@ -88,9 +93,6 @@
 </SettingsSection>
 
 <style>
-  select {
-    min-width: 160px;
-  }
   .events {
     display: flex;
     flex-direction: column;

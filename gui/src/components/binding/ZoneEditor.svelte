@@ -28,6 +28,7 @@
   } from '../../lib/model/zones';
   import { app } from '../../lib/state/app.svelte';
   import type { StickZones, TriggerZones } from '../../lib/types';
+  import { tip } from '../../lib/tooltip.svelte';
 
   let { parts }: { parts: ZoneParts<PairSource> } = $props();
 
@@ -115,7 +116,7 @@
   <div class="bar-row">
     {#if label}<span class="axis">{label}</span>{/if}
     <div class="bar">
-      <span class="seg dead" style={seg(0, tr[0])} title={t('zones.deadzone')}></span>
+      <span class="seg dead" style={seg(0, tr[0])} use:tip={t('zones.deadzone')}></span>
       <span class="seg low" class:on={parts.zone === 'Low'} style={seg(tr[0], tr[1])}></span>
       <span class="seg med" class:on={parts.zone === 'Med'} style={seg(tr[1], tr[2])}></span>
       <span class="seg high" class:on={parts.zone === 'High'} style={seg(tr[2], 1)}></span>

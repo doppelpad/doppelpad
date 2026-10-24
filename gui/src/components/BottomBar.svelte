@@ -7,6 +7,7 @@
   import DevicePicker from './bottom/DevicePicker.svelte';
   import ServiceWarnings from './bottom/ServiceWarnings.svelte';
   import SlotBar from './bottom/SlotBar.svelte';
+  import { tip } from '../lib/tooltip.svelte';
 
   const live = $derived(app.live);
 
@@ -32,7 +33,7 @@
       class:on={live?.remap_on}
       aria-pressed={!!live?.remap_on}
       aria-label={t(live?.remap_on ? 'remap.on' : 'remap.off')}
-      title={powerTitle}
+      use:tip={powerTitle}
       onclick={() => app.attempt(api.setRemap(!live?.remap_on))}
     >
       {#if paused}<Pause size={15} />{:else}<Power size={15} />{/if}
@@ -43,7 +44,7 @@
       class:on={app.settings.pad_navigation}
       aria-pressed={app.settings.pad_navigation}
       aria-label={t('padnav.toggle')}
-      title={t('padnav.hint')}
+      use:tip={t('padnav.hint')}
       onclick={() => app.setPadNavigation(!app.settings.pad_navigation)}
     >
       <GamepadDirectional size={15} />
@@ -52,7 +53,7 @@
     <DevicePicker />
 
     {#if live && !live.drivers.virtual_pads.available}
-      <span class="warn" title={live.drivers.virtual_pads.error ?? ''}>
+      <span class="warn" use:tip={live.drivers.virtual_pads.error ?? ''}>
         <TriangleAlert size={13} />
         {t('drivers.missing_named', { driver: 'ViGEmBus' })}
       </span>

@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 use dp_core::profile::{
     Action, Command, Crosshair, CrosshairShape, Magnifier, Profile, RadialApply, RadialMenu,
-    RadialSector, RadialSelect,
+    RadialPosition, RadialSector, RadialSelect,
 };
 use serde_json::Value;
 
@@ -41,6 +41,10 @@ impl<'a> Importer<'a> {
             if boolean(c, "isDelayBeforeOpening") {
                 menu.delay_ms = int(c, "delayBeforeOpening").unwrap_or(500).clamp(0, 5000) as u32;
             }
+            menu.position = position(
+                enum_str(c, "horizontalAlignment").as_deref(),
+                enum_str(c, "verticalAlignment").as_deref(),
+            );
             if boolean(c, "isTintedBackground") {
                 let t = get(c, "tintBackground")
                     .and_then(Value::as_f64)
@@ -186,5 +190,22 @@ impl<'a> Importer<'a> {
                 "crosshairs are drawn with Doppelpad's own shapes; each became a cross",
             );
         }
+    }
+}
+
+/// A circle's place from its alignments (`left`, `center`, `right`, `stretch`; `top`,
+/// `center`, `bottom`, `stretch`). Stretch, missing and unknown values are the centre.
+fn position(horizontal: Option<&str>, vertical: Option<&str>) -> RadialPosition {
+    use RadialPosition as P;
+    match (horizontal, vertical) {
+        (Some("left"), Some("top")) => P::TopLeft,
+        (Some("right"), Some("top")) => P::TopRight,
+        (Some("left"), Some("bottom")) => P::BottomLeft,
+        (Some("right"), Some("bottom")) => P::BottomRight,
+        (Some("left"), _) => P::Left,
+        (Some("right"), _) => P::Right,
+        (_, Some("top")) => P::Top,
+        (_, Some("bottom")) => P::Bottom,
+        _ => P::Center,
     }
 }

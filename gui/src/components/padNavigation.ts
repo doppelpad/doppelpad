@@ -10,7 +10,7 @@ import type { ControlName } from '../lib/types';
 import { modalOpen } from './ui/Dialog.svelte';
 
 /** The views the bumpers step through, in the toolbar's order. */
-const VIEWS: View[] = ['front', 'back', 'keyboard', 'mouse', 'analog', 'shortcuts', 'output'];
+const VIEWS: View[] = ['front', 'back', 'keyboard', 'mouse', 'analog', 'shortcuts', 'radial', 'output'];
 
 const FOCUSABLE = [
   'button',

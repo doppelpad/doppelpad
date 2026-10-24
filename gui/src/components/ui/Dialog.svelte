@@ -15,6 +15,7 @@
   import { X } from '@lucide/svelte';
   import { onMount, type Snippet } from 'svelte';
   import { t } from '../../lib/i18n/index.svelte';
+  import { tip } from '../../lib/tooltip.svelte';
 
   let {
     title,
@@ -98,7 +99,7 @@
         {title}
       </h3>
       {#if showClose && onclose}
-        <button class="icon-btn" onclick={onclose} title={closeLabel ?? t('common.close')}><X size={17} /></button>
+        <button class="icon-btn" onclick={onclose} use:tip={closeLabel ?? t('common.close')}><X size={17} /></button>
       {/if}
     </div>
     {@render children()}

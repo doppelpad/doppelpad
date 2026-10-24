@@ -24,7 +24,9 @@ pub struct RadialMenu {
     pub tint: f32,
     /// Size, 0.5–2 (1: 400 logical pixels across).
     pub scale: f32,
-    /// Pixels from the centre of the primary monitor, right and down.
+    /// Where on the primary monitor the ring sits.
+    pub position: RadialPosition,
+    /// Pixels from that place, right and down.
     pub offset: [i16; 2],
     pub sectors: Vec<RadialSector>,
 }
@@ -43,10 +45,30 @@ impl Default for RadialMenu {
             delay_ms: 0,
             tint: 0.0,
             scale: 1.0,
+            position: RadialPosition::Center,
             offset: [0, 0],
             sectors: Vec::new(),
         }
     }
+}
+
+/// Where a radial menu sits on the screen: in the middle, at an edge or in a corner (the ring
+/// touching it, a small margin away), or around the mouse pointer as the menu opens.
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RadialPosition {
+    #[default]
+    Center,
+    Top,
+    Bottom,
+    Left,
+    Right,
+    TopLeft,
+    TopRight,
+    BottomLeft,
+    BottomRight,
+    /// Where the mouse pointer is when the menu opens (kept inside the screen).
+    Cursor,
 }
 
 /// What points at a sector of an open radial menu.

@@ -18,6 +18,7 @@
   import Slider from '../ui/Slider.svelte';
   import Toggle from '../ui/Toggle.svelte';
   import CrosshairShape from './CrosshairShape.svelte';
+  import { tip } from '../../lib/tooltip.svelte';
 
   const crosshairs = $derived(app.profile?.crosshairs ?? []);
   const def = $derived(app.catalog?.defaults.crosshair);
@@ -69,7 +70,7 @@
         <button
           class="shape"
           class:active={f.shape === s}
-          title={t(`crosshairs.shapes.${s}`)}
+          use:tip={t(`crosshairs.shapes.${s}`)}
           {disabled}
           onclick={() => set(i, { shape: s as Shape })}
         >

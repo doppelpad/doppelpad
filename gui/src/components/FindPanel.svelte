@@ -8,6 +8,7 @@
   import { mappingsPressing, searchMappings, viewFor, type Found } from '../lib/model/search';
   import { app } from '../lib/state/app.svelte';
   import LayerBadge from './ui/LayerBadge.svelte';
+  import { tip } from '../lib/tooltip.svelte';
 
   let query = $state(app.find?.query ?? '');
   let box: HTMLDivElement | undefined = $state();
@@ -74,12 +75,12 @@
     {#if key}
       <span class="filter">
         {t('find.pressing', { key: comboLabel(`Key:${key}`, null) })}
-        <button class="icon-btn" title={t('find.all')} onclick={() => app.find && (app.find = { query })}><X size={13} /></button>
+        <button class="icon-btn" use:tip={t('find.all')} onclick={() => app.find && (app.find = { query })}><X size={13} /></button>
       </span>
     {:else}
       <input bind:this={input} bind:value={query} placeholder={t('find.placeholder')} aria-label={t('find.title')} />
     {/if}
-    <button class="icon-btn" title={t('common.close')} onclick={close}><X size={15} /></button>
+    <button class="icon-btn" use:tip={t('common.close')} onclick={close}><X size={15} /></button>
   </div>
   {#if key || query.trim()}
     <div class="results" role="list">

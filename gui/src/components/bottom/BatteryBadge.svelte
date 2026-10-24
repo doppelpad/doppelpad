@@ -4,6 +4,7 @@
   import { t } from '../../lib/i18n/index.svelte';
   import { BATTERY_CRITICAL, BATTERY_LOW, batteryTone } from '../../lib/model/devices';
   import type { Battery } from '../../lib/types';
+  import { tip } from '../../lib/tooltip.svelte';
 
   let { battery: b }: { battery: Battery } = $props();
 
@@ -14,7 +15,7 @@
   class="battery"
   class:low={tone === 'warning'}
   class:critical={tone === 'danger'}
-  title={t(b.charging ? 'devices.battery_charging' : 'devices.battery', { level: b.level })}
+  use:tip={t(b.charging ? 'devices.battery_charging' : 'devices.battery', { level: b.level })}
 >
   {#if b.charging}<BatteryCharging size={14} />{:else if b.level < BATTERY_CRITICAL}<BatteryWarning
       size={14}

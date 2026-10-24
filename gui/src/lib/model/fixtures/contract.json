@@ -219,6 +219,7 @@
         "delay_ms": 0,
         "tint": 0.0,
         "scale": 1.0,
+        "position": "center",
         "offset": [
           0,
           0

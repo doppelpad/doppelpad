@@ -1,7 +1,23 @@
+<script module lang="ts">
+  import { Crosshair, Gamepad2, Keyboard, Lightbulb, Timer } from '@lucide/svelte';
+
+  /** The pages of the config settings, in the order of the list on the left. */
+  export const OUTPUT_PAGES = [
+    { id: 'controller', icon: Gamepad2 },
+    { id: 'input', icon: Keyboard },
+    { id: 'timing', icon: Timer },
+    { id: 'feedback', icon: Lightbulb },
+    { id: 'crosshairs', icon: Crosshair },
+  ] as const;
+  export type OutputPage = (typeof OUTPUT_PAGES)[number]['id'];
+</script>
+
 <script lang="ts">
-  // The config's output page: the virtual controller and how input passes, keyboard and mouse,
-  // turning, shaking, timing, light bar, vibration, crosshairs and radial menus.
+  // The config's settings, a page at a time: the virtual controller and how input passes,
+  // keyboard and mouse, timing, light bar and rumble, crosshairs. The list on the left picks
+  // the page, as in the app's settings.
   import { t } from '../lib/i18n/index.svelte';
+  import { app } from '../lib/state/app.svelte';
   import CrosshairSettings from './crosshair/CrosshairSettings.svelte';
   import InputSettings from './output/InputSettings.svelte';
   import LightSettings from './output/LightSettings.svelte';
@@ -10,34 +26,122 @@
   import TimingSettings from './output/TimingSettings.svelte';
   import VibrationSettings from './output/VibrationSettings.svelte';
   import VirtualPadSettings from './output/VirtualPadSettings.svelte';
-  import RadialSettings from './radial/RadialSettings.svelte';
+
+  const id = $props.id();
+  const page = $derived(app.outputPage);
+
+  /** Up and down (Home, End) move through the pages, as in any vertical tab list. */
+  function onListKey(e: KeyboardEvent) {
+    const i = OUTPUT_PAGES.findIndex((p) => p.id === page);
+    const to = { ArrowDown: i + 1, ArrowUp: i - 1, Home: 0, End: OUTPUT_PAGES.length - 1 }[e.key];
+    if (to === undefined) return;
+    e.preventDefault();
+    const next = OUTPUT_PAGES[(to + OUTPUT_PAGES.length) % OUTPUT_PAGES.length]!;
+    app.outputPage = next.id;
+    document.getElementById(`${id}-tab-${next.id}`)?.focus();
+  }
 </script>
 
 <div class="output">
   <h2>{t('views.output')}</h2>
-  <VirtualPadSettings />
-  <InputSettings />
-  <MouseSettings />
-  <ShakeSettings />
-  <TimingSettings />
-  <LightSettings />
-  <VibrationSettings />
-  <CrosshairSettings />
-  <RadialSettings />
+  <div class="layout">
+    <div class="pages" role="tablist" aria-orientation="vertical" tabindex="-1" onkeydown={onListKey}>
+      {#each OUTPUT_PAGES as p (p.id)}
+        <button
+          type="button"
+          role="tab"
+          id="{id}-tab-{p.id}"
+          aria-selected={page === p.id}
+          aria-controls="{id}-page"
+          tabindex={page === p.id ? 0 : -1}
+          class:on={page === p.id}
+          onclick={() => (app.outputPage = p.id)}
+        >
+          <p.icon size={16} />
+          <span class="name">{t(`output.pages.${p.id}`)}</span>
+        </button>
+      {/each}
+    </div>
+
+    {#key page}
+      <div class="page" role="tabpanel" id="{id}-page" aria-labelledby="{id}-tab-{page}" tabindex="-1">
+        {#if page === 'controller'}
+          <VirtualPadSettings />
+          <ShakeSettings />
+        {:else if page === 'input'}
+          <InputSettings />
+          <MouseSettings />
+        {:else if page === 'timing'}
+          <TimingSettings />
+        {:else if page === 'feedback'}
+          <LightSettings />
+          <VibrationSettings />
+        {:else}
+          <CrosshairSettings />
+        {/if}
+      </div>
+    {/key}
+  </div>
 </div>
 
 <style>
   .output {
-    max-width: 640px;
+    max-width: 860px;
     margin: 0 auto;
-    padding: 32px 28px;
+    padding: 28px 28px 40px;
+  }
+  h2 {
+    margin: 0 0 18px;
+    font-size: 18px;
+    font-weight: 600;
+  }
+  .layout {
+    display: grid;
+    grid-template-columns: 184px minmax(0, 1fr);
+    gap: 28px;
+    align-items: start;
+  }
+  .pages {
+    position: sticky;
+    top: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding-right: 12px;
+    border-right: 1px solid var(--line);
+    outline: none;
+  }
+  .pages button {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 10px;
+    border-radius: var(--radius-m);
+    color: var(--text-dim);
+    text-align: left;
+  }
+  .pages button:hover:not(.on) {
+    color: var(--text);
+    background: var(--bg-2);
+  }
+  .pages button.on {
+    color: var(--accent);
+    background: var(--accent-soft);
+  }
+  .name {
+    flex: 1;
+  }
+  .page {
     display: flex;
     flex-direction: column;
     gap: 14px;
+    min-width: 0;
+    outline: none;
   }
-  h2 {
-    margin: 0 0 6px;
-    font-size: 18px;
-    font-weight: 600;
+  /* The page's first heading needs no line or space above it. */
+  .page > :global(.section-title:first-child) {
+    margin-top: 0;
+    padding-top: 0;
+    border-top: none;
   }
 </style>

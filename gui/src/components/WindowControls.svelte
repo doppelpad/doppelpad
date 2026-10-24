@@ -1,32 +1,35 @@
 <script lang="ts">
   import { t } from '../lib/i18n/index.svelte';
   import { platform, win } from '../lib/state/window.svelte';
+  import { tip } from '../lib/tooltip.svelte';
 </script>
 
 <!-- macOS keeps its native traffic lights (see main.rs); Windows and Linux draw their own. -->
 {#if platform === 'windows'}
   <div class="controls win" class:inactive={!win.focused}>
-    <button tabindex="-1" title={t('window.minimize')} aria-label={t('window.minimize')} onclick={() => win.minimize()}> &#xE921; </button>
+    <button tabindex="-1" use:tip={t('window.minimize')} aria-label={t('window.minimize')} onclick={() => win.minimize()}>
+      &#xE921;
+    </button>
     <button
       tabindex="-1"
-      title={win.maximized ? t('window.restore') : t('window.maximize')}
+      use:tip={win.maximized ? t('window.restore') : t('window.maximize')}
       aria-label={win.maximized ? t('window.restore') : t('window.maximize')}
       onclick={() => win.toggleMaximize()}
     >
       {#if win.maximized}&#xE923;{:else}&#xE922;{/if}
     </button>
-    <button tabindex="-1" class="close" title={t('window.close')} aria-label={t('window.close')} onclick={() => win.close()}>
+    <button tabindex="-1" class="close" use:tip={t('window.close')} aria-label={t('window.close')} onclick={() => win.close()}>
       &#xE8BB;
     </button>
   </div>
 {:else if platform === 'linux'}
   <div class="controls gtk" class:inactive={!win.focused}>
-    <button tabindex="-1" title={t('window.minimize')} aria-label={t('window.minimize')} onclick={() => win.minimize()}>
+    <button tabindex="-1" use:tip={t('window.minimize')} aria-label={t('window.minimize')} onclick={() => win.minimize()}>
       <svg viewBox="0 0 16 16"><path d="M4.5 10.5h7" /></svg>
     </button>
     <button
       tabindex="-1"
-      title={win.maximized ? t('window.restore') : t('window.maximize')}
+      use:tip={win.maximized ? t('window.restore') : t('window.maximize')}
       aria-label={win.maximized ? t('window.restore') : t('window.maximize')}
       onclick={() => win.toggleMaximize()}
     >
@@ -36,7 +39,7 @@
         <svg viewBox="0 0 16 16"><path d="M4.5 4.5h7v7h-7z" /></svg>
       {/if}
     </button>
-    <button tabindex="-1" title={t('window.close')} aria-label={t('window.close')} onclick={() => win.close()}>
+    <button tabindex="-1" use:tip={t('window.close')} aria-label={t('window.close')} onclick={() => win.close()}>
       <svg viewBox="0 0 16 16"><path d="M5 5l6 6M11 5l-6 6" /></svg>
     </button>
   </div>

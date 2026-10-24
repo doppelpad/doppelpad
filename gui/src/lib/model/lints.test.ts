@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { DiagMsg, Hotkeys, Profile } from '../types';
-import { diagTarget, flagsOf, hotkeyClashes, isFlagged, mappingPath } from './lints';
+import { diagTarget, flagsOf, hotkeyClashes, isFlagged, isReached, mappingPath, waitsForSave } from './lints';
 
 const p: Profile = {
   name: 'T',
@@ -54,5 +54,31 @@ describe('lints', () => {
     expect(isFlagged(flags, p, 1, 'B')).toBe(false);
     expect(isFlagged(flags, p, 0, 'B')).toBe(false);
     expect(flags.layers).toEqual(new Set([2]));
+  });
+});
+
+describe('layers being set up', () => {
+  const q: Profile = {
+    name: 'T',
+    layers: [{ id: 1 }, { id: 2 }],
+    mappings: [
+      { trigger: 'LB', jump: { layer: 1 } },
+      { layer: 2, trigger: 'A', jump: { layer: 2, mode: 'toggle' } },
+    ],
+  };
+  const unreached: DiagMsg = { severity: 'warning', path: 'layers[1]', message: 'nothing changes to layer 2' };
+
+  it('knows which layers something changes to', () => {
+    expect(isReached(q, 0)).toBe(true);
+    expect(isReached(q, 1)).toBe(true);
+    // Only from another layer.
+    expect(isReached(q, 2)).toBe(false);
+  });
+
+  it('holds back the warning about a layer the saved config does not have', () => {
+    expect(waitsForSave(q, unreached, new Set([0, 1]))).toBe(true);
+    expect(waitsForSave(q, unreached, new Set([0, 1, 2]))).toBe(false);
+    expect(waitsForSave(q, { ...unreached, severity: 'error' }, new Set([0]))).toBe(false);
+    expect(waitsForSave(q, { severity: 'warning', path: 'mappings[1] (A)', message: 'x' }, new Set([0]))).toBe(false);
   });
 });

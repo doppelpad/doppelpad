@@ -35,6 +35,26 @@ export function hasParameters(a: Action): boolean {
   );
 }
 
+/** Whether an action presses something, so a step can press, release or tap it (`action`). */
+export function hasPress(a: Action): boolean {
+  return 'key' in a || 'mouse' in a || 'pad' in a || 'stick' in a || 'trigger' in a;
+}
+
+/** How long "hold for a time" holds at first. */
+export const HOLD_MS = 500;
+
+/**
+ * Steps where step `i` (one that presses something) is held for `ms`: pressed, a pause,
+ * released.
+ */
+export function holdFor(steps: Action[], i: number, ms = HOLD_MS): Action[] {
+  const s = steps[i];
+  if (!s || !hasPress(s)) return steps;
+  const down = { ...s, action: 'down' } as Action;
+  const up = { ...s, action: 'up' } as Action;
+  return [...steps.slice(0, i), down, { pause: ms }, up, ...steps.slice(i + 1)];
+}
+
 /** Pause steps shorter than this are not recorded (one time unit). */
 export const RECORD_MIN_PAUSE_MS = 10;
 

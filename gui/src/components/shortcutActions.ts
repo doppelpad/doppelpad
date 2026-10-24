@@ -47,6 +47,10 @@ export function runShortcut(id: ShortcutId, digit?: number): boolean {
       clearAt(c);
       return true;
     case 'deselect':
+      if (app.view === 'radial' && app.radialSector !== null) {
+        app.radialSector = null;
+        return true;
+      }
       if (!c && !app.stick && app.view !== 'macro') return false;
       if (app.view === 'macro') app.view = 'front';
       app.select(null);

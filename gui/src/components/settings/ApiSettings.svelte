@@ -10,6 +10,7 @@
   import Toggle from '../ui/Toggle.svelte';
   import SettingRow from './SettingRow.svelte';
   import SettingsSection from './SettingsSection.svelte';
+  import { tip } from '../../lib/tooltip.svelte';
 
   const http = $derived(app.live?.http ?? null);
 
@@ -36,8 +37,8 @@
       <div class="token">
         <span>{t('settings.http.token')}</span>
         <code>{http.settings.token}</code>
-        <button class="icon-btn" title={t('settings.http.copy')} onclick={copyToken}><Copy size={14} /></button>
-        <button class="icon-btn" title={t('settings.http.new_token')} onclick={() => app.attempt(api.newHttpToken())}
+        <button class="icon-btn" use:tip={t('settings.http.copy')} onclick={copyToken}><Copy size={14} /></button>
+        <button class="icon-btn" use:tip={t('settings.http.new_token')} onclick={() => app.attempt(api.newHttpToken())}
           ><RefreshCw size={14} /></button
         >
       </div>

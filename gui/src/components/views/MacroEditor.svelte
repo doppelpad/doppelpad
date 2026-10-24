@@ -2,35 +2,22 @@
   // Edit one mapping as a macro: run mode, repeat settings and an ordered list of steps.
   // Steps can be picked or recorded from the keyboard or the controller (presses and
   // releases with the pauses between), and break steps cut the sequence into segments.
-  import {
-    ArrowLeft,
-    ArrowUp,
-    ArrowDown,
-    X,
-    Circle,
-    Square,
-    Plus,
-    Timer,
-    Vibrate,
-    Gamepad2,
-    SeparatorHorizontal,
-    Copy,
-    ClipboardPaste,
-  } from '@lucide/svelte';
+  import { ArrowLeft, Circle, Square, Plus, Timer, Vibrate, Gamepad2, SeparatorHorizontal, Copy, ClipboardPaste } from '@lucide/svelte';
   import { clone } from '../../lib/model/util';
   import { onDestroy, untrack } from 'svelte';
   import { t } from '../../lib/i18n/index.svelte';
-  import { actionLabel, comboLabel } from '../../lib/model/labels';
+  import { comboLabel } from '../../lib/model/labels';
   import { keyFromEvent } from '../../lib/model/keymap';
   import { recordedSteps } from '../../lib/model/actions';
   import { parseNonNegInt } from '../../lib/model/numbers';
   import { modeOf, segmentCount } from '../../lib/model/profile';
   import { app } from '../../lib/state/app.svelte';
   import type { Action, ControlName, Mapping, Mode, Press } from '../../lib/types';
-  import ActionParams from '../binding/ActionParams.svelte';
   import ActionPicker from '../binding/ActionPicker.svelte';
+  import StepList from '../binding/StepList.svelte';
   import LayerBadge from '../ui/LayerBadge.svelte';
   import Segmented from '../ui/Segmented.svelte';
+  import { tip } from '../../lib/tooltip.svelte';
 
   const target = $derived(app.macroTarget);
   const at = $derived<{ own?: Mapping; inherited?: Mapping }>(target ? app.mappingAt(target.layer, target.trigger, target.activator) : {});
@@ -67,29 +54,6 @@
   /** The copied steps replace these (undoable). */
   function pasteSteps() {
     if (app.copiedSteps) setSteps(clone(app.copiedSteps));
-  }
-
-  function move(i: number, d: -1 | 1) {
-    const next = [...steps];
-    const j = i + d;
-    if (j < 0 || j >= next.length) return;
-    [next[i], next[j]] = [next[j], next[i]];
-    setSteps(next);
-  }
-
-  function setPress(i: number, action: Press) {
-    const next = steps.map((s, j) => (j === i ? ({ ...s, action } as Action) : s));
-    setSteps(next);
-  }
-
-  function setPause(i: number, v: string) {
-    const n = parseNonNegInt(v);
-    if (n === null) return;
-    setSteps(steps.map((s, j) => (j === i ? { pause: n } : s)));
-  }
-
-  function hasPress(a: Action): boolean {
-    return 'key' in a || 'mouse' in a || 'pad' in a || 'stick' in a || 'trigger' in a;
   }
 
   const num = (v: string) => parseNonNegInt(v) ?? undefined;
@@ -159,10 +123,6 @@
     return () => app.endEditGroup();
   });
 
-  function replace(i: number, a: Action) {
-    setSteps(steps.map((s, j) => (j === i ? a : s)));
-  }
-
   const segments = $derived(segmentCount(steps));
 
   onDestroy(() => {
@@ -222,7 +182,7 @@
           />
           {t('common.ms')}
         </label>
-        <label title={t('binding.random_hint')}>
+        <label use:tip={t('binding.random_hint')}>
           {t('binding.random')}
           <input
             type="number"
@@ -253,61 +213,7 @@
       <span class="total">{t('macro.total', { ms: total })}</span>
     </div>
 
-    <div class="steps">
-      {#if steps.length === 0}
-        <p class="empty">{t('macro.empty')}</p>
-      {/if}
-      {#each steps as s, i (i)}
-        <div class="step" class:pause={'pause' in s} class:brk={'break' in s}>
-          <span class="idx">{i + 1}</span>
-          {#if 'pause' in s}
-            <Timer size={14} />
-            <input
-              class="pause-in"
-              type="number"
-              min="0"
-              step="10"
-              value={s.pause}
-              disabled={app.readOnly}
-              onchange={(e) => setPause(i, e.currentTarget.value)}
-            />
-            <span class="dim">{t('common.ms')}</span>
-          {:else if 'break' in s}
-            <SeparatorHorizontal size={14} />
-            <span class="label">{t('macro.break')}</span>
-            <span class="dim">{t('macro.break_hint')}</span>
-          {:else}
-            <span class="label">{actionLabel({ ...s, action: undefined } as Action)}</span>
-            {#if hasPress(s)}
-              <select
-                value={('action' in s && s.action) || 'auto'}
-                disabled={app.readOnly}
-                onchange={(e) => setPress(i, e.currentTarget.value as Press)}
-              >
-                <option value="auto">{t('macro.step_auto')}</option>
-                <option value="tap">{t('macro.step_tap')}</option>
-                <option value="down">{t('macro.step_down')}</option>
-                <option value="up">{t('macro.step_up')}</option>
-              </select>
-            {/if}
-            <ActionParams action={s} disabled={app.readOnly} onchange={(a) => replace(i, a)} />
-          {/if}
-          {#if !app.readOnly}
-            <span class="tools">
-              <button class="icon-btn" title={t('macro.move_up')} disabled={i === 0} onclick={() => move(i, -1)}
-                ><ArrowUp size={14} /></button
-              >
-              <button class="icon-btn" title={t('macro.move_down')} disabled={i === steps.length - 1} onclick={() => move(i, 1)}
-                ><ArrowDown size={14} /></button
-              >
-              <button class="icon-btn" title={t('common.remove')} onclick={() => setSteps(steps.filter((_, j) => j !== i))}
-                ><X size={14} /></button
-              >
-            </span>
-          {/if}
-        </div>
-      {/each}
-    </div>
+    <StepList {steps} disabled={app.readOnly} empty={t('macro.empty')} onchange={setSteps} />
 
     {#if !app.readOnly}
       <div class="add">
@@ -388,69 +294,6 @@
   .total {
     margin-left: auto;
     color: var(--text-faint);
-  }
-  .steps {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    border: 1px solid var(--line);
-    border-radius: var(--radius-m);
-    padding: 6px;
-    background: var(--bg-1);
-    min-height: 60px;
-  }
-  .empty {
-    color: var(--text-faint);
-    margin: 12px;
-  }
-  .step {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 5px 8px;
-    border-radius: var(--radius-s);
-    background: var(--bg-2);
-  }
-  .step.brk {
-    background: transparent;
-    border: 1px solid var(--accent);
-    color: var(--text-dim);
-  }
-  .step.pause {
-    background: transparent;
-    border: 1px dashed var(--line);
-    color: var(--text-dim);
-  }
-  .idx {
-    width: 22px;
-    color: var(--text-faint);
-    font-size: var(--fs-xs);
-    text-align: right;
-  }
-  .label {
-    font-weight: 500;
-    min-width: 120px;
-  }
-  .pause-in {
-    width: 80px;
-    padding: 3px 6px;
-  }
-  .dim {
-    color: var(--text-faint);
-  }
-  .step select {
-    padding: 3px 6px;
-  }
-  .tools {
-    margin-left: auto;
-    display: inline-flex;
-  }
-  .tools .icon-btn {
-    width: 26px;
-    height: 26px;
-  }
-  .tools .icon-btn:disabled {
-    opacity: 0.3;
   }
   .add {
     display: flex;

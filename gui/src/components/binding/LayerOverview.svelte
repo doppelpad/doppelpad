@@ -1,12 +1,14 @@
 <script lang="ts">
-  // The binding panel when nothing is selected: how to start, and the mappings of the current
-  // layer.
-  import { ChevronRight, Info } from '@lucide/svelte';
+  // The binding panel when nothing is selected: how to start, how to reach a layer nothing
+  // changes to yet, and the mappings of the current layer.
+  import { ChevronRight, Info, Route } from '@lucide/svelte';
   import { t } from '../../lib/i18n/index.svelte';
   import { comboLabel, mappingSummary } from '../../lib/model/labels';
+  import { isReached } from '../../lib/model/lints';
   import { activatorOf, layerOf } from '../../lib/model/profile';
   import { app } from '../../lib/state/app.svelte';
   import type { Combo, Mapping } from '../../lib/types';
+  import LayerNote from '../ui/LayerNote.svelte';
   import ActivatorIcon from './ActivatorIcon.svelte';
 
   const layerMappings = $derived(app.profile ? app.profile.mappings.filter((m) => layerOf(m) === app.layer) : []);
@@ -21,6 +23,9 @@
   <Info size={16} />
   <p>{t('binding.choose')}</p>
 </div>
+{#if app.profile && !isReached(app.profile, app.layer)}
+  <LayerNote icon={Route}>{t('binding.layer_unreached', { layer: app.layerLabel(app.layer) })}</LayerNote>
+{/if}
 <div class="section-title">{t('binding.layer_mappings', { layer: app.layerLabel(app.layer) })}</div>
 {#if layerMappings.length === 0}
   <p class="muted">{t('binding.no_layer_mappings')}</p>

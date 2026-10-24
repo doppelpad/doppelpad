@@ -18,6 +18,7 @@
   import { app } from '../../lib/state/app.svelte';
   import type { ControlName } from '../../lib/types';
   import Segmented from '../ui/Segmented.svelte';
+  import { tip } from '../../lib/tooltip.svelte';
 
   let {
     menu,
@@ -90,14 +91,15 @@
           {@const click = SIDES[menu.side].click}
           <button class="sm-btn click" onclick={() => onchoose(click)}>{t('binding.click')}</button>
         {:else if menu.kind === 'touch'}
-          <button class="sm-btn" title={t('controls.touch.center')} onclick={() => onchoose(`${prefix}Center`)}>◎</button>
+          <button class="sm-btn" use:tip={t('controls.touch.center')} onclick={() => onchoose(`${prefix}Center`)}>◎</button>
         {:else}
           <span></span>
         {/if}
       {:else if CORNERS.has(d) && !diagonals}
         <span></span>
       {:else}
-        <button class="sm-btn" title={controlLabel(`${prefix}${d}`, app.family)} onclick={() => onchoose(`${prefix}${d}`)}>{arrow}</button>
+        <button class="sm-btn" use:tip={controlLabel(`${prefix}${d}`, app.family)} onclick={() => onchoose(`${prefix}${d}`)}>{arrow}</button
+        >
       {/if}
     {/each}
   </div>
@@ -168,7 +170,7 @@
       <button
         class="sm-btn"
         class:danger={item.danger}
-        title={item.label}
+        use:tip={item.label}
         aria-label={item.label}
         disabled={item.disabled}
         onclick={() => {

@@ -1,8 +1,8 @@
 <script lang="ts">
-  // What Doppelpad sends right now, to test a config without a game: the virtual controller
-  // (its pressed buttons, sticks and triggers on a small drawing), the keys and mouse buttons
-  // held, and the layer. Remapping pauses while this window has the focus unless the user keeps
-  // it running, so the panel offers that switch.
+  // What Doppelpad sends right now, to test a config without a game: the virtual controller's
+  // pressed buttons, sticks and triggers, drawn on the controller in use (where the player's
+  // buttons are), the keys and mouse buttons held, and the layer. Remapping pauses while this
+  // window has the focus unless the user keeps it running, so the panel offers that switch.
   import { X } from '@lucide/svelte';
   import { DEVICE_LAYOUTS } from '../assets/devices/layouts';
   import { t } from '../lib/i18n/index.svelte';
@@ -11,6 +11,7 @@
   import { app } from '../lib/state/app.svelte';
   import type { LiveDevice } from '../lib/types';
   import Toggle from './ui/Toggle.svelte';
+  import { tip } from '../lib/tooltip.svelte';
 
   let { onclose }: { onclose: () => void } = $props();
 
@@ -33,7 +34,9 @@
         }
       : null,
   );
-  const layout = $derived(virtual ? DEVICE_LAYOUTS[drawingsFor(virtual).front] : null);
+  /** The controller the session reads: the drawing is that one, so the output shows where the player's buttons are. */
+  const reading = $derived(app.live?.devices.find((d) => d.id === session?.device) ?? app.primary);
+  const layout = $derived(virtual ? DEVICE_LAYOUTS[drawingsFor(reading ?? virtual).front] : null);
   const pressed = $derived(virtual ? controlsFromPad(virtual, app.catalog?.pad_buttons ?? []) : new Set<string>());
 
   let drawing: HTMLDivElement | undefined = $state();
@@ -64,7 +67,7 @@
   <div class="head">
     <strong>{t('live_output.title')}</strong>
     {#if session}<span class="layer">{app.layerLabel(session.layer)}</span>{/if}
-    <button class="icon-btn" title={t('common.close')} onclick={onclose}><X size={14} /></button>
+    <button class="icon-btn" use:tip={t('common.close')} onclick={onclose}><X size={14} /></button>
   </div>
   {#if stopped}
     <p class="note">{stopped}</p>
@@ -72,11 +75,12 @@
   {#if app.live?.suspended && !app.settings.stay_live}
     <Toggle checked={false} label={t('settings.stay_live')} onchange={(v) => app.setSettings({ stay_live: v })} />
   {/if}
-  {#if layout && virtual}
+  {#if layout && virtual && session?.virtual_pad}
     <div class="drawing" bind:this={drawing}>{@html layout.svg}</div>
+    <p class="sent-as">{t('live_output.sent_as', { pad: t(`output.${session.virtual_pad}`) })}</p>
     <div class="triggers">
       {#each ['left', 'right'] as const as side (side)}
-        <div class="bar" title={side === 'left' ? 'LT' : 'RT'}>
+        <div class="bar" use:tip={side === 'left' ? 'LT' : 'RT'}>
           <span style="width: {Math.round(Math.max(0, Math.min(1, triggerAxis(virtual, side))) * 100)}%"></span>
         </div>
       {/each}
@@ -143,6 +147,12 @@
   }
   .drawing :global(.body) {
     color: var(--text-faint);
+  }
+  .sent-as {
+    margin: -4px 0 0;
+    text-align: center;
+    color: var(--text-faint);
+    font-size: var(--fs-xs);
   }
   .triggers {
     display: grid;

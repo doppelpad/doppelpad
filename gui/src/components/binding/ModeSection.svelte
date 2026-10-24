@@ -9,6 +9,7 @@
   import Toggle from '../ui/Toggle.svelte';
   import { configTiming, ms, type EditMapping } from './edit';
   import MsInput from './MsInput.svelte';
+  import { tip } from '../../lib/tooltip.svelte';
 
   let { mapping, combo, readOnly, edit }: { mapping: Mapping | undefined; combo: Combo; readOnly: boolean; edit: EditMapping } = $props();
 
@@ -62,7 +63,7 @@
           onchange={(v) => edit((m) => (m.turbo_ms = ms(v)))}
         />
       </label>
-      <label class="inline" title={t('binding.random_hint')}>
+      <label class="inline" use:tip={t('binding.random_hint')}>
         {t('binding.random')}
         <MsInput value={mapping?.random_ms} placeholder="0" max={10000} onchange={(v) => edit((m) => (m.random_ms = ms(v) || undefined))} />
       </label>

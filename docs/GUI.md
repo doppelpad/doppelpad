@@ -15,9 +15,9 @@ only edits profiles and sends commands.
 |---|---|
 | **Games** (left) | One entry per game. A game has one or more configs and an optional list of programs (`game.exe`) that switch to it automatically. A green dot marks the game whose config is running. Configs outside a game folder appear under *Other configs*. A game's menu has **Game settings…**: its name, a description (shown under the name), a picture (copied into the game's folder and shown in the list), and its programs, picked from the running programs (those with a window), from a file picker, with *Game in front* (switch to the game; after three seconds the program in front is taken), or typed in. **Duplicate** copies a game with its configs and picture; the copy has no programs, so automatic switching keeps choosing the original. The books button at the top of the list shows the **games from your libraries**: what Steam, Epic and GOG have installed on this PC (read from their own files, nothing goes online). **Add** creates a game with its name, the program that switches to it (the likeliest is suggested; a list offers the others) and, for Steam games, the cover from Steam's cache; games already in the list are marked. |
 | **Header** | *Game › Config* picker (switch, create, import a JSON profile), **Undo** and **Redo** (see [Undo](#undo)), **Save** (Ctrl+S; a dot means unsaved changes), options (rename, duplicate, show in Explorer, clear, delete), settings. Imported JSON files are read-only; duplicate them to edit. The header and the top of the games list also act as the title bar: drag them to move the window, double-click to maximize. On Windows and Linux the app draws its own minimize, maximize and close buttons at the right. On macOS the system buttons sit at the top left. |
-| **Toolbar** | Views: *Controller*, *Back side*, *Keyboard*, *Mouse*. The two controller views draw the connected model as it looks from that side: the front shows the bumpers (L1 / R1, L / R) but not the triggers behind them; the back side shows the triggers, the bumpers where they show from behind (not on the DualSense), and the back buttons the model has, e.g. GL / GR on the Switch 2 Pro Controller, none on the first one. Layer chips: *Main* plus shift layers, which you can add, rename, copy, paste, clear and remove (together with their analog routes), and whose *Layer settings* say what they inherit from *Main*. Hovering a layer chip (or focusing it) shows how the layer is reached: every mapping that changes to it with its activator, kind (while held, toggle, switch) and delay, and the layer it sits on; a layer nothing changes to says so. The tooltip also names the radial menus the layer opens and whether it takes over *Main*'s mappings or gives the keyboard or mouse back. **Layer map…** in the layer menu draws all layers with an arrow for each mapping that changes layer (⇣ while held, ⇄ toggle, → switch), marks layers nothing changes to and switches nothing leaves again, and leads to a layer or a mapping when clicked. On the right: *Analog* (see [Sticks, triggers and analog routes](#sticks-triggers-and-analog-routes)), *Shortcuts* and *Config settings*. |
+| **Toolbar** | Views: *Controller*, *Back side*, *Keyboard*, *Mouse*. The two controller views draw the connected model as it looks from that side: the front shows the bumpers (L1 / R1, L / R) but not the triggers behind them; the back side shows the triggers, the bumpers where they show from behind (not on the DualSense), and the back buttons the model has, e.g. GL / GR on the Switch 2 Pro Controller, none on the first one. Layer chips: *Main* plus shift layers, which you can add, rename, copy, paste, clear and remove (together with their analog routes), and whose *Layer settings* say what they inherit from *Main*. Hovering a layer chip (or focusing it) shows how the layer is reached: every mapping that changes to it with its activator, kind (while held, toggle, switch) and delay, and the layer it sits on; a layer nothing changes to says so. The tooltip also names the radial menus the layer opens and whether it takes over *Main*'s mappings or gives the keyboard or mouse back. **Layer map…** in the layer menu draws all layers with an arrow for each mapping that changes layer (⇣ while held, ⇄ toggle, → switch), marks layers nothing changes to and switches nothing leaves again, and leads to a layer or a mapping when clicked. On the right: *Analog* (see [Sticks, triggers and analog routes](#sticks-triggers-and-analog-routes)), *Shortcuts*, *Radial menus* (see [Radial menus](#radial-menus)) and *Config settings*. When the window is too narrow for every layer chip, these four show only their icons (their names are in the tooltips). |
 | **Centre** | The selected view. Click a control to edit it. On the controller views, pressing a button on the controller selects it, and turns the drawing to the side that shows it (a trigger to the back side, a face button to the front). On the keyboard view, pressing a key does the same. |
-| **Binding panel** (right) | See below. With nothing selected, it lists the mappings of the current layer. |
+| **Binding panel** (right) | See below. With nothing selected, it lists the mappings of the current layer, and on a layer that nothing changes to yet it says how to reach it. |
 | **Bottom bar** | On the left: the remap button (on in teal, off in grey; a pause sign while remapping pauses, see [Remapping while the window is open](#remapping-while-the-window-is-open); its tooltip names the running config), the controller in use with its battery level where the controller reports one (DualShock 4, DualSense, Switch controllers, wireless Xbox controllers; orange below 40 %, red below 20 %), and driver warnings. *+1* means another controller is connected; it turns orange or red when that one's battery runs low. The controller list picks the one to use, and the cog next to it holds that controller's options: *own slots* (see [Several controllers](#several-controllers)), identifying a generic pad's buttons, **Turn off** and **Ignore this controller**. On the right: *Apply to slot n* (saves, puts the config in that slot and activates it; the arrow picks the slot, and hovering the button marks it) and the four slots (click to activate, which also turns remapping on; × to unload). |
 
 ## Undo
@@ -42,14 +42,16 @@ config is checked again a moment after each change, not only when it is saved. B
 out of range it finds:
 
 - two mappings with the same trigger and activator on one layer (both run);
-- a layer that no mapping changes to, so its mappings never apply;
+- a layer that no mapping changes to, so its mappings never apply (for a layer added since the
+  config was last saved, this waits until it is saved: a new layer has nothing changing to it
+  yet while it is being set up);
 - a *switch* to a layer that no mapping there leaves again;
 - controller output while the config has no virtual controller, and touchpad gestures or
   shakes for a virtual Xbox 360 controller;
 - a shortcut or mapping that holds every button of a controller hotkey: the hotkey takes the
   buttons, so the mapping never fires while hotkeys are on.
 
-A problem about a mapping or a layer leads there when clicked. The controls, shortcut rows and
+A problem about a mapping, a layer or a radial menu leads there when clicked. The controls, shortcut rows and
 layer chips concerned carry a small orange mark. Errors keep the config from being saved;
 warnings do not.
 
@@ -157,17 +159,14 @@ open it gets them (Ctrl+S still saves). On macOS, Cmd takes the place of Ctrl.
    unless the layer maps it. *Give back while active* turns the layer into an unlock layer:
    the real keyboard, mouse or both work normally while it is held, and *Main*'s mappings
    for them do not apply there.
-   *Config settings* also hold the **crosshairs**: shape, colours, size, line width, outline,
-   offset and an optional magnifier, and the layers that show each one; the action picker's
-   commands show them (*Show crosshair N*, *Crosshair on/off*).
-   **Vibration** sets each motor's strength, swaps them and limits how often rumble
-   commands go out.
-   The **light bar** (DualShock 4, DualSense) is set there as well, for *Main* and per layer:
-   an effect, its colours and the speed. *Settings → Controllers → Controller lights* sets
-   what the player lights and the DualSense microphone LED show.
-   **Radial menus** live there too: the layer that opens each one, what points at a sector
-   (a stick, the mouse or commands), when the pointed sector runs, and per sector its label,
-   icon (a built-in set or an image file), colour and actions or sub-menu.
+   *Config settings → Crosshairs* holds the **crosshairs**: shape, colours, size, line width,
+   outline, offset and an optional magnifier, and the layers that show each one; the action
+   picker's commands show them (*Show crosshair N*, *Crosshair on/off*).
+   *Config settings → Light & rumble* sets the **light bar** (DualShock 4, DualSense) for
+   *Main* and per layer: an effect, its colours and the speed; and **Vibration**: each
+   motor's strength, swapping them and how often rumble commands go out.
+   *Settings → Controllers → Controller lights* sets what the player lights and the
+   DualSense microphone LED show.
    A layer change can wait for a **Delay**; *Run the actions at the layer change* then holds
    the mapping's own actions back until the jump. *Config settings* decide whether held
    buttons are re-pressed when the layer changes.
@@ -184,7 +183,8 @@ The **macro editor** opens from the binding panel. It has four modes:
 - *Repeat while held*: runs again for as long as the control is held.
 
 You can add steps with the pickers, add pauses and rumble, reorder or delete steps, and
-choose *down*, *up* or *tap* for keys and buttons. Steps with parameters show them in their
+choose *down*, *up* or *tap* for keys and buttons. *hold for a time* turns a step into a
+press, a pause of half a second (change it as you like) and the release. Steps with parameters show them in their
 row: stick amount (and *Set the axis*, which replaces the physical stick on that axis instead
 of adding to it) and trigger value in %, wheel clicks, mouse speed, rumble length and the
 strength of each motor, a program's path and arguments. In the binding panel, click such
@@ -194,15 +194,18 @@ directions and triggers of the controller in use. A **Break** step cuts the macr
 parts: each press plays the next part, then it starts over (turbo, toggle and repeating
 are not available for such macros).
 
-**Config settings** sets the output device: the virtual controller (Xbox 360, DualShock 4,
-or none for keyboard and mouse only). It also covers hiding the physical controller from games, passing
+**Config settings** has five pages, picked in the list on the left: *Controller*,
+*Keyboard & mouse*, *Timing*, *Light & rumble* and *Crosshairs*.
+
+*Controller* sets the output device: the virtual controller (Xbox 360, DualShock 4,
+or none for keyboard and mouse only), and what shake actions do to its motion sensor. It also covers hiding the physical controller from games, passing
 unmapped controls through, and blocking the original keys of remapped controls. Missing
 drivers are shown here and in the bottom bar. A virtual DualShock 4 also passes the
 touchpad fingers and the motion sensors through (unless a mapping or analog route uses
 them), and the game's rumble and light bar colour come back to the physical controller
 (light bar: DualShock 4 and DualSense over USB).
 
-**Held keys repeat** sets how keys that mappings hold down repeat: *Like a keyboard*
+On *Keyboard & mouse*, **Held keys repeat** sets how keys that mappings hold down repeat: *Like a keyboard*
 (after half a second, about 30 times per second), *Fast*, *Slow*, *Never* or a custom
 interval. Only the last pressed key repeats.
 
@@ -368,12 +371,35 @@ and *Change on this layer* copies one onto the layer, where it replaces Main's.
 The settings are stored as `[sticks.left]`, `[sticks.right]`, `[triggers.left]`,
 `[triggers.right]` and `[[analog]]` in the profile; see [PROFILES.md](PROFILES.md).
 
+## Radial menus
+
+A radial menu is a ring of up to 12 sectors over the game: hold a button, point at a sector
+with a stick or the mouse, let go, and the sector runs. Open *Radial menus* in the toolbar
+and choose **Create radial menu**: the menu gets a layer of its own (named like the menu),
+so all that is left is **Choose button…** under *Opens with*, from the list or by pressing
+it. The menu shows while that button is held. A button that already does something on
+*Main* asks first. The *Layer* field below picks another layer instead, a new one, or
+*Only as a sub-menu*.
+
+Click a sector in the ring to edit it in the side panel: label, icon (the built-in set or an
+image file), colour, and what it does. *Run actions* lists steps that run one after the
+other, as in the macro editor: each key or button can tap, press, release or be held for a
+time, with pauses in between. *Open a menu* opens another menu (or a new sub-menu) instead.
+
+*Pointing* says what points at a sector (right or left stick, the mouse, or only the radial
+menu commands) and when the pointed sector runs (when the button is let go, or with the
+select command). *Position* puts the ring in the middle of the screen, at an edge or in a
+corner, or where the mouse pointer is when it opens, and an offset moves it from there.
+*Look* sets the size, how much the game behind it darkens and a delay before it shows.
+Deleting a menu also deletes its layer and its button, unless something else uses the layer.
+
 ## What Doppelpad sends
 
 The pulse button at the top right of the controller, keyboard and mouse views opens a small
-panel with what the running config sends right now: the virtual controller as a drawing (its
-pressed buttons, the stick caps and a bar per trigger), the keys and mouse buttons it holds,
-and the layer. A config can be tried out this way without a game. Remapping pauses while the
+panel with what the running config sends right now: the virtual controller's pressed
+buttons and stick caps, drawn on the controller in use (so they show where your buttons are;
+below it, which controller games see), a bar per trigger, the keys and mouse buttons it
+holds, and the layer. A config can be tried out this way without a game. Remapping pauses while the
 window has the focus (see below); the panel then offers *Keep remapping active while this
 window is focused*. `doppelpad monitor` shows the controller's input in a terminal.
 

@@ -44,8 +44,11 @@ export function hotkeyClashes(p: Profile, hk: Hotkeys | null): DiagMsg[] {
   return out;
 }
 
-/** Where a diagnostic points: a mapping (its layer and trigger) or a layer. */
-export type DiagTarget = { kind: 'mapping'; layer: number; trigger: Combo } | { kind: 'layer'; layer: number };
+/** Where a diagnostic points: a mapping (its layer and trigger), a layer, or a radial menu (and a sector of it). */
+export type DiagTarget =
+  | { kind: 'mapping'; layer: number; trigger: Combo }
+  | { kind: 'layer'; layer: number }
+  | { kind: 'radial'; menu: number; sector: number | null };
 
 export function diagTarget(p: Profile, d: DiagMsg): DiagTarget | null {
   const m = /^mappings\[(\d+)\]/.exec(d.path);
@@ -53,9 +56,31 @@ export function diagTarget(p: Profile, d: DiagMsg): DiagTarget | null {
     const mapping = p.mappings[Number(m[1])];
     return mapping ? { kind: 'mapping', layer: layerOf(mapping), trigger: mapping.trigger } : null;
   }
+  const r = /^radial_menus\[(\d+)\](?:\.sectors\[(\d+)\])?/.exec(d.path);
+  if (r) {
+    const menu = Number(r[1]);
+    return p.radial_menus?.[menu] ? { kind: 'radial', menu, sector: r[2] === undefined ? null : Number(r[2]) } : null;
+  }
   const l = /^layers\[(\d+)\]$/.exec(d.path);
   const layer = l ? p.layers?.[Number(l[1])] : undefined;
   return layer ? { kind: 'layer', layer: layer.id } : null;
+}
+
+/** Whether a mapping on another layer changes to layer `id` (Main is always there). */
+export function isReached(p: Profile, id: number): boolean {
+  return id === 0 || p.mappings.some((m) => m.jump?.layer === id && layerOf(m) !== id);
+}
+
+/**
+ * Whether a diagnostic waits until the config is saved: the warning that nothing changes to a
+ * layer (the only warning about a whole layer, `layers[i]`) for a layer that is not in the
+ * saved config (`saved`). A layer just added has nothing changing to it yet, so it would warn
+ * at once while it is being set up.
+ */
+export function waitsForSave(p: Profile, d: DiagMsg, saved: ReadonlySet<number>): boolean {
+  if (d.severity !== 'warning') return false;
+  const target = diagTarget(p, d);
+  return target?.kind === 'layer' && !saved.has(target.layer);
 }
 
 /** What gets a warning mark: per layer the `comboKey`s of flagged triggers, and flagged layers. */

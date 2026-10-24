@@ -2,11 +2,12 @@
   // The small round × that removes a chip or a list entry.
   import { X } from '@lucide/svelte';
   import { t } from '../../lib/i18n/index.svelte';
+  import { tip } from '../../lib/tooltip.svelte';
 
   let { onclick, label }: { onclick: () => void; /** Tooltip (default "Remove"). */ label?: string } = $props();
 </script>
 
-<button class="remove" title={label ?? t('common.remove')} {onclick}><X size={11} /></button>
+<button class="remove" use:tip={label ?? t('common.remove')} {onclick}><X size={11} /></button>
 
 <style>
   .remove {

@@ -157,7 +157,8 @@
     "as_list": "Als Liste anzeigen",
     "as_drawing": "Zeichnung anzeigen",
     "show_notes": "Beschreibungen statt der Aktionen zeigen",
-    "show_actions": "Aktionen statt der Beschreibungen zeigen"
+    "show_actions": "Aktionen statt der Beschreibungen zeigen",
+    "radial": "Radialmenüs"
   },
   "layers": {
     "save_preset": "Als Vorlage speichern",
@@ -263,6 +264,13 @@
       "slow": "Die zuletzt gehaltene Taste wiederholt sich sofort alle 50 ms.",
       "off": "Jeder Druck sendet ein einziges Tastendrücken, egal wie lange gehalten wird.",
       "custom": "Die zuletzt gehaltene Taste wiederholt sich sofort in diesem Intervall."
+    },
+    "pages": {
+      "controller": "Controller",
+      "input": "Tastatur & Maus",
+      "timing": "Timing",
+      "feedback": "Licht & Vibration",
+      "crosshairs": "Fadenkreuze"
     }
   },
   "binding": {
@@ -350,7 +358,8 @@
       "double_tap_ms": "Zeitfenster doppeltes Drücken",
       "triple_tap_ms": "Zeitfenster dreifaches Drücken",
       "key_delay_ms": "Verzögerung zwischen Tasten"
-    }
+    },
+    "layer_unreached": "Noch wechselt nichts zu {layer}. Wähle eine Taste und dann diese Ebene unter „Ebene“."
   },
   "zones": {
     "title": "Zone",
@@ -473,13 +482,12 @@
   "radial": {
     "default_name": "Menü {n}",
     "title": "Radialmenüs",
-    "hint": "Ein Ring aus Sektoren über dem Spiel. Er öffnet sich, solange seine Ebene aktiv ist; ein Stick, die Maus oder die Radialmenü-Befehle zeigen auf einen Sektor.",
+    "hint": "Halte eine Taste, und über dem Spiel erscheint ein Ring zur Auswahl. Zeige mit einem Stick oder der Maus auf einen Sektor, lass los, und er wird ausgeführt.",
     "name": "Name",
     "remove": "Menü entfernen",
-    "add": "Radialmenü hinzufügen",
-    "layer": "Öffnet mit Ebene",
+    "add": "Radialmenü anlegen",
+    "layer": "Ebene",
     "submenu_only": "Nur als Untermenü",
-    "no_layers": "Lege zuerst eine Ebene an, die das Menü öffnet (z. B. solange eine Taste gehalten wird).",
     "select": "Zeigen mit",
     "selects": {
       "right_stick": "Rechter Stick",
@@ -568,11 +576,60 @@
     "image": "Eigenes Bild",
     "pick_image": "Bilddatei wählen…",
     "submenu": "Was der Sektor tut",
-    "actions": "Aktionen",
     "opens": "Öffnet {name}",
-    "add_action": "Aktion",
     "add_sector": "Sektor hinzufügen",
-    "remove_sector": "Sektor entfernen"
+    "remove_sector": "Sektor entfernen",
+    "tile_hint": "Ringe mit Auswahl über dem Spiel, per Taste geöffnet",
+    "empty_title": "Noch keine Radialmenüs",
+    "empty_hint": "Ein Radialmenü legt bis zu 12 Auswahlen in einen Ring, etwa Waffen, Gegenstände oder Emotes. Lege eines an, wähle die Taste, die es öffnet, und gib jedem Sektor, was er tun soll.",
+    "new": "Neues Menü",
+    "sub": "Untermenü",
+    "pick_sector": "Klicke einen Sektor im Ring an, um ihn zu bearbeiten.",
+    "opens_with": "Öffnet mit",
+    "opens_from": "Öffnet aus {list}.",
+    "opens_from_none": "Öffnet sich nur als Untermenü, und noch öffnet es kein Sektor.",
+    "own_button": "Stattdessen mit einer Taste öffnen",
+    "on_layer": "auf {layer}",
+    "pressing": "Drücke eine Taste am Controller oder auf der Tastatur…",
+    "change_opener": "Taste ändern…",
+    "choose_opener": "Taste wählen…",
+    "press_opener": "Taste drücken…",
+    "no_opener": "Wähle die Taste, die dieses Menü öffnet.",
+    "opener_hint": "Das Menü erscheint, solange die Taste gehalten wird.",
+    "opener_replace": "{control} macht auf Main schon „{what}“. Stattdessen das Menü damit öffnen?",
+    "control": "Zeigen",
+    "commands_hint": "Belege die Radialmenü-Befehle (zeigen, auswählen, zurück) auf Tasten der Ebene des Menüs; du findest sie beim Hinzufügen einer Aktion unter Befehle.",
+    "position": "Position",
+    "positions": {
+      "center": "Mitte",
+      "top": "Oben",
+      "bottom": "Unten",
+      "left": "Links",
+      "right": "Rechts",
+      "top_left": "Oben links",
+      "top_right": "Oben rechts",
+      "bottom_left": "Unten links",
+      "bottom_right": "Unten rechts",
+      "cursor": "Am Mauszeiger"
+    },
+    "offset_x": "Rechts",
+    "offset_y": "Unten",
+    "offset_hint": "Verschiebt das Menü von dort, in Pixeln.",
+    "cursor_hint": "Das Menü öffnet sich dort, wo der Mauszeiger ist, und bleibt im Bild.",
+    "look": "Aussehen",
+    "remove_confirm": "Das Radialmenü „{name}“ entfernen?",
+    "sector_n": "Sektor {n}",
+    "sector_of": "Sektor {n} von {name}",
+    "sectors": "Sektoren von {name}",
+    "panel_empty": "Lege ein Radialmenü an, um hier seine Sektoren zu bearbeiten.",
+    "does_nothing": "tut noch nichts",
+    "does_actions": "Aktionen ausführen",
+    "does_submenu": "Menü öffnen",
+    "new_submenu": "Neues Untermenü",
+    "edit_submenu": "Bearbeiten",
+    "steps_hint": "Die Schritte laufen nacheinander, wenn der Sektor gewählt wird. Stelle einen Schritt auf „eine Zeit lang halten“, damit er gedrückt bleibt, und ändere dann die Pause.",
+    "no_steps": "Noch keine Schritte: füge eine Aktion hinzu.",
+    "close_after": "Menü nach dem Ausführen schließen"
   },
   "picker": {
     "keyboard": "Tastatur",
@@ -743,7 +800,9 @@
     "segments_no_repeat": " Wiederholen gilt für Teile nicht.",
     "copy_steps": "Schritte kopieren",
     "paste_steps": "Schritte einfügen",
-    "steps_copied": "{n} Schritte kopiert"
+    "steps_copied": "{n} Schritte kopiert",
+    "step_hold": "eine Zeit lang halten",
+    "press_label": "Wie der Schritt drückt"
   },
   "params": {
     "amount": "Stärke",
@@ -1581,7 +1640,8 @@
     "paused": "Remapping pausiert, solange dieses Fenster den Fokus hat.",
     "no_session": "Auf diesem Controller läuft keine Config.",
     "no_pad": "Diese Config hat keinen virtuellen Controller.",
-    "no_keys": "Keine Tasten oder Maustasten gehalten."
+    "no_keys": "Keine Tasten oder Maustasten gehalten.",
+    "sent_as": "Spiele sehen: {pad}"
   },
   "history": {
     "title": "Frühere Versionen",

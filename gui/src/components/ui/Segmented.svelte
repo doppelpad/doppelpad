@@ -13,6 +13,8 @@
 <script lang="ts" generics="T extends string | null">
   // One choice out of a few, as a row of radio buttons. `inline` and `fill` join the buttons in
   // one frame (as wide as their labels, or sharing the width); `chips` are separate buttons.
+  import { tip } from '../../lib/tooltip.svelte';
+
   let {
     options,
     value,
@@ -47,7 +49,7 @@
       class:btn={variant === 'chips' && size === 'm'}
       class:on={value === o.value}
       class:marked={o.marked}
-      title={o.title}
+      use:tip={o.title}
       {disabled}
       onclick={() => onchange(o.value)}
     >

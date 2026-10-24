@@ -14,9 +14,10 @@ import { isStreamingField, pointer } from '../dom';
 import { movedPath } from '../paths';
 import { padMode, PressRepeat } from '../padnav';
 import { History, type EditKey } from './history';
-import { flagsOf, hotkeyClashes, type Flags } from '../model/lints';
+import { flagsOf, hotkeyClashes, waitsForSave, type Flags } from '../model/lints';
 import type { Copied } from '../model/clipboard';
 import type { MenuItem } from '../../components/ui/Menu.svelte';
+import type { OutputPage } from '../../components/OutputPanel.svelte';
 import { SETTINGS_PLACEHOLDER } from './settings';
 import type {
   Action,
@@ -39,7 +40,7 @@ import type {
   UpdateInfo,
 } from '../types';
 
-export type View = 'front' | 'back' | 'keyboard' | 'mouse' | 'shortcuts' | 'macro' | 'output' | 'analog';
+export type View = 'front' | 'back' | 'keyboard' | 'mouse' | 'shortcuts' | 'macro' | 'output' | 'analog' | 'radial';
 /** Pages of the analog view. */
 export type AnalogTab = 'left' | 'right' | 'triggers' | 'gyro' | 'touchpad' | 'routes';
 
@@ -139,6 +140,11 @@ class AppState {
   /** Mapping opened in the macro editor (layer + trigger + activator of it). */
   macroTarget = $state<{ layer: number; trigger: Combo; activator: Activator } | null>(null);
   analogTab = $state<AnalogTab>('left');
+  /** The page of the config settings. */
+  outputPage = $state<OutputPage>('controller');
+  /** The radial menu shown in its view, and its sector in the side panel. */
+  radialMenu = $state(0);
+  radialSector = $state<number | null>(null);
   applySlot = $state(0);
   /** The controller whose own slots the bottom bar shows; `null` for the shared slots. */
   slotDevice = $state<string | null>(null);
@@ -177,8 +183,17 @@ class AppState {
   private settingsWrite: Promise<void> = Promise.resolve();
 
   dirty = $derived(this.profile !== null && JSON.stringify(this.profile) !== this.savedJson);
-  /** Everything the diagnostics bar lists: the validator's findings and the hotkey clashes. */
-  problems = $derived<DiagMsg[]>(this.profile ? [...this.diagnostics, ...hotkeyClashes(this.profile, this.hotkeys)] : []);
+  /** The layers of the config as saved; one added since is still being set up (see `waitsForSave`). */
+  savedLayers = $derived<ReadonlySet<number>>(new Set(this.savedJson ? layerIds(JSON.parse(this.savedJson) as Profile) : []));
+  /**
+   * Everything the diagnostics bar lists: the validator's findings, except those that wait
+   * for the config to be saved, and the hotkey clashes.
+   */
+  problems = $derived<DiagMsg[]>(
+    this.profile
+      ? [...this.diagnostics.filter((d) => !waitsForSave(this.profile!, d, this.savedLayers)), ...hotkeyClashes(this.profile, this.hotkeys)]
+      : [],
+  );
   /** The controls and layers with a warning mark. */
   flags = $derived<Flags>(flagsOf(this.profile, this.problems));
   game = $derived<Game | null>(this.library.games.find((g) => g.dir === this.gameDir) ?? null);
@@ -562,6 +577,8 @@ class AppState {
       this.selected = null;
       this.stick = null;
       this.macroTarget = null;
+      this.radialMenu = 0;
+      this.radialSector = null;
       if (this.view === 'macro') this.view = 'front';
     } catch (e) {
       this.toast(errorText(e), 'error');
@@ -724,7 +741,8 @@ class AppState {
     this.selected = c;
     this.stick = null;
     this.macroTarget = null;
-    if (c && this.view === 'macro') this.view = 'front';
+    // The macro editor and the radial menus have no binding panel to show it in.
+    if (c && (this.view === 'macro' || this.view === 'radial')) this.view = 'front';
   }
 
   /** Show what a whole stick does in the side panel instead of a control's mappings. */

@@ -9,6 +9,7 @@
   import Menu from './ui/Menu.svelte';
   import GameDialog from './GameDialog.svelte';
   import LibraryDialog from './LibraryDialog.svelte';
+  import { tip } from '../lib/tooltip.svelte';
 
   /** Stable hue per game name for the avatar. */
   function hue(name: string): number {
@@ -100,9 +101,9 @@
   <!-- Part of the title bar, beside the header; holds the macOS traffic lights. -->
   <div class="head" class:traffic-lights={platform === 'macos' && !win.fullscreen} data-tauri-drag-region="deep">
     <span class="title">{t('profiles.title')}</span>
-    <button class="icon-btn" title={t('stores.title') + '…'} onclick={() => (libraryOpen = true)}><Library size={17} /></button>
-    <button class="icon-btn" title={t('profiles.import') + '…'} onclick={importGame}><Download size={17} /></button>
-    <button class="icon-btn" title={t('profiles.add')} onclick={addGame}><Plus size={18} /></button>
+    <button class="icon-btn" use:tip={t('stores.title') + '…'} onclick={() => (libraryOpen = true)}><Library size={17} /></button>
+    <button class="icon-btn" use:tip={t('profiles.import') + '…'} onclick={importGame}><Download size={17} /></button>
+    <button class="icon-btn" use:tip={t('profiles.add')} onclick={addGame}><Plus size={18} /></button>
   </div>
 
   <div class="list">
@@ -126,7 +127,7 @@
               {#if g.meta.processes.length}· <Radar size={11} /> {g.meta.processes[0]}{/if}
             </span>
           </span>
-          {#if gameIsActive(g)}<span class="live-dot" title={t('devices.in_use')}></span>{/if}
+          {#if gameIsActive(g)}<span class="live-dot" use:tip={t('devices.in_use')}></span>{/if}
         </button>
         <Menu
           align="right"
@@ -161,7 +162,7 @@
         >
           <FileText size={14} />
           <span class="name">{c.name}</span>
-          {#if c.error}<span class="err" title={c.error}>!</span>{/if}
+          {#if c.error}<span class="err" use:tip={c.error}>!</span>{/if}
         </button>
       {/each}
     {/if}

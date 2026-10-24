@@ -12,6 +12,7 @@
   import ActionParams from './ActionParams.svelte';
   import ActionPicker from './ActionPicker.svelte';
   import type { EditMapping } from './edit';
+  import { tip } from '../../lib/tooltip.svelte';
 
   let { mapping, readOnly, edit }: { mapping: Mapping | undefined; readOnly: boolean; edit: EditMapping } = $props();
 
@@ -35,7 +36,7 @@
     {#each mapping?.actions ?? [] as a, i (i)}
       <Chip active={editingIdx === i} onremove={readOnly ? undefined : () => removeAction(i)}>
         {#if hasParameters(a)}
-          <button class="chip-label" title={t('binding.edit_params')} onclick={() => (editingIdx = editingIdx === i ? null : i)}>
+          <button class="chip-label" use:tip={t('binding.edit_params')} onclick={() => (editingIdx = editingIdx === i ? null : i)}>
             {actionLabel(a)}
           </button>
         {:else}

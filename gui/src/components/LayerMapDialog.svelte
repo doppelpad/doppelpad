@@ -9,6 +9,7 @@
   import { comboKey, layerIds } from '../lib/model/profile';
   import { app } from '../lib/state/app.svelte';
   import { layerColor } from '../lib/theme/layers';
+  import { tip } from '../lib/tooltip.svelte';
   import Dialog from './ui/Dialog.svelte';
 
   let { onclose }: { onclose: () => void } = $props();
@@ -82,12 +83,12 @@
             y={a.ly}
             role="button"
             tabindex="0"
+            use:tip={`${t(`binding.jump_${e.mode}`)}${e.delayMs ? ` · ${e.delayMs} ms` : ''}`}
             onclick={() => showMapping(e)}
             onkeydown={(ev) => (ev.key === 'Enter' || ev.key === ' ') && showMapping(e)}
           >
             {MODE_MARK[e.mode]}
             {comboLabel(e.trigger, app.family)}{e.activator !== 'single' ? ` · ${t(`activators.${e.activator}`)}` : ''}
-            <title>{t(`binding.jump_${e.mode}`)}{e.delayMs ? ` · ${e.delayMs} ms` : ''}</title>
           </text>
         </g>
       {/each}

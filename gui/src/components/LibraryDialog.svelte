@@ -7,6 +7,8 @@
   import { t } from '../lib/i18n/index.svelte';
   import { app } from '../lib/state/app.svelte';
   import Dialog from './ui/Dialog.svelte';
+  import Select from './ui/Select.svelte';
+  import { tip } from '../lib/tooltip.svelte';
 
   let { onclose }: { onclose: () => void } = $props();
 
@@ -49,16 +51,16 @@
         {@const done = known(g)}
         <div class="row">
           <span class="store">{t(`stores.${g.store}`)}</span>
-          <span class="name" title={g.dir}>{g.name}</span>
+          <span class="name" use:tip={g.dir}>{g.name}</span>
           {#if g.programs.length > 1}
-            <select
+            <Select
               value={chosen[g.dir] ?? g.programs[0]}
-              onchange={(e) => (chosen[g.dir] = e.currentTarget.value)}
               title={t('stores.program')}
               disabled={done}
-            >
-              {#each g.programs as p (p)}<option value={p}>{p}</option>{/each}
-            </select>
+              size="s"
+              options={g.programs.map((p) => ({ value: p, label: p }))}
+              onchange={(p) => (chosen[g.dir] = p)}
+            />
           {:else}
             <span class="program">{g.programs[0] ?? '—'}</span>
           {/if}
@@ -108,9 +110,6 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-  }
-  select {
-    min-width: 0;
   }
   .done {
     display: inline-flex;

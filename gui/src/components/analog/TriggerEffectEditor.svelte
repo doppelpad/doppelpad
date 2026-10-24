@@ -14,6 +14,7 @@
     type EffectKind,
   } from '../../lib/model/triggerEffect';
   import type { TriggerEffect } from '../../lib/types';
+  import Select from '../ui/Select.svelte';
   import Slider from '../ui/Slider.svelte';
 
   let {
@@ -46,10 +47,15 @@
 <div class="effect">
   <label class="row">
     <span>{t('analog.trigger.effect')}</span>
-    <select value={effect?.kind ?? ''} {disabled} onchange={(e) => pick(e.currentTarget.value)}>
-      <option value="">{t(onlayer ? 'analog.trigger.effect_main' : 'analog.trigger.effect_none')}</option>
-      {#each EFFECT_KINDS as k (k)}<option value={k}>{t(`analog.trigger.effects.${k}`)}</option>{/each}
-    </select>
+    <Select
+      value={effect?.kind ?? ''}
+      {disabled}
+      options={[
+        { value: '', label: t(onlayer ? 'analog.trigger.effect_main' : 'analog.trigger.effect_none') },
+        ...EFFECT_KINDS.map((k) => ({ value: k, label: t(`analog.trigger.effects.${k}`) })),
+      ]}
+      onchange={pick}
+    />
   </label>
   {#if !disabled}
     <div class="presets">

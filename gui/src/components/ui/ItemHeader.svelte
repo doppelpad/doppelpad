@@ -3,6 +3,7 @@
   // field and delete button.
   import { Trash2 } from '@lucide/svelte';
   import type { Snippet } from 'svelte';
+  import { tip } from '../../lib/tooltip.svelte';
 
   let {
     preview,
@@ -38,7 +39,7 @@
     onchange={(e) => onrename(e.currentTarget.value.trim() || undefined)}
   />
   {#if !disabled}
-    <button class="icon-btn danger del" title={removeLabel} onclick={onremove}><Trash2 size={15} /></button>
+    <button class="icon-btn danger del" use:tip={removeLabel} onclick={onremove}><Trash2 size={15} /></button>
   {/if}
 </header>
 

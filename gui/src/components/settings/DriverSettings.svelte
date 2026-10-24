@@ -6,11 +6,13 @@
   import { app } from '../../lib/state/app.svelte';
   import DriverList from './DriverList.svelte';
   import SettingsSection from './SettingsSection.svelte';
+  import { tip } from '../../lib/tooltip.svelte';
 </script>
 
 <SettingsSection title={t('settings.drivers')}>
   {#snippet actions()}
-    <button class="icon-btn" title={t('settings.recheck')} onclick={() => app.attempt(api.refreshDrivers())}><RefreshCw size={15} /></button
+    <button class="icon-btn" use:tip={t('settings.recheck')} onclick={() => app.attempt(api.refreshDrivers())}
+      ><RefreshCw size={15} /></button
     >
   {/snippet}
   <DriverList tone="icon" />
