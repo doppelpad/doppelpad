@@ -1132,6 +1132,7 @@
     "stay_live": "Keep remapping active while this window is focused",
     "hook_buttons": "Select controls by pressing them on the controller",
     "autostart": "Start with Windows, in the tray",
+    "autostart_macos": "Open at login, in the menu bar",
     "profiles_dir": "Configs are stored in",
     "drivers": "Drivers",
     "recheck": "Check again",
