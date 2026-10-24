@@ -10,16 +10,21 @@
 //! descriptor. Grabs and force-feedback effects belong to the open file, so grabbing through
 //! that handle hides the controller from everyone else while our reader keeps receiving
 //! events, and rumble written through it still reaches a grabbed device.
+//!
+//! What evdev has no interface for goes through the controller's HID device in sysfs: the
+//! battery its driver reports and the lights it registers as LEDs. A Bluetooth controller is
+//! turned off by ending its connection through BlueZ.
 
 use std::collections::{BTreeMap, HashSet};
 use std::io;
 use std::os::fd::{AsFd, AsRawFd};
 use std::path::{Path, PathBuf};
+use std::process::Command;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use dp_core::pad::{Motion, PadButton, PadState, Rumble, TouchPoint, unit_to_u16_trunc};
+use dp_core::pad::{Motion, PadButton, PadState, Rgb, Rumble, TouchPoint, unit_to_u16_trunc};
 use evdev::{
     Device, FFEffect, FFEffectCode, FFEffectData, FFEffectKind, FFReplay, FFTrigger, InputEvent,
     PropType,
@@ -27,17 +32,18 @@ use evdev::{
 
 use super::codes::*;
 use super::dev::{
-    Fetch, NodeTracker, abs_axes, event_nodes, fetch, has_abs, has_key, is_own, parent_device,
-    set_grab, sysfs_has_key, sysfs_name,
+    Fetch, NodeTracker, abs_axes, event_nodes, fetch, has_abs, has_key, is_own, led_names,
+    parent_device, read_battery, set_grab, sysfs_has_key, sysfs_name, write_leds,
 };
 use super::padmap::{
     AbsRange, MotionMapper, NINTENDO_VID, PadMapper, TouchMapper, absinfo_is_state, family_for,
     joycon_side, stable_id,
 };
+use super::sysfs::{LedWrite, bluez_device_path, lightbar_writes, player_writes};
 use crate::scan::{Pass, RESCAN, Rescanner};
 use crate::{
-    DeviceHider, DeviceId, DeviceInfo, GamepadBackend, PadFamily, PadSnapshot, PlatformError,
-    Result,
+    Battery, DeviceHider, DeviceId, DeviceInfo, GamepadBackend, Leds, PadFamily, PadSnapshot,
+    PlatformError, Result,
 };
 
 /// The latest state of one controller, written by its node readers.
@@ -194,6 +200,19 @@ struct Pad {
     rumble: Option<FFEffect>,
     rumble_playing: bool,
     last_rumble: Rumble,
+    /// As the driver reports it under `parent`, read on every scan.
+    battery: Option<Battery>,
+    /// The Bluetooth address while it is connected over Bluetooth.
+    bluetooth: Option<String>,
+    /// The light bar colour wanted, the one written last and when.
+    lightbar: Option<Rgb>,
+    lightbar_written: Option<Rgb>,
+    lightbar_at: Option<Instant>,
+    /// The player number set last.
+    player: Option<u8>,
+    /// Why its lights cannot be set, for [`GamepadBackend::problems`]. They are not tried
+    /// again until the controller reconnects.
+    lights_problem: Option<String>,
 }
 
 impl Pad {
@@ -247,6 +266,63 @@ impl Pad {
         }
         Ok(())
     }
+
+    /// Write the wanted light bar colour, at most every [`LIGHTBAR_EVERY`]: an animated
+    /// light bar changes on every tick. `None` leaves the light bar as it is.
+    fn flush_lightbar(&mut self, now: Instant) {
+        let Some(c) = self.lightbar else {
+            return;
+        };
+        let recent = self.lightbar_at.is_some_and(|t| now < t + LIGHTBAR_EVERY);
+        if self.lightbar_written == Some(c) || recent {
+            return;
+        }
+        self.lightbar_written = Some(c);
+        self.lightbar_at = Some(now);
+        self.write_lights(|leds| lightbar_writes(leds, c));
+    }
+
+    /// Write the lights `plan` picks from the LEDs the driver registered. Without write
+    /// access (the udev rule from docs/LINUX.md) it says so once.
+    fn write_lights(&mut self, plan: impl FnOnce(&[String]) -> Vec<LedWrite>) {
+        let Some(device) = &self.parent else {
+            return;
+        };
+        if self.lights_problem.is_some() {
+            return;
+        }
+        match write_leds(device, &plan(&led_names(device))) {
+            Ok(()) => {}
+            Err(e) if e.kind() == io::ErrorKind::PermissionDenied => {
+                tracing::warn!(name = %self.info.name, "cannot set the controller's lights: {e}");
+                self.lights_problem = Some(format!(
+                    "the lights of the {} cannot be set: they need the udev rule from docs/LINUX.md",
+                    self.info.name
+                ));
+            }
+            Err(e) => tracing::debug!(name = %self.info.name, "setting the lights failed: {e}"),
+        }
+    }
+}
+
+/// Ask BlueZ to end a Bluetooth connection, which turns the controller off.
+fn disconnect(device: &str) {
+    let args = [
+        "call",
+        "org.bluez",
+        device,
+        "org.bluez.Device1",
+        "Disconnect",
+    ];
+    match Command::new("busctl").args(args).output() {
+        Ok(out) if out.status.success() => {}
+        Ok(out) => tracing::warn!(
+            device,
+            "BlueZ did not end the connection: {}",
+            String::from_utf8_lossy(&out.stderr).trim()
+        ),
+        Err(e) => tracing::warn!("cannot run busctl to turn the controller off: {e}"),
+    }
 }
 
 #[derive(Default)]
@@ -255,6 +331,8 @@ struct Shared {
     pads: BTreeMap<PathBuf, Pad>,
     /// Gamepad node paths (`instance_paths`) that should be grabbed.
     hidden: HashSet<String>,
+    /// Controller nodes Doppelpad may not read, with their names.
+    unreadable: BTreeMap<PathBuf, String>,
 }
 
 impl Shared {
@@ -285,6 +363,9 @@ type SharedRef = Arc<Mutex<Shared>>;
 
 /// How long setting up the backend waits for its first scan.
 const FIRST_SCAN: Duration = Duration::from_secs(1);
+
+/// The shortest time between two light bar colours written to a controller.
+const LIGHTBAR_EVERY: Duration = Duration::from_millis(30);
 
 pub struct EvdevBackend {
     shared: SharedRef,
@@ -378,7 +459,9 @@ impl Scanner {
         });
         for pad in shared.pads.values_mut() {
             pad.nodes.retain(|n| n.alive.load(Ordering::Relaxed));
+            pad.battery = pad.parent.as_deref().and_then(read_battery);
         }
+        shared.unreadable.retain(|path, _| present.contains(path));
         let known: HashSet<PathBuf> = shared
             .pads
             .values()
@@ -388,6 +471,8 @@ impl Scanner {
 
         let mut pads = Vec::new();
         let mut extras = Vec::new();
+        let mut unreadable = Vec::new();
+        let mut readable = Vec::new();
         for path in present {
             if pass.stopping() {
                 return;
@@ -401,20 +486,23 @@ impl Scanner {
                     // Only for controllers: other nodes that are not readable (audio jacks,
                     // the touchscreen on a Steam Deck) don't matter here.
                     if e.kind() == io::ErrorKind::PermissionDenied
-                        && !self.warned_access
                         && sysfs_has_key(&path, BTN_SOUTH)
                     {
-                        tracing::warn!(
-                            "cannot read {} ({}): {e}; controllers need the udev rule from docs/LINUX.md",
-                            path.display(),
-                            sysfs_name(&path).unwrap_or_default()
-                        );
-                        self.warned_access = true;
+                        let name = sysfs_name(&path).unwrap_or_else(|| "controller".into());
+                        if !self.warned_access {
+                            tracing::warn!(
+                                "cannot read {} ({name}): {e}; controllers need the udev rule from docs/LINUX.md",
+                                path.display(),
+                            );
+                            self.warned_access = true;
+                        }
+                        unreadable.push((path.clone(), name));
                     }
                     self.nodes.failed(path, now);
                     continue;
                 }
             };
+            readable.push(path.clone());
             let id = dev.input_id();
             if crate::nintendo::is_switch2(id.vendor(), id.product()) {
                 // Without a kernel driver these stay silent until their USB vendor interface
@@ -434,6 +522,10 @@ impl Scanner {
         }
 
         let mut shared = self.shared.lock().unwrap();
+        shared.unreadable.extend(unreadable);
+        for path in readable {
+            shared.unreadable.remove(&path);
+        }
         if !pads.is_empty() {
             // Motion / touch nodes seen before their controller get another chance.
             self.nodes.retry_waiting();
@@ -509,18 +601,29 @@ fn open_pad(path: &Path, dev: Device) -> io::Result<Pad> {
         mirror: crate::steam::is_virtual_pad(vendor, product),
     };
     let uniq = dev.unique_name().map(str::to_owned);
+    let bluetooth = uniq
+        .clone()
+        .filter(|u| id.bus_type().0 == BUS_BLUETOOTH && !u.is_empty());
+    let parent = parent_device(path);
     let parts = Arc::new(Mutex::new(Parts::default()));
     let mapper = Mapper::Pad(PadMapper::new(family, &axes).joycon(joycon));
     let node = Node::start(path.to_owned(), dev, mapper, parts.clone())?;
     Ok(Pad {
         info: Arc::new(info),
-        parent: parent_device(path),
+        battery: parent.as_deref().and_then(read_battery),
+        parent,
         uniq,
         parts,
         nodes: vec![node],
         rumble: None,
         rumble_playing: false,
         last_rumble: Rumble::default(),
+        bluetooth,
+        lightbar: None,
+        lightbar_written: None,
+        lightbar_at: None,
+        player: None,
+        lights_problem: None,
     })
 }
 
@@ -564,13 +667,16 @@ impl GamepadBackend for EvdevBackend {
     }
 
     fn poll(&mut self, out: &mut Vec<PadSnapshot>) {
-        let shared = self.shared.lock().unwrap();
-        for pad in shared.pads.values() {
+        let mut shared = self.shared.lock().unwrap();
+        let now = Instant::now();
+        for pad in shared.pads.values_mut() {
+            // A colour held back by the pacing.
+            pad.flush_lightbar(now);
             let state = pad.parts.lock().unwrap().compose();
             out.push(PadSnapshot {
                 info: pad.info.clone(),
                 state,
-                battery: None,
+                battery: pad.battery,
                 raw: None,
             });
         }
@@ -588,6 +694,71 @@ impl GamepadBackend for EvdevBackend {
         if let Err(e) = pad.set_rumble(rumble) {
             tracing::debug!(device = %id, "rumble failed: {e}");
         }
+    }
+
+    fn set_lightbar(&mut self, id: &DeviceId, color: Option<Rgb>) {
+        let mut shared = self.shared.lock().unwrap();
+        let Some(pad) = shared.pads.values_mut().find(|p| &p.info.id == id) else {
+            return;
+        };
+        pad.lightbar = color;
+        pad.flush_lightbar(Instant::now());
+    }
+
+    /// The player lights. The DualSense's microphone LED has no LED device: hid-playstation
+    /// drives it from the mute button itself.
+    fn set_leds(&mut self, id: &DeviceId, leds: Leds) {
+        let mut shared = self.shared.lock().unwrap();
+        let Some(pad) = shared.pads.values_mut().find(|p| &p.info.id == id) else {
+            return;
+        };
+        if pad.player == leds.player {
+            return;
+        }
+        pad.player = leds.player;
+        if let Some(n) = leds.player {
+            pad.write_lights(|leds| player_writes(leds, n));
+        }
+    }
+
+    /// Ends the Bluetooth connection, after which DualShock 4, DualSense and Switch
+    /// controllers switch off. A controller on its cable stays on.
+    fn power_off(&mut self, id: &DeviceId) -> bool {
+        let shared = self.shared.lock().unwrap();
+        let Some(pad) = shared.pads.values().find(|p| &p.info.id == id) else {
+            return false;
+        };
+        let (Some(device), Some(mac)) = (&pad.parent, &pad.bluetooth) else {
+            return false;
+        };
+        let Some(path) = bluez_device_path(&device.to_string_lossy(), mac) else {
+            return false;
+        };
+        let spawned = std::thread::Builder::new()
+            .name("dp-bluez".into())
+            .spawn(move || disconnect(&path));
+        spawned.is_ok()
+    }
+
+    fn problems(&self) -> Vec<String> {
+        let shared = self.shared.lock().unwrap();
+        let mut out: Vec<String> = shared
+            .unreadable
+            .values()
+            .map(|name| {
+                format!(
+                    "the {name} cannot be read: controllers need the udev rule from docs/LINUX.md"
+                )
+            })
+            .collect();
+        out.extend(
+            shared
+                .pads
+                .values()
+                .filter_map(|p| p.lights_problem.clone()),
+        );
+        out.sort();
+        out
     }
 
     fn rescan(&mut self) {

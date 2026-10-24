@@ -138,7 +138,7 @@ pub fn apply_buttons(s: &mut PadState, right: u8, shared: u8, left: u8) {
 
 /// Player lights for player `n` (1–4) the way the console lights them: LED 1, LEDs 1–2,
 /// 1–3, all four; 0 turns them off.
-fn player_mask(n: u8) -> u8 {
+pub(crate) fn player_mask(n: u8) -> u8 {
     match n {
         0 => 0,
         n => (1u8 << n.min(4)) - 1,

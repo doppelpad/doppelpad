@@ -12,6 +12,9 @@ pub const EV_MSC: u16 = 0x04;
 
 pub const SYN_REPORT: u16 = 0x00;
 
+/// `bustype` of a device connected over Bluetooth (`include/uapi/linux/input.h`).
+pub const BUS_BLUETOOTH: u16 = 0x05;
+
 /// Xbox Series "Share" button as reported by xpad.
 pub const KEY_RECORD: u16 = 167;
 
