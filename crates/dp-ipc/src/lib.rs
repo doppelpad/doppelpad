@@ -1,8 +1,8 @@
 //! Control protocol between the Doppelpad daemon and its clients (CLI, GUI).
 //!
 //! Transport: a local socket (a named pipe `\\.\pipe\doppelpad.sock` on Windows, an
-//! abstract or file socket elsewhere). Each connection carries exactly one request
-//! and one response, each a single line of JSON.
+//! abstract socket on Linux, a file socket in the user's temporary folder on macOS). Each
+//! connection carries exactly one request and one response, each a single line of JSON.
 
 use std::io::{BufRead, BufReader, Write};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -137,11 +137,37 @@ pub enum IpcError {
 const CALL_TIMEOUT: Duration = Duration::from_secs(15);
 
 fn name(socket: &str) -> std::io::Result<Name<'static>> {
-    if GenericNamespaced::is_supported() {
+    // macOS has no abstract sockets: interprocess would put a namespaced name in `/tmp`.
+    if GenericNamespaced::is_supported() && !cfg!(target_os = "macos") {
         socket.to_owned().to_ns_name::<GenericNamespaced>()
     } else {
-        format!("/tmp/{socket}").to_fs_name::<GenericFilePath>()
+        socket_dir().join(socket).to_fs_name::<GenericFilePath>()
     }
+}
+
+/// Where file sockets go: on macOS the user's own temporary folder rather than `/tmp`, which
+/// all users share (a socket another user left there could not be replaced). Asked of the
+/// system rather than read from `TMPDIR`, so a shell that changes `TMPDIR` still finds the
+/// app's socket.
+fn socket_dir() -> std::path::PathBuf {
+    #[cfg(target_os = "macos")]
+    {
+        let mut buf = [0u8; 1024];
+        // SAFETY: the buffer and its length match; confstr writes at most that many bytes,
+        // NUL included.
+        let n = unsafe {
+            libc::confstr(
+                libc::_CS_DARWIN_USER_TEMP_DIR,
+                buf.as_mut_ptr().cast(),
+                buf.len(),
+            )
+        };
+        if n > 0 && n <= buf.len() {
+            let dir = std::ffi::CStr::from_bytes_until_nul(&buf).unwrap_or_default();
+            return std::path::PathBuf::from(dir.to_string_lossy().into_owned());
+        }
+    }
+    std::path::PathBuf::from("/tmp")
 }
 
 /// Send one request to the daemon and wait for its response.

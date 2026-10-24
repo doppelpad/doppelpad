@@ -990,6 +990,7 @@ name = "dp-ipc"
 version = "0.6.0"
 dependencies = [
  "interprocess",
+ "libc",
  "serde",
  "serde_json",
  "thiserror 2.0.21",
