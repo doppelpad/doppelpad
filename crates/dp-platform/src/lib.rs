@@ -30,6 +30,8 @@ pub mod linux;
 
 pub mod generic;
 pub mod groups;
+#[cfg(any(windows, test))]
+pub(crate) mod hidhost;
 pub mod holders;
 pub mod joycon;
 pub mod nintendo;

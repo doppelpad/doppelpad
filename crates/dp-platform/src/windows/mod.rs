@@ -76,7 +76,7 @@ pub fn platform() -> Platform {
         gamepads: vec![
             Box::new(xinput::XInputBackend::new()),
             Box::new(gcadapter::GcAdapterBackend::new()),
-            Box::new(JoyConCombiner::new(hid::HidBackend::new())),
+            Box::new(JoyConCombiner::new(hid::backend())),
         ],
         virtual_pads: Box::new(vigem::VigemFactory::new()),
         kbm_out: Box::new(sendinput::SendInputOutput::default()),
