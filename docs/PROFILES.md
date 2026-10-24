@@ -469,13 +469,19 @@ apply = "release"           # release: the pointed sector runs when the layer en
 delay_ms = 0                # show only after this long (quick presses don't flash it)
 tint = 0.0                  # darken the screen behind it, 0–1
 scale = 1.0                 # 0.5–2; 1 is 400 logical pixels across
-offset = [0, 0]             # pixels from the centre of the primary monitor
+position = "center"         # center | top | bottom | left | right | top_left | top_right
+                            # bottom_left | bottom_right | cursor (where the mouse pointer is)
+offset = [0, 0]             # pixels from that place, right and down
 
 [[radial_menus.sectors]]
 label = "Rifle"
 icon = "crosshair"          # a name of the app's icon set, or an image file
 color = "#14b8a6"
 actions = [{ key = "Digit1" }]
+
+[[radial_menus.sectors]]
+label = "Heal"
+actions = [{ key = "H", action = "down" }, { pause = 500 }, { key = "H", action = "up" }]   # held for half a second
 
 [[radial_menus.sectors]]
 label = "More"
@@ -487,9 +493,11 @@ way and the choice stays when it springs back; the mouse points after a short mo
 stops moving the cursor while the menu is open. While a stick points, it does not reach the
 game and its analog routes pause. The radial commands (see [Commands](#mappings)) work in any
 mode, for example mapped in the menu's layer. A sector runs its actions once, like a `once`
-mapping; with `apply = "command"` the menu closes afterwards unless the sector says
-`close = false`. A menu whose `layer` is 0 only opens as another menu's sub-menu. Radial
-menus are drawn by the app, not by `doppelpad daemon`.
+mapping, so `down`, `pause` and `up` steps hold a key for a while; with `apply = "command"` the
+menu closes afterwards unless the sector says `close = false`. A menu whose `layer` is 0 only
+opens as another menu's sub-menu. On an edge or in a corner the ring keeps a small margin to
+the screen's border; at `cursor` it stays inside the screen, and its sub-menus open in the same
+place. Radial menus are drawn by the app, not by `doppelpad daemon`.
 
 ## Analog routes
 

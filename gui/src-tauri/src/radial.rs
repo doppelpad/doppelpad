@@ -1,7 +1,8 @@
 //! The radial menu over the game. A watcher follows the menu the live state names and shows
 //! it in the `radial` overlay window, which covers the primary monitor while the menu is
-//! open (for the tint); the page draws the ring at the centre plus the menu's offset. Image
-//! icons travel inside the content, so the page needs no file access.
+//! open (for the tint); the page draws the ring at the menu's position plus its offset, for
+//! `cursor` where the mouse pointer was as the menu opened. Image icons travel inside the
+//! content, so the page needs no file access.
 
 use std::collections::HashMap;
 use std::time::Duration;
@@ -25,6 +26,20 @@ struct Content {
     pointed: Option<usize>,
     /// Per sector, its image file as a data URL (icons of the app's set stay names).
     images: Vec<Option<String>>,
+    /// Where the mouse pointer was as the menu opened, in the window's logical pixels.
+    cursor: Option<[f64; 2]>,
+}
+
+/// The mouse pointer in the logical pixels of the window over the primary monitor.
+fn cursor(app: &AppHandle) -> Option<[f64; 2]> {
+    let at = app.cursor_position().ok()?;
+    let m = overlay::primary_monitor(app)?;
+    let sf = m.scale_factor();
+    let origin = m.position();
+    Some([
+        (at.x - f64::from(origin.x)) / sf,
+        (at.y - f64::from(origin.y)) / sf,
+    ])
 }
 
 fn base64(data: &[u8]) -> String {
@@ -66,7 +81,11 @@ fn image(path: &str) -> Option<String> {
     Some(format!("data:{mime};base64,{}", base64(&data)))
 }
 
-fn content(r: &LiveRadial, cache: &mut HashMap<String, Option<String>>) -> Content {
+fn content(
+    r: &LiveRadial,
+    cursor: Option<[f64; 2]>,
+    cache: &mut HashMap<String, Option<String>>,
+) -> Content {
     let images = r
         .menu
         .sectors
@@ -87,11 +106,14 @@ fn content(r: &LiveRadial, cache: &mut HashMap<String, Option<String>>) -> Conte
         menu: r.menu.clone(),
         pointed: r.pointed,
         images,
+        cursor,
     }
 }
 
 pub(crate) fn watch(app: AppHandle, live: SharedLive) {
     let mut shown: Option<(RadialMenu, Option<usize>)> = None;
+    // Taken as a menu opens; its sub-menus open in the same place.
+    let mut opened_at: Option<[f64; 2]> = None;
     let mut cache = HashMap::new();
     loop {
         std::thread::sleep(WATCH_INTERVAL);
@@ -109,7 +131,10 @@ pub(crate) fn watch(app: AppHandle, live: SharedLive) {
         }
         match &want {
             Some(r) => {
-                let c = content(r, &mut cache);
+                if shown.is_none() {
+                    opened_at = cursor(&app);
+                }
+                let c = content(r, opened_at, &mut cache);
                 overlay::show_content(&app, KIND, Placement::PrimaryMonitor, &c);
             }
             None => {

@@ -2,7 +2,7 @@
 // from is in components/radial/icons.ts.
 
 import { t } from '../i18n/index.svelte';
-import type { Profile, RadialMenu, RadialSector } from '../types';
+import type { Profile, RadialMenu, RadialPosition, RadialSector } from '../types';
 import { layerIds } from './profile';
 import { dropUndefined, nonEmpty, setOrDrop } from './util';
 
@@ -36,6 +36,37 @@ export function sectorPath(k: number, n: number, inner: number, outer: number): 
 /** Centre of sector `k` of `n` at radius `r`. */
 export function sectorCentre(k: number, n: number, r: number): [number, number] {
   return at((k * 2 * Math.PI) / n, r);
+}
+
+/** Space between a ring at an edge (or kept inside the screen) and the screen's edge, in logical pixels. */
+export const RING_MARGIN = 24;
+
+/**
+ * Where the centre of a ring of radius `r` goes on a screen of `size` (logical pixels): at
+ * `position` plus `offset`. `cursor` is where the mouse pointer was as the menu opened; a ring
+ * there stays inside the screen.
+ */
+export function ringCentre(
+  position: RadialPosition,
+  offset: [number, number],
+  size: [number, number],
+  r: number,
+  cursor: [number, number] | null,
+): [number, number] {
+  const [w, h] = size;
+  const near = RING_MARGIN + r;
+  const keep = (v: number, max: number) => (max < 2 * near ? max / 2 : Math.min(Math.max(v, near), max - near));
+  let x = w / 2;
+  let y = h / 2;
+  if (position === 'cursor') {
+    if (cursor) [x, y] = [keep(cursor[0], w), keep(cursor[1], h)];
+  } else {
+    if (position.endsWith('left')) x = near;
+    if (position.endsWith('right')) x = w - near;
+    if (position.startsWith('top')) y = near;
+    if (position.startsWith('bottom')) y = h - near;
+  }
+  return [x + offset[0], y + offset[1]];
 }
 
 export function updateMenu(p: Profile, i: number, patch: Partial<RadialMenu>): Profile {

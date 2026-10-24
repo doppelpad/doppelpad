@@ -225,6 +225,10 @@ export type RadialSelect = 'left_stick' | 'right_stick' | 'mouse' | 'commands';
 /** When the pointed sector runs: as the menu's layer ends, or with the apply command. */
 export type RadialApply = 'release' | 'command';
 
+/** Where a radial menu sits: the middle, an edge, a corner, or the mouse pointer as it opens. */
+export type RadialPosition =
+  'center' | 'top' | 'bottom' | 'left' | 'right' | 'top_left' | 'top_right' | 'bottom_left' | 'bottom_right' | 'cursor';
+
 /** A ring of sectors over the game, open while its layer is active. */
 export interface RadialMenu {
   name?: string;
@@ -237,6 +241,8 @@ export interface RadialMenu {
   tint?: number;
   /** 0.5–2. */
   scale?: number;
+  position?: RadialPosition;
+  /** Pixels from `position`, right and down. */
   offset?: [number, number];
   sectors: RadialSector[];
 }
@@ -855,6 +861,8 @@ export interface RadialContent {
   pointed: number | null;
   /** Per sector, its image file as a data URL (icons of the app's set stay names). */
   images: (string | null)[];
+  /** Where the mouse pointer was as the menu opened, in the window's logical pixels. */
+  cursor: [number, number] | null;
 }
 
 /** A config made from an imported file (sent by gui/src-tauri/src/commands.rs). */

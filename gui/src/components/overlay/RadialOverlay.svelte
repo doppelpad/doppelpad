@@ -1,13 +1,16 @@
 <script lang="ts">
   // The open radial menu, sent by the app (radial.rs, see lib/overlay.ts). The window covers
-  // the primary monitor; the ring sits at its centre plus the menu's offset.
+  // the primary monitor; the ring sits at the menu's position (an edge, a corner, the middle
+  // or where the mouse pointer was) plus its offset.
   import { onMount } from 'svelte';
   import { overlayContent } from '../../lib/overlay';
-  import { RING, sectorCentre, sectorPath } from '../../lib/model/radial';
+  import { RING, ringCentre, sectorCentre, sectorPath } from '../../lib/model/radial';
   import { RADIAL_ICONS } from '../radial/icons';
   import type { RadialContent } from '../../lib/types';
 
   let content = $state<RadialContent | null>(null);
+  let width = $state(0);
+  let height = $state(0);
 
   onMount(() => overlayContent<RadialContent>((c) => (content = c)));
 
@@ -15,19 +18,25 @@
   const n = $derived(menu?.sectors.length ?? 0);
   const outer = $derived(RING * (menu?.scale ?? 1));
   const inner = $derived(outer / 3);
+  const half = $derived(outer + 4);
   const pointed = $derived(content?.pointed ?? null);
   const pointedLabel = $derived(pointed !== null ? (menu?.sectors[pointed]?.label ?? '') : '');
+  const centre = $derived(
+    menu ? ringCentre(menu.position ?? 'center', menu.offset ?? [0, 0], [width, height], half, content?.cursor ?? null) : [0, 0],
+  );
 </script>
 
+<svelte:window bind:innerWidth={width} bind:innerHeight={height} />
+
 {#if menu && content}
-  {@const [ox, oy] = menu.offset ?? [0, 0]}
   <div class="screen" style:background="rgba(0, 0, 0, {menu.tint ?? 0})">
     <svg
       class="ring"
-      width={outer * 2 + 8}
-      height={outer * 2 + 8}
-      viewBox="{-outer - 4} {-outer - 4} {outer * 2 + 8} {outer * 2 + 8}"
-      style:transform="translate({ox}px, {oy}px)"
+      width={half * 2}
+      height={half * 2}
+      viewBox="{-half} {-half} {half * 2} {half * 2}"
+      style:left="{centre[0] - half}px"
+      style:top="{centre[1] - half}px"
       aria-hidden="true"
     >
       {#each menu.sectors as s, k (k)}
@@ -65,8 +74,9 @@
   .screen {
     position: fixed;
     inset: 0;
-    display: grid;
-    place-items: center;
+  }
+  .ring {
+    position: absolute;
   }
   .label {
     fill: var(--text);

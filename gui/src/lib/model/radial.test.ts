@@ -2,11 +2,13 @@ import { describe, expect, it } from 'vitest';
 import type { Profile } from '../types';
 import {
   MAX_SECTORS,
+  RING_MARGIN,
   addMenu,
   addSector,
   firstFreeLayer,
   removeMenu,
   removeSector,
+  ringCentre,
   sectorCentre,
   sectorPath,
   updateSector,
@@ -52,5 +54,23 @@ describe('radial sectors and layers', () => {
     expect(firstFreeLayer(p)).toBe(1);
     expect(firstFreeLayer(addMenu(p, 1))).toBe(2);
     expect(firstFreeLayer(addMenu(addMenu(p, 1), 2))).toBe(0);
+  });
+});
+
+describe('where the ring sits', () => {
+  const screen: [number, number] = [1000, 800];
+  const near = RING_MARGIN + 100;
+
+  it('goes to the middle, an edge or a corner, plus the offset', () => {
+    expect(ringCentre('center', [0, 0], screen, 100, null)).toEqual([500, 400]);
+    expect(ringCentre('top', [0, 10], screen, 100, null)).toEqual([500, near + 10]);
+    expect(ringCentre('bottom_right', [0, 0], screen, 100, null)).toEqual([1000 - near, 800 - near]);
+    expect(ringCentre('left', [-5, 0], screen, 100, null)).toEqual([near - 5, 400]);
+  });
+
+  it('follows the mouse pointer but stays on the screen', () => {
+    expect(ringCentre('cursor', [0, 0], screen, 100, [300, 300])).toEqual([300, 300]);
+    expect(ringCentre('cursor', [0, 0], screen, 100, [10, 790])).toEqual([near, 800 - near]);
+    expect(ringCentre('cursor', [0, 0], screen, 100, null)).toEqual([500, 400]);
   });
 });
