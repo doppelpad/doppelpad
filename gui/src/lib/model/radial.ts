@@ -2,8 +2,9 @@
 // from is in components/radial/icons.ts.
 
 import { t } from '../i18n/index.svelte';
-import type { Profile, RadialMenu, RadialPosition, RadialSector } from '../types';
-import { layerIds } from './profile';
+import type { ControlName, Mapping, Profile, RadialMenu, RadialPosition, RadialSector } from '../types';
+import { addLayer, editMappingIn, layerOf, modeOf, removeLayer, renameLayer, tidyMapping } from './profile';
+import { routeLayer } from './routes';
 import { dropUndefined, nonEmpty, setOrDrop } from './util';
 
 /** A sector's colour until one is picked: the accent, as hex for colour pickers. */
@@ -40,6 +41,13 @@ export function sectorCentre(k: number, n: number, r: number): [number, number] 
 
 /** Space between a ring at an edge (or kept inside the screen) and the screen's edge, in logical pixels. */
 export const RING_MARGIN = 24;
+
+/** The places a menu can sit, as rows of the 3 × 3 grid the editor shows (and `cursor`). */
+export const POSITION_GRID: RadialPosition[][] = [
+  ['top_left', 'top', 'top_right'],
+  ['left', 'center', 'right'],
+  ['bottom_left', 'bottom', 'bottom_right'],
+];
 
 /**
  * Where the centre of a ring of radius `r` goes on a screen of `size` (logical pixels): at
@@ -88,6 +96,77 @@ export function addMenu(p: Profile, layer: number): Profile {
   return { ...p, radial_menus: [...all, { name: t('radial.default_name', { n: all.length + 1 }), layer, sectors }] };
 }
 
+/**
+ * A new menu with four sectors and a layer of its own, named like the menu: the menu is open
+ * while that layer is active. Returns the menu's index and its layer.
+ */
+export function createMenu(p: Profile): { profile: Profile; index: number; layer: number } {
+  const { profile, id } = addLayer(p);
+  const index = (p.radial_menus ?? []).length;
+  const withMenu = addMenu(profile, id);
+  const name = withMenu.radial_menus![index]!.name!;
+  return { profile: renameLayer(withMenu, id, name), index, layer: id };
+}
+
+/** A new menu that only opens from sector `k` of menu `i`. Returns the new menu's index. */
+export function createSubmenu(p: Profile, i: number, k: number): { profile: Profile; index: number } {
+  const index = (p.radial_menus ?? []).length;
+  return { profile: updateSector(addMenu(p, 0), i, k, { submenu: index + 1 }), index };
+}
+
+/** Menu `i` opens with a new layer of its own, named like the menu. */
+export function giveOwnLayer(p: Profile, i: number): Profile {
+  const { profile, id } = addLayer(p);
+  const name = p.radial_menus?.[i]?.name || t('radial.default_name', { n: i + 1 });
+  return updateMenu(renameLayer(profile, id, name), i, { layer: id });
+}
+
+/** The sectors (menu and sector index) that open menu `i` as their sub-menu. */
+export function parentsOf(p: Profile, i: number): { menu: number; sector: number }[] {
+  return (p.radial_menus ?? []).flatMap((m, j) => m.sectors.flatMap((s, k) => (s.submenu === i + 1 ? [{ menu: j, sector: k }] : [])));
+}
+
+/** Whether mapping `m` changes to layer `layer` from another layer. */
+const opens = (m: Mapping, layer: number) => m.jump?.layer === layer && layerOf(m) !== layer;
+
+/** The mappings that change to `layer` (so open its menu). */
+export function openers(p: Profile, layer: number): Mapping[] {
+  return layer === 0 ? [] : p.mappings.filter((m) => opens(m, layer));
+}
+
+/** `p` without what changes to `layer`: mappings that did nothing else go, the others lose their jump. */
+export function removeOpeners(p: Profile, layer: number): Profile {
+  const mappings = p.mappings
+    .map((m) => (opens(m, layer) ? tidyMapping({ ...m, jump: undefined }) : m))
+    .filter((m, i) => !opens(p.mappings[i]!, layer) || (m.actions ?? []).length > 0 || !!m.description || modeOf(m) !== 'hold');
+  return { ...p, mappings };
+}
+
+/**
+ * Open the menu of `layer` while `control` is held on Main: the control's mapping on Main
+ * becomes just that (what it did before goes), and whatever opened the menu before stops.
+ */
+export function setOpener(p: Profile, layer: number, control: ControlName): Profile {
+  return editMappingIn(removeOpeners(p, layer), 0, control, 'single', (m) => {
+    m.actions = [];
+    m.mode = undefined;
+    m.jump = { layer, mode: 'hold' };
+  });
+}
+
+/**
+ * Remove menu `i`. Its layer goes too when it was only the menu's: no other menu opens with it
+ * and nothing is mapped or routed on it. What opened it goes with the layer.
+ */
+export function deleteMenu(p: Profile, i: number): Profile {
+  const layer = p.radial_menus?.[i]?.layer ?? 0;
+  const out = removeMenu(p, i);
+  const shared = (out.radial_menus ?? []).some((m) => m.layer === layer);
+  const used = p.mappings.some((m) => layerOf(m) === layer) || (p.analog ?? []).some((r) => routeLayer(r) === layer);
+  if (layer === 0 || shared || used) return out;
+  return removeLayer(removeOpeners(out, layer), layer);
+}
+
 /** Remove menu `i`; sub-menu links to later menus keep pointing at the same menus. */
 export function removeMenu(p: Profile, i: number): Profile {
   const n = i + 1;
@@ -122,10 +201,4 @@ export function removeSector(p: Profile, i: number, k: number): Profile {
   const m = p.radial_menus?.[i];
   if (!m || m.sectors.length <= 1) return p;
   return updateMenu(p, i, { sectors: m.sectors.filter((_, j) => j !== k) });
-}
-
-/** The first layer other than Main that opens no menu yet, else Main. */
-export function firstFreeLayer(p: Profile): number {
-  const used = new Set((p.radial_menus ?? []).map((m) => m.layer));
-  return layerIds(p).find((l) => l !== 0 && !used.has(l)) ?? 0;
 }

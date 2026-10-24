@@ -41,7 +41,9 @@
   import SettingRow from './settings/SettingRow.svelte';
   import SettingsSection from './settings/SettingsSection.svelte';
   import Dialog from './ui/Dialog.svelte';
+  import Select from './ui/Select.svelte';
   import Toggle from './ui/Toggle.svelte';
+  import { tip } from '../lib/tooltip.svelte';
 
   /** The window sizes offered, in percent. */
   const ZOOM_CHOICES = Array.from({ length: (ZOOM_MAX - ZOOM_MIN) / ZOOM_STEP + 1 }, (_, i) => ZOOM_MIN + i * ZOOM_STEP);
@@ -105,7 +107,7 @@
         >
           <p.icon size={16} />
           <span class="name">{t(`settings.pages.${p.id}`)}</span>
-          {#if p.id === 'drivers' && driverMissing}<span class="dot" title={t('drivers.missing')}></span>{/if}
+          {#if p.id === 'drivers' && driverMissing}<span class="dot" use:tip={t('drivers.missing')}></span>{/if}
         </button>
       {/each}
     </div>
@@ -114,11 +116,12 @@
       <div class="page" role="tabpanel" id="{id}-page" aria-labelledby="{id}-tab-{page}" tabindex="-1">
         {#if page === 'general'}
           <SettingRow label={t('settings.language')}>
-            <select value={app.settings.language} onchange={(e) => app.setSettings({ language: e.currentTarget.value })}>
-              {#each Object.entries(LANGUAGES) as [code, name] (code)}
-                <option value={code}>{name}</option>
-              {/each}
-            </select>
+            <Select
+              value={app.settings.language}
+              class="setting"
+              options={Object.entries(LANGUAGES).map(([code, name]) => ({ value: code, label: name }))}
+              onchange={(language) => app.setSettings({ language })}
+            />
           </SettingRow>
           {#if autostart !== null}
             <Toggle checked={autostart} label={t('settings.autostart')} onchange={setAutostart} />
@@ -139,14 +142,12 @@
           <p class="hint">{t('padnav.hint')}</p>
           {#if app.rewasd}
             <SettingRow label={t('settings.rewasd')}>
-              <select
+              <Select
                 value={app.settings.rewasd_at_start}
-                onchange={(e) => app.setSettings({ rewasd_at_start: e.currentTarget.value as RewasdChoice })}
-              >
-                <option value="ask">{t('settings.rewasd_ask')}</option>
-                <option value="quit">{t('settings.rewasd_quit')}</option>
-                <option value="ignore">{t('settings.rewasd_ignore')}</option>
-              </select>
+                class="setting"
+                options={(['ask', 'quit', 'ignore'] as const).map((c) => ({ value: c, label: t(`settings.rewasd_${c}`) }))}
+                onchange={(c: RewasdChoice) => app.setSettings({ rewasd_at_start: c })}
+              />
             </SettingRow>
             {#if app.rewasdRunning}
               <div class="running">
@@ -194,11 +195,12 @@
           <HotkeySettings />
         {:else if page === 'display'}
           <SettingRow label={t('settings.zoom')}>
-            <select value={app.settings.zoom} onchange={(e) => app.setSettings({ zoom: Number(e.currentTarget.value) })}>
-              {#each ZOOM_CHOICES as z (z)}
-                <option value={z}>{z} %</option>
-              {/each}
-            </select>
+            <Select
+              value={app.settings.zoom}
+              class="setting"
+              options={ZOOM_CHOICES.map((z) => ({ value: z, label: `${z} %` }))}
+              onchange={(zoom) => app.setSettings({ zoom })}
+            />
           </SettingRow>
           <OsdSettings />
           <OverlaySettings />
@@ -275,9 +277,6 @@
   .page > :global(.section:first-child) {
     border-top: none;
     padding-top: 0;
-  }
-  select {
-    min-width: 160px;
   }
   .welcome {
     align-self: flex-start;

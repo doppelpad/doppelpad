@@ -11,6 +11,7 @@
   import type { Game } from '../lib/types';
   import Dialog from './ui/Dialog.svelte';
   import SettingRow from './settings/SettingRow.svelte';
+  import { tip } from '../lib/tooltip.svelte';
 
   let { game, onclose }: { game: Game; onclose: () => void } = $props();
 
@@ -124,7 +125,7 @@
     {#each programs as p (p)}
       <div class="program">
         <span>{p}</span>
-        <button class="icon-btn" title={t('common.remove')} onclick={() => (programs = programs.filter((x) => x !== p))}
+        <button class="icon-btn" use:tip={t('common.remove')} onclick={() => (programs = programs.filter((x) => x !== p))}
           ><X size={14} /></button
         >
       </div>

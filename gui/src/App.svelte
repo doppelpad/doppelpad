@@ -27,6 +27,8 @@
   import ShortcutsPanel from './components/views/ShortcutsPanel.svelte';
   import MacroEditor from './components/views/MacroEditor.svelte';
   import AnalogView from './components/views/AnalogView.svelte';
+  import RadialView from './components/views/RadialView.svelte';
+  import SectorPanel from './components/radial/SectorPanel.svelte';
   import SettingsDialog from './components/SettingsDialog.svelte';
   import PromptDialog from './components/ui/PromptDialog.svelte';
   import ConfirmDialog from './components/ui/ConfirmDialog.svelte';
@@ -35,6 +37,8 @@
   import RewasdDialog from './components/RewasdDialog.svelte';
   import WelcomeWizard from './components/WelcomeWizard.svelte';
   import Toasts from './components/ui/Toasts.svelte';
+  import Tooltip from './components/ui/Tooltip.svelte';
+  import { tip } from './lib/tooltip.svelte';
 
   let settingsOpen = $state(false);
   let listMode = $state(false);
@@ -87,7 +91,7 @@
                 class="icon-btn"
                 class:active={liveOpen}
                 aria-pressed={liveOpen}
-                title={t('live_output.title')}
+                use:tip={t('live_output.title')}
                 onclick={() => (liveOpen = !liveOpen)}
               >
                 <Activity size={16} />
@@ -96,7 +100,7 @@
                 class="icon-btn"
                 class:active={app.settings.show_notes}
                 aria-pressed={app.settings.show_notes}
-                title={t(app.settings.show_notes ? 'views.show_actions' : 'views.show_notes')}
+                use:tip={t(app.settings.show_notes ? 'views.show_actions' : 'views.show_notes')}
                 onclick={() => app.setSettings({ show_notes: !app.settings.show_notes })}
               >
                 <StickyNote size={16} />
@@ -104,7 +108,7 @@
               {#if app.view === 'front' || app.view === 'back'}
                 <button
                   class="icon-btn view-mode"
-                  title={listMode ? t('views.as_drawing') : t('views.as_list')}
+                  use:tip={listMode ? t('views.as_drawing') : t('views.as_list')}
                   onclick={() => (listMode = !listMode)}
                 >
                   {#if listMode}<PenTool size={16} />{:else}<List size={16} />{/if}
@@ -131,10 +135,12 @@
             <MacroEditor />
           {:else if app.view === 'analog'}
             <AnalogView />
+          {:else if app.view === 'radial'}
+            <RadialView />
           {/if}
         </div>
         <aside class="side">
-          {#if app.stick}<StickPanel side={app.stick} />{:else}<BindingPanel />{/if}
+          {#if app.view === 'radial'}<SectorPanel />{:else if app.stick}<StickPanel side={app.stick} />{:else}<BindingPanel />{/if}
         </aside>
       </div>
     {:else}
@@ -162,6 +168,7 @@
 {#if !app.settings.welcome_done}<WelcomeWizard />{/if}
 <ContextMenu />
 <Toasts />
+<Tooltip />
 
 <style>
   .shell {

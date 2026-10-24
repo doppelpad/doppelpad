@@ -8,6 +8,7 @@
   import { configName } from '../../lib/model/labels';
   import { app } from '../../lib/state/app.svelte';
   import Menu from '../ui/Menu.svelte';
+  import { tip } from '../../lib/tooltip.svelte';
 
   const live = $derived(app.live);
   const set = $derived(app.slotSet);
@@ -46,13 +47,14 @@
             !!slotNames[i] &&
             !set.session &&
             (set.device === null || !!live?.devices.some((d) => d.id === set.device))}
-          title={slotNames[i] ?? t('slots.empty')}
+          use:tip={slotNames[i] ?? t('slots.empty')}
           onclick={() => app.attempt(api.selectSlot(i, set.device))}
         >
           {i + 1}
         </button>
         {#if slotNames[i]}
-          <button class="unload" title={t('slots.unload')} onclick={() => app.attempt(api.clearSlot(i, set.device))}><X size={10} /></button
+          <button class="unload" use:tip={t('slots.unload')} onclick={() => app.attempt(api.clearSlot(i, set.device))}
+            ><X size={10} /></button
           >
         {/if}
       </div>

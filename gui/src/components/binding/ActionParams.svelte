@@ -5,6 +5,7 @@
   import { t } from '../../lib/i18n/index.svelte';
   import { stickAmount, withStickAmount } from '../../lib/model/actions';
   import type { Action } from '../../lib/types';
+  import { tip } from '../../lib/tooltip.svelte';
 
   let { action, disabled = false, onchange }: { action: Action; disabled?: boolean; onchange: (a: Action) => void } = $props();
 
@@ -36,7 +37,7 @@
       const v = percent(raw);
       if (v !== null && 'stick' in action) onchange(withStickAmount(action, v));
     })}
-    <label class="param" title={t('params.absolute_hint')}>
+    <label class="param" use:tip={t('params.absolute_hint')}>
       <input
         type="checkbox"
         checked={action.absolute ?? false}

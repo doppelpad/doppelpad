@@ -5,6 +5,7 @@
   import { api } from '../../lib/api';
   import { t } from '../../lib/i18n/index.svelte';
   import { app } from '../../lib/state/app.svelte';
+  import { tip } from '../../lib/tooltip.svelte';
 </script>
 
 {#if app.live?.warnings.length}
@@ -14,7 +15,7 @@
         <li><TriangleAlert size={13} /><span>{w}</span></li>
       {/each}
     </ul>
-    <button class="btn" onclick={() => app.attempt(api.rescanDevices())} title={t('diagnostics.rescan_hint')}>
+    <button class="btn" onclick={() => app.attempt(api.rescanDevices())} use:tip={t('diagnostics.rescan_hint')}>
       <RefreshCw size={13} />
       {t('diagnostics.rescan')}
     </button>

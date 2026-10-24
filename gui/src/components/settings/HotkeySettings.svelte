@@ -13,6 +13,7 @@
   import SettingRow from './SettingRow.svelte';
   import SettingsSection from './SettingsSection.svelte';
   import Toggle from '../ui/Toggle.svelte';
+  import { tip } from '../../lib/tooltip.svelte';
 
   const FIELDS: HotkeyField[] = [
     'slot1',
@@ -137,12 +138,12 @@
         {#if rec}
           <button class="btn" onclick={stop}>{t('common.cancel')}</button>
         {:else}
-          <button class="icon-btn" title={t('hotkeys.record')} disabled={!!recording} onclick={() => start(f)}>
+          <button class="icon-btn" use:tip={t('hotkeys.record')} disabled={!!recording} onclick={() => start(f)}>
             <CircleDot size={15} />
           </button>
           <button
             class="icon-btn"
-            title={t('common.clear')}
+            use:tip={t('common.clear')}
             disabled={!!recording || !hotkeys[f].length}
             onclick={() => hotkeys && save({ ...hotkeys, [f]: [] })}
           >

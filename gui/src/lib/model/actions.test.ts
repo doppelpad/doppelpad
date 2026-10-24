@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { hasParameters, recordedSteps, stickAmount, withStickAmount } from './actions';
+import { hasParameters, hasPress, holdFor, recordedSteps, stickAmount, withStickAmount } from './actions';
 
 describe('stick amount', () => {
   it('scales the deflection and keeps the direction', () => {
@@ -30,5 +30,26 @@ describe('controller recorder', () => {
       { stick: 'left', x: 0, y: 1, action: 'down' },
     ]);
     expect(recordedSteps(none, new Set(['LT']), 8, 0), 'short gaps are dropped').toEqual([{ trigger: 'left', action: 'down' }]);
+  });
+});
+
+describe('hold for a time', () => {
+  it('turns a step into press, pause and release', () => {
+    const steps = [{ key: 'A' }, { mouse: 'left' as const, action: 'tap' as const }, { pause: 20 }];
+    expect(holdFor(steps, 1, 300)).toEqual([
+      { key: 'A' },
+      { mouse: 'left', action: 'down' },
+      { pause: 300 },
+      { mouse: 'left', action: 'up' },
+      { pause: 20 },
+    ]);
+  });
+
+  it('leaves steps that press nothing alone', () => {
+    const steps = [{ pause: 20 }, { command: 'remap_off' as const }];
+    expect(holdFor(steps, 0)).toBe(steps);
+    expect(holdFor(steps, 1)).toBe(steps);
+    expect(hasPress({ wheel: 'up' })).toBe(false);
+    expect(hasPress({ trigger: 'left' })).toBe(true);
   });
 });

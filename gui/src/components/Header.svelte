@@ -12,6 +12,7 @@
   import Menu, { type MenuItem } from './ui/Menu.svelte';
   import WindowControls from './WindowControls.svelte';
   import HistoryDialog from './HistoryDialog.svelte';
+  import { tip } from '../lib/tooltip.svelte';
 
   let { onsettings }: { onsettings: () => void } = $props();
 
@@ -121,10 +122,10 @@
           <span class="config">{configName} <ChevronDown size={14} /></span>
         {/snippet}
       </Menu>
-      {#if app.readOnly}<span class="badge" title={t('header.read_only')}><Lock size={12} /> {t('header.read_only')}</span>{/if}
+      {#if app.readOnly}<span class="badge"><Lock size={12} /> {t('header.read_only')}</span>{/if}
       <button
         class="icon-btn"
-        title={withShortcut(t('find.title'), 'find', mac)}
+        use:tip={withShortcut(t('find.title'), 'find', mac)}
         disabled={!app.profile}
         onclick={() => (app.find = { query: '' })}
       >
@@ -132,7 +133,7 @@
       </button>
       <button
         class="icon-btn"
-        title={withShortcut(t('header.undo'), 'undo', mac)}
+        use:tip={withShortcut(t('header.undo'), 'undo', mac)}
         disabled={!app.canUndo || app.readOnly}
         onclick={() => app.undo()}
       >
@@ -140,7 +141,7 @@
       </button>
       <button
         class="icon-btn"
-        title={withShortcut(t('header.redo'), 'redo', mac)}
+        use:tip={withShortcut(t('header.redo'), 'redo', mac)}
         disabled={!app.canRedo || app.readOnly}
         onclick={() => app.redo()}
       >
@@ -149,7 +150,7 @@
       <button
         class="icon-btn save"
         class:dirty={app.dirty}
-        title={withShortcut(t('header.save'), 'save', mac)}
+        use:tip={withShortcut(t('header.save'), 'save', mac)}
         disabled={!app.dirty || app.readOnly}
         onclick={() => app.save()}
       >
@@ -163,7 +164,7 @@
     {/if}
   </div>
   <div class="right">
-    <button class="icon-btn" title={t('header.settings')} onclick={onsettings}><Settings size={17} /></button>
+    <button class="icon-btn" use:tip={t('header.settings')} onclick={onsettings}><Settings size={17} /></button>
     <WindowControls />
   </div>
 </header>

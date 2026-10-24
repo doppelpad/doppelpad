@@ -4,6 +4,7 @@
   import { app } from '../lib/state/app.svelte';
   import Dialog from './ui/Dialog.svelte';
   import Toggle from './ui/Toggle.svelte';
+  import { tip } from '../lib/tooltip.svelte';
 
   let remember = $state(false);
 
@@ -31,7 +32,7 @@
       {#if app.rewasd.service}
         <li>
           <span>{app.rewasd.service} (jlserv)</span>
-          <span class="admin" title={t('rewasd.admin_hint')}><ShieldCheck size={13} /> {t('rewasd.admin')}</span>
+          <span class="admin" use:tip={t('rewasd.admin_hint')}><ShieldCheck size={13} /> {t('rewasd.admin')}</span>
         </li>
       {/if}
       {#each app.rewasd.programs as name (name)}

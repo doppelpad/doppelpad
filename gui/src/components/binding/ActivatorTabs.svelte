@@ -5,6 +5,7 @@
   import { app } from '../../lib/state/app.svelte';
   import type { Activator, Combo } from '../../lib/types';
   import ActivatorIcon from './ActivatorIcon.svelte';
+  import { tip } from '../../lib/tooltip.svelte';
 
   let { combo }: { combo: Combo } = $props();
 
@@ -20,7 +21,7 @@
       class="act"
       class:active={app.activator === a}
       class:used={used.has(a)}
-      title={t(`activators.${a}`)}
+      use:tip={t(`activators.${a}`)}
       onclick={() => (app.activator = a as Activator)}
     >
       <ActivatorIcon activator={a} />

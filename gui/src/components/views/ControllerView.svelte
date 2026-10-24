@@ -13,6 +13,7 @@
   import PartMenu, { type PartMenuAt } from './PartMenu.svelte';
   import { controlMenu, groupItems, menuItems } from '../binding/controlMenu';
   import { isFlagged } from '../../lib/model/lints';
+  import { tip } from '../../lib/tooltip.svelte';
 
   let { device }: { device: DeviceId } = $props();
 
@@ -168,7 +169,7 @@
         class:flagged={ch.flagged}
         class:pressed={pressed.has(ch.lc.control)}
         style={chipStyle(ch.lc)}
-        title={ch.summary ? `${ch.label}: ${ch.summary}` : ch.label}
+        use:tip={ch.summary ? `${ch.label}: ${ch.summary}` : ch.label}
         use:controlMenu={ch.lc.control}
         onclick={(e) => {
           e.stopPropagation();
@@ -181,7 +182,7 @@
         {:else}
           <span class="name">{ch.label}</span>
         {/if}
-        {#if ch.combo}<span class="combo" title={t('views.shortcuts')}>+</span>{/if}
+        {#if ch.combo}<span class="combo" use:tip={t('views.shortcuts')}>+</span>{/if}
       </button>
     {/each}
 
@@ -190,7 +191,7 @@
         class="chip gyro"
         class:mapped={!!gyroChip.summary}
         class:selected={gyroChip.selected || menu?.kind === 'gyro'}
-        title={gyroChip.summary ? `${t('binding.gyro')}: ${gyroChip.summary}` : t('binding.gyro')}
+        use:tip={gyroChip.summary ? `${t('binding.gyro')}: ${gyroChip.summary}` : t('binding.gyro')}
         bind:this={gyroEl}
         onclick={openGyroMenu}
         oncontextmenu={onGyroMenu}

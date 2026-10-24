@@ -157,7 +157,8 @@
     "as_list": "Show as list",
     "as_drawing": "Show the drawing",
     "show_notes": "Show the descriptions instead of the actions",
-    "show_actions": "Show the actions instead of the descriptions"
+    "show_actions": "Show the actions instead of the descriptions",
+    "radial": "Radial menus"
   },
   "layers": {
     "save_preset": "Save as preset",
@@ -263,6 +264,13 @@
       "slow": "The last held key repeats every 50 ms right away.",
       "off": "Each press sends one key-down, however long it is held.",
       "custom": "The last held key repeats at this interval right away."
+    },
+    "pages": {
+      "controller": "Controller",
+      "input": "Keyboard & mouse",
+      "timing": "Timing",
+      "feedback": "Light & rumble",
+      "crosshairs": "Crosshairs"
     }
   },
   "binding": {
@@ -350,7 +358,8 @@
       "double_tap_ms": "Double-press window",
       "triple_tap_ms": "Triple-press window",
       "key_delay_ms": "Delay between keys"
-    }
+    },
+    "layer_unreached": "Nothing switches to {layer} yet. Select a button, then pick this layer under “Layer”."
   },
   "zones": {
     "title": "Zone",
@@ -473,13 +482,12 @@
   "radial": {
     "default_name": "Menu {n}",
     "title": "Radial menus",
-    "hint": "A ring of sectors over the game. It opens while its layer is active; a stick, the mouse or the radial menu commands point at a sector.",
+    "hint": "Hold a button and a ring of choices appears over the game. Point at one with a stick or the mouse, let go, and it runs.",
     "name": "Name",
     "remove": "Remove menu",
-    "add": "Add radial menu",
-    "layer": "Opens with layer",
+    "add": "Create radial menu",
+    "layer": "Layer",
     "submenu_only": "Only as a sub-menu",
-    "no_layers": "First add a layer that opens the menu (for example while a button is held).",
     "select": "Point with",
     "selects": {
       "right_stick": "Right stick",
@@ -568,11 +576,60 @@
     "image": "Own image",
     "pick_image": "Choose an image file…",
     "submenu": "What the sector does",
-    "actions": "Actions",
     "opens": "Opens {name}",
-    "add_action": "Action",
     "add_sector": "Add sector",
-    "remove_sector": "Remove sector"
+    "remove_sector": "Remove sector",
+    "tile_hint": "Rings of choices over the game, opened with a button",
+    "empty_title": "No radial menus yet",
+    "empty_hint": "A radial menu puts up to 12 choices in a ring, for example weapons, items or emotes. Create one, choose the button that opens it, and give each sector what it should do.",
+    "new": "New menu",
+    "sub": "sub-menu",
+    "pick_sector": "Click a sector in the ring to edit it.",
+    "opens_with": "Opens with",
+    "opens_from": "Opens from {list}.",
+    "opens_from_none": "Only opens as a sub-menu, and no sector opens it yet.",
+    "own_button": "Open it with a button instead",
+    "on_layer": "on {layer}",
+    "pressing": "Press a button on the controller, or a key…",
+    "change_opener": "Change button…",
+    "choose_opener": "Choose button…",
+    "press_opener": "Press a button…",
+    "no_opener": "Choose the button that opens this menu.",
+    "opener_hint": "The menu shows while the button is held.",
+    "opener_replace": "{control} already does “{what}” on Main. Open the menu with it instead?",
+    "control": "Pointing",
+    "commands_hint": "Map the radial menu commands (point, select, back) to buttons on the menu's layer; you find them under Commands when adding an action.",
+    "position": "Position",
+    "positions": {
+      "center": "Middle",
+      "top": "Top",
+      "bottom": "Bottom",
+      "left": "Left",
+      "right": "Right",
+      "top_left": "Top left",
+      "top_right": "Top right",
+      "bottom_left": "Bottom left",
+      "bottom_right": "Bottom right",
+      "cursor": "At the mouse pointer"
+    },
+    "offset_x": "Right",
+    "offset_y": "Down",
+    "offset_hint": "Moves the menu from there, in pixels.",
+    "cursor_hint": "The menu opens where the mouse pointer is, kept inside the screen.",
+    "look": "Look",
+    "remove_confirm": "Remove the radial menu “{name}”?",
+    "sector_n": "Sector {n}",
+    "sector_of": "Sector {n} of {name}",
+    "sectors": "Sectors of {name}",
+    "panel_empty": "Create a radial menu to edit its sectors here.",
+    "does_nothing": "does nothing yet",
+    "does_actions": "Run actions",
+    "does_submenu": "Open a menu",
+    "new_submenu": "New sub-menu",
+    "edit_submenu": "Edit it",
+    "steps_hint": "The steps run one after the other when the sector is chosen. Set a step to “hold for a time” to keep it pressed, then change the pause.",
+    "no_steps": "No steps yet: add an action.",
+    "close_after": "Close the menu after running"
   },
   "picker": {
     "keyboard": "Keyboard",
@@ -743,7 +800,9 @@
     "segments_no_repeat": " Repeating is ignored for parts.",
     "copy_steps": "Copy steps",
     "paste_steps": "Paste steps",
-    "steps_copied": "{n} steps copied"
+    "steps_copied": "{n} steps copied",
+    "step_hold": "hold for a time",
+    "press_label": "How the step presses"
   },
   "params": {
     "amount": "Amount",
@@ -1581,7 +1640,8 @@
     "paused": "Remapping pauses while this window has the focus.",
     "no_session": "No config runs on this controller.",
     "no_pad": "This config has no virtual controller.",
-    "no_keys": "No keys or mouse buttons held."
+    "no_keys": "No keys or mouse buttons held.",
+    "sent_as": "Games see: {pad}"
   },
   "history": {
     "title": "Earlier versions",

@@ -20,6 +20,7 @@
   import { api } from '../../lib/api';
   import { t } from '../../lib/i18n/index.svelte';
   import { app } from '../../lib/state/app.svelte';
+  import { tip } from '../../lib/tooltip.svelte';
 
   let { tone }: { tone: 'icon' | 'row' } = $props();
 
@@ -27,7 +28,7 @@
 </script>
 
 {#each drivers as d (d.key)}
-  <div class="driver {tone}" class:missing={!d.state.available} title={tone === 'icon' ? (d.state.error ?? '') : undefined}>
+  <div class="driver {tone}" class:missing={!d.state.available} use:tip={tone === 'icon' ? (d.state.error ?? '') : undefined}>
     {#if d.state.available}<CircleCheck size={15} />{:else}<CircleAlert size={15} />{/if}
     <span class="name">{t(`drivers.${d.key}`)}</span>
     {#if !d.state.available}

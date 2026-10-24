@@ -41,10 +41,11 @@
 
   /* Behind dialogs. */
   --backdrop: rgba(5, 7, 10, 0.6);
-  /* Stacking order: menus, the welcome guide, dialogs, the window caption, toasts on top. */
+  /* Stacking order: menus, the welcome guide, dialogs, the window caption, toasts, tooltips on top. */
   --z-menu: 50;
   --z-guide: 90;
   --z-dialog: 100;
   --z-caption: 110;
   --z-toast: 120;
+  --z-tooltip: 130;
 }

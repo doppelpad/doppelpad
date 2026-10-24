@@ -18,6 +18,7 @@
   import SettingRow from './settings/SettingRow.svelte';
   import SettingsSection from './settings/SettingsSection.svelte';
   import Dialog from './ui/Dialog.svelte';
+  import Select from './ui/Select.svelte';
   import Toggle from './ui/Toggle.svelte';
 
   let { layer, onclose }: { layer: number; onclose: () => void } = $props();
@@ -41,16 +42,13 @@
   </SettingRow>
 
   <SettingRow label={t('layers.unlock')}>
-    <select
+    <Select
       value={unlock ?? 'none'}
       disabled={app.readOnly}
-      onchange={(e) => {
-        const v = e.currentTarget.value;
-        app.edit((p) => setLayerUnlock(p, layer, v === 'none' ? undefined : (v as Unlock)));
-      }}
-    >
-      {#each UNLOCKS as u (u)}<option value={u}>{t(`layers.unlock_options.${u}`)}</option>{/each}
-    </select>
+      class="setting"
+      options={UNLOCKS.map((u) => ({ value: u, label: t(`layers.unlock_options.${u}`) }))}
+      onchange={(v) => app.edit((p) => setLayerUnlock(p, layer, v === 'none' ? undefined : (v as Unlock)))}
+    />
   </SettingRow>
   {#if unlock}<p class="hint">{t('layers.unlock_hint')}</p>{/if}
 
@@ -86,8 +84,7 @@
 </Dialog>
 
 <style>
-  input:not([type='checkbox']),
-  select {
+  input:not([type='checkbox']) {
     flex: 1;
     max-width: 240px;
   }

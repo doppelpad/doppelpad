@@ -9,6 +9,7 @@
   import { modalOpen } from '../ui/Dialog.svelte';
   import { controlMenu } from '../binding/controlMenu';
   import { isFlagged } from '../../lib/model/lints';
+  import { tip } from '../../lib/tooltip.svelte';
 
   interface KeyBox {
     k: string;
@@ -176,7 +177,7 @@
         class:selected={app.selectedKey === `Key:${key.k}`}
         class:held={held.has(key.k)}
         style="--x: {key.x}; --y: {key.y}; --kw: {key.w}; --kh: {key.h}"
-        title={s ? `${key.k}: ${s.text}` : key.k}
+        use:tip={s ? `${key.k}: ${s.text}` : key.k}
         use:controlMenu={`Key:${key.k}`}
         onclick={() => app.select(`Key:${key.k}`)}
       >

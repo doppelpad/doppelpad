@@ -6,10 +6,13 @@
   import { layerIds, setLight } from '../../lib/model/profile';
   import { app } from '../../lib/state/app.svelte';
   import type { Light, LightMode } from '../../lib/types';
+  import { layerColor } from '../../lib/theme/layers';
   import RemoveButton from '../ui/RemoveButton.svelte';
+  import Select from '../ui/Select.svelte';
   import Slider from '../ui/Slider.svelte';
   import Toggle from '../ui/Toggle.svelte';
   import { lightConfig } from '../../lib/model/output';
+  import { tip } from '../../lib/tooltip.svelte';
 
   const MODES: LightMode[] = ['solid', 'breath', 'rainbow', 'shimmer', 'heartbeat', 'strobe', 'off'];
   const def = $derived(app.catalog?.defaults.light);
@@ -35,10 +38,11 @@
 {#if layers.length > 0}
   <label class="row">
     <span>{t('light.layer')}</span>
-    <select value={layer} onchange={(e) => (layer = Number(e.currentTarget.value))}>
-      <option value={0}>{app.layerLabel(0)}</option>
-      {#each layers as l (l)}<option value={l}>{app.layerLabel(l)}</option>{/each}
-    </select>
+    <Select
+      value={layer}
+      options={[0, ...layers].map((l) => ({ value: l, label: app.layerLabel(l), color: layerColor(l) }))}
+      onchange={(l) => (layer = l)}
+    />
   </label>
 {/if}
 
@@ -53,9 +57,12 @@
   <div class="box card">
     <label class="row">
       <span>{t('light.mode')}</span>
-      <select value={light.mode} {disabled} onchange={(e) => set({ mode: e.currentTarget.value as LightMode })}>
-        {#each MODES as m (m)}<option value={m}>{t(`light.modes.${m}`)}</option>{/each}
-      </select>
+      <Select
+        value={light.mode}
+        {disabled}
+        options={MODES.map((m) => ({ value: m, label: t(`light.modes.${m}`) }))}
+        onchange={(mode: LightMode) => set({ mode })}
+      />
     </label>
     {#if light.mode !== 'off' && light.mode !== 'rainbow'}
       <div class="colors">
@@ -70,7 +77,7 @@
         {#if !disabled && light.colors.length < 10}
           <button
             class="icon-btn"
-            title={t('light.add_color')}
+            use:tip={t('light.add_color')}
             onclick={() => set({ colors: [...light.colors, light.colors.at(-1) ?? '#ffffff'] })}><Plus size={14} /></button
           >
         {/if}

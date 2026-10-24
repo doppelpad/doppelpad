@@ -4,6 +4,7 @@
   import { t } from '../../lib/i18n/index.svelte';
   import { app } from '../../lib/state/app.svelte';
   import type { MappingsOverlaySettings, PadOverlaySettings } from '../../lib/types';
+  import Select from '../ui/Select.svelte';
   import Slider from '../ui/Slider.svelte';
   import CornerSelect from './CornerSelect.svelte';
   import SettingRow from './SettingRow.svelte';
@@ -26,9 +27,12 @@
   <div class="sub">{t('settings.overlays.pad')}</div>
   <CornerSelect value={pad.corner} onchange={(corner) => setPad({ corner })} />
   <SettingRow label={t('settings.osd.scale')}>
-    <select value={pad.size} onchange={(e) => setPad({ size: Number(e.currentTarget.value) })}>
-      {#each PAD_SIZES as s (s)}<option value={s}>{t(`settings.overlays.sizes.${s}`)}</option>{/each}
-    </select>
+    <Select
+      value={pad.size}
+      class="setting"
+      options={PAD_SIZES.map((s) => ({ value: s, label: t(`settings.overlays.sizes.${s}`) }))}
+      onchange={(size) => setPad({ size })}
+    />
   </SettingRow>
   <Slider
     label={t('settings.osd.opacity')}
@@ -66,9 +70,6 @@
 </SettingsSection>
 
 <style>
-  select {
-    min-width: 160px;
-  }
   .sub {
     margin-top: 4px;
     color: var(--text-dim);

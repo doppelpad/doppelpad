@@ -10,6 +10,7 @@
   import IdentifyWizard from '../IdentifyWizard.svelte';
   import Menu, { type MenuItem } from '../ui/Menu.svelte';
   import BatteryBadge from './BatteryBadge.svelte';
+  import { tip } from '../../lib/tooltip.svelte';
 
   const live = $derived(app.live);
   const ownIds = $derived(new Set((live?.device_slots ?? []).map((d) => d.id)));
@@ -72,7 +73,7 @@
 {#if !live || live.devices.length === 0}
   <span class="btn select empty"><Gamepad2 size={15} /><span class="name">{t('devices.none')}</span></span>
 {:else}
-  <Menu items={deviceItems} title={ownIds.has(currentId ?? '') ? t('devices.own_hint') : t('devices.pick')}>
+  <Menu items={deviceItems} title={ownIds.has(currentId ?? '') ? t('devices.own_hint') : ''}>
     {#snippet trigger()}
       <span class="btn select">
         {#if ownIds.has(currentId ?? '')}<Layers size={15} />{:else}<Gamepad2 size={15} />{/if}
@@ -83,7 +84,7 @@
             class="more"
             class:low={othersTone === 'warning'}
             class:critical={othersTone === 'danger'}
-            title={others
+            use:tip={others
               .map((d) => (d.battery && !d.battery.wired ? `${d.name} — ${t('devices.battery', { level: d.battery.level })}` : d.name))
               .join('\n')}
           >

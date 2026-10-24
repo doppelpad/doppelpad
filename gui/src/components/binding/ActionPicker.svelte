@@ -10,6 +10,7 @@
   import { POWER_COMMANDS, RADIAL_COMMANDS, SIMPLE_COMMANDS } from '../../lib/model/labels';
   import { app } from '../../lib/state/app.svelte';
   import type { Action, Dir, MouseButtonName, PadButtonName, ShakeAxis, StickName, TouchOutput, TriggerName } from '../../lib/types';
+  import { tip } from '../../lib/tooltip.svelte';
 
   let { onpick, onclose }: { onpick: (a: Action) => void; onclose: () => void } = $props();
 
@@ -95,12 +96,12 @@
 <div class="picker">
   <div class="tabs">
     {#each TABS as tb (tb.id)}
-      <button class="tab" class:active={tab === tb.id} title={t(`picker.${tb.id}`)} onclick={() => (tab = tb.id)}>
+      <button class="tab" class:active={tab === tb.id} onclick={() => (tab = tb.id)}>
         <tb.icon size={16} />
         <span>{t(`picker.${tb.id}`)}</span>
       </button>
     {/each}
-    <button class="icon-btn close" title={t('common.close')} onclick={onclose}><X size={15} /></button>
+    <button class="icon-btn close" use:tip={t('common.close')} onclick={onclose}><X size={15} /></button>
   </div>
 
   {#if tab === 'keyboard'}
@@ -143,17 +144,17 @@
       </div>
       <div class="group">{t('picker.cursor')}</div>
       <div class="grid">
-        <button class="chip" title={t('picker.cursor_hint')} onclick={() => onpick({ mouse_to: [0.5, 0.5] })}>
+        <button class="chip" use:tip={t('picker.cursor_hint')} onclick={() => onpick({ mouse_to: [0.5, 0.5] })}>
           {t('picker.cursor_centre')}
         </button>
-        <button class="chip" title={t('picker.cursor_hint')} onclick={() => onpick({ mouse_clip: [0.25, 0.25, 0.75, 0.75] })}>
+        <button class="chip" use:tip={t('picker.cursor_hint')} onclick={() => onpick({ mouse_clip: [0.25, 0.25, 0.75, 0.75] })}>
           {t('picker.cursor_clip')}
         </button>
       </div>
       <div class="group">{t('picker.turn')}</div>
       <div class="grid">
         {#each TURNS as deg (deg)}
-          <button class="chip" title={t('picker.turn_hint')} onclick={() => onpick({ turn: deg })}
+          <button class="chip" use:tip={t('picker.turn_hint')} onclick={() => onpick({ turn: deg })}
             >{t(`picker.turn_${deg < 0 ? 'left' : deg === 180 ? 'around' : 'right'}`)}</button
           >
         {/each}
@@ -179,7 +180,7 @@
         </div>
       {/each}
       <div class="grid">
-        <button class="chip" title={t('picker.anti_recoil_hint')} onclick={() => onpick({ stick: 'right', x: 0, y: -0.15 })}>
+        <button class="chip" use:tip={t('picker.anti_recoil_hint')} onclick={() => onpick({ stick: 'right', x: 0, y: -0.15 })}>
           {t('picker.anti_recoil')}
         </button>
       </div>
@@ -194,7 +195,7 @@
       <div class="group">{t('picker.pad_touch')}</div>
       <div class="grid">
         {#each TOUCH_OUTPUTS as g (g)}
-          <button class="chip" title={t('picker.pad_touch_hint')} onclick={() => onpick({ touch: g })}>
+          <button class="chip" use:tip={t('picker.pad_touch_hint')} onclick={() => onpick({ touch: g })}>
             {t(`picker.touch_out.${g}`)}
           </button>
         {/each}
@@ -202,7 +203,7 @@
       <div class="group">{t('picker.pad_shake')}</div>
       <div class="grid">
         {#each SHAKES as s (s)}
-          <button class="chip" title={t('picker.pad_shake_hint')} onclick={() => onpick({ shake: s })}>
+          <button class="chip" use:tip={t('picker.pad_shake_hint')} onclick={() => onpick({ shake: s })}>
             {t('picker.shake_axis', { axis: s.toUpperCase() })}
           </button>
         {/each}

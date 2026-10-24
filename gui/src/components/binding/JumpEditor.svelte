@@ -3,11 +3,15 @@
   // delay and whether the actions wait for it.
   import { t } from '../../lib/i18n/index.svelte';
   import { addLayer, layerIds } from '../../lib/model/profile';
+  import { Plus } from '@lucide/svelte';
   import { app } from '../../lib/state/app.svelte';
+  import { layerColor } from '../../lib/theme/layers';
   import type { JumpMode, Mapping } from '../../lib/types';
   import Segmented from '../ui/Segmented.svelte';
+  import Select from '../ui/Select.svelte';
   import { ms, type EditMapping } from './edit';
   import MsInput from './MsInput.svelte';
+  import { tip } from '../../lib/tooltip.svelte';
 
   let { mapping, readOnly, edit }: { mapping: Mapping | undefined; readOnly: boolean; edit: EditMapping } = $props();
 
@@ -34,13 +38,22 @@
 </script>
 
 <div class="jump">
-  <select value={mapping?.jump ? String(mapping.jump.layer) : ''} disabled={readOnly} onchange={(e) => setJumpLayer(e.currentTarget.value)}>
-    <option value="">{t('binding.jump_none')}</option>
-    {#each otherLayers as id (id)}
-      <option value={String(id)}>{t('binding.jump_to', { layer: app.layerLabel(id) })}</option>
-    {/each}
-    <option value="new">+ {t('layers.add')}</option>
-  </select>
+  <Select
+    value={mapping?.jump ? String(mapping.jump.layer) : ''}
+    disabled={readOnly}
+    wide
+    options={[
+      { value: '', label: t('binding.jump_none') },
+      ...otherLayers.map((id) => ({
+        value: String(id),
+        label: t('binding.jump_to', { layer: app.layerLabel(id) }),
+        color: layerColor(id),
+      })),
+      { separator: true },
+      { value: 'new', label: t('layers.add'), icon: Plus },
+    ]}
+    onchange={setJumpLayer}
+  />
   {#if mapping?.jump}
     <Segmented
       variant="fill"
@@ -62,7 +75,7 @@
         />
       </label>
       {#if mapping.jump.delay_ms}
-        <label class="inline" title={t('binding.jump_postpone_hint')}>
+        <label class="inline" use:tip={t('binding.jump_postpone_hint')}>
           <input
             type="checkbox"
             checked={mapping.jump.postpone ?? false}

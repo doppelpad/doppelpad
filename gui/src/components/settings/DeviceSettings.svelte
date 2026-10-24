@@ -7,8 +7,10 @@
   import { app } from '../../lib/state/app.svelte';
   import { padColor } from '../../lib/model/padColors';
   import type { DeviceGroup } from '../../lib/types';
+  import Select from '../ui/Select.svelte';
   import SettingRow from './SettingRow.svelte';
   import SettingsSection from './SettingsSection.svelte';
+  import { tip } from '../../lib/tooltip.svelte';
 
   const live = $derived(app.live);
   const seen = $derived(live?.seen_devices ?? []);
@@ -54,7 +56,7 @@
       {#if app.settings.tray_per_controller}
         <input
           type="color"
-          title={t('devices.settings.tray_color')}
+          use:tip={t('devices.settings.tray_color')}
           aria-label={t('devices.settings.tray_color')}
           value={padColor(d.id, app.settings.controller_colors)}
           onchange={(e) => setColor(d.id, e.currentTarget.value)}
@@ -68,7 +70,7 @@
     <div class="group">
       <span class="gname">{g.name}</span>
       <span class="members">{g.members.map(nameOf).join(' + ')}</span>
-      <button class="icon-btn" title={t('devices.settings.ungroup')} onclick={() => setGroups(groups.filter((_, j) => j !== i))}>
+      <button class="icon-btn" use:tip={t('devices.settings.ungroup')} onclick={() => setGroups(groups.filter((_, j) => j !== i))}>
         <Trash2 size={14} />
       </button>
     </div>
@@ -95,11 +97,15 @@
   {/if}
 
   <SettingRow label={t('devices.settings.power_off_after')}>
-    <select value={powerOffAfter} onchange={(e) => app.attempt(api.setPowerOffAfter(Number(e.currentTarget.value)))}>
-      {#each IDLE_MINUTES.includes(powerOffAfter) ? IDLE_MINUTES : [...IDLE_MINUTES, powerOffAfter] as m (m)}
-        <option value={m}>{m === 0 ? t('devices.settings.never') : t('devices.settings.minutes', { n: m })}</option>
-      {/each}
-    </select>
+    <Select
+      value={powerOffAfter}
+      class="setting"
+      options={(IDLE_MINUTES.includes(powerOffAfter) ? IDLE_MINUTES : [...IDLE_MINUTES, powerOffAfter]).map((m) => ({
+        value: m,
+        label: m === 0 ? t('devices.settings.never') : t('devices.settings.minutes', { n: m }),
+      }))}
+      onchange={(m) => app.attempt(api.setPowerOffAfter(m))}
+    />
   </SettingRow>
   <p class="hint">{t('devices.settings.power_off_hint')}</p>
 </SettingsSection>

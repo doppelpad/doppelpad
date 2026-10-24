@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Gamepad2, RotateCcw, Keyboard, Mouse, Combine, Cable, Joystick, Plus, Ellipsis, ChevronDown } from '@lucide/svelte';
+  import { Gamepad2, RotateCcw, Keyboard, Mouse, Combine, Cable, Joystick, Plus, Ellipsis, ChevronDown, ChartPie } from '@lucide/svelte';
   import { api } from '../lib/api';
   import { t } from '../lib/i18n/index.svelte';
   import { layerColor } from '../lib/theme/layers';
@@ -12,18 +12,21 @@
   import TransformDialog from './TransformDialog.svelte';
   import LayerMapDialog from './LayerMapDialog.svelte';
   import Menu from './ui/Menu.svelte';
+  import { tip as tooltip } from '../lib/tooltip.svelte';
 
+  /** `title`: a tooltip that says more than the label. */
   type Tile = { id: View; icon: typeof Gamepad2; label: string; title?: string };
   const views: Tile[] = $derived([
-    { id: 'front', icon: Gamepad2, label: t('views.front'), title: t('views.front') },
-    { id: 'back', icon: RotateCcw, label: t('views.back'), title: t('views.back') },
-    { id: 'keyboard', icon: Keyboard, label: t('views.keyboard'), title: t('views.keyboard') },
-    { id: 'mouse', icon: Mouse, label: t('views.mouse'), title: t('views.mouse') },
+    { id: 'front', icon: Gamepad2, label: t('views.front') },
+    { id: 'back', icon: RotateCcw, label: t('views.back') },
+    { id: 'keyboard', icon: Keyboard, label: t('views.keyboard') },
+    { id: 'mouse', icon: Mouse, label: t('views.mouse') },
   ]);
   /** Tiles after the layers. */
   const extras: Tile[] = $derived([
     { id: 'analog', icon: Joystick, label: t('views.analog'), title: t('analog.hint') },
     { id: 'shortcuts', icon: Combine, label: t('views.shortcuts') },
+    { id: 'radial', icon: ChartPie, label: t('views.radial'), title: t('radial.tile_hint') },
     { id: 'output', icon: Cable, label: t('views.output') },
   ]);
 
@@ -56,7 +59,9 @@
   const BAR_GAP = 14; // column gap of .toolbar
   let barRect: DOMRectReadOnly | undefined = $state();
   let viewsWidth = $state(0);
-  let extraWidth = $state(0);
+  /** The extras' width with their labels and as icons only (from invisible copies). */
+  let extraFull = $state(0);
+  let extraIcons = $state(0);
   let stripWidth = $state(0);
   let toolsWidth = $state(0);
   let moreWidth = $state(0);
@@ -67,6 +72,9 @@
   const pinned = $derived(layers.filter((id) => id === 0 || id === app.layer));
   /** Narrowest the strip gets: every chip, or the pinned ones plus "+N", and the tools. */
   const minStrip = $derived(Math.min(chipsWidth(layers), chipsWidth(pinned) + moreWidth + GAP) + toolsWidth);
+  /** The extras show only their icons when, with their labels, not every layer would get a chip. */
+  const compact = $derived((barRect?.width ?? 0) - viewsWidth - extraFull - 2 * BAR_GAP < chipsWidth(layers) + toolsWidth);
+  const extraWidth = $derived(compact ? extraIcons : extraFull);
   /** Too narrow for views, layers and extras in one row, so the layers get a row of their own. */
   const stacked = $derived((barRect?.width ?? 0) - viewsWidth - extraWidth - 2 * BAR_GAP < minStrip);
 
@@ -173,10 +181,15 @@
   ]);
 </script>
 
-{#snippet tile(v: Tile)}
-  <button class="tile" class:active={app.view === v.id} title={v.title} onclick={() => setView(v.id)}>
+{#snippet tile(v: Tile, iconOnly = false)}
+  <button
+    class="tile"
+    class:active={app.view === v.id}
+    use:tooltip={iconOnly ? (v.title ?? v.label) : v.title}
+    onclick={() => setView(v.id)}
+  >
     <v.icon size={18} />
-    <span>{v.label}</span>
+    {#if !iconOnly}<span>{v.label}</span>{/if}
   </button>
 {/snippet}
 
@@ -210,7 +223,7 @@
       </Menu>
     {/if}
     <div class="tools" bind:offsetWidth={toolsWidth}>
-      <button class="icon-btn" title={t('layers.add')} onclick={onAddLayer} disabled={!app.profile || app.readOnly}>
+      <button class="icon-btn" use:tooltip={t('layers.add')} onclick={onAddLayer} disabled={!app.profile || app.readOnly}>
         <Plus size={16} />
       </button>
       <Menu items={layerMenu} title={t('layers.options')} iconOnly>
@@ -228,8 +241,17 @@
     </div>
   </div>
 
-  <div class="extra" bind:offsetWidth={extraWidth}>
-    {#each extras as v (v.id)}{@render tile(v)}{/each}
+  <div class="extra">
+    {#each extras as v (v.id)}{@render tile(v, compact)}{/each}
+  </div>
+
+  <div class="measure" aria-hidden="true">
+    <span class="extra" bind:offsetWidth={extraFull}>
+      {#each extras as v (v.id)}<span class="tile"><v.icon size={18} /><span>{v.label}</span></span>{/each}
+    </span>
+    <span class="extra" bind:offsetWidth={extraIcons}>
+      {#each extras as v (v.id)}<span class="tile"><v.icon size={18} /></span>{/each}
+    </span>
   </div>
 </div>
 
@@ -244,6 +266,7 @@
 
 <style>
   .toolbar {
+    position: relative;
     display: flex;
     align-items: center;
     gap: 8px 14px;
@@ -267,6 +290,7 @@
     border-radius: var(--radius-s);
     color: var(--text-dim);
     border: 1px solid transparent;
+    white-space: nowrap;
   }
   .tile span {
     font-size: var(--fs-s);
@@ -308,6 +332,11 @@
     display: flex;
     visibility: hidden;
     pointer-events: none;
+  }
+  .measure .extra,
+  .measure .tile {
+    flex: none;
+    margin: 0;
   }
   .layer {
     flex: none;

@@ -21,9 +21,12 @@
   import { app } from '../../lib/state/app.svelte';
   import type { AnalogMapping, AnalogSource, AnalogTarget, ControlName } from '../../lib/types';
   import Chip from '../ui/Chip.svelte';
+  import Menu, { type MenuItem } from '../ui/Menu.svelte';
+  import Select from '../ui/Select.svelte';
   import Slider from '../ui/Slider.svelte';
   import { PCT, sliderHint, sliderUnit, type SliderSpec } from '../ui/sliderSpec';
   import Toggle from '../ui/Toggle.svelte';
+  import { tip } from '../../lib/tooltip.svelte';
 
   /** `fixedSource`: shown for one source (a whole stick), so the source cannot change here. */
   let { index, route, fixedSource = false }: { index: number; route: AnalogMapping; fixedSource?: boolean } = $props();
@@ -97,12 +100,18 @@
     }
   }
 
-  function onAddHeld(e: Event & { currentTarget: HTMLSelectElement }) {
-    const v = e.currentTarget.value;
-    e.currentTarget.value = '';
-    if (v === '__press') startCapture();
-    else if (v) addHeld(v);
-  }
+  /** The "add a control" menu: press one, or pick a controller or mouse button. */
+  const addItems = $derived<MenuItem[]>([
+    { label: t('analog.routes.press_control'), onclick: startCapture },
+    { heading: true, label: t('picker.gamepad') },
+    ...heldOptions
+      .filter((c) => !r?.while_held.includes(c))
+      .map((c) => ({ label: controlLabel(c, app.family), onclick: () => addHeld(c) })),
+    { heading: true, label: t('picker.mouse') },
+    ...mouseOptions
+      .filter((c) => !r?.while_held.includes(c))
+      .map((c) => ({ label: controlLabel(c, app.family), onclick: () => addHeld(c) })),
+  ]);
 
   onDestroy(stopCapture);
 </script>
@@ -115,20 +124,26 @@
       {#if !fixedSource}
         <label class="end">
           <span>{t('analog.routes.from')}</span>
-          <select value={source} {disabled} onchange={(e) => set(sourcePatch(route, e.currentTarget.value as AnalogSource))}>
-            {#each ROUTE_SOURCES as s (s)}<option value={s}>{t(`analog.routes.sources.${s}`)}</option>{/each}
-          </select>
+          <Select
+            value={source}
+            {disabled}
+            options={ROUTE_SOURCES.map((s) => ({ value: s, label: t(`analog.routes.sources.${s}`) }))}
+            onchange={(v: AnalogSource) => set(sourcePatch(route, v))}
+          />
         </label>
         <ArrowRight size={16} />
       {/if}
       <label class="end">
         <span>{t('analog.routes.to')}</span>
-        <select value={target} {disabled} onchange={(e) => set({ target: e.currentTarget.value as AnalogTarget })}>
-          {#each routeTargets(source) as tg (tg)}<option value={tg}>{t(`analog.routes.targets.${tg}`)}</option>{/each}
-        </select>
+        <Select
+          value={target}
+          {disabled}
+          options={routeTargets(source).map((tg) => ({ value: tg, label: t(`analog.routes.targets.${tg}`) }))}
+          onchange={(v: AnalogTarget) => set({ target: v })}
+        />
       </label>
       {#if !disabled}
-        <button class="icon-btn del danger" title={t('analog.routes.delete')} onclick={() => app.edit((p) => removeRoute(p, index))}>
+        <button class="icon-btn del danger" use:tip={t('analog.routes.delete')} onclick={() => app.edit((p) => removeRoute(p, index))}>
           <Trash2 size={15} />
         </button>
       {/if}
@@ -214,25 +229,11 @@
       {#if r.while_held.length === 0}<span class="always">{t('analog.routes.always')}</span>{/if}
       {#if capturing}
         <span class="capturing">{t('analog.routes.pressing')}</span>
-        <button class="icon-btn" title={t('common.cancel')} onclick={stopCapture}><X size={14} /></button>
+        <button class="icon-btn" use:tip={t('common.cancel')} onclick={stopCapture}><X size={14} /></button>
       {:else if !disabled}
-        <label class="add">
-          <Plus size={13} />
-          <select value="" aria-label={t('analog.routes.add_control')} onchange={onAddHeld}>
-            <option value="" disabled>{t('analog.routes.add_control')}</option>
-            <option value="__press">{t('analog.routes.press_control')}</option>
-            <optgroup label={t('picker.gamepad')}>
-              {#each heldOptions.filter((c) => !r.while_held.includes(c)) as c (c)}
-                <option value={c}>{controlLabel(c, app.family)}</option>
-              {/each}
-            </optgroup>
-            <optgroup label={t('picker.mouse')}>
-              {#each mouseOptions.filter((c) => !r.while_held.includes(c)) as c (c)}
-                <option value={c}>{controlLabel(c, app.family)}</option>
-              {/each}
-            </optgroup>
-          </select>
-        </label>
+        <Menu items={addItems} class="add">
+          {#snippet trigger()}<Plus size={13} /> {t('analog.routes.add_control')}{/snippet}
+        </Menu>
       {/if}
     </div>
   </section>
@@ -264,9 +265,6 @@
   .end span {
     font-size: var(--fs-xs);
     color: var(--text-faint);
-  }
-  .end select {
-    min-width: 140px;
   }
   .del {
     margin-left: auto;
@@ -313,26 +311,12 @@
   .capturing {
     color: var(--accent);
   }
-  .add {
-    display: inline-flex;
-    align-items: center;
-    gap: 2px;
+  .held :global(.add) {
+    gap: 4px;
     color: var(--accent);
     border: 1px dashed var(--accent);
     border-radius: var(--radius-pill);
-    padding: 0 4px 0 8px;
-  }
-  .add select {
-    background: none;
-    border: none;
-    color: var(--accent);
-    padding: 3px 2px;
+    padding: 3px 10px 3px 8px;
     font-size: var(--fs-s);
-    cursor: pointer;
-  }
-  .add select option,
-  .add select optgroup {
-    color: var(--text);
-    background: var(--bg-2);
   }
 </style>

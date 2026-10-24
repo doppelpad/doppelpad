@@ -12,6 +12,7 @@
   import type { Combo, ControlName, Mapping } from '../../lib/types';
   import { controlMenu } from '../binding/controlMenu';
   import { isFlagged } from '../../lib/model/lints';
+  import { tip } from '../../lib/tooltip.svelte';
 
   const MAX = 4;
   const STICKS = SIDE_NAMES.flatMap((s) => CARDINALS.map((d) => SIDES[s].stick + d));
@@ -124,7 +125,7 @@
           <span class="sum">{group.map((m) => mappingSummary(m, app.layerLabel)).join(' · ')}</span>
         </button>
         {#if !app.readOnly}
-          <button class="icon-btn" title={t('common.delete')} onclick={() => remove(trig)}><Trash2 size={15} /></button>
+          <button class="icon-btn" use:tip={t('common.delete')} onclick={() => remove(trig)}><Trash2 size={15} /></button>
         {/if}
       </div>
     {/each}

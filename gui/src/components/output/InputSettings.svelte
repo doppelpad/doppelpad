@@ -5,6 +5,7 @@
   import { setVirtualDevice } from '../../lib/model/layers';
   import { app } from '../../lib/state/app.svelte';
   import type { KbmSource, KeyRepeat } from '../../lib/types';
+  import Select from '../ui/Select.svelte';
 
   const KBM_SOURCES: KbmSource[] = ['all', 'physical', 'scripts'];
 
@@ -18,33 +19,25 @@
 
 <label class="field">
   <span class="fl">{t('output.kbm_source')}</span>
-  <select
+  <Select
     value={app.profile?.kbm_source ?? 'all'}
     disabled={app.readOnly}
-    onchange={(e) => {
-      const v = e.currentTarget.value as KbmSource;
-      app.edit((p) => ({ ...p, kbm_source: v === 'all' ? undefined : v }));
-    }}
-  >
-    {#each KBM_SOURCES as s (s)}<option value={s}>{t(`output.kbm_sources.${s}`)}</option>{/each}
-  </select>
+    class="wide-select"
+    options={KBM_SOURCES.map((s) => ({ value: s, label: t(`output.kbm_sources.${s}`) }))}
+    onchange={(v) => app.edit((p) => ({ ...p, kbm_source: v === 'all' ? undefined : v }))}
+  />
 </label>
 <p class="hint">{t('output.kbm_source_hint')}</p>
 
 <label class="field">
   <span class="fl">{t('output.key_repeat')}</span>
-  <select
+  <Select
     value={typeof repeat === 'number' ? 'custom' : repeat}
     disabled={app.readOnly}
-    onchange={(e) => {
-      const v = e.currentTarget.value;
-      setRepeat(v === 'custom' ? 30 : (v as KeyRepeat));
-    }}
-  >
-    {#each REPEATS as r (r)}
-      <option value={r}>{t(`output.repeat.${r}`)}</option>
-    {/each}
-  </select>
+    class="wide-select"
+    options={REPEATS.map((r) => ({ value: r, label: t(`output.repeat.${r}`) }))}
+    onchange={(v) => setRepeat(v === 'custom' ? 30 : (v as KeyRepeat))}
+  />
   {#if typeof repeat === 'number'}
     <input
       type="number"
@@ -72,7 +65,7 @@
   .fl {
     flex: none;
   }
-  select {
+  .field :global(.wide-select) {
     min-width: 200px;
   }
   input {
