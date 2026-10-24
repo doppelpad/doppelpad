@@ -38,11 +38,12 @@ Doppelpad uses only open drivers ([ViGEmBus](https://github.com/nefarius/ViGEmBu
 [HidHide](https://github.com/nefarius/HidHide)) and can import JSON profiles (schema 3.0)
 from other remapping tools.
 
-> **Status: early preview.** The engine, profile format, importer and Windows backends are
-> implemented and unit-tested, and real DualSense input has been verified. The desktop app
-> (editor + tray service) is still being polished. End-to-end testing with ViGEmBus/HidHide
-> in games is the next milestone. A Linux backend (evdev/uinput) has had a first test on a
-> Steam Deck. Expect rough edges.
+> **Status: preview, on the way to 1.0.** The features planned for 1.0 are implemented and
+> unit-tested, and real DualSense input has been verified. What 1.0 still needs is mostly
+> testing on real hardware and in games, above all of what Doppelpad sends to controllers
+> (light bars, trigger effects, turning them off) and of the virtual DualShock 4. The Linux
+> backend (evdev/uinput) passed a first test on a Steam Deck. What is left is listed under
+> [Road to 1.0](docs/ROADMAP.md#road-to-10). Expect rough edges.
 
 ## Download
 
