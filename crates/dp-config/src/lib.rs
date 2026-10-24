@@ -827,8 +827,8 @@ pub const HOTKEYS_FILE: &str = "hotkeys.toml";
 /// The gyro calibration of each controller, in [`config_dir`].
 pub const CALIBRATION_FILE: &str = "calibration.toml";
 
-/// Per-user configuration directory (`%APPDATA%\doppelpad` or `~/.config/doppelpad`), or the
-/// portable folder (see [`portable_dir`]).
+/// Per-user configuration directory (`%APPDATA%\doppelpad`, `~/.config/doppelpad` or on macOS
+/// `~/Library/Application Support/doppelpad`), or the portable folder (see [`portable_dir`]).
 pub fn config_dir() -> PathBuf {
     dir_in(portable_dir(), false)
 }
@@ -854,12 +854,23 @@ fn portable_data_dir(exe_dir: &Path) -> Option<PathBuf> {
 }
 
 /// Where files live: in portable mode all in the portable folder, else settings roam
-/// (`%APPDATA%`) and `local` state stays on this machine (`%LOCALAPPDATA%`).
+/// (`%APPDATA%`) and `local` state stays on this machine (`%LOCALAPPDATA%`). macOS has no
+/// roaming folder: both go to Application Support, as both go to the portable folder.
 fn dir_in(portable: Option<&Path>, local: bool) -> PathBuf {
+    const MACOS: &[&str] = &["Library", "Application Support"];
+    let macos = cfg!(target_os = "macos");
     match portable {
         Some(p) => p.to_path_buf(),
-        None if local => user_dir("LOCALAPPDATA", "XDG_STATE_HOME", &[".local", "state"]),
-        None => user_dir("APPDATA", "XDG_CONFIG_HOME", &[".config"]),
+        None if local => user_dir(
+            "LOCALAPPDATA",
+            "XDG_STATE_HOME",
+            if macos { MACOS } else { &[".local", "state"] },
+        ),
+        None => user_dir(
+            "APPDATA",
+            "XDG_CONFIG_HOME",
+            if macos { MACOS } else { &[".config"] },
+        ),
     }
 }
 
@@ -890,16 +901,17 @@ pub fn default_profiles_dir() -> PathBuf {
 }
 
 /// Per-user directory for log files: `%LOCALAPPDATA%\doppelpad\logs`, or
-/// `$XDG_STATE_HOME/doppelpad/logs` (default `~/.local/state/doppelpad/logs`). Local
-/// rather than roaming: logs describe this machine. `logs` in the portable folder in portable
-/// mode.
+/// `$XDG_STATE_HOME/doppelpad/logs` (default `~/.local/state/doppelpad/logs`; on macOS
+/// `~/Library/Application Support/doppelpad/logs`). Local rather than roaming: logs describe
+/// this machine. `logs` in the portable folder in portable mode.
 pub fn log_dir() -> PathBuf {
     dir_in(portable_dir(), true).join("logs")
 }
 
-/// Per-user directory for earlier versions of configs: `%LOCALAPPDATA%\doppelpad\history`, or
-/// `$XDG_STATE_HOME/doppelpad/history`. Outside the profiles folder, so the library never lists
-/// them. `history` in the portable folder in portable mode.
+/// Per-user directory for earlier versions of configs: `%LOCALAPPDATA%\doppelpad\history`,
+/// `$XDG_STATE_HOME/doppelpad/history` or on macOS `~/Library/Application
+/// Support/doppelpad/history`. Outside the profiles folder, so the library never lists them.
+/// `history` in the portable folder in portable mode.
 pub fn history_dir() -> PathBuf {
     dir_in(portable_dir(), true).join("history")
 }
