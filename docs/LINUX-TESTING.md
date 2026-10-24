@@ -617,7 +617,10 @@ host, outside any container: `chmod +x Doppelpad_*.AppImage && ./Doppelpad_*.App
   Once one has, it says the app is up to date, or offers the newer version, which replaces
   the AppImage file and starts again.
 - `doppelpad doctor` from the `.tar.gz` runs on the host.
-- `Doppelpad_*_libraries.txt` lists the libraries in the AppImage, each with a package.
+- `Doppelpad_*_libraries.txt` lists the libraries in the AppImage, each with a package,
+  followed by each package's copyright file and the license texts they name. A library
+  under `-` (no package) or a package whose licenses name only the GPL, not the LGPL, needs
+  a look before the release.
 
 ## Known issues
 

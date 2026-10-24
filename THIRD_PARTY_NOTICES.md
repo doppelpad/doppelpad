@@ -400,8 +400,9 @@ Lesser General Public License for more details.
 The Linux AppImage carries the system libraries the app needs from Ubuntu 22.04, unmodified:
 WebKitGTK, which draws the app's window, GTK and the libraries they use, and
 libayatana-appindicator for the tray icon. They are separate shared libraries under their
-own licenses, most of them the GNU Lesser General Public License. Each release lists them
-in `Doppelpad_<version>_amd64_libraries.txt`, beside the AppImage: every library with the
-Ubuntu package it comes from, that package's source package and version, and its licenses.
-The source code is available from Ubuntu at
-<https://launchpad.net/ubuntu/jammy/+source/SOURCE-PACKAGE>.
+own licenses, most of them the GNU Lesser General Public License. Each release has
+`Doppelpad_<version>_amd64_libraries.txt` beside the AppImage. It lists every library with
+the Ubuntu package it comes from and that package's source package and version, then gives
+each package's copyright file in full and the license texts (LGPL, GPL and others) these
+refer to. The source code of each package is available from Ubuntu at
+<https://launchpad.net/ubuntu/+source/SOURCE-PACKAGE/VERSION>.
