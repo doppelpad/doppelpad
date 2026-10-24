@@ -9,7 +9,7 @@
 //!
 //! Built in tests everywhere so its pure parts are unit-tested on every OS.
 
-#![cfg_attr(not(windows), allow(dead_code))]
+#![cfg_attr(not(any(windows, target_os = "macos")), allow(dead_code))]
 
 use std::collections::{HashMap, HashSet};
 use std::io;

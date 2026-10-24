@@ -28,9 +28,13 @@ pub mod windows;
 #[cfg(any(target_os = "linux", test))]
 pub mod linux;
 
+// Built in tests everywhere, as `linux` is.
+#[cfg(any(target_os = "macos", test))]
+pub mod macos;
+
 pub mod generic;
 pub mod groups;
-#[cfg(any(windows, test))]
+#[cfg(any(windows, target_os = "macos", test))]
 pub(crate) mod hidhost;
 pub mod holders;
 pub mod joycon;
@@ -544,7 +548,11 @@ impl Platform {
         {
             linux::platform()
         }
-        #[cfg(not(any(windows, target_os = "linux")))]
+        #[cfg(target_os = "macos")]
+        {
+            macos::platform()
+        }
+        #[cfg(not(any(windows, target_os = "linux", target_os = "macos")))]
         {
             NullPlatform::platform()
         }
@@ -620,7 +628,11 @@ pub fn os_version() -> String {
     {
         linux::os_version()
     }
-    #[cfg(not(any(windows, target_os = "linux")))]
+    #[cfg(target_os = "macos")]
+    {
+        macos::os_version()
+    }
+    #[cfg(not(any(windows, target_os = "linux", target_os = "macos")))]
     {
         std::env::consts::OS.to_string()
     }
