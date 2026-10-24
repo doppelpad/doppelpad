@@ -572,12 +572,14 @@ impl Service {
         let drivers = DriverStatus {
             virtual_pads: report.virtual_pads.into(),
             device_hiding: report.device_hiding.into(),
+            input_access: report.input_access.into(),
         };
         if !self.drivers.known || drivers != self.drivers.status {
             tracing::info!(
-                "drivers: virtual pads {}, device hiding {}",
+                "drivers: virtual pads {}, device hiding {}, keyboard and mouse {}",
                 drivers.virtual_pads,
-                drivers.device_hiding
+                drivers.device_hiding,
+                drivers.input_access
             );
         }
         let problems = report.hiding_problems;

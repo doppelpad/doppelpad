@@ -150,6 +150,10 @@
       "device_hiding": {
         "available": false,
         "error": null
+      },
+      "input_access": {
+        "available": false,
+        "error": null
       }
     },
     "device_slots": [

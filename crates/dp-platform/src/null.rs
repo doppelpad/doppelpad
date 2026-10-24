@@ -16,6 +16,7 @@ impl NullPlatform {
             probe_drivers: || DriverReport {
                 virtual_pads: Err(PlatformError::Unsupported("virtual gamepads")),
                 device_hiding: Err(PlatformError::Unsupported("device hiding")),
+                input_access: Err(PlatformError::Unsupported("keyboard and mouse")),
                 hiding_problems: Vec::new(),
             },
             gamepads: Vec::new(),

@@ -25,6 +25,7 @@ impl Service {
 
     fn warnings(&self) -> Vec<String> {
         let mut w = self.rt.warnings();
+        w.extend(self.drivers.status.input_access.error.clone());
         w.extend(self.drivers.hiding_problems.iter().cloned());
         w.extend(self.rt.device_problems());
         w.extend(self.errors.last.clone());

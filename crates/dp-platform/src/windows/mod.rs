@@ -71,6 +71,7 @@ pub fn platform() -> Platform {
         probe_drivers: || crate::DriverReport {
             virtual_pads: vigem::available(),
             device_hiding: hidhide::available(),
+            input_access: Ok(()),
             hiding_problems: hidhide::problems(),
         },
         gamepads: vec![

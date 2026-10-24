@@ -4,6 +4,7 @@
   import { t } from '../lib/i18n/index.svelte';
   import { configName } from '../lib/model/labels';
   import { app } from '../lib/state/app.svelte';
+  import { platform } from '../lib/state/window.svelte';
   import DevicePicker from './bottom/DevicePicker.svelte';
   import ServiceWarnings from './bottom/ServiceWarnings.svelte';
   import SlotBar from './bottom/SlotBar.svelte';
@@ -52,7 +53,14 @@
 
     <DevicePicker />
 
-    {#if live && !live.drivers.virtual_pads.available}
+    {#if live && platform === 'macos'}
+      {#if !live.drivers.input_access.available}
+        <span class="warn" use:tip={live.drivers.input_access.error ?? ''}>
+          <TriangleAlert size={13} />
+          {t('drivers.not_allowed_named', { driver: t('drivers.input_access') })}
+        </span>
+      {/if}
+    {:else if live && !live.drivers.virtual_pads.available}
       <span class="warn" use:tip={live.drivers.virtual_pads.error ?? ''}>
         <TriangleAlert size={13} />
         {t('drivers.missing_named', { driver: 'ViGEmBus' })}

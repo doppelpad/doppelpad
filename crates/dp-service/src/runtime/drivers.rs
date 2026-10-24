@@ -38,11 +38,14 @@ impl From<dp_platform::Result<()>> for DriverState {
     }
 }
 
-/// Drivers Doppelpad can use: ViGEmBus for virtual pads, HidHide for hiding devices.
+/// Drivers Doppelpad can use: ViGEmBus for virtual pads, HidHide for hiding devices (on
+/// Linux uinput and grabbing), and what keyboard and mouse need from the OS (on macOS the
+/// Accessibility permission).
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize)]
 pub struct DriverStatus {
     pub virtual_pads: DriverState,
     pub device_hiding: DriverState,
+    pub input_access: DriverState,
 }
 
 impl Runtime {

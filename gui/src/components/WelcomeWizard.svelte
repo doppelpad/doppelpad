@@ -5,6 +5,7 @@
   import { api } from '../lib/api';
   import { t } from '../lib/i18n/index.svelte';
   import { app } from '../lib/state/app.svelte';
+  import { platform } from '../lib/state/window.svelte';
   import type { Template } from '../lib/types';
   import { TEMPLATES } from '../lib/model/labels';
   import IdentifyWizard from './IdentifyWizard.svelte';
@@ -62,9 +63,9 @@
   {#if STEPS[step] === 'welcome'}
     <p>{t('welcome.welcome.text')}</p>
   {:else if STEPS[step] === 'drivers'}
-    <p class="hint">{t('welcome.drivers.text')}</p>
+    <p class="hint">{t(platform === 'macos' ? 'welcome.drivers.text_macos' : 'welcome.drivers.text')}</p>
     <DriverList tone="row" />
-    {#if driverMissing}<p class="hint">{t('welcome.drivers.after')}</p>{/if}
+    {#if driverMissing}<p class="hint">{t(platform === 'macos' ? 'welcome.drivers.after_macos' : 'welcome.drivers.after')}</p>{/if}
   {:else if STEPS[step] === 'controller'}
     {#if devices.length === 0}
       <p>{t('welcome.controller.none')}</p>

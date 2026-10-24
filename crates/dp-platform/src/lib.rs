@@ -524,6 +524,9 @@ pub struct DriverReport {
     pub virtual_pads: Result<()>,
     /// Whether devices can be hidden.
     pub device_hiding: Result<()>,
+    /// Whether keyboard and mouse can be sent and captured: on macOS the Accessibility
+    /// permission, which the user grants; elsewhere there is nothing to ask for.
+    pub input_access: Result<()>,
     /// Connected devices the hiding driver keeps from Doppelpad, explained for the user.
     pub hiding_problems: Vec<String>,
 }
