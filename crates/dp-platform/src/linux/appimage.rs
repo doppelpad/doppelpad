@@ -3,7 +3,8 @@
 //! libraries come from Ubuntu 22.04. A program Doppelpad starts would inherit that and load
 //! those libraries instead of its own, which most programs don't survive (Konsole on
 //! SteamOS: "version `XZ_5.4' not found"). So they get the environment without the
-//! AppImage's parts.
+//! AppImage's parts. They also don't start in the AppImage's `usr` folder, where its start
+//! script puts Doppelpad: that folder goes away when Doppelpad ends.
 
 use std::ffi::OsStr;
 use std::path::Path;
@@ -13,36 +14,46 @@ use std::process::Command;
 /// `GTK_THEME` to Adwaita, over the user's own.
 const APPIMAGE_ONLY: [&str; 5] = ["APPDIR", "APPIMAGE", "ARGV0", "OWD", "GTK_THEME"];
 
-/// `program` with the environment it would have outside the AppImage.
+/// `program` with the environment and folder it would have outside the AppImage.
 pub fn host_command(program: impl AsRef<OsStr>) -> Command {
     let mut cmd = Command::new(program);
-    let vars = std::env::vars_os()
-        .filter_map(|(name, value)| Some((name.into_string().ok()?, value.into_string().ok()?)));
-    for (name, value) in host_env(vars) {
+    let vars: Vec<_> = std::env::vars_os()
+        .filter_map(|(name, value)| Some((name.into_string().ok()?, value.into_string().ok()?)))
+        .collect();
+    for (name, value) in host_env(&vars) {
         match value {
             Some(value) => cmd.env(name, value),
             None => cmd.env_remove(name),
         };
     }
+    if let Ok(cwd) = std::env::current_dir()
+        && let Some(dir) = host_dirs(&vars, &cwd)
+            .into_iter()
+            .find(|dir| Path::new(dir).is_dir())
+    {
+        cmd.current_dir(dir);
+    }
     cmd
+}
+
+/// The AppImage's folder while it runs (`APPDIR`), if Doppelpad runs from one.
+fn appdir(vars: &[(String, String)]) -> Option<&Path> {
+    vars.iter()
+        .find(|(name, _)| name == "APPDIR")
+        .filter(|(_, value)| value.starts_with('/') && !value.trim_matches('/').is_empty())
+        .map(|(_, value)| Path::new(value))
 }
 
 /// The changes that undo the AppImage's environment, `None` for a variable to remove:
 /// lists lose their entries inside `APPDIR`, and a variable left without any is removed.
 /// Outside an AppImage (no `APPDIR`) there are none.
-fn host_env(vars: impl IntoIterator<Item = (String, String)>) -> Vec<(String, Option<String>)> {
-    let vars: Vec<_> = vars.into_iter().collect();
-    let Some(appdir) = vars
-        .iter()
-        .find(|(name, _)| name == "APPDIR")
-        .filter(|(_, value)| value.starts_with('/') && !value.trim_matches('/').is_empty())
-        .map(|(_, value)| Path::new(value))
-    else {
+fn host_env(vars: &[(String, String)]) -> Vec<(String, Option<String>)> {
+    let Some(appdir) = appdir(vars) else {
         return Vec::new();
     };
     let inside = |entry: &str| Path::new(entry).starts_with(appdir);
     let mut changes = Vec::new();
-    for (name, value) in &vars {
+    for (name, value) in vars {
         if APPIMAGE_ONLY.contains(&name.as_str()) {
             changes.push((name.clone(), None));
         } else if value.split(':').any(inside) {
@@ -55,6 +66,20 @@ fn host_env(vars: impl IntoIterator<Item = (String, String)>) -> Vec<(String, Op
         }
     }
     changes
+}
+
+/// Where a program starts instead of `cwd`, best first, when `cwd` is inside the AppImage:
+/// the folder the AppImage was started from (`OWD`), then the home folder.
+fn host_dirs<'a>(vars: &'a [(String, String)], cwd: &Path) -> Vec<&'a str> {
+    if !appdir(vars).is_some_and(|appdir| cwd.starts_with(appdir)) {
+        return Vec::new();
+    }
+    ["OWD", "HOME"]
+        .iter()
+        .filter_map(|wanted| vars.iter().find(|(name, _)| name == wanted))
+        .map(|(_, value)| value.as_str())
+        .filter(|dir| dir.starts_with('/'))
+        .collect()
 }
 
 #[cfg(test)]
@@ -93,7 +118,7 @@ mod tests {
             ("DBUS_SESSION_BUS_ADDRESS", "unix:path=/run/user/1000/bus"),
             ("HOME", "/home/deck"),
         ]);
-        let mut changes = host_env(vars);
+        let mut changes = host_env(&vars);
         changes.sort();
         let set = |name: &str, value: Option<&str>| (name.to_string(), value.map(str::to_string));
         assert_eq!(
@@ -118,10 +143,10 @@ mod tests {
             ("GTK_THEME", "Breeze"),
             ("LD_LIBRARY_PATH", ":"),
         ]);
-        assert!(host_env(vars).is_empty());
+        assert!(host_env(&vars).is_empty());
         // An APPDIR that would match every absolute path is not taken for an AppImage.
         let vars = env(&[("APPDIR", "/"), ("PATH", "/usr/bin")]);
-        assert!(host_env(vars).is_empty());
+        assert!(host_env(&vars).is_empty());
     }
 
     #[test]
@@ -131,7 +156,7 @@ mod tests {
             ("PATH", "/tmp/.mount_Doppel/usr/bin:/tmp/.mount_Dop/usr/bin"),
         ]);
         assert_eq!(
-            host_env(vars),
+            host_env(&vars),
             [
                 ("APPDIR".to_string(), None),
                 (
@@ -140,5 +165,24 @@ mod tests {
                 ),
             ]
         );
+    }
+
+    #[test]
+    fn programs_start_outside_the_appimage() {
+        let vars = env(&[
+            ("APPDIR", "/tmp/.mount_DoppelMHMFdF"),
+            ("OWD", "/home/deck/Downloads"),
+            ("HOME", "/home/deck"),
+        ]);
+        let usr = Path::new("/tmp/.mount_DoppelMHMFdF/usr");
+        assert_eq!(
+            host_dirs(&vars, usr),
+            ["/home/deck/Downloads", "/home/deck"]
+        );
+        // Doppelpad in a folder outside the AppImage: programs start there too.
+        assert!(host_dirs(&vars, Path::new("/home/deck")).is_empty());
+        // Not an AppImage.
+        let vars = env(&[("OWD", "/home/deck"), ("HOME", "/home/deck")]);
+        assert!(host_dirs(&vars, usr).is_empty());
     }
 }
