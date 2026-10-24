@@ -28,7 +28,8 @@ pub mod windows;
 #[cfg(any(target_os = "linux", test))]
 pub mod linux;
 
-#[cfg(target_os = "macos")]
+// Built in tests everywhere, as `linux` is.
+#[cfg(any(target_os = "macos", test))]
 pub mod macos;
 
 pub mod generic;
@@ -49,7 +50,7 @@ pub const MICROSOFT_VID: u16 = 0x045E;
 pub const VIGEM_RELEASES: &str = "https://github.com/nefarius/ViGEmBus/releases";
 /// Where the HidHide driver (hiding devices on Windows) is downloaded.
 pub const HIDHIDE_RELEASES: &str = "https://github.com/nefarius/HidHide/releases";
-#[cfg(any(windows, target_os = "linux", test))]
+#[cfg(any(windows, target_os = "linux", target_os = "macos", test))]
 pub(crate) mod remainder;
 pub(crate) mod report;
 pub mod scan;
