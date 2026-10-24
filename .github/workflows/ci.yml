@@ -1,6 +1,7 @@
 # The checks every change passes before it lands (CLEANUP-AGENT.md §0.8 without the local paths):
 # Windows builds, lints and tests everything, the GUI's frontend included; Linux checks the
-# platform layer and the service and runs the tests that do not need Windows.
+# platform layer and the service and runs the tests that do not need Windows; macOS lints and
+# tests every Rust crate, the app's included.
 name: CI
 
 on:
@@ -60,3 +61,14 @@ jobs:
       - run: cargo check -p dp-platform -p dp-service
       - run: cargo clippy -p dp-platform -p dp-service --all-targets
       - run: cargo test -p dp-core -p dp-config -p dp-ipc -p dp-service
+
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo clippy --workspace --all-targets
+      - run: cargo test --workspace
