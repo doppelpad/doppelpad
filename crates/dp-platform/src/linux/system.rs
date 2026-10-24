@@ -4,7 +4,7 @@
 //! systemd-logind (`systemd-inhibit`, `busctl`).
 
 use std::path::PathBuf;
-use std::process::{Child, Command, Stdio};
+use std::process::{Child, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, OnceLock};
 use std::time::Duration;
@@ -26,7 +26,7 @@ pub struct LinuxSystem {
 }
 
 fn run(program: &str, args: &[&str]) -> Result<()> {
-    let status = Command::new(program)
+    let status = super::host_command(program)
         .args(args)
         .status()
         .map_err(|source| PlatformError::Os {
@@ -101,7 +101,7 @@ impl SystemControl for LinuxSystem {
             return;
         }
         if on {
-            let spawned = Command::new("systemd-inhibit")
+            let spawned = super::host_command("systemd-inhibit")
                 .args([
                     "--what=idle",
                     "--who=Doppelpad",
@@ -184,7 +184,7 @@ impl Drop for LockWatch {
 }
 
 fn locked_now() -> Option<bool> {
-    let out = Command::new("busctl")
+    let out = super::host_command("busctl")
         .args(LOCKED_HINT_QUERY)
         .output()
         .ok()?;

@@ -118,8 +118,10 @@
       disabled={app.readOnly}
       onchange={(g) => {
         if (!g) return;
+        // `side` comes from `menu`, which closing empties.
+        const stick = side;
         onclose();
-        app.setStickGroup(side, g);
+        app.setStickGroup(stick, g);
       }}
     />
     <button class="sm-btn sm-settings" onclick={() => app.openAnalog(side)}>

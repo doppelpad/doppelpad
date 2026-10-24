@@ -178,7 +178,8 @@ jobs:
           (cd "$extracted" && "$GITHUB_WORKSPACE/$appimage" --appimage-extract > /dev/null)
           find "$extracted/squashfs-root" \( -name '*.so' -o -name '*.so.*' \) -printf '%f\n' | sort -u |
             while read -r lib; do
-              pkg=$(dpkg -S "/$lib" 2> /dev/null | head -n1 | cut -d: -f1)
+              # A pattern that starts with / is a whole path to dpkg; */ finds the file in any folder.
+              pkg=$(dpkg -S "*/$lib" 2> /dev/null | head -n1 | cut -d: -f1)
               echo "${pkg:--}|$lib"
             done | sort > "$RUNNER_TEMP/libs.txt"
           packages=$(cut -d'|' -f1 "$RUNNER_TEMP/libs.txt" | sort -u | grep -vx -- -) || true

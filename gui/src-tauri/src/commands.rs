@@ -360,10 +360,13 @@ pub fn open_driver_page(driver: Driver) -> CmdResult<()> {
         Driver::DeviceHiding => dp_platform::HIDHIDE_RELEASES,
     };
     #[cfg(windows)]
-    let opened = std::process::Command::new("explorer").arg(url).spawn();
+    let opened = std::process::Command::new("explorer")
+        .arg(url)
+        .spawn()
+        .map(drop);
     #[cfg(not(windows))]
-    let opened = std::process::Command::new("xdg-open").arg(url).spawn();
-    opened.map(drop).map_err(err)
+    let opened = dp_platform::spawn_detached(dp_platform::host_command("xdg-open").arg(url));
+    opened.map_err(err)
 }
 
 /// Write a game and its configs as one bundle file.
@@ -552,10 +555,7 @@ fn reveal_path(path: &Path) -> std::io::Result<()> {
         } else {
             path.parent().unwrap_or(path)
         };
-        std::process::Command::new("xdg-open")
-            .arg(dir)
-            .spawn()
-            .map(drop)
+        dp_platform::spawn_detached(dp_platform::host_command("xdg-open").arg(dir))
     }
 }
 
