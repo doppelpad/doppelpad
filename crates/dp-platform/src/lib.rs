@@ -28,12 +28,13 @@ pub mod windows;
 #[cfg(any(target_os = "linux", test))]
 pub mod linux;
 
-// Built in tests everywhere, as `linux` is.
-#[cfg(any(target_os = "macos", test))]
+#[cfg(target_os = "macos")]
 pub mod macos;
 
 pub mod generic;
 pub mod groups;
+#[cfg(any(target_os = "macos", test))]
+pub(crate) mod hiddesc;
 #[cfg(any(windows, target_os = "macos", test))]
 pub(crate) mod hidhost;
 pub mod holders;

@@ -1,5 +1,5 @@
-//! Raw HID controllers on macOS: DualShock 4, DualSense, Nintendo Switch pads and Steam
-//! controllers. This is the macOS scanner of the shared HID backend ([`crate::hidhost`]): it
+//! Raw HID controllers on macOS: DualShock 4, DualSense, Nintendo Switch pads, Steam
+//! controllers and other HID gamepads (read through their report descriptor). This is the macOS scanner of the shared HID backend ([`crate::hidhost`]): it
 //! lists HID devices through an IOHIDManager, leaves out the stand-ins macOS makes for the
 //! controllers it supports itself, and opens the controllers it has drivers for.
 //!
@@ -16,6 +16,8 @@ use objc2_io_kit::{IOHIDDevice, IOHIDManager, kIOHIDOptionsTypeNone};
 
 use super::hidio::HidIo;
 use super::props::Props;
+use crate::generic::GenericDriver;
+use crate::hiddesc::Decoder;
 use crate::hidhost::{
     Devices, DriverKind, Found, HidBackend, MakeDriver, SKIP_FOREIGN, driver_kind, parse_bt_address,
 };
@@ -129,11 +131,12 @@ fn identify(props: &Props) -> Option<DriverKind> {
     if props.synthetic {
         return None; // macOS's stand-in for a controller that is listed itself
     }
+    // Without XInput, Xbox pads over Bluetooth are generic HID pads here.
     let kind = driver_kind(props.vid, props.pid, props.usage_page, props.usage, false)?;
     match kind {
-        // Generic pads need a report decoder, Switch 2 pads their USB command channel;
-        // neither is there on macOS yet.
-        DriverKind::Generic | DriverKind::Nintendo(Model::Switch2(_)) => None,
+        // Switch 2 pads need their USB command channel, which is not there on macOS yet.
+        DriverKind::Nintendo(Model::Switch2(_)) => None,
+        DriverKind::Generic if Decoder::new(&props.descriptor).is_none() => None,
         DriverKind::Nintendo(_)
             if !props.bluetooth() && nintendo::usb_unsupported(props.vid, props.pid) =>
         {
@@ -199,7 +202,16 @@ fn grip_slot(interface: Option<u8>) -> Option<JoyConSide> {
 fn driver(props: &Props, kind: DriverKind) -> MakeDriver<HidIo> {
     let (vid, pid, bluetooth) = (props.vid, props.pid, props.bluetooth());
     let (feature_len, interface) = (props.max_feature, props.interface);
+    let name = props
+        .product
+        .clone()
+        .unwrap_or_else(|| "Game controller".into());
+    let descriptor = props.descriptor.clone();
     Box::new(move |_io| match kind {
+        DriverKind::Generic => match Decoder::new(&descriptor) {
+            Some(d) => Box::new(GenericDriver::new(name, vid, pid, Box::new(d))),
+            None => unreachable!("identified with a decoder"),
+        },
         DriverKind::Sony(m) => Box::new(SonyDriver::new(m, bluetooth, feature_len)),
         DriverKind::Nintendo(Model::Switch1) => Box::new(Switch1Driver::new(Link {
             bluetooth,
@@ -213,9 +225,7 @@ fn driver(props: &Props, kind: DriverKind) -> MakeDriver<HidIo> {
         })),
         DriverKind::Nintendo(Model::Wired) => Box::new(WiredDriver::new(vid)),
         DriverKind::Steam(m) => Box::new(SteamDriver::new(m)),
-        DriverKind::Generic | DriverKind::Nintendo(Model::Switch2(_)) => {
-            unreachable!("not identified on macOS")
-        }
+        DriverKind::Nintendo(Model::Switch2(_)) => unreachable!("not identified on macOS"),
     })
 }
 
@@ -280,7 +290,7 @@ mod tests {
     }
 
     #[test]
-    fn apple_stand_ins_and_unsupported_pads_are_left_out() {
+    fn apple_stand_ins_and_unreadable_pads_are_left_out() {
         let dualsense = Props {
             vid: 0x054C,
             pid: 0x0CE6,
@@ -303,6 +313,6 @@ mod tests {
             usage: 4,
             ..dualsense
         };
-        assert_eq!(identify(&generic), None);
+        assert_eq!(identify(&generic), None, "no descriptor to read it with");
     }
 }
