@@ -5,6 +5,7 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
+use dp_config::{FileFormat, Loaded};
 use dp_platform::generic::GenericLayout;
 use dp_platform::groups::DeviceGroup;
 use serde::{Deserialize, Serialize};
@@ -14,6 +15,9 @@ use crate::httpapi::HttpSettings;
 
 /// Number of slots.
 pub const SLOTS: usize = 4;
+
+/// The format of `state.toml`.
+const FORMAT: FileFormat = FileFormat::new(&[]);
 
 /// Four slots that each may hold a config file, and the active one: the shared set, or a
 /// controller's own.
@@ -176,17 +180,19 @@ impl Default for SlotState {
 }
 
 impl SlotState {
-    /// Load from `path`. A missing or unreadable file yields the defaults.
-    pub fn load(path: &Path) -> SlotState {
-        let mut state: SlotState = dp_config::load_toml_or_default(path);
-        state.shared.clamp();
-        state.devices.values_mut().for_each(SlotSet::clamp);
-        state
+    /// Load from `path`. A missing or unreadable file yields the defaults (with the problem).
+    pub fn load(path: &Path) -> Loaded<SlotState> {
+        let loaded: Loaded<SlotState> = dp_config::load_toml_or_default(path, &FORMAT);
+        loaded.map(|mut state| {
+            state.shared.clamp();
+            state.devices.values_mut().for_each(SlotSet::clamp);
+            state
+        })
     }
 
     /// Write to `path` atomically (temporary file, then rename).
     pub fn save(&self, path: &Path) -> std::io::Result<()> {
-        dp_config::save_toml(path, self)
+        dp_config::save_toml(path, self, &FORMAT)
     }
 
     /// The library moved from `from` to `to`: every slot holding one of its files, shared or
@@ -208,7 +214,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("state.toml");
         assert_eq!(
-            SlotState::load(&path),
+            SlotState::load(&path).value,
             SlotState::default(),
             "missing file = defaults"
         );
@@ -230,7 +236,7 @@ mod tests {
         };
         s.layouts.push(GenericLayout::guess("0079:0006", &raw));
         s.save(&path).unwrap();
-        assert_eq!(SlotState::load(&path), s);
+        assert_eq!(SlotState::load(&path).value, s);
         assert_eq!(
             s.shared.active_profile(),
             Some(&PathBuf::from(r"C:\games\a.toml"))
@@ -241,11 +247,13 @@ mod tests {
         );
 
         std::fs::write(&path, "this is = = not toml").unwrap();
+        let corrupt = SlotState::load(&path);
         assert_eq!(
-            SlotState::load(&path),
+            corrupt.value,
             SlotState::default(),
             "corrupt file = defaults"
         );
+        assert!(corrupt.problem.is_some(), "with the problem");
     }
 
     #[test]
@@ -307,7 +315,8 @@ lan = false
 port = 26761
 token = ""
 "#;
-        let head = r#"slots = [
+        let head = r#"format = 1
+slots = [
     "",
     'C:\games\a.toml',
     "",
@@ -339,10 +348,11 @@ slots = [
 active = 0
 "#;
         assert_eq!(text, format!("{head}{tail}"));
-        assert_eq!(SlotState::load(&path), s);
+        assert_eq!(SlotState::load(&path).value, s);
 
         SlotState::default().save(&path).unwrap();
-        let head = r#"slots = [
+        let head = r#"format = 1
+slots = [
     "",
     "",
     "",
@@ -360,13 +370,13 @@ power_off_after_min = 0
 
         // A hand-edited active slot stays in range.
         std::fs::write(&path, "active = 9\n").unwrap();
-        assert_eq!(SlotState::load(&path).shared.active, SLOTS - 1);
+        assert_eq!(SlotState::load(&path).value.shared.active, SLOTS - 1);
 
         // A file without the two switches turns both on.
         std::fs::write(&path, "slots = []\nactive = 0\n").unwrap();
-        assert_eq!(SlotState::load(&path), SlotState::default());
+        assert_eq!(SlotState::load(&path).value, SlotState::default());
         std::fs::write(&path, "remap_on = false\n").unwrap();
-        assert!(!SlotState::load(&path).remap_on);
-        assert!(SlotState::load(&path).auto_switch);
+        assert!(!SlotState::load(&path).value.remap_on);
+        assert!(SlotState::load(&path).value.auto_switch);
     }
 }

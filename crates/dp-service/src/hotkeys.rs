@@ -2,23 +2,26 @@
 
 use std::path::Path;
 
+use dp_config::{FileFormat, Loaded};
 use dp_core::hotkeys::Hotkeys;
 
+/// The format of `hotkeys.toml`.
+const FORMAT: FileFormat = FileFormat::new(&[]);
+
 /// Load from `path`. A missing file yields the defaults; an unreadable or invalid one too,
-/// with a warning.
-pub fn load(path: &Path) -> Hotkeys {
-    let h: Hotkeys = dp_config::load_toml_or_default(path);
-    let problems = h.problems();
+/// with the problem.
+pub fn load(path: &Path) -> Loaded<Hotkeys> {
+    let loaded: Loaded<Hotkeys> = dp_config::load_toml_or_default(path, &FORMAT);
+    let problems = loaded.value.problems();
     if problems.is_empty() {
-        return h;
+        return loaded;
     }
-    tracing::warn!("ignoring {}: {}", path.display(), problems.join("; "));
-    Hotkeys::default()
+    dp_config::set_aside(path, &problems.join("; "))
 }
 
 /// Write to `path` atomically (temporary file, then rename).
 pub fn save(path: &Path, hotkeys: &Hotkeys) -> std::io::Result<()> {
-    dp_config::save_toml(path, hotkeys)
+    dp_config::save_toml(path, hotkeys, &FORMAT)
 }
 
 #[cfg(test)]
@@ -31,15 +34,31 @@ mod tests {
     fn roundtrip_and_tolerance() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("hotkeys.toml");
-        assert_eq!(load(&path), Hotkeys::default(), "missing file = defaults");
+        assert_eq!(
+            load(&path).value,
+            Hotkeys::default(),
+            "missing file = defaults"
+        );
         let h = Hotkeys {
             hold_ms: 800,
             remap: vec![PadButton::Guide],
             ..Default::default()
         };
         save(&path, &h).unwrap();
-        assert_eq!(load(&path), h);
+        assert_eq!(
+            load(&path),
+            Loaded {
+                value: h,
+                problem: None
+            }
+        );
         std::fs::write(&path, "hold_ms = 1").unwrap();
-        assert_eq!(load(&path), Hotkeys::default(), "invalid = defaults");
+        let invalid = load(&path);
+        assert_eq!(invalid.value, Hotkeys::default(), "invalid = defaults");
+        assert!(invalid.problem.is_some());
+        assert!(
+            dir.path().join("hotkeys.toml.bak").exists(),
+            "and kept aside"
+        );
     }
 }

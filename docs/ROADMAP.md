@@ -1,7 +1,59 @@
 # Roadmap
 
-State of version 0.5.0. "⏳ hardware testing" marks features that are implemented and
-unit-tested but have not run against the real device yet.
+State of `main` after version 0.5.0. "⏳ hardware testing" marks features that are
+implemented and unit-tested but have not run against the real device yet.
+
+## Road to 1.0
+
+Version 1.0 is about Windows. The features it needs are in place, so what is left is proving
+them on real hardware, fixing what that turns up, and settling the formats that 1.0 promises
+to keep. Linux stays a preview in 1.0 (see [Platforms](#platforms)).
+
+### Must
+
+- **Windows hardware test**: a checklist with results, like [LINUX-TESTING.md](LINUX-TESTING.md),
+  that clears every "⏳ hardware testing" below. First the code that writes to controllers and
+  has never run on one: light bars and player lights, DualSense trigger effects and mic LED,
+  turning controllers off, Sony rumble over Bluetooth, the desktop mode of the Steam
+  Controller and Steam Deck, the GameCube adapter. Then the virtual DualShock 4 (touchpad,
+  motion, rumble, light bar), several controllers with their own virtual pads, the Nintendo,
+  Steam and generic controllers, the overlays over games, the DSU server in emulators and the
+  lock-screen pause.
+- **Clean install**: the setup on a fresh Windows 10 and Windows 11 without ViGEmBus or
+  HidHide installs both, the app finds the controllers, and uninstalling leaves no controller
+  hidden.
+- **Stable formats**: profiles, layer presets and settings files already carry a format
+  version, older ones are brought up to date as they are read
+  ([Format versions](PROFILES.md#format-versions)), and the [local HTTP API](API.md) has a
+  version. Left for 1.0: change the names that should not stay forever, then declare the
+  profile format, `.dpgame` bundles and the HTTP API stable.
+- **Outside testers**: a beta with people on other controllers, games and PCs, and the fixes
+  from their reports.
+- **Docs**: the README, [GUI.md](GUI.md), [PROFILES.md](PROFILES.md) and the website describe
+  the app as it is.
+
+### Should
+
+- **Xbox Elite 2 paddles and Xbox trigger rumble**: XInput offers neither. GameInput reads both
+  in the background, but needs its own bindings and a controller to test with.
+- **Code signing** for the setup and the programs, so that SmartScreen stops warning.
+- **Nintendo face buttons**: they follow their position (Switch B acts as Xbox A). Check that
+  on real controllers, and decide whether to offer a layout that follows the labels.
+- **Separate keyboards and mice on Windows** through the Interception driver: a third-party
+  driver in the setup, with its licence to check first.
+
+### Later
+
+- Linux beyond the preview: virtual DualShock 4, the Steam Controller and the Steam Deck's own
+  controls, native Wayland (foreground app, overlays), screenshots, DualSense trigger effects,
+  Switch 2 controllers, the GameCube adapter, generic-pad layouts; tests with DualShock 4,
+  Joy-Cons, Bluetooth and other distributions.
+- macOS (see [Platforms](#platforms)).
+- More controllers: Switch 2 over Bluetooth, Wii Remote, DualShock 3, analog keyboards.
+- More from imported JSON profiles: crosshair shapes, radial-menu icons, mouse regions, rumble
+  mode, virtual gyro stick values.
+- Overlays in `doppelpad daemon`, not only in the app.
+- A community catalogue of configs, the phone as a controller, adapters for consoles.
 
 ## Features
 
@@ -43,12 +95,12 @@ unit-tested but have not run against the real device yet.
 | Hide physical controller | ✅ via HidHide; Linux: `EVIOCGRAB` (tested on a Steam Deck) |
 | Ignore list and controller groups (several pads as one) | ✅ |
 | On-screen overlays: notifications (remap, slot, layer, controllers, battery), crosshairs with magnifier, radial menus, controller overlay, mappings sheet | ✅ Windows, in the app (not in `doppelpad daemon`; ⏳ testing in games) |
-| Battery levels (DualShock 4, DualSense, Switch controllers, Xbox) in the app, tray and notifications | ✅ Windows (⏳ hardware testing) |
-| Light bar colours and animations, the game's light bar colour, player LEDs per slot, DualSense mic LED | ✅ USB and Bluetooth (⏳ hardware testing) |
+| Battery levels (DualShock 4, DualSense, Switch controllers, Xbox) in the app, tray and notifications | ✅ Windows (⏳ hardware testing); Linux: Sony and Switch controllers through sysfs (⏳ hardware testing) |
+| Light bar colours and animations, the game's light bar colour, player LEDs per slot, DualSense mic LED | ✅ USB and Bluetooth (⏳ hardware testing); Linux: light bar and player LEDs through the driver's LED devices, no mic LED (⏳ hardware testing) |
 | DualSense adaptive trigger effects (presets and custom) | ✅ (⏳ hardware testing) |
 | Vibration settings (motor strength, swap, minimum gap); rumble for Sony controllers over Bluetooth | ✅ (⏳ hardware testing) |
-| Turn wireless controllers off (command and idle timeout) | ✅ Windows (⏳ hardware testing) |
-| Keep the PC awake while mappings run, pause on the lock screen, optional pause when the game is not in front | ✅ Windows |
+| Turn wireless controllers off (command and idle timeout) | ✅ Windows (⏳ hardware testing); Linux: Sony and Switch controllers over Bluetooth through BlueZ (⏳ hardware testing) |
+| Keep the PC awake while mappings run, pause on the lock screen, optional pause when the game is not in front | ✅ Windows; Linux: keep-awake and the lock-screen pause through logind (⏳ hardware testing) |
 | DSU (cemuhook) motion server for emulators | ✅ (⏳ testing with emulators) |
 | Local HTTP API with event stream ([API.md](API.md)) | ✅ off by default; localhost only, network access with a token |
 | Per-device keyboard/mouse capture | ⏳ Windows needs the Interception driver backend; Linux grabs per device already |
@@ -78,7 +130,7 @@ unit-tested but have not run against the real device yet.
 | First-run guide and config templates (virtual Xbox, virtual DualShock 4, desktop, keyboard/mouse) | ✅ |
 | Sharing: games as `.dpgame` bundles, printable bindings sheet, layer presets | ✅ |
 | Installer | ✅ Windows setup (NSIS) that installs missing ViGEmBus/HidHide; ⏳ code signing, test on a clean Windows install |
-| Updates from GitHub Releases: check at start-up (can be turned off) and *Check now*, signed setups, release workflow for version tags | ✅ (⏳ updater key, first release, update between two published versions) |
+| Updates from GitHub Releases: check at start-up (can be turned off) and *Check now*, signed setups, release workflow for version tags | ✅ (0.4.0 updated itself to 0.5.0) |
 
 ## Platforms
 
