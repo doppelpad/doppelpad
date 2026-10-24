@@ -438,6 +438,8 @@ fn doctor() -> Result<()> {
             "ViGEmBus (virtual controllers):",
             "HidHide (hide physical pads):",
         )
+    } else if cfg!(target_os = "macos") {
+        ("virtual controllers:", "IOKit seize (hide physical pads):")
     } else {
         (
             "uinput (virtual controllers):",
