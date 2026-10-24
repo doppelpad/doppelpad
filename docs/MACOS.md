@@ -12,10 +12,11 @@ interfaces macOS has. No drivers are needed:
 | Keyboard / mouse capture | a Quartz event tap |
 | Per-game profiles | the frontmost window in the window server's list → its process |
 
-> **Status:** preview. Tried on a Mac with macOS 26 with a DualSense and a Switch Pro
-> Controller on USB: reading them (buttons, sticks, triggers, motion, battery), the
-> DualSense's light bar, the Switch Pro Controller's player lights, rumble on both, hiding them
-> from the GameController framework, and in the app with the Accessibility permission: the
+> **Status:** preview. Tried on a Mac with macOS 26 with a DualSense, a Switch Pro
+> Controller and a Switch 2 Pro Controller on USB: reading them (buttons, sticks, triggers,
+> motion, battery), the DualSense's light bar, the Switch controllers' player lights, rumble on
+> all three, hiding them from the GameController framework (which does not read the Switch 2
+> Pro Controller at all), and in the app with the Accessibility permission: the
 > controller as mouse and keyboard (motion, clicks, wheel, keys, media keys), a key remapped on
 > the keyboard, the program in front, keeping the Mac awake and noticing the lock screen, and
 > notifications over other programs without taking their focus. Overlays over games in full
@@ -68,13 +69,16 @@ Doppelpad reads controllers through IOKit HID, with the drivers of its Windows b
   microphone LED, trigger effects and rumble.
 - Nintendo Switch Pro Controller, Joy-Cons (paired automatically, or sideways on their own),
   Nintendo Switch Online and Switch-style wired pads, with motion and rumble.
+- Switch 2 Pro Controller and GameCube controller on USB. They stay silent until they are
+  started over their USB command channel, which macOS leaves free, so Doppelpad claims it. Only
+  one program can: while Steam holds it, Doppelpad takes over once Steam lets go.
 - The Steam Controller.
 - Every other HID game pad or joystick, read through its report descriptor: Xbox controllers
   over Bluetooth are among them, as macOS has no XInput. Identify their buttons once with the
   wizard in the app.
 
-Not yet: Switch 2 controllers (their USB command channel), the GameCube controller adapter,
-and Xbox controllers over USB, which macOS drives itself (they are not HID devices).
+Not yet: the GameCube controller adapter, and Xbox controllers over USB, which macOS drives
+itself (they are not HID devices).
 
 macOS 14 and later make a stand-in Xbox 360 pad for each controller they support
 (`GCSyntheticDevice`), for older games. Doppelpad leaves those out, so no controller is read

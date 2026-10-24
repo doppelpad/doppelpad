@@ -1,5 +1,5 @@
-//! Raw HID controllers on macOS: DualShock 4, DualSense, Nintendo Switch pads, Steam
-//! controllers and other HID gamepads (read through their report descriptor). This is the macOS scanner of the shared HID backend ([`crate::hidhost`]): it
+//! Raw HID controllers on macOS: DualShock 4, DualSense, Nintendo Switch and Switch 2 pads,
+//! Steam controllers and other HID gamepads (read through their report descriptor). This is the macOS scanner of the shared HID backend ([`crate::hidhost`]): it
 //! lists HID devices through an IOHIDManager, leaves out the stand-ins macOS makes for the
 //! controllers it supports itself, and opens the controllers it has drivers for.
 //!
@@ -27,6 +27,7 @@ use crate::nintendo::{self, Model};
 use crate::scan::Pass;
 use crate::sony::SonyDriver;
 use crate::steam::SteamDriver;
+use crate::switch2usb::{self, Locate, OpenError};
 use crate::{DeviceHider, DeviceId, JoyConSide, Result};
 
 /// The HID backend with the macOS scanner.
@@ -134,8 +135,6 @@ fn identify(props: &Props) -> Option<DriverKind> {
     // Without XInput, Xbox pads over Bluetooth are generic HID pads here.
     let kind = driver_kind(props.vid, props.pid, props.usage_page, props.usage, false)?;
     match kind {
-        // Switch 2 pads need their USB command channel, which is not there on macOS yet.
-        DriverKind::Nintendo(Model::Switch2(_)) => None,
         DriverKind::Generic if Decoder::new(&props.descriptor).is_none() => None,
         DriverKind::Nintendo(_)
             if !props.bluetooth() && nintendo::usb_unsupported(props.vid, props.pid) =>
@@ -202,7 +201,7 @@ fn grip_slot(interface: Option<u8>) -> Option<JoyConSide> {
 
 fn driver(props: &Props, kind: DriverKind) -> MakeDriver<HidIo> {
     let (vid, pid, bluetooth) = (props.vid, props.pid, props.bluetooth());
-    let (feature_len, interface) = (props.max_feature, props.interface);
+    let (feature_len, interface, location) = (props.max_feature, props.interface, props.location);
     let name = props
         .product
         .clone()
@@ -226,8 +225,31 @@ fn driver(props: &Props, kind: DriverKind) -> MakeDriver<HidIo> {
         })),
         DriverKind::Nintendo(Model::Wired) => Box::new(WiredDriver::new(vid)),
         DriverKind::Steam(m) => Box::new(SteamDriver::new(m)),
-        DriverKind::Nintendo(Model::Switch2(_)) => unreachable!("not identified on macOS"),
+        DriverKind::Nintendo(Model::Switch2(m)) => {
+            // The command channel is on the same USB device, at the same location.
+            let locate = Locate {
+                is_it: Box::new(move |d: &nusb::DeviceInfo| Some(d.location_id()) == location),
+                explain: usb_open_error,
+            };
+            switch2usb::driver(m, locate)
+        }
     })
+}
+
+/// A user-facing explanation of why the Switch 2 command interface cannot be used.
+fn usb_open_error(e: &nusb::Error) -> OpenError {
+    if crate::usb::is_busy(e) {
+        let holder = crate::holders::likely_holder(super::process::running);
+        return OpenError {
+            message: crate::holders::busy_message("the controller's USB command interface", holder),
+            busy: true,
+        };
+    }
+    match e.kind() {
+        nusb::ErrorKind::Disconnected => "the controller was disconnected".to_owned(),
+        _ => format!("cannot open the controller's USB command interface: {e}"),
+    }
+    .into()
 }
 
 /// Hides controllers by seizing them (see the module docs).
