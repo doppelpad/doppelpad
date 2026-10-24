@@ -37,8 +37,6 @@ to keep. Linux stays a preview in 1.0 (see [Platforms](#platforms)).
 - **Xbox Elite 2 paddles and Xbox trigger rumble**: XInput offers neither. GameInput reads both
   in the background, but needs its own bindings and a controller to test with.
 - **Code signing** for the setup and the programs, so that SmartScreen stops warning.
-- **Nintendo face buttons**: they follow their position (Switch B acts as Xbox A). Check that
-  on real controllers, and decide whether to offer a layout that follows the labels.
 - **Separate keyboards and mice on Windows** through the Interception driver: a third-party
   driver in the setup, with its licence to check first.
 
