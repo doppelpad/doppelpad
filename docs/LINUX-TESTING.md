@@ -628,8 +628,9 @@ Found in the first run and left for the maintainer, with what was seen:
   are never picked on their own, are not announced, and get a tray icon only while in use.
   *Second run:* checked (L6.1, L6.2, L6.4); their tray icons needed fixes (`8a0d69f`,
   `3acb566`). Still open: their ids come from the event node, so a pick in the app can point
-  to another of Steam's pads after Steam restarts. The app draws them as a generic controller
-  although they have the Xbox 360 layout, because the family comes from the vendor id.
+  to another of Steam's pads after Steam restarts. The app drew them as a generic
+  controller, because the family came from Valve's vendor id; they are drawn as the Xbox 360
+  pad they imitate now.
 - **K4, Steam and hidraw.** While Steam Input drives a controller, Steam reads it through
   hidraw, so hiding doesn't reach Steam: a game with Steam Input on gets the controller
   twice (L6.3). Steam also turns the Switch Pro Controller's IMU off, and SteamOS's
