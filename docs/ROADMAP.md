@@ -167,7 +167,7 @@ to keep. Linux stays a preview in 1.0 (see [Platforms](#platforms)).
    | Keyboard/mouse capture | ✅ event tap (tried: a key remapped) |
    | Foreground app | ✅ the window server's window list, Wine games by their `.exe` (tried); installed Steam and Epic games suggested |
    | Power commands, close window, screenshots | ✅ `loginwindow`, `pmset`, the accessibility API, `screencapture` (⏳ testing); no hibernate |
-   | Controller extras | ✅ batteries, lights, trigger effects and rumble through the drivers (tried: battery, DualSense light bar, Switch player lights, rumble); keep-awake and the lock-screen pause (tried); ⏳ turning Sony pads off over Bluetooth |
+   | Controller extras | ✅ batteries, lights, trigger effects and rumble through the drivers (tried: battery, DualSense light bar, player lights and rumble of Switch and Switch 2 controllers); keep-awake and the lock-screen pause (tried); ⏳ turning Sony pads off over Bluetooth |
    | Desktop app | ✅ menu bar, overlays over full-screen games without taking the focus (tried: notifications over another program; ⏳ testing in games), start at login, `.dpgame` from the Finder, permissions in the driver list and welcome guide |
    | Download | ⏳ the release workflow builds a universal `.dmg` and the command-line tool; on a tag only with the repository variable `MACOS_RELEASES`; signing and notarization need an Apple Developer ID |
    | Not on macOS yet | virtual controllers, the GameCube adapter, Xbox controllers over USB, the crosshair magnifier, cursor clipping |

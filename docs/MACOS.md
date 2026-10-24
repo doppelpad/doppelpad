@@ -13,9 +13,10 @@ interfaces macOS has. No drivers are needed:
 | Per-game profiles | the frontmost window in the window server's list → its process |
 
 > **Status:** preview. Tried on a Mac with macOS 26 with a DualSense, a Switch Pro
-> Controller and a Switch 2 Pro Controller on USB: reading them (buttons, sticks, triggers, motion, battery), the
-> DualSense's light bar, the Switch Pro Controller's player lights, rumble on both, hiding them
-> from the GameController framework, and in the app with the Accessibility permission: the
+> Controller and a Switch 2 Pro Controller on USB: reading them (buttons, sticks, triggers,
+> motion, battery), the DualSense's light bar, the Switch controllers' player lights, rumble on
+> all three, hiding them from the GameController framework (which does not read the Switch 2
+> Pro Controller at all), and in the app with the Accessibility permission: the
 > controller as mouse and keyboard (motion, clicks, wheel, keys, media keys), a key remapped on
 > the keyboard, the program in front, keeping the Mac awake and noticing the lock screen, and
 > notifications over other programs without taking their focus. Overlays over games in full
