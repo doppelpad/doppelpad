@@ -1,7 +1,7 @@
 # Roadmap
 
-State of `main` after version 0.5.0. "⏳ hardware testing" marks features that are
-implemented and unit-tested but have not run against the real device yet.
+State of version 0.6.0. "⏳ hardware testing" marks features that are implemented and
+unit-tested but have not run against the real device yet.
 
 ## Road to 1.0
 
