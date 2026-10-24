@@ -23,7 +23,6 @@ mod sendinput;
 pub mod stores;
 mod switch2;
 mod system;
-mod usb;
 mod vigem;
 mod xinput;
 

@@ -20,7 +20,6 @@ use windows_sys::Win32::Devices::HumanInterfaceDevice::GUID_DEVINTERFACE_HID;
 use super::devnode::{enumerate_interfaces, usb_device_of};
 use super::hidio::HidIo;
 use super::process;
-use super::usb::{endpoint_addrs, is_busy, transfer_error};
 use crate::holders::busy_message;
 use crate::nintendo::NINTENDO_VID;
 use crate::nintendo::gcadapter::{
@@ -28,6 +27,7 @@ use crate::nintendo::gcadapter::{
 };
 use crate::padio::ReportIo;
 use crate::scan::{RESCAN, Rescanner};
+use crate::usb::{endpoint_addrs, is_busy, transfer_error};
 use crate::{DeviceId, DeviceInfo, GamepadBackend, PadFamily, PadSnapshot};
 
 const READ_WAIT: Duration = Duration::from_millis(50);

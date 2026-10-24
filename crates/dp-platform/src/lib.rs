@@ -57,7 +57,11 @@ pub mod scan;
 pub mod sony;
 pub mod steam;
 pub mod stores;
+#[cfg(any(windows, target_os = "macos"))]
+pub(crate) mod switch2usb;
 pub mod timer;
+#[cfg(any(windows, target_os = "macos"))]
+pub(crate) mod usb;
 #[cfg(any(target_os = "linux", target_os = "macos", test))]
 pub(crate) mod wine;
 pub use null::NullPlatform;
