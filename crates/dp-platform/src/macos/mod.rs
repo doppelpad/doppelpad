@@ -11,6 +11,8 @@
 mod keycodes;
 
 #[cfg(target_os = "macos")]
+pub mod autostart;
+#[cfg(target_os = "macos")]
 mod capture;
 #[cfg(target_os = "macos")]
 mod foreground;

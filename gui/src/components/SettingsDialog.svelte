@@ -24,6 +24,7 @@
   import { api } from '../lib/api';
   import { LANGUAGES, has, t } from '../lib/i18n/index.svelte';
   import { app } from '../lib/state/app.svelte';
+  import { platform } from '../lib/state/window.svelte';
   import { ZOOM_MAX, ZOOM_MIN, ZOOM_STEP } from '../lib/state/shortcuts';
   import type { RewasdChoice } from '../lib/types';
   import ApiSettings from './settings/ApiSettings.svelte';
@@ -124,7 +125,11 @@
             />
           </SettingRow>
           {#if autostart !== null}
-            <Toggle checked={autostart} label={t('settings.autostart')} onchange={setAutostart} />
+            <Toggle
+              checked={autostart}
+              label={t(platform === 'macos' ? 'settings.autostart_macos' : 'settings.autostart')}
+              onchange={setAutostart}
+            />
           {/if}
           <Toggle checked={app.settings.stay_live} label={t('settings.stay_live')} onchange={(v) => app.setSettings({ stay_live: v })} />
           <Toggle
