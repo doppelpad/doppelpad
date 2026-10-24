@@ -146,16 +146,17 @@ fn identify(props: &Props) -> Option<DriverKind> {
     }
 }
 
-/// The id of a controller, stable across reconnects: its serial number (the Bluetooth address
-/// of Bluetooth pads), else the USB port it is on, and the interface on a device with several.
+/// The id of a controller, stable across reconnects: over Bluetooth its address (which it
+/// reports as its serial number), over USB the port it is on, and the interface on a device with
+/// several. USB serial numbers are no use: every Switch Pro Controller reports `000000000001`.
 fn stable_id(
     vid: u16,
     pid: u16,
-    serial: Option<&str>,
+    bt_serial: Option<&str>,
     location: Option<u32>,
     interface: Option<u8>,
 ) -> String {
-    let place = match (serial, location) {
+    let place = match (bt_serial, location) {
         (Some(s), _) => s.to_owned(),
         (None, Some(l)) => format!("{l:08x}"),
         (None, None) => "?".to_owned(),
@@ -171,7 +172,7 @@ fn found(path: String, props: &Props, kind: DriverKind) -> Found {
     let id = stable_id(
         props.vid,
         props.pid,
-        props.serial.as_deref(),
+        props.serial.as_deref().filter(|_| bluetooth),
         props.location,
         props.interface,
     );
