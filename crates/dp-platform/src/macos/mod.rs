@@ -1,11 +1,24 @@
-//! macOS backends: IOKit HID input, with controllers hidden by seizing them.
+//! macOS backends: IOKit HID input, with controllers hidden by seizing them; keyboard and
+//! mouse output through Quartz events and capture through an event tap.
 //!
-//! Reading controllers needs no permission.
+//! Reading controllers needs no permission; keyboard and mouse need Accessibility (see
+//! [`permissions`]). The pure translation code (`keycodes`) also compiles in tests on other
+//! OSes, so it is unit-tested everywhere.
 
+#![cfg_attr(not(target_os = "macos"), allow(dead_code))]
+
+mod keycodes;
+
+#[cfg(target_os = "macos")]
+mod capture;
 #[cfg(target_os = "macos")]
 mod hid;
 #[cfg(target_os = "macos")]
 mod hidio;
+#[cfg(target_os = "macos")]
+mod output;
+#[cfg(target_os = "macos")]
+pub mod permissions;
 #[cfg(target_os = "macos")]
 mod props;
 
@@ -62,8 +75,8 @@ pub fn platform() -> crate::Platform {
         },
         gamepads: vec![Box::new(crate::joycon::JoyConCombiner::new(gamepads))],
         virtual_pads: Box::new(NoVirtualPads),
-        kbm_out: Box::new(NullPlatform),
-        kbm_capture: Box::new(NullPlatform),
+        kbm_out: Box::new(output::EventOutput::new()),
+        kbm_capture: Box::new(capture::TapCapture::default()),
         hider: Box::new(hider),
         foreground: Box::new(NullPlatform),
         system: Box::new(NullPlatform),
