@@ -367,10 +367,10 @@ jobs:
             "$keychain" > /dev/null
           # codesign signs only with identities in the keychain search list that are trusted
           # for code signing, and no one vouches for a self-signed certificate: this runner
-          # trusts it (non-interactively, which the authorization rule allows).
+          # trusts it, in the admin domain, which GitHub's runners let root change without a
+          # prompt (changing the authorization rule for it is refused).
           security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
           security find-certificate -c "$MACOS_SIGNING_IDENTITY" -p "$keychain" > "$RUNNER_TEMP/signing.pem"
-          sudo security authorizationdb write com.apple.trust-settings.admin allow
           sudo security add-trusted-cert -d -r trustRoot -p codeSign \
             -k /Library/Keychains/System.keychain "$RUNNER_TEMP/signing.pem"
           security find-identity -v -p codesigning "$keychain"
