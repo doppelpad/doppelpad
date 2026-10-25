@@ -37,6 +37,8 @@ const TARGET_GROUPS = [
   ['aarch64-apple-darwin', 'x86_64-apple-darwin'],
 ];
 const TARGETS = TARGET_GROUPS.flat();
+// Targets `tauri build` names that are several Rust targets in one: the universal macOS app.
+const COMBINED_TARGETS = { 'universal-apple-darwin': ['aarch64-apple-darwin', 'x86_64-apple-darwin'] };
 // `tauri build` turns this on.
 const FEATURES = 'dp-gui/custom-protocol';
 
@@ -397,8 +399,9 @@ async function check() {
   // `tauri build` passes the target it builds for.
   const host = /^host: (\S+)/m.exec(execFileSync('rustc', ['-vV'], { encoding: 'utf8' }))?.[1];
   const target = process.env.TAURI_ENV_TARGET_TRIPLE || host;
-  if (!TARGETS.includes(target)) fail(`THIRD_PARTY_LICENSES.md does not cover the target ${target} (TARGETS)`);
-  const linked = shippedCrates([target], { linked: true });
+  const built = COMBINED_TARGETS[target] ?? [target];
+  if (!built.every((t) => TARGETS.includes(t))) fail(`THIRD_PARTY_LICENSES.md does not cover the target ${target} (TARGETS)`);
+  const linked = shippedCrates(built, { linked: true });
   const all = shippedCrates(TARGETS, { linked: false });
   const npm = new Set((await shippedPackages()).map(label));
   const missing = [
