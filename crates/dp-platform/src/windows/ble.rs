@@ -208,7 +208,9 @@ fn keep_watching(w: &mut Watcher) {
 
 fn new_watcher() -> windows::core::Result<BluetoothLEAdvertisementWatcher> {
     let watcher = BluetoothLEAdvertisementWatcher::new()?;
-    // Scan responses too, in case a controller sends its manufacturer data in one.
+    // Active, though a controller sends its manufacturer data in the advertisement itself (a
+    // connectable one), not in a scan response: with a passive scan, Windows 10 found none
+    // in pairing mode in a test, for reasons unknown.
     watcher.SetScanningMode(BluetoothLEScanningMode::Active)?;
     watcher.Received(&TypedEventHandler::<
         BluetoothLEAdvertisementWatcher,
