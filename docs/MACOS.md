@@ -36,8 +36,10 @@ it asks, then replaces the app and starts again.
 
 Until the app is signed with an Apple Developer ID, macOS will not open it with a double
 click at first: open it once, then choose *Open Anyway* in System Settings › Privacy &
-Security. A tool from the `.tar.gz` that macOS refuses to run likewise needs
-`xattr -d com.apple.quarantine doppelpad` once.
+Security. That should be needed once: updates the app downloads and installs itself carry
+no download quarantine (to be confirmed with the first macOS release). A tool from the
+`.tar.gz` that macOS refuses to run likewise needs `xattr -d com.apple.quarantine doppelpad`
+once.
 
 ## Permissions
 
@@ -56,8 +58,8 @@ running program of the permission only when it starts again, so quit Doppelpad (
 in the menu bar) and open it again after granting it.
 
 The permission belongs to the program as it is signed. An app signed ad hoc is a new program
-to macOS after every update, so the permission has to be granted again. A Developer ID
-signature ends that.
+to macOS after every update, so the permission has to be granted again. Release builds signed
+the same way every time (see [Signing releases](#signing-releases)) keep it.
 
 For the command-line tool, macOS gives the permission to the terminal it runs in (Terminal,
 iTerm, …), not to `doppelpad` itself.
@@ -192,3 +194,31 @@ The app is `target/release/bundle/macos/Doppelpad.app`. The `--config` leaves ou
 updater's archive, which needs the release signing key. `--target universal-apple-darwin`
 builds one app for both kinds of Mac, with both Rust targets installed. The release workflow
 builds the `.dmg` and the updater's archive (see `.github/workflows/release.yml`).
+
+### Signing releases
+
+macOS ties the permissions a user grants (Accessibility, Bluetooth, Screen Recording) to how
+the app is signed. A build signed ad hoc, as a local one is, gets a signature of its own, so
+after an update macOS takes it for another program: the permissions have to be granted again,
+and Screen Recording just fails until its old entry is removed. Release builds therefore
+should always be signed with the same certificate.
+
+Until there is an Apple Developer ID, the release workflow signs with a self-signed
+certificate. Make it once, on a Mac:
+
+```bash
+sh gui/scripts/macos-signing-certificate.sh
+```
+
+It writes `doppelpad-signing.p12` and its password to `~/doppelpad-signing` and lists the three
+repository secrets to set: `MACOS_CERTIFICATE`, `MACOS_CERTIFICATE_PASSWORD` and
+`MACOS_SIGNING_IDENTITY`. Keep both files: a new certificate is a new program to macOS once more.
+The workflow trusts the certificate on its runner only (nothing on a user's Mac does), signs
+the app with it and logs the signature. Gatekeeper still asks before the first start, as for
+any app without a Developer ID, but the permissions should stay across updates (to be
+confirmed with the first two macOS releases).
+
+With a Developer ID, the `APPLE_*` secrets (listed in the workflow) take over: the app is
+signed with it and notarized, and Gatekeeper no longer asks. Switching from the self-signed
+certificate to the Developer ID changes the signature once more, so users grant the
+permissions one last time.
