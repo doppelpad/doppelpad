@@ -21,10 +21,12 @@ interfaces macOS has. No drivers are needed:
 > the app with the Accessibility permission: the controller as mouse and keyboard (motion,
 > clicks, wheel, keys, media keys), a key remapped on the keyboard, the program in front,
 > keeping the Mac awake and noticing the lock screen, and notifications over other programs
-> without taking their focus. The Switch 2 Pro Controller over Bluetooth was tried in a test
-> program (input, motion, player lights, rumble), not yet in the app. Overlays over games in
-> full screen, screenshots, closing windows, the power commands and the other controllers are
-> untested. Reports from Mac users are very welcome.
+> without taking their focus. The Switch 2 Pro Controller over Bluetooth was tried in the app:
+> the permission, connecting in pairing mode, every button, the sticks, triggers and motion,
+> player lights, rumble without gaps and in three strengths, going away when turned off, and
+> staying with its console when woken. Overlays over games in full screen, screenshots,
+> closing windows, the power commands and the other controllers are untested. Reports from
+> Mac users are very welcome.
 
 ## Install
 
