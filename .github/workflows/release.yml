@@ -1,9 +1,8 @@
-# Builds the Windows setup and the Linux AppImage for a version tag and puts them on a draft
-# GitHub release, with their updater signatures (.sig) and latest.json, which installed
+# Builds the Windows setup, the Linux AppImage and the macOS app (.dmg and the updater's
+# .app.tar.gz, one build for Apple silicon and Intel) for a version tag and puts them on a
+# draft GitHub release, with their updater signatures (.sig) and latest.json, which installed
 # copies read to find updates (plugins.updater in gui/src-tauri/tauri.conf.json), and the
-# Linux command-line tool. Publishing the draft ships the update. With the repository
-# variable MACOS_RELEASES set to true, the macOS app (.dmg and the updater's .app.tar.gz, one
-# build for Apple silicon and Intel) and the macOS command-line tool go on the draft too.
+# Linux and macOS command-line tools. Publishing the draft ships the update.
 #
 # Release: set the version in Cargo.toml ([workspace.package]) and gui/package.json, commit,
 # then `git tag -a v<version>` with the release notes as the tag message (the update dialog
@@ -301,11 +300,10 @@ jobs:
           retention-days: 14
 
   # Like the Linux job: after the others on a tag (adding its files and its entries in
-  # latest.json to the draft), alone when started by hand. On a tag only with the repository
-  # variable MACOS_RELEASES set to true.
+  # latest.json to the draft), alone when started by hand.
   macos:
     needs: [windows, linux]
-    if: ${{ !failure() && !cancelled() && (github.event_name != 'push' || vars.MACOS_RELEASES == 'true') }}
+    if: ${{ !failure() && !cancelled() }}
     runs-on: macos-latest
     env:
       RELEASE_ID: ${{ needs.windows.outputs.release_id }}

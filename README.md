@@ -61,8 +61,14 @@ updates itself too. The command-line tool is in `doppelpad_<version>_linux-x86_6
 Access to the input devices may need a udev rule (not on SteamOS): see
 [docs/LINUX.md](docs/LINUX.md#install).
 
-macOS has no release builds yet: build it from source as described in
-[docs/MACOS.md](docs/MACOS.md#building).
+On macOS (13 or later, Apple silicon or Intel), take `Doppelpad_<version>_universal.dmg`, open
+it and drag Doppelpad into Applications; it updates itself too. Releases after 0.6.0 have it;
+for 0.6.0 and older, build it from source ([docs/MACOS.md](docs/MACOS.md#building)). It
+is not notarized by Apple yet, so macOS will not open it with a double click at first: open
+it once, then choose *Open Anyway* in System Settings › Privacy & Security. Keyboard and mouse
+output needs the Accessibility permission (see
+[docs/MACOS.md](docs/MACOS.md#permissions)). The command-line tool is in
+`doppelpad_<version>_macos-universal.tar.gz`.
 
 ## Highlights
 
