@@ -7,8 +7,8 @@
 //! is left alone.
 //!
 //! The pads never ask for a faster connection, so Doppelpad asks Windows for one. Windows 11
-//! can be asked; Windows 10 keeps its default, which brought about 35 to 55 reports a second,
-//! unevenly, in first tests.
+//! can be asked; Windows 10 keeps its default: about 17 reports a second once the connection
+//! has settled, 30 to 90 unevenly in the first 20 s or so.
 //!
 //! The watcher's events arrive on the thread pool. Each controller is set up on a thread of
 //! its own, as that waits for the controller's answers.
@@ -653,9 +653,10 @@ mod tests {
 
     /// The whole way, without the rest of Doppelpad: connects a Pro Controller in pairing
     /// mode, starts its driver (player light 1 comes on), rumbles in the first second and
-    /// then reports second by second what arrives, until the controller goes away or 30 s
-    /// are up. Run with `--nocapture`, hold the pairing button, then press buttons, move
-    /// the sticks, tilt it, and turn it off at the end.
+    /// then reports second by second what arrives (sticks and triggers as their largest
+    /// deflection), until Windows notices the controller is gone, or 30 s after its input
+    /// stopped. Run with `--nocapture`, hold the pairing button, then press buttons, move
+    /// the sticks, pull the triggers, tilt it, and turn it off at the end.
     #[test]
     #[ignore = "connects a Switch 2 Pro Controller in pairing mode near this PC"]
     fn switch2_pro_over_bluetooth() {
@@ -688,7 +689,16 @@ mod tests {
             started.elapsed().as_millis()
         );
 
-        for second in 1..=30 {
+        const AXES: [Axis; 6] = [
+            Axis::LeftX,
+            Axis::LeftY,
+            Axis::RightX,
+            Axis::RightY,
+            Axis::LeftTrigger,
+            Axis::RightTrigger,
+        ];
+        let mut last_report = Instant::now();
+        for second in 1.. {
             let rumble = if second == 1 {
                 Rumble {
                     low: 0.6,
@@ -699,25 +709,33 @@ mod tests {
             };
             let end = Instant::now() + Duration::from_secs(1);
             let (mut reports, mut motion, mut pressed) = (0u32, false, Vec::new());
-            let mut sticks = [0.0f32; 4];
+            let mut peak = [0.0f32; 6];
             while Instant::now() < end {
                 match io.wait(Duration::from_millis(20)) {
                     Ok(Wait::Report(_)) => {
                         reports += 1;
-                        if let Some(s) = driver.parse(io.report(), Instant::now()) {
+                        last_report = Instant::now();
+                        if let Some(s) = driver.parse(io.report(), last_report) {
                             motion |= s.motion.is_some();
                             for b in PadButton::ALL.iter().filter(|b| s.pressed(**b)) {
                                 if !pressed.contains(&b.name()) {
                                     pressed.push(b.name());
                                 }
                             }
-                            sticks = [Axis::LeftX, Axis::LeftY, Axis::RightX, Axis::RightY]
-                                .map(|a| s.axis(a));
+                            for (p, a) in peak.iter_mut().zip(AXES) {
+                                if s.axis(a).abs() > p.abs() {
+                                    *p = s.axis(a);
+                                }
+                            }
                         }
                     }
                     Ok(Wait::Woken | Wait::Timeout) => {}
                     Err(e) => {
-                        println!("second {second}: the controller went away ({e})");
+                        println!(
+                            "second {second}: Windows noticed the controller is gone, {:.1} s \
+                             after its last report ({e})",
+                            last_report.elapsed().as_secs_f32()
+                        );
                         return;
                     }
                 }
@@ -727,9 +745,17 @@ mod tests {
             }
             println!(
                 "second {second}: {reports} reports, motion {motion}, battery {:?}, \
-                 sticks {sticks:+.2?}, pressed {pressed:?}",
-                driver.battery().map(|b| b.level)
+                 sticks {:+.2?}, triggers {:.2?}, pressed {pressed:?}",
+                driver.battery().map(|b| b.level),
+                &peak[..4],
+                &peak[4..],
             );
+            if last_report.elapsed() > Duration::from_secs(30) {
+                println!(
+                    "Windows has not noticed the controller is gone 30 s after its input stopped"
+                );
+                return;
+            }
         }
     }
 
