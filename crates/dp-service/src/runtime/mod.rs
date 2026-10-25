@@ -172,6 +172,8 @@ struct Overlays {
     mappings: bool,
     /// How often the app-navigation hotkey fired.
     navigation: u32,
+    /// What the screenshot command did last.
+    screenshot: crate::live::LiveScreenshot,
 }
 
 impl Overlays {
@@ -370,6 +372,11 @@ impl Runtime {
     /// How often the app-navigation hotkey fired (the app toggles at each change).
     pub(crate) fn navigation_presses(&self) -> u32 {
         self.overlays.navigation
+    }
+
+    /// What the screenshot command did last (the app tells of each new one).
+    pub(crate) fn screenshot(&self) -> &crate::live::LiveScreenshot {
+        &self.overlays.screenshot
     }
 
     /// How generic pads' inputs map to pad controls, by model.

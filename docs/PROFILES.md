@@ -289,7 +289,7 @@ Commands:
 | `toggle_gyro`, `gyro_on`, `gyro_off` | Switch the gyro controls and routes of the profile |
 | `reset_tilt` | Take the controller's pose as the tilt centre |
 | `switch_gyro_axis` | Swap the gyro steering axis between roll and yaw |
-| `screenshot` | Save the monitor that shows the focused window as PNG in `Pictures\Doppelpad` (Windows; exclusive-fullscreen games may come out black) |
+| `screenshot` | Save the monitor that shows the focused window as PNG in `Pictures\Doppelpad` (Windows and macOS; exclusive-fullscreen games may come out black on Windows), with a notification that names the file, or says why there is none |
 | `close_window` | Ask the focused window to close, like its close button |
 | `{ crosshair = N }` | Show crosshair N (1 = the first of `[[crosshairs]]`), or hide it if it is the one showing |
 | `toggle_crosshair` | Hide the crosshair that shows, or bring back the last one |

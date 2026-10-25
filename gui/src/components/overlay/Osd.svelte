@@ -3,7 +3,7 @@
   // shows and hides the window.
   import { onMount } from 'svelte';
   import { fly } from 'svelte/transition';
-  import { BatteryLow, BatteryWarning, Bell, Gamepad2, Hash, Info, Layers, Power, PowerOff, Unplug } from '@lucide/svelte';
+  import { BatteryLow, BatteryWarning, Bell, Camera, Gamepad2, Hash, Info, Layers, Power, PowerOff, Unplug } from '@lucide/svelte';
   import { setLanguage, t } from '../../lib/i18n/index.svelte';
   import { overlayContent } from '../../lib/overlay';
   import { layerColor } from '../../lib/theme/layers';
@@ -48,6 +48,10 @@
           detail: t('osd.steam_input_detail', { game: msg.game }),
           color: 'var(--warning)',
         };
+      case 'screenshot':
+        return msg.error
+          ? { icon: Camera, title: t('osd.screenshot_failed'), detail: msg.error, color: 'var(--danger)' }
+          : { icon: Camera, title: t('osd.screenshot'), detail: msg.file ?? '', color: 'var(--ok)' };
       case 'test':
         return { icon: Bell, title: 'Doppelpad', detail: t('osd.test'), color: 'var(--accent)' };
     }

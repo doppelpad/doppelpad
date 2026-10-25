@@ -25,9 +25,10 @@ interfaces macOS has. No drivers are needed:
 > the permission (at once, and Bluetooth on by itself from the next start), connecting in
 > pairing mode, every button, the sticks, triggers and motion, player lights, rumble without
 > gaps and in three strengths, the battery level, going away when turned off, and staying with
-> its console when woken. Overlays over games in full screen, screenshots,
-> closing windows, the power commands and the other controllers are untested. Reports from
-> Mac users are very welcome.
+> its console when woken. Also tried: overlays (crosshair, controller overlay) over a video in
+> full screen, without taking its focus; the *screenshot*, *close window* and *sleep*
+> commands. Shutting down, restarting, logging out, games in full screen and the other
+> controllers are untested. Reports from Mac users are very welcome.
 
 ## Install
 
@@ -196,6 +197,8 @@ login items in System Settings › General.
 
 Overlays (notifications, crosshairs, radial menus, the controller overlay) float above every
 window, on every Space and over games in full screen, without taking the focus from the game.
+They are non-activating panels: an ordinary window, even one that joins every Space, stays out
+of another program's full-screen Space.
 The crosshair's magnifier is not available on macOS.
 
 Settings, configs, logs and the history of configs are in

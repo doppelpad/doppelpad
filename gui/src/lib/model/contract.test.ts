@@ -81,6 +81,7 @@ const live = {
   pad_overlay: true,
   mappings_overlay: true,
   app_navigation: true,
+  screenshot: true,
 } satisfies Keys<LiveState>;
 
 const device = {
@@ -150,6 +151,7 @@ const osdSettings = {
   keep_layer: true,
   controller: true,
   battery: true,
+  screenshot: true,
   monitor: true,
   corner: true,
   scale: true,

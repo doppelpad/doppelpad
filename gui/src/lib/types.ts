@@ -651,6 +651,8 @@ export interface LiveState {
   mappings_overlay: boolean;
   /** How often the app-navigation hotkey fired; each change turns controller navigation on or off. */
   app_navigation: number;
+  /** The screenshot command's last run: how often it ran, the file it saved or why it saved none. */
+  screenshot: { count: number; file: string | null; error: string | null };
 }
 
 // ----- library --------------------------------------------------------------------------
@@ -818,6 +820,8 @@ export interface OsdSettings {
   keep_layer: boolean;
   controller: boolean;
   battery: boolean;
+  /** The screenshot command saved a screenshot, or could not. */
+  screenshot: boolean;
   /** Index into the monitors, the primary one first. */
   monitor: number;
   corner: Corner;
@@ -839,6 +843,7 @@ export type OsdEvent =
   | { kind: 'battery_low'; name: string; level: number }
   | { kind: 'battery_critical'; name: string; level: number }
   | { kind: 'steam_input'; game: string }
+  | { kind: 'screenshot'; file: string | null; error: string | null }
   | { kind: 'test' };
 
 export type OsdMessage = OsdEvent & { id: number; lang: string; opacity: number; scale: number; corner: Corner };

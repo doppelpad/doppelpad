@@ -87,10 +87,21 @@ impl Runtime {
                     tracing::warn!("{action:?} failed: {e}");
                 }
             }
-            Command::Screenshot => match self.platform.system.screenshot() {
-                Ok(path) => tracing::info!(path = %path.display(), "screenshot saved"),
-                Err(e) => tracing::warn!("screenshot failed: {e}"),
-            },
+            Command::Screenshot => {
+                let shot = &mut self.overlays.screenshot;
+                shot.count = shot.count.wrapping_add(1);
+                (shot.file, shot.error) = match self.platform.system.screenshot() {
+                    Ok(path) => {
+                        tracing::info!(path = %path.display(), "screenshot saved");
+                        let name = path.file_name().map(|n| n.to_string_lossy().into_owned());
+                        (name, None)
+                    }
+                    Err(e) => {
+                        tracing::warn!("screenshot failed: {e}");
+                        (None, Some(e.to_string()))
+                    }
+                };
+            }
             Command::CloseWindow => {
                 if let Err(e) = self.platform.system.close_foreground_window() {
                     tracing::warn!("cannot close the window: {e}");

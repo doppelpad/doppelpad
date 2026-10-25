@@ -1,5 +1,5 @@
 //! On-screen notifications over games: remapping on/off, slot or config changes, layer
-//! changes and controllers coming and going. A watcher thread follows the service's live
+//! changes, controllers coming and going, and screenshots. A watcher thread follows the service's live
 //! state like the tray does and shows each change for a few seconds in the `osd` overlay
 //! window; the overlay page words it in the app's language. Nothing shows while the main
 //! window has focus (it shows the same state) or in the first seconds after start.
@@ -11,7 +11,7 @@ use std::time::{Duration, Instant};
 
 use dp_config::library;
 use dp_platform::Battery;
-use dp_service::{LiveState, SharedLive};
+use dp_service::{LiveScreenshot, LiveState, SharedLive};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
 
@@ -26,6 +26,9 @@ const WATCH_INTERVAL: Duration = Duration::from_millis(100);
 const STARTUP_QUIET: Duration = Duration::from_secs(3);
 /// Window size at 100 %, in logical pixels.
 const SIZE: (f64, f64) = (380.0, 84.0);
+/// A screenshot's message goes away by then at the latest, so that the next screenshot does
+/// not show it.
+const SCREENSHOT_KEEP: Duration = Duration::from_secs(2);
 
 /// What a notification is about.
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -59,6 +62,11 @@ pub enum Event {
     /// Steam runs while a game uses a virtual controller: Steam Input may remap it again.
     SteamInput {
         game: String,
+    },
+    /// The screenshot command saved `file`, or no screenshot (`error`: why).
+    Screenshot {
+        file: Option<String>,
+        error: Option<String>,
     },
     /// A sample from the settings dialog.
     Test,
@@ -118,6 +126,7 @@ struct View {
     layer: u8,
     layer_name: Option<String>,
     devices: Vec<PadInfo>,
+    screenshot: LiveScreenshot,
 }
 
 /// A controller as notifications see it.
@@ -148,6 +157,7 @@ impl View {
                     battery: d.battery,
                 })
                 .collect(),
+            screenshot: live.screenshot.clone(),
         }
     }
 }
@@ -193,6 +203,12 @@ fn events(old: &View, new: &View, s: &OsdSettings) -> Vec<Event> {
             Event::RemapOn
         } else {
             Event::RemapOff
+        });
+    }
+    if s.screenshot && new.screenshot.count != old.screenshot.count {
+        out.push(Event::Screenshot {
+            file: new.screenshot.file.clone(),
+            error: new.screenshot.error.clone(),
         });
     }
     out
@@ -398,7 +414,11 @@ pub(crate) fn watch(app: AppHandle, live: SharedLive) {
                     }
                     let stays =
                         s.keep_layer && matches!(e, Event::Layer { layer, .. } if layer != 0);
-                    notify(&app, e, (!stays).then(|| s.duration()));
+                    let keep = match e {
+                        Event::Screenshot { .. } => s.duration().min(SCREENSHOT_KEEP),
+                        _ => s.duration(),
+                    };
+                    notify(&app, e, (!stays).then_some(keep));
                 }
             }
             seen = view;
@@ -503,7 +523,43 @@ mod tests {
                 name: "DualSense".into(),
                 battery: None,
             }],
+            screenshot: LiveScreenshot::default(),
         }
+    }
+
+    #[test]
+    fn screenshots_are_told_of() {
+        let mut s = OsdSettings::default();
+        let old = view();
+        let mut new = view();
+        new.screenshot = LiveScreenshot {
+            count: 1,
+            file: Some("Game 2026-10-25 17-16-20.png".into()),
+            error: None,
+        };
+        assert_eq!(
+            events(&old, &new, &s),
+            vec![Event::Screenshot {
+                file: Some("Game 2026-10-25 17-16-20.png".into()),
+                error: None
+            }]
+        );
+        let mut failed = new.clone();
+        failed.screenshot = LiveScreenshot {
+            count: 2,
+            file: None,
+            error: Some("no permission".into()),
+        };
+        assert_eq!(
+            events(&new, &failed, &s),
+            vec![Event::Screenshot {
+                file: None,
+                error: Some("no permission".into())
+            }],
+            "the same outcome again is news too"
+        );
+        s.screenshot = false;
+        assert!(events(&old, &new, &s).is_empty());
     }
 
     #[test]
