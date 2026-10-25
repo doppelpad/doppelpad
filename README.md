@@ -6,15 +6,15 @@
 </p>
 
 <p align="center">
-  <strong>Free, open-source controller remapping for Windows, written in Rust.</strong><br>
-  Linux in preview; macOS in preview, with keyboard and mouse as its only output.
+  <strong>Free, open-source controller remapping for Windows, Linux and macOS, written in Rust.</strong><br>
+  Linux and macOS in preview; on macOS, keyboard and mouse are the only output.
 </p>
 
 <p align="center">
   <a href="https://github.com/doppelpad/doppelpad/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/doppelpad/doppelpad?style=flat-square&color=14b8a6&label=release"></a>
   <a href="https://github.com/doppelpad/doppelpad/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/doppelpad/doppelpad/ci.yml?branch=main&style=flat-square&label=CI"></a>
   <a href="#license"><img alt="License: MIT or Apache-2.0" src="https://img.shields.io/badge/license-MIT%20%7C%20Apache--2.0-blue?style=flat-square"></a>
-  <img alt="Platform: Windows 10 and 11" src="https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078D4?style=flat-square">
+  <img alt="Platform: Windows, Linux and macOS" src="https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-0078D4?style=flat-square">
   <img alt="Built with Rust" src="https://img.shields.io/badge/built%20with-Rust-dea584?style=flat-square&logo=rust">
 </p>
 
