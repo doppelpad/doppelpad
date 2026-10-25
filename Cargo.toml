@@ -36,7 +36,7 @@ trash = "5"
 tauri-winres = "0.3"
 tempfile = "3"
 # macOS backend
-objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSEvent", "NSGraphicsContext", "NSResponder", "NSWindow", "objc2-core-foundation", "objc2-core-graphics"] }
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSEvent", "NSGraphicsContext", "NSPanel", "NSResponder", "NSWindow", "objc2-core-foundation", "objc2-core-graphics"] }
 objc2-application-services = { version = "0.3", default-features = false, features = ["std", "libc", "HIServices", "AXUIElement", "AXError"] }
 objc2-core-foundation = "0.3"
 objc2-core-graphics = "0.3"
