@@ -7,7 +7,8 @@
 //! is left alone.
 //!
 //! The pads never ask for a faster connection, so Doppelpad asks Windows for one. Windows 11
-//! can be asked; Windows 10 keeps its default interval, about 17 reports a second.
+//! can be asked; Windows 10 keeps its default, which brought about 35 to 55 reports a second,
+//! unevenly, in first tests.
 //!
 //! The watcher's events arrive on the thread pool. Each controller is set up on a thread of
 //! its own, as that waits for the controller's answers.
@@ -600,6 +601,8 @@ mod tests {
     #[test]
     #[ignore = "listens to Bluetooth on this PC; a Switch 2 controller in pairing mode shows up"]
     fn advertisements_on_this_pc() {
+        use windows::Devices::Bluetooth::Advertisement::BluetoothLEAdvertisementType;
+
         let watcher = BluetoothLEAdvertisementWatcher::new().unwrap();
         watcher
             .SetScanningMode(BluetoothLEScanningMode::Active)
@@ -623,7 +626,14 @@ mod tests {
                     let mut data = switch2ble::COMPANY_ID.to_le_bytes().to_vec();
                     data.extend(bytes(&section.Data()?)?);
                     let advert = switch2ble::parse_advert(&data);
-                    log.1.push((key(args.BluetoothAddress()?), advert, data));
+                    // Whether a passive scan would see it too (not in a scan response).
+                    let kind = match args.AdvertisementType()? {
+                        BluetoothLEAdvertisementType::ConnectableUndirected => "connectable",
+                        BluetoothLEAdvertisementType::ScanResponse => "scan response",
+                        _ => "other",
+                    };
+                    log.1
+                        .push((key(args.BluetoothAddress()?), kind, advert, data));
                 }
                 Ok(())
             }))
@@ -634,38 +644,93 @@ mod tests {
         watcher.Stop().unwrap();
         let (count, nintendo) = &*seen.lock().unwrap();
         println!("{count} advertisements");
-        for (address, advert, data) in nintendo {
-            println!("{address}: {advert:?} {data:02x?}");
+        for (address, kind, advert, data) in nintendo {
+            println!("{address} ({kind}): {advert:?} {data:02x?}");
         }
         assert_eq!(status, BluetoothLEAdvertisementWatcherStatus::Started);
         assert!(*count > 0, "nothing advertises near this PC");
     }
 
+    /// The whole way, without the rest of Doppelpad: connects a Pro Controller in pairing
+    /// mode, starts its driver (player light 1 comes on), rumbles in the first second and
+    /// then reports second by second what arrives, until the controller goes away or 30 s
+    /// are up. Run with `--nocapture`, hold the pairing button, then press buttons, move
+    /// the sticks, tilt it, and turn it off at the end.
     #[test]
     #[ignore = "connects a Switch 2 Pro Controller in pairing mode near this PC"]
-    fn controller_in_pairing_mode() {
-        use crate::hidhost::{HidHandle, Wait};
+    fn switch2_pro_over_bluetooth() {
+        use dp_core::pad::{Axis, PadButton, Rumble};
 
-        let until = Instant::now() + Duration::from_secs(30);
+        use crate::hidhost::{HidHandle, Wait};
+        use crate::nintendo::switch2::Switch2Driver;
+        use crate::padio::PadDriver;
+
+        println!("hold the pairing button until the lights run");
+        let until = Instant::now() + Duration::from_secs(60);
         let mut pad = None;
         while pad.is_none() && Instant::now() < until {
             pad = poll().ready.pop();
             std::thread::sleep(Duration::from_millis(100));
         }
-        let mut pad = pad.expect("no controller in pairing mode connected");
-        let start = Instant::now();
-        let mut reports = 0u32;
-        while start.elapsed() < Duration::from_secs(3) {
-            if let Wait::Report(_) = pad.io.wait(Duration::from_millis(100)).unwrap() {
-                reports += 1;
-            }
-        }
+        let Ready {
+            id,
+            advert,
+            mut io,
+            commands,
+            ..
+        } = pad.expect("no controller in pairing mode connected");
+        let mut driver = Switch2Driver::bluetooth(advert.model, Box::new(commands));
+        let started = Instant::now();
+        let identity = driver.init(&mut io).expect("the driver starts");
         println!(
-            "{}: {:.1} reports a second",
-            pad.id,
-            f64::from(reports) / 3.0
+            "{id}: {} started in {} ms; player light 1 should be on",
+            identity.name,
+            started.elapsed().as_millis()
         );
-        assert!(reports > 0, "connected, but no input");
+
+        for second in 1..=30 {
+            let rumble = if second == 1 {
+                Rumble {
+                    low: 0.6,
+                    high: 0.6,
+                }
+            } else {
+                Rumble::default()
+            };
+            let end = Instant::now() + Duration::from_secs(1);
+            let (mut reports, mut motion, mut pressed) = (0u32, false, Vec::new());
+            let mut sticks = [0.0f32; 4];
+            while Instant::now() < end {
+                match io.wait(Duration::from_millis(20)) {
+                    Ok(Wait::Report(_)) => {
+                        reports += 1;
+                        if let Some(s) = driver.parse(io.report(), Instant::now()) {
+                            motion |= s.motion.is_some();
+                            for b in PadButton::ALL.iter().filter(|b| s.pressed(**b)) {
+                                if !pressed.contains(&b.name()) {
+                                    pressed.push(b.name());
+                                }
+                            }
+                            sticks = [Axis::LeftX, Axis::LeftY, Axis::RightX, Axis::RightY]
+                                .map(|a| s.axis(a));
+                        }
+                    }
+                    Ok(Wait::Woken | Wait::Timeout) => {}
+                    Err(e) => {
+                        println!("second {second}: the controller went away ({e})");
+                        return;
+                    }
+                }
+                if let Err(e) = driver.service(&mut io, rumble) {
+                    println!("second {second}: rumble failed: {e}");
+                }
+            }
+            println!(
+                "second {second}: {reports} reports, motion {motion}, battery {:?}, \
+                 sticks {sticks:+.2?}, pressed {pressed:?}",
+                driver.battery().map(|b| b.level)
+            );
+        }
     }
 
     #[test]

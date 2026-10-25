@@ -123,10 +123,12 @@ Over Bluetooth, Switch 2 controllers speak Nintendo's own protocol, which Window
 pair: leave them out of Windows' Bluetooth settings, Doppelpad connects them itself. Hold
 the small pairing button on top of a Switch 2 Pro Controller until its lights run, and
 Doppelpad connects it; again after the controller was off. It stays paired with its
-console. The controller cannot ask for a faster connection, so Windows 10 reads it only
-about 17 times a second, too slow for fast games (use the cable there); Doppelpad asks
-Windows 11 for more. Only the Pro Controller connects over Bluetooth so far. On Windows it
-was tried only briefly: found in pairing mode, connected and read on Windows 10.
+console. The controller does not ask for a faster connection: in first tests on Windows 10
+its input arrived about 35 to 55 times a second, unevenly, against 250 over USB. That is
+enough for menus and most games, but less smooth in fast ones; use the cable there.
+Doppelpad asks Windows 11 for a faster connection. Only the Pro Controller connects over
+Bluetooth so far. On Windows it was tried only briefly: found in pairing mode, connected
+and read on Windows 10.
 
 reWASD keeps controllers to itself while it runs. The app offers to quit it at start-up
 (see [docs/GUI.md](docs/GUI.md#rewasd-running-at-start-up)).
