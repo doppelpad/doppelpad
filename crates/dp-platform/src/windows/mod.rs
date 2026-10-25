@@ -1,8 +1,10 @@
-//! Windows backends: XInput, raw HID and USB (GameCube adapter, Switch 2) input, ViGEmBus
-//! virtual pads, HidHide device hiding, `SendInput` output, low-level hook / raw-input
-//! capture, and the overlay, magnifier, autostart and foreground-window helpers.
+//! Windows backends: XInput, raw HID, USB (GameCube adapter, Switch 2) and Bluetooth LE
+//! (Switch 2) input, ViGEmBus virtual pads, HidHide device hiding, `SendInput` output,
+//! low-level hook / raw-input capture, and the overlay, magnifier, autostart and
+//! foreground-window helpers.
 
 pub mod autostart;
+mod ble;
 mod bluetooth;
 mod capture;
 mod devnode;
@@ -71,9 +73,7 @@ pub fn platform() -> Platform {
             virtual_pads: vigem::available(),
             device_hiding: hidhide::available(),
             input_access: Ok(()),
-            bluetooth: Err(crate::PlatformError::Unsupported(
-                "Switch 2 controllers over Bluetooth",
-            )),
+            bluetooth: ble::check(),
             hiding_problems: hidhide::problems(),
         },
         gamepads: vec![

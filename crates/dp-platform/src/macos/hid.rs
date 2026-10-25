@@ -24,9 +24,8 @@ use crate::hidhost::{
     Devices, DriverKind, Found, HidBackend, MakeDriver, SKIP_FOREIGN, driver_kind, parse_bt_address,
 };
 use crate::nintendo::switch1::{Link, Switch1Driver};
-use crate::nintendo::switch2::Switch2Driver;
 use crate::nintendo::wired::WiredDriver;
-use crate::nintendo::{self, Model, NINTENDO_VID};
+use crate::nintendo::{self, Model};
 use crate::scan::Pass;
 use crate::sony::SonyDriver;
 use crate::steam::SteamDriver;
@@ -72,7 +71,9 @@ impl Scanner {
             now,
         );
         for pad in wireless.ready {
-            start_ble(devices, pad);
+            // Hidden as any other (seizing it does nothing; no other program sees it).
+            let hide = vec![pad.id.clone()];
+            pad.start(devices, hide);
         }
 
         for (path, device) in present {
@@ -104,27 +105,6 @@ impl Scanner {
             }
         }
     }
-}
-
-/// Start a Switch 2 controller connected over Bluetooth LE.
-fn start_ble(devices: &Devices, pad: ble::Ready) {
-    let found = Found {
-        path: pad.path,
-        id: DeviceId(pad.id.clone()),
-        transport: "Bluetooth",
-        vid: NINTENDO_VID,
-        pid: pad.advert.pid,
-        // Nothing to seize: no other program sees the controller.
-        instance_paths: vec![pad.id],
-        bluetooth: true,
-        bt_address: None,
-    };
-    let (model, commands) = (pad.advert.model, pad.commands);
-    devices.start(
-        pad.io,
-        found,
-        Box::new(move |_io| Box::new(Switch2Driver::bluetooth(model, Box::new(commands)))),
-    );
 }
 
 /// Every HID device there is now.

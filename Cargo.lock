@@ -1020,6 +1020,8 @@ dependencies = [
  "thiserror 2.0.21",
  "tracing",
  "vigem-client",
+ "windows 0.62.2",
+ "windows-future 0.3.2",
  "windows-sys 0.61.2",
  "x11rb",
 ]

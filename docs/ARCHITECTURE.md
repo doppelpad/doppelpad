@@ -109,8 +109,8 @@ Threads on every OS:
   `dp-ipc-call` thread (named pipes have no timeouts on Windows).
 - **dp-http** and one **dp-http-conn** per connection: the HTTP API, when it is on.
 - **dp-dsu:** the DSU (cemuhook) motion server, when it is on.
-- **dp-drivers:** probes the drivers (ViGEmBus and HidHide, or uinput) every 5 s, so the
-  runtime loop never waits on them.
+- **dp-drivers:** probes the drivers (ViGEmBus and HidHide, or uinput) and Bluetooth every
+  5 s, so the runtime loop never waits on them.
 
 On Windows:
 
@@ -122,6 +122,8 @@ On Windows:
   loop by a lock-free filter and a channel.
 - **ViGEm notification thread** per virtual pad: rumble (and the DualShock 4 light bar)
   coming back from games.
+- **Bluetooth:** the advertisement watcher and the controllers' notifications call back on
+  the thread pool; a `dp-ble-connect` thread sets up each Switch 2 controller that is found.
 
 On Windows and macOS the HID controllers share one backend (`dp-platform/src/hidhost.rs`);
 each OS brings the scanner that finds and opens them.
@@ -150,6 +152,7 @@ On macOS:
 | Virtual controller | ViGEmBus (Xbox 360, DualShock 4) |
 | Hide the physical pad | HidHide (blacklist + our exe on the whitelist) |
 | Switch 2 command interface | WinUSB through `nusb` (Windows binds it automatically; exclusive, so Steam may hold it) |
+| Switch 2 over Bluetooth | WinRT (`Windows.Devices.Bluetooth`): an advertisement watcher finds a pad in pairing mode, which is connected without pairing and runs in the HID backend like the macOS one (`windows/ble.rs`, shared link in `switch2gatt.rs`); Windows 11 is asked for a faster connection |
 | Keyboard/mouse capture | low-level hooks (all devices; see limitations) |
 | Keyboard/mouse output | `SendInput` with scan codes |
 
@@ -185,7 +188,7 @@ rule) and limitations are in [LINUX.md](LINUX.md).
 |---|---|
 | Read controllers | IOKit HID: the Sony, Nintendo, Steam and generic drivers of the Windows backend, on the controllers' own reports; the stand-in Xbox 360 pads macOS makes (`GCSyntheticDevice`) are left out |
 | Hide the physical pad | opening it exclusively (`kIOHIDOptionsTypeSeizeDevice`), which keeps it from the GameController framework too |
-| Switch 2 over Bluetooth | CoreBluetooth on a serial dispatch queue: a pad in pairing mode is connected and runs in the HID backend, its input and command characteristics standing in for HID reports and the USB command channel (`macos/ble.rs`, `nintendo/switch2ble.rs`) |
+| Switch 2 over Bluetooth | CoreBluetooth on a serial dispatch queue: a pad in pairing mode is connected and runs in the HID backend, its input and command characteristics standing in for HID reports and the USB command channel (`macos/ble.rs`, `switch2gatt.rs`, `nintendo/switch2ble.rs`) |
 | Virtual controller | none: a virtual HID device needs an entitlement from Apple |
 | Keyboard/mouse capture | a Quartz event tap (Accessibility permission) |
 | Keyboard/mouse output | `CGEventPost` with a marker in the user data, which the tap skips |

@@ -79,8 +79,8 @@ const PADS: Pad[] = [
     back: 'switch2proBack',
     family: 'nintendo',
     note: {
-      en: 'Over USB on Windows, with the GL and GR buttons (awaiting hardware tests). Bluetooth and Linux are planned.',
-      de: 'Über USB unter Windows, mit den Tasten GL und GR (Hardwaretest steht aus). Bluetooth und Linux sind geplant.',
+      en: 'Over USB and Bluetooth on Windows, with the GL and GR buttons (awaiting hardware tests; over Bluetooth, Windows 10 reads it only about 17 times a second). Linux is planned.',
+      de: 'Über USB und Bluetooth unter Windows, mit den Tasten GL und GR (Hardwaretest steht aus; über Bluetooth liest Windows 10 ihn nur etwa 17-mal pro Sekunde). Linux ist geplant.',
     },
   },
   {

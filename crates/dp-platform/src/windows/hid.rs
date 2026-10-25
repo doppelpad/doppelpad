@@ -1,7 +1,8 @@
 //! Raw HID controllers XInput cannot see: DualShock 4, DualSense, Nintendo Switch pads, Steam
 //! controllers and other HID gamepads (read through their report descriptor). This is the
 //! Windows scanner of the shared HID backend ([`crate::hidhost`]): it finds HID interfaces
-//! through SetupAPI, opens them with overlapped I/O and picks their drivers.
+//! through SetupAPI, opens them with overlapped I/O and picks their drivers. Switch 2
+//! controllers connected over Bluetooth LE ([`super::ble`]) join them.
 
 use std::collections::HashMap;
 use std::time::Instant;
@@ -137,11 +138,16 @@ impl Scanner {
         let now = Instant::now();
         self.skip.retain(|_, until| now < *until);
         let present = enumerate_interfaces(&GUID_DEVINTERFACE_HID);
+        let wireless = super::ble::poll();
         devices.sweep(
-            |path| present.iter().any(|e| e.path == path),
+            |path| present.iter().any(|e| e.path == path) || wireless.connected.contains(path),
             &mut self.skip,
             now,
         );
+        for pad in wireless.ready {
+            // Nothing to hide: no other program sees it.
+            pad.start(devices, Vec::new());
+        }
 
         for entry in present {
             if pass.stopping() {

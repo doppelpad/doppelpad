@@ -93,7 +93,7 @@ macOS has no release builds yet: build it from source as described in
 
 | | |
 |---|---|
-| **Inputs** | Xbox controllers (XInput), DualShock 4 and DualSense incl. gyro, touchpad and Edge paddles (USB/Bluetooth), Nintendo Switch Pro Controller, Joy-Con (paired automatically, or sideways on their own), Nintendo Switch Online and Switch-style wired pads incl. gyro (USB/Bluetooth), Switch 2 Pro Controller (USB; on macOS Bluetooth too) and GameCube controller (USB), GameCube controllers on the official USB adapter and clones in its Wii U mode (Windows), Steam Controller (USB and its wireless receiver) and Steam Deck incl. trackpads, gyro and back buttons (Windows), other HID gamepads and joysticks (identify their buttons once; Windows), keyboard, mouse buttons, wheel, mouse motion |
+| **Inputs** | Xbox controllers (XInput), DualShock 4 and DualSense incl. gyro, touchpad and Edge paddles (USB/Bluetooth), Nintendo Switch Pro Controller, Joy-Con (paired automatically, or sideways on their own), Nintendo Switch Online and Switch-style wired pads incl. gyro (USB/Bluetooth), Switch 2 Pro Controller (USB and Bluetooth) and GameCube controller (USB), GameCube controllers on the official USB adapter and clones in its Wii U mode (Windows), Steam Controller (USB and its wireless receiver) and Steam Deck incl. trackpads, gyro and back buttons (Windows), other HID gamepads and joysticks (identify their buttons once; Windows), keyboard, mouse buttons, wheel, mouse motion |
 | **Outputs** | Virtual Xbox 360 or DualShock 4 controller, keyboard, mouse buttons/motion/wheel, controller rumble, a DSU (cemuhook) motion server for emulators |
 | **Triggers** | Any button, stick direction, trigger pull/full pull, touchpad region, gyro direction, key, mouse button, wheel — alone or as combos of up to 4 |
 | **Activators** | single, long press, double tap, triple tap, start (on press), release |
@@ -114,11 +114,19 @@ The Windows setup installs both when they are missing (see
 [docs/GUI.md](docs/GUI.md#installer)). Run `doppelpad doctor` to check both and list
 detected controllers.
 
-Switch 2 controllers connect over USB only for now. Doppelpad talks to their USB command
-interface through WinUSB, which Windows normally sets up by itself. Only one program can
-use it at a time. While Steam holds it, the controller works with default stick
-calibration. Close Steam and Doppelpad takes the interface over within a few seconds,
-without reconnecting the controller.
+Over USB, Doppelpad talks to a Switch 2 controller's USB command interface through WinUSB,
+which Windows normally sets up by itself. Only one program can use it at a time. While Steam
+holds it, the controller works with default stick calibration. Close Steam and Doppelpad
+takes the interface over within a few seconds, without reconnecting the controller.
+
+Over Bluetooth, Switch 2 controllers speak Nintendo's own protocol, which Windows cannot
+pair: leave them out of Windows' Bluetooth settings, Doppelpad connects them itself. Hold
+the small pairing button on top of a Switch 2 Pro Controller until its lights run, and
+Doppelpad connects it; again after the controller was off. It stays paired with its
+console. The controller cannot ask for a faster connection, so Windows 10 reads it only
+about 17 times a second, too slow for fast games (use the cable there); Doppelpad asks
+Windows 11 for more. Only the Pro Controller connects over Bluetooth so far. On Windows it
+was tried only briefly: found in pairing mode, connected and read on Windows 10.
 
 reWASD keeps controllers to itself while it runs. The app offers to quit it at start-up
 (see [docs/GUI.md](docs/GUI.md#rewasd-running-at-start-up)).
@@ -227,7 +235,7 @@ examples in [`profiles/examples/`](profiles/examples).
 | | Windows | Linux | macOS |
 |---|---|---|---|
 | Engine, profiles, CLI, desktop app | ✅ | ✅ | ✅ |
-| Read controllers | ✅ XInput, raw HID (Sony, Nintendo) | ✅ evdev (incl. DualSense/Switch gyro + touchpad) | ✅ IOKit HID (Sony, Nintendo, Steam, generic pads), Switch 2 Pro Controller over Bluetooth too |
+| Read controllers | ✅ XInput, raw HID (Sony, Nintendo), Switch 2 Pro Controller over Bluetooth too (tried briefly) | ✅ evdev (incl. DualSense/Switch gyro + touchpad) | ✅ IOKit HID (Sony, Nintendo, Steam, generic pads), Switch 2 Pro Controller over Bluetooth too |
 | Virtual controller | ✅ Xbox 360, DualShock 4 (ViGEmBus) | ✅ Xbox 360 (uinput) | — (needs an entitlement from Apple) |
 | Hide physical controller | ✅ HidHide | ✅ `EVIOCGRAB` | ✅ seizing the device |
 | Keyboard/mouse output | ✅ `SendInput` | ✅ uinput | ✅ Quartz events |

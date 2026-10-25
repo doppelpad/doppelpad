@@ -12,7 +12,7 @@ use super::{NINTENDO_VID, Switch2Model, model_for};
 use crate::nintendo::Model;
 
 /// Nintendo's Bluetooth company identifier, first in the manufacturer data.
-const COMPANY_ID: u16 = 0x0553;
+pub const COMPANY_ID: u16 = 0x0553;
 
 /// The service with every characteristic below.
 pub const SERVICE: &str = "AB7DE9BE-89FE-49AD-828F-118F09DF7FD0";
