@@ -7,8 +7,8 @@
 //! is left alone.
 //!
 //! The pads never ask for a faster connection, so Doppelpad asks Windows for one. Windows 11
-//! can be asked; Windows 10 keeps its default: about 17 reports a second once the connection
-//! has settled, 30 to 90 unevenly in the first 20 s or so.
+//! can be asked; Windows 10 keeps its default, which in tests brought the reports unevenly:
+//! at times a steady 17 a second, at times 15 to 105 (about 45 on average).
 //!
 //! The watcher's events arrive on the thread pool. Each controller is set up on a thread of
 //! its own, as that waits for the controller's answers.
@@ -48,9 +48,9 @@ const RESTART: Duration = Duration::from_secs(10);
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 /// How long a command may take to go out.
 const WRITE_TIMEOUT: Duration = Duration::from_secs(1);
-/// A controller whose input stopped for this long is let go. It sends all the time (about
-/// 17 reports a second at the least), while Windows notices one that was turned off only
-/// about 10 s later.
+/// A controller whose input stopped for this long is let go. It sends all the time (at the
+/// least about 17 reports a second, even with nothing touched), while Windows notices one
+/// that was turned off only about 10 s later.
 const SILENCE: Duration = Duration::from_secs(3);
 
 /// Whether Switch 2 controllers can connect, as a driver check: a Bluetooth adapter that

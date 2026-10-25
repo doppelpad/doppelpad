@@ -53,9 +53,9 @@ to keep. Linux stays a preview in 1.0 (see [Platforms](#platforms)).
   keyboards. Switch 2 controllers speak Bluetooth Low Energy with Nintendo's own protocol, not
   HID: no system pairs them as a controller, so Doppelpad connects them itself (done with
   CoreBluetooth on macOS and WinRT on Windows; an ATT socket on Linux). The pads never ask for
-  a faster connection, so the host's default sets the input rate: about 33 Hz on macOS, 17 Hz
-  on Windows 10 (measured; 30–90 unevenly in the first 20 s or so after connecting), 20–33 Hz
-  on Linux unless BlueZ is configured otherwise. Doppelpad asks Windows 11 for a faster one.
+  a faster connection, so the host's default sets the input rate: about 33 Hz on macOS; on Windows 10
+  unevenly, at times a steady 17 Hz, at times 15–105 reports a second (about 45 on average;
+  measured, what switches between the two is not known); 20–33 Hz on Linux unless BlueZ is configured otherwise. Doppelpad asks Windows 11 for a faster one.
 - More from imported JSON profiles: crosshair shapes, radial-menu icons, mouse regions, rumble
   mode, virtual gyro stick values.
 - Overlays in `doppelpad daemon`, not only in the app.
