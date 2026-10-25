@@ -152,7 +152,7 @@ On macOS:
 | Virtual controller | ViGEmBus (Xbox 360, DualShock 4) |
 | Hide the physical pad | HidHide (blacklist + our exe on the whitelist) |
 | Switch 2 command interface | WinUSB through `nusb` (Windows binds it automatically; exclusive, so Steam may hold it) |
-| Switch 2 over Bluetooth | WinRT (`Windows.Devices.Bluetooth`): an advertisement watcher finds a pad in pairing mode, which is connected without pairing and runs in the HID backend like the macOS one (`windows/ble.rs`, shared link in `switch2gatt.rs`); Windows 11 is asked for a faster connection |
+| Switch 2 over Bluetooth | WinRT (`Windows.Devices.Bluetooth`): an advertisement watcher finds a pad in pairing mode, which is connected without pairing and runs in the HID backend like the macOS one (`windows/ble.rs`, shared link in `switch2gatt.rs`); Windows 11 is asked for a faster connection, and a pad silent for 3 s is let go, as Windows notices a lost link only after about 10 s |
 | Keyboard/mouse capture | low-level hooks (all devices; see limitations) |
 | Keyboard/mouse output | `SendInput` with scan codes |
 

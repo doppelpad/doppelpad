@@ -48,6 +48,10 @@ const RESTART: Duration = Duration::from_secs(10);
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 /// How long a command may take to go out.
 const WRITE_TIMEOUT: Duration = Duration::from_secs(1);
+/// A controller whose input stopped for this long is let go. It sends all the time (about
+/// 17 reports a second at the least), while Windows notices one that was turned off only
+/// about 10 s later.
+const SILENCE: Duration = Duration::from_secs(3);
 
 /// Whether Switch 2 controllers can connect, as a driver check: a Bluetooth adapter that
 /// speaks Bluetooth LE, switched on.
@@ -74,6 +78,24 @@ pub fn check() -> crate::Result<()> {
 pub(crate) fn poll() -> Poll {
     let c = central();
     keep_watching(&mut c.watcher.lock().unwrap());
+    let silent: Vec<u64> = c
+        .state
+        .lock()
+        .unwrap()
+        .peers
+        .iter()
+        .filter_map(|(address, peer)| match peer {
+            Peer::Up { feed, .. } if feed.silent_for() > SILENCE => Some(*address),
+            _ => None,
+        })
+        .collect();
+    for address in silent {
+        tracing::info!(
+            "Bluetooth: no input from the Switch 2 controller for {} s, letting it go",
+            SILENCE.as_secs()
+        );
+        on_disconnect(address);
+    }
     c.state.lock().unwrap().links.poll()
 }
 
@@ -430,6 +452,7 @@ fn ask_faster(
     }
 }
 
+/// The controller is gone: Windows says so, or its input stopped.
 fn on_disconnect(address: u64) {
     let conn = {
         let mut state = central().state.lock().unwrap();
@@ -654,9 +677,10 @@ mod tests {
     /// The whole way, without the rest of Doppelpad: connects a Pro Controller in pairing
     /// mode, starts its driver (player light 1 comes on), rumbles in the first second and
     /// then reports second by second what arrives (sticks and triggers as their largest
-    /// deflection), until Windows notices the controller is gone, or 30 s after its input
-    /// stopped. Run with `--nocapture`, hold the pairing button, then press buttons, move
-    /// the sticks, pull the triggers, tilt it, and turn it off at the end.
+    /// deflection), until the controller is let go (polled once a second, as the scanner
+    /// does), or 30 s after its input stopped. Run with `--nocapture`, hold the pairing
+    /// button, then press buttons, move the sticks, pull the triggers, tilt it, and turn it
+    /// off at the end.
     #[test]
     #[ignore = "connects a Switch 2 Pro Controller in pairing mode near this PC"]
     fn switch2_pro_over_bluetooth() {
@@ -699,6 +723,7 @@ mod tests {
         ];
         let mut last_report = Instant::now();
         for second in 1.. {
+            let _ = poll();
             let rumble = if second == 1 {
                 Rumble {
                     low: 0.6,
@@ -732,8 +757,8 @@ mod tests {
                     Ok(Wait::Woken | Wait::Timeout) => {}
                     Err(e) => {
                         println!(
-                            "second {second}: Windows noticed the controller is gone, {:.1} s \
-                             after its last report ({e})",
+                            "second {second}: the controller was let go, {:.1} s after its \
+                             last report ({e})",
                             last_report.elapsed().as_secs_f32()
                         );
                         return;
@@ -751,9 +776,7 @@ mod tests {
                 &peak[4..],
             );
             if last_report.elapsed() > Duration::from_secs(30) {
-                println!(
-                    "Windows has not noticed the controller is gone 30 s after its input stopped"
-                );
+                println!("the controller was not let go 30 s after its input stopped");
                 return;
             }
         }

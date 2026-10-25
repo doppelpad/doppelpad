@@ -121,7 +121,7 @@ to keep. Linux stays a preview in 1.0 (see [Platforms](#platforms)).
 | Xbox and XInput controllers | ✅ |
 | DualShock 4, DualSense, DualSense Edge | ✅ raw HID |
 | Nintendo Switch controllers (Pro Controller, Joy-Con paired or sideways, NSO and Switch-style wired pads; gyro, rumble) | ✅ Windows via raw HID (⏳ hardware testing); Linux through hid-nintendo |
-| Switch 2 controllers (Pro Controller, GameCube controller) | ✅ Windows over USB (⏳ hardware testing), and the Pro Controller over Bluetooth LE (tried on Windows 10: connecting, every button, motion, battery, player light, rumble; ⏳ sticks and triggers moved, going away when turned off, Windows 11); macOS over USB (tried with a Pro Controller), and the Pro Controller over Bluetooth LE (tried in the app); ⏳ Linux, over USB and Bluetooth (see Later) |
+| Switch 2 controllers (Pro Controller, GameCube controller) | ✅ Windows over USB (⏳ hardware testing), and the Pro Controller over Bluetooth LE (tried on Windows 10: connecting, every button, motion, battery, player light, rumble; ⏳ sticks and triggers moved, letting it go 3 s after it was turned off (Windows notices only after about 10 s), Windows 11); macOS over USB (tried with a Pro Controller), and the Pro Controller over Bluetooth LE (tried in the app); ⏳ Linux, over USB and Bluetooth (see Later) |
 | Steam Controller (USB, wireless receiver) and Steam Deck, with Steam's desktop mode turned off while remapping | ✅ Windows (⏳ hardware testing); ⏳ Bluetooth LE; ⏳ Linux |
 | Generic HID gamepads and joysticks, with a wizard that identifies the buttons | ✅ Windows (⏳ hardware testing); Linux reads them through evdev |
 | GameCube USB adapter (official and Wii U-mode clones) | ✅ Windows (⏳ hardware testing); ⏳ Linux |

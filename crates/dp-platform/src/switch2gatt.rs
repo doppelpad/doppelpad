@@ -11,8 +11,8 @@
 
 use std::collections::HashSet;
 use std::io;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use crossbeam_channel::{Receiver, RecvTimeoutError, Sender};
@@ -43,6 +43,8 @@ pub(crate) trait Writer: Send + Sync {
 /// What the client and a controller's device thread share.
 struct Shared {
     gone: AtomicBool,
+    /// When the last input notification arrived (at first: when the link was made).
+    last_input: Mutex<Instant>,
     writer: Box<dyn Writer>,
 }
 
@@ -68,6 +70,7 @@ enum Event {
 pub(crate) fn link(writer: Box<dyn Writer>) -> (Feed, BleIo, GattCommands) {
     let shared = Arc::new(Shared {
         gone: AtomicBool::new(false),
+        last_input: Mutex::new(Instant::now()),
         writer,
     });
     let (events, events_rx) = crossbeam_channel::bounded(QUEUED_REPORTS);
@@ -101,7 +104,15 @@ pub(crate) struct Feed {
 impl Feed {
     /// An input notification.
     pub fn input(&self, value: Vec<u8>) {
+        *self.shared.last_input.lock().unwrap() = Instant::now();
         let _ = self.events.try_send(Event::Report(value));
+    }
+
+    /// How long no input has arrived. The controllers send all the time, so a long silence
+    /// means the link is gone, even before the OS says so.
+    #[cfg(any(windows, test))]
+    pub fn silent_for(&self) -> Duration {
+        self.shared.last_input.lock().unwrap().elapsed()
     }
 
     /// A command reply notification.
@@ -321,7 +332,10 @@ mod tests {
     #[test]
     fn input_becomes_hid_reports() {
         let (feed, mut io, _commands, _wire) = wired();
+        std::thread::sleep(Duration::from_millis(30));
+        let before = feed.silent_for();
         feed.input(vec![0xAA; 63]);
+        assert!(feed.silent_for() < before, "input ends the silence");
         assert!(matches!(
             io.wait(Duration::from_secs(1)).unwrap(),
             Wait::Report(64)
