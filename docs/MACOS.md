@@ -214,9 +214,12 @@ It writes `doppelpad-signing.p12` and its password to `~/doppelpad-signing` and 
 repository secrets to set: `MACOS_CERTIFICATE`, `MACOS_CERTIFICATE_PASSWORD` and
 `MACOS_SIGNING_IDENTITY`. Keep both files: a new certificate is a new program to macOS once more.
 The workflow trusts the certificate on its runner only (nothing on a user's Mac does), signs
-the app with it and logs the signature. Gatekeeper still asks before the first start, as for
-any app without a Developer ID, but the permissions should stay across updates (to be
-confirmed with the first two macOS releases).
+the app with it and logs the signature. Its designated requirement, which macOS ties the
+permissions to, names the certificate rather than the build (`identifier "dev.doppelpad.app"
+and certificate leaf = H"…"`, from the first such build), so every release signed with it
+meets it and the permissions should stay across updates (to be confirmed with the first two
+macOS releases). Gatekeeper still asks before the first start, as for any app without a
+Developer ID.
 
 With a Developer ID, the `APPLE_*` secrets (listed in the workflow) take over: the app is
 signed with it and notarized, and Gatekeeper no longer asks. Switching from the self-signed

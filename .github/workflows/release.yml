@@ -397,7 +397,7 @@ jobs:
       - name: Signature
         run: |
           app=target/universal-apple-darwin/release/bundle/macos/Doppelpad.app
-          codesign -dv "$app" 2>&1 | grep -E '^(Identifier|Authority|Signature|TeamIdentifier)='
+          codesign -dvv "$app" 2>&1 | grep -E '^(Identifier|Authority|Signature|TeamIdentifier)='
           codesign -d -r- "$app" 2>&1 | grep designated
 
       # `doppelpad` for both kinds of Mac in one file, with its licenses.
