@@ -73,8 +73,10 @@ fn create_main_window(app: &tauri::App, visible: bool) -> tauri::Result<WebviewW
     let builder = builder
         .title_bar_style(tauri::TitleBarStyle::Overlay)
         .hidden_title(true)
-        // Centres the buttons in the 52 px header (see ProfilePanel.svelte).
-        .traffic_light_position(tauri::LogicalPosition::new(18.0, 20.0));
+        // Centres the buttons in the 52 px header (see ProfilePanel.svelte). tao stretches
+        // the title bar to button height + y, and AppKit keeps the 14 px buttons 9 px above
+        // its bottom edge, so their centre lands at y - 2 (measured on macOS 26).
+        .traffic_light_position(tauri::LogicalPosition::new(18.0, 28.0));
     #[cfg(not(target_os = "macos"))]
     let builder = builder.decorations(false);
     builder.build()
