@@ -113,6 +113,8 @@ nearby.
 - Input, motion and player lights work as over USB, rumble too, with each report carrying
   three samples to bridge the longer gaps. No other program sees the controller, so there is
   nothing to hide.
+- The battery level is worked out from the voltage the controller reports, as it reports no
+  level of its own in the report Doppelpad reads; it reads high while charging.
 
 macOS 14 and later make a stand-in Xbox 360 pad for each controller they support
 (`GCSyntheticDevice`), for older games. Doppelpad leaves those out, so no controller is read

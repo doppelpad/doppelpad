@@ -101,7 +101,7 @@ to keep. Linux stays a preview in 1.0 (see [Platforms](#platforms)).
 | Hide physical controller | ✅ via HidHide; Linux: `EVIOCGRAB` (tested on a Steam Deck) |
 | Ignore list and controller groups (several pads as one) | ✅ |
 | On-screen overlays: notifications (remap, slot, layer, controllers, battery), crosshairs with magnifier, radial menus, controller overlay, mappings sheet | ✅ Windows, in the app (not in `doppelpad daemon`; ⏳ testing in games) |
-| Battery levels (DualShock 4, DualSense, Switch controllers, Xbox) in the app, tray and notifications | ✅ Windows (⏳ hardware testing); Linux: Sony and Switch controllers through sysfs (tested with a DualSense) |
+| Battery levels (DualShock 4, DualSense, Switch and Switch 2 controllers, Xbox) in the app, tray and notifications | ✅ Windows (⏳ hardware testing); Linux: Sony and Switch controllers through sysfs (tested with a DualSense); macOS: through the drivers (a Switch 2 Pro Controller's shown in the app) |
 | Light bar colours and animations, the game's light bar colour, player LEDs per slot, DualSense mic LED | ✅ USB and Bluetooth (⏳ hardware testing); Linux: light bar and player LEDs through the driver's LED devices, no mic LED (tested with a DualSense) |
 | DualSense adaptive trigger effects (presets and custom) | ✅ (⏳ hardware testing) |
 | Vibration settings (motor strength, swap, minimum gap); rumble for Sony controllers over Bluetooth | ✅ (⏳ hardware testing) |

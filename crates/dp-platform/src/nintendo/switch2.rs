@@ -20,8 +20,8 @@ use crate::nintendo::PlayerLights;
 use crate::padio::{
     BulkIo, Identity, InitError, LateBulk, PadDriver, ReportIo, RumblePacer, Seq4, read_until,
 };
-use crate::report::{le_f32, le_i16, le_u32, unpack12};
-use crate::{JoyConSide, Leds, PadFamily};
+use crate::report::{le_f32, le_i16, le_u16, le_u32, unpack12};
+use crate::{Battery, JoyConSide, Leds, PadFamily};
 
 /// Feature mask: buttons, sticks, IMU and rumble.
 const FEATURES: u8 = 0x27;
@@ -147,6 +147,11 @@ const IN_PADDLES: usize = 8;
 /// Sticks: x and y packed in 12 bits each.
 const IN_LEFT_STICK: usize = 11;
 const IN_RIGHT_STICK: usize = 14;
+/// Battery voltage in mV (u16).
+const IN_BATTERY: usize = 0x20;
+/// 0 on the battery; on external power it rises to 0x34 while charging and is 0x20 once charged.
+const IN_CHARGE: usize = 0x22;
+const CHARGED: u8 = 0x20;
 /// IMU timestamp (u32), 0 while the IMU is off.
 const IN_IMU_TIME: usize = 0x2B;
 /// Accelerometer, then gyroscope: three i16 each.
@@ -219,6 +224,82 @@ fn apply_gamecube(s: &mut PadState, r: &[u8], cal: &Calibration) {
         Axis::RightTrigger,
         gc_trigger(triggers[1], cal.trigger_zero[1]),
     );
+}
+
+/// Charge by the voltage the pads report: (mV, percent), linear in between. The voltage is on a
+/// scale of its own, well below a Li-ion cell's: a Pro Controller read 3.71–3.72 V just after
+/// it called itself charged, and 3.69 V while its own coarse level (in report 0x09, which is
+/// not read here) said 8 of 9; a GameCube controller cut out at 2.94 V (the
+/// `switch2-controllers-linux` project). In between, the shape of a Li-ion discharge, steep at
+/// both ends.
+const CHARGE_CURVE: [(f32, f32); 11] = [
+    (2950.0, 0.0),
+    (3191.0, 8.0),
+    (3258.0, 20.0),
+    (3297.0, 30.0),
+    (3335.0, 40.0),
+    (3374.0, 50.0),
+    (3422.0, 60.0),
+    (3479.0, 70.0),
+    (3547.0, 80.0),
+    (3624.0, 90.0),
+    (3720.0, 100.0),
+];
+
+fn charge_percent(mv: f32) -> f32 {
+    let (first, last) = (CHARGE_CURVE[0], CHARGE_CURVE[CHARGE_CURVE.len() - 1]);
+    if mv <= first.0 {
+        return first.1;
+    }
+    CHARGE_CURVE
+        .windows(2)
+        .find(|w| mv <= w[1].0)
+        .map_or(last.1, |w| {
+            let ((v0, p0), (v1, p1)) = (w[0], w[1]);
+            p0 + (p1 - p0) * (mv - v0) / (v1 - v0)
+        })
+}
+
+/// The battery from the voltage the pad reports, smoothed so that rumble and radio bursts do
+/// not move it, in steps of 5 %. Plugging in or out moves the voltage at once and starts over.
+#[derive(Clone, Debug, Default)]
+struct BatteryGauge {
+    mv: Option<f32>,
+    charge: u8,
+    last: Option<Instant>,
+}
+
+impl BatteryGauge {
+    /// Time constant of the smoothing.
+    const SMOOTHING: Duration = Duration::from_secs(10);
+
+    fn update(&mut self, r: &[u8], now: Instant) {
+        let mv = f32::from(le_u16(r, IN_BATTERY));
+        if mv == 0.0 {
+            return;
+        }
+        let charge = r[IN_CHARGE];
+        let same_power = (charge == 0) == (self.charge == 0);
+        self.mv = match (self.mv, self.last) {
+            (Some(prev), Some(t)) if same_power => {
+                let dt = now.saturating_duration_since(t).as_secs_f32();
+                let a = 1.0 - (-dt / Self::SMOOTHING.as_secs_f32()).exp();
+                Some(prev + (mv - prev) * a)
+            }
+            _ => Some(mv),
+        };
+        self.charge = charge;
+        self.last = Some(now);
+    }
+
+    fn battery(&self) -> Option<Battery> {
+        let mv = self.mv?;
+        Some(Battery {
+            level: ((charge_percent(mv) / 5.0).round() * 5.0) as u8,
+            charging: self.charge != 0 && self.charge != CHARGED,
+            wired: false,
+        })
+    }
 }
 
 /// IMU timestamp of an input report (0 while the IMU is off).
@@ -378,6 +459,7 @@ pub struct Switch2Driver {
     notice_cleared: bool,
     cal: Calibration,
     clock: ImuClock,
+    gauge: BatteryGauge,
     seq: Seq4,
     pacer: RumblePacer,
     gc_error: u32,
@@ -397,6 +479,7 @@ impl Switch2Driver {
             notice_cleared: false,
             cal: Calibration::default(),
             clock: ImuClock::default(),
+            gauge: BatteryGauge::default(),
             seq: Seq4::default(),
             pacer: RumblePacer::new(
                 Duration::from_millis(12),
@@ -623,12 +706,17 @@ impl PadDriver for Switch2Driver {
     fn parse(&mut self, report: &[u8], now: Instant) -> Option<PadState> {
         if report.len() >= IN_LEN && report[0] == INPUT_REPORT {
             self.clock.update(imu_timestamp(report), now);
+            self.gauge.update(report, now);
         }
         let scale = self
             .clock
             .scale
             .filter(|_| self.model != Switch2Model::GameCube);
         parse_report(self.model, &mut self.cal, scale, report)
+    }
+
+    fn battery(&self) -> Option<Battery> {
+        self.gauge.battery()
     }
 
     fn set_leds(&mut self, leds: Leds) {
@@ -1067,6 +1155,62 @@ mod tests {
                 d.parse(&r[..n], now);
             }
         }
+    }
+
+    #[test]
+    fn charge_by_voltage() {
+        assert_eq!(charge_percent(2900.0), 0.0);
+        assert_eq!(charge_percent(3800.0), 100.0);
+        assert!((charge_percent(3688.0) - 96.7).abs() < 0.1);
+        let mut prev = -1.0;
+        for mv in (2900..3800).step_by(10) {
+            let p = charge_percent(mv as f32);
+            assert!(p >= prev, "rises with the voltage");
+            prev = p;
+        }
+    }
+
+    fn battery_report(mv: u16, charge: u8) -> Vec<u8> {
+        let mut r = report();
+        r[IN_BATTERY..IN_BATTERY + 2].copy_from_slice(&mv.to_le_bytes());
+        r[IN_CHARGE] = charge;
+        r
+    }
+
+    #[test]
+    fn battery_level() {
+        let mut d = Switch2Driver::new(Switch2Model::Pro, Err(String::new()));
+        let t = Instant::now();
+        d.parse(&report(), t);
+        assert_eq!(d.battery(), None, "no voltage, no battery");
+
+        // As read from a Pro Controller on its battery, nearly full.
+        d.parse(&battery_report(3688, 0), t);
+        let b = d.battery().unwrap();
+        assert_eq!((b.level, b.charging, b.wired), (95, false, false));
+        // A rumble burst pulls the voltage down for a moment.
+        d.parse(&battery_report(3550, 0), t + 30 * MS);
+        assert_eq!(d.battery().unwrap().level, 95);
+        // A slow change comes through.
+        for i in 1..=200 {
+            d.parse(&battery_report(3400, 0), t + i * 300 * MS);
+        }
+        assert_eq!(d.battery().unwrap().level, 55);
+        d.parse(&battery_report(3450, 0x34), t + 61_000 * MS);
+        let b = d.battery().unwrap();
+        assert_eq!(
+            (b.level, b.charging),
+            (65, true),
+            "plugged in: no smoothing over"
+        );
+        for i in 1..=200 {
+            d.parse(
+                &battery_report(3715, CHARGED),
+                t + 61_000 * MS + i * 300 * MS,
+            );
+        }
+        let b = d.battery().unwrap();
+        assert_eq!((b.level, b.charging), (100, false), "charged");
     }
 
     /// The player-light masks sent through the vendor interface.
