@@ -20,6 +20,7 @@ export const SETTINGS_PLACEHOLDER: GuiSettings = {
     keep_layer: false,
     controller: true,
     battery: true,
+    screenshot: true,
     monitor: 0,
     corner: 'bottom_right',
     scale: 100,

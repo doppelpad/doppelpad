@@ -573,13 +573,15 @@ impl Service {
             virtual_pads: report.virtual_pads.into(),
             device_hiding: report.device_hiding.into(),
             input_access: report.input_access.into(),
+            bluetooth: report.bluetooth.into(),
         };
         if !self.drivers.known || drivers != self.drivers.status {
             tracing::info!(
-                "drivers: virtual pads {}, device hiding {}, keyboard and mouse {}",
+                "drivers: virtual pads {}, device hiding {}, keyboard and mouse {}, Bluetooth {}",
                 drivers.virtual_pads,
                 drivers.device_hiding,
-                drivers.input_access
+                drivers.input_access,
+                drivers.bluetooth
             );
         }
         let problems = report.hiding_problems;

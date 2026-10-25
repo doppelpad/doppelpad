@@ -619,8 +619,10 @@ start-up* is set to *Ask*, the window opens to ask.
 ## On-screen notifications
 
 Short messages appear over games when remapping goes on or off, another slot or config
-becomes active, the layer changes, a controller connects or disconnects, or a controller's
-battery drops below 40 % or 20 % (once per drop, not while charging). They also show
+becomes active, the layer changes, a controller connects or disconnects, a controller's
+battery drops below 40 % or 20 % (once per drop, not while charging), or the *screenshot*
+command saved a screenshot (its file name; for 2 seconds at most, so the next screenshot does
+not show it) or could not (why). They also show
 while the window is closed to the tray, but not while the window has focus (it shows the same
 state) or in the first seconds after start. *Settings → Display → On-screen notifications*
 picks the events, the monitor and corner, the size, opacity and display time, and whether a

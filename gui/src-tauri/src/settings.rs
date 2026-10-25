@@ -85,6 +85,8 @@ pub struct OsdSettings {
     pub controller: bool,
     /// A controller's battery runs low.
     pub battery: bool,
+    /// The screenshot command saved a screenshot, or could not.
+    pub screenshot: bool,
     /// Index into the monitors, the primary one first.
     pub monitor: usize,
     pub corner: Corner,
@@ -106,6 +108,7 @@ impl Default for OsdSettings {
             keep_layer: false,
             controller: true,
             battery: true,
+            screenshot: true,
             monitor: 0,
             corner: Corner::BottomRight,
             scale: 100,

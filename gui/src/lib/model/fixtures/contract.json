@@ -154,6 +154,10 @@
       "input_access": {
         "available": false,
         "error": null
+      },
+      "bluetooth": {
+        "available": false,
+        "error": null
       }
     },
     "device_slots": [
@@ -236,7 +240,12 @@
     "has_radial": false,
     "pad_overlay": false,
     "mappings_overlay": false,
-    "app_navigation": 0
+    "app_navigation": 0,
+    "screenshot": {
+      "count": 0,
+      "file": null,
+      "error": null
+    }
   },
   "gui_settings": {
     "language": "en",
@@ -252,6 +261,7 @@
       "keep_layer": false,
       "controller": true,
       "battery": true,
+      "screenshot": true,
       "monitor": 0,
       "corner": "bottom_right",
       "scale": 100,

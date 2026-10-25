@@ -13,6 +13,8 @@ mod keycodes;
 #[cfg(target_os = "macos")]
 pub mod autostart;
 #[cfg(target_os = "macos")]
+pub mod ble;
+#[cfg(target_os = "macos")]
 mod capture;
 #[cfg(target_os = "macos")]
 mod foreground;
@@ -119,6 +121,7 @@ pub fn platform() -> crate::Platform {
             virtual_pads: Err(crate::PlatformError::Unsupported(NO_VIRTUAL_PADS)),
             device_hiding: Ok(()),
             input_access: permissions::check(),
+            bluetooth: ble::check(),
             hiding_problems: Vec::new(),
         },
         gamepads: vec![Box::new(crate::joycon::JoyConCombiner::new(gamepads))],

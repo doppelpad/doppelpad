@@ -185,6 +185,7 @@ rule) and limitations are in [LINUX.md](LINUX.md).
 |---|---|
 | Read controllers | IOKit HID: the Sony, Nintendo, Steam and generic drivers of the Windows backend, on the controllers' own reports; the stand-in Xbox 360 pads macOS makes (`GCSyntheticDevice`) are left out |
 | Hide the physical pad | opening it exclusively (`kIOHIDOptionsTypeSeizeDevice`), which keeps it from the GameController framework too |
+| Switch 2 over Bluetooth | CoreBluetooth on a serial dispatch queue: a pad in pairing mode is connected and runs in the HID backend, its input and command characteristics standing in for HID reports and the USB command channel (`macos/ble.rs`, `nintendo/switch2ble.rs`) |
 | Virtual controller | none: a virtual HID device needs an entitlement from Apple |
 | Keyboard/mouse capture | a Quartz event tap (Accessibility permission) |
 | Keyboard/mouse output | `CGEventPost` with a marker in the user data, which the tap skips |

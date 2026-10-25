@@ -62,6 +62,9 @@ pub fn platform() -> crate::Platform {
             virtual_pads: dev::check_uinput(),
             device_hiding: Ok(()),
             input_access: Ok(()),
+            bluetooth: Err(crate::PlatformError::Unsupported(
+                "Switch 2 controllers over Bluetooth",
+            )),
             hiding_problems: Vec::new(),
         },
         gamepads: vec![Box::new(crate::joycon::JoyConCombiner::new(gamepads))],

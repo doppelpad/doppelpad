@@ -13,7 +13,7 @@
   import SettingsSection from './SettingsSection.svelte';
 
   const osd = $derived(app.settings.osd);
-  const EVENTS = ['remap', 'slot', 'layer', 'controller', 'battery'] as const;
+  const EVENTS = ['remap', 'slot', 'layer', 'controller', 'battery', 'screenshot'] as const;
   let monitors = $state<string[]>([]);
   api.osdMonitors().then((m) => (monitors = m));
 

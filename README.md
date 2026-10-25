@@ -7,7 +7,7 @@
 
 <p align="center">
   <strong>Free, open-source controller remapping for Windows, written in Rust.</strong><br>
-  Linux in preview, macOS in development.
+  Linux in preview; macOS in preview, with keyboard and mouse as its only output.
 </p>
 
 <p align="center">
@@ -42,9 +42,10 @@ from other remapping tools.
 > unit-tested, and real DualSense input has been verified. What 1.0 still needs is mostly
 > testing on real hardware and in games, above all of what Doppelpad sends to controllers
 > (light bars, trigger effects, turning them off) and of the virtual DualShock 4. The Linux
-> backend (evdev/uinput) passed a first test on a Steam Deck. A macOS backend
+> backend (evdev/uinput) passed a first test on a Steam Deck. The macOS backend
 > ([docs/MACOS.md](docs/MACOS.md)) reads and hides controllers and drives keyboard and mouse,
-> without virtual controllers; it has been tried with a DualSense only. What is left is listed
+> but has no virtual controller (see [On macOS](#on-macos)); it has been tried with a
+> DualSense, a Switch Pro Controller and a Switch 2 Pro Controller. What is left is listed
 > under [Road to 1.0](docs/ROADMAP.md#road-to-10). Expect rough edges.
 
 ## Download
@@ -92,7 +93,7 @@ macOS has no release builds yet: build it from source as described in
 
 | | |
 |---|---|
-| **Inputs** | Xbox controllers (XInput), DualShock 4 and DualSense incl. gyro, touchpad and Edge paddles (USB/Bluetooth), Nintendo Switch Pro Controller, Joy-Con (paired automatically, or sideways on their own), Nintendo Switch Online and Switch-style wired pads incl. gyro (USB/Bluetooth), Switch 2 Pro Controller and GameCube controller (USB), GameCube controllers on the official USB adapter and clones in its Wii U mode (Windows), Steam Controller (USB and its wireless receiver) and Steam Deck incl. trackpads, gyro and back buttons (Windows), other HID gamepads and joysticks (identify their buttons once; Windows), keyboard, mouse buttons, wheel, mouse motion |
+| **Inputs** | Xbox controllers (XInput), DualShock 4 and DualSense incl. gyro, touchpad and Edge paddles (USB/Bluetooth), Nintendo Switch Pro Controller, Joy-Con (paired automatically, or sideways on their own), Nintendo Switch Online and Switch-style wired pads incl. gyro (USB/Bluetooth), Switch 2 Pro Controller (USB; on macOS Bluetooth too) and GameCube controller (USB), GameCube controllers on the official USB adapter and clones in its Wii U mode (Windows), Steam Controller (USB and its wireless receiver) and Steam Deck incl. trackpads, gyro and back buttons (Windows), other HID gamepads and joysticks (identify their buttons once; Windows), keyboard, mouse buttons, wheel, mouse motion |
 | **Outputs** | Virtual Xbox 360 or DualShock 4 controller, keyboard, mouse buttons/motion/wheel, controller rumble, a DSU (cemuhook) motion server for emulators |
 | **Triggers** | Any button, stick direction, trigger pull/full pull, touchpad region, gyro direction, key, mouse button, wheel — alone or as combos of up to 4 |
 | **Activators** | single, long press, double tap, triple tap, start (on press), release |
@@ -225,13 +226,13 @@ examples in [`profiles/examples/`](profiles/examples).
 
 | | Windows | Linux | macOS |
 |---|---|---|---|
-| Engine, profiles, CLI | ✅ | ✅ | ✅ (compiles) |
-| Read controllers | ✅ XInput, raw HID (Sony, Nintendo) | ✅ evdev (incl. DualSense/Switch gyro + touchpad) | planned |
-| Virtual controller | ✅ Xbox 360, DualShock 4 (ViGEmBus) | ✅ Xbox 360 (uinput) | — |
-| Hide physical controller | ✅ HidHide | ✅ `EVIOCGRAB` | planned |
-| Keyboard/mouse output | ✅ `SendInput` | ✅ uinput | planned |
-| Keyboard/mouse capture | ✅ hooks | ✅ evdev grab + passthrough | planned |
-| Per-game auto-switching | ✅ | ✅ X11 / XWayland | planned |
+| Engine, profiles, CLI, desktop app | ✅ | ✅ | ✅ |
+| Read controllers | ✅ XInput, raw HID (Sony, Nintendo) | ✅ evdev (incl. DualSense/Switch gyro + touchpad) | ✅ IOKit HID (Sony, Nintendo, Steam, generic pads), Switch 2 Pro Controller over Bluetooth too |
+| Virtual controller | ✅ Xbox 360, DualShock 4 (ViGEmBus) | ✅ Xbox 360 (uinput) | — (needs an entitlement from Apple) |
+| Hide physical controller | ✅ HidHide | ✅ `EVIOCGRAB` | ✅ seizing the device |
+| Keyboard/mouse output | ✅ `SendInput` | ✅ uinput | ✅ Quartz events |
+| Keyboard/mouse capture | ✅ hooks | ✅ evdev grab + passthrough | ✅ event tap |
+| Per-game auto-switching | ✅ | ✅ X11 / XWayland | ✅ |
 
 The Linux column was tested on a Steam Deck (SteamOS 3.8 and 3.9, desktop mode) with a
 DualSense over USB and Bluetooth and a Switch Pro Controller over USB; DualShock 4, Joy-Cons
@@ -239,6 +240,22 @@ and Switch controllers over Bluetooth are untested. Linux setup (udev
 rule for `/dev/uinput` and `/dev/input`, not needed on SteamOS) is in
 [docs/LINUX.md](docs/LINUX.md), the hardware test checklist and its results in
 [docs/LINUX-TESTING.md](docs/LINUX-TESTING.md).
+
+### On macOS
+
+macOS has no virtual controllers that a program may create, so Doppelpad turns controllers
+into keyboard and mouse input there. Everything that ends in keys, clicks, mouse motion or the
+wheel works as on Windows: layers, macros, turbo, long and double presses, gyro aiming,
+radial menus, overlays, per-game configs. Mapping a control to another controller button
+does not: a game either gets only the keyboard and mouse input of the mappings (with the
+controller hidden from it) or the controller as it is, with that input on top. Swapping
+buttons for a game, stick curves and the game's rumble need a virtual controller and are not
+available on macOS.
+
+The macOS column was tried on macOS 26 with a DualSense and a Switch Pro Controller over USB,
+a Switch 2 Pro Controller over USB and Bluetooth, and the Switch Pro Controller over
+Bluetooth. Setup (the Accessibility permission, Bluetooth for Switch 2 controllers) and
+limitations are in [docs/MACOS.md](docs/MACOS.md).
 
 Everything except `crates/dp-platform` is platform-independent. See
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and [docs/ROADMAP.md](docs/ROADMAP.md).
@@ -249,12 +266,12 @@ Everything except `crates/dp-platform` is platform-independent. See
 crates/dp-core       input model, profile model, remapping engine (no OS code)
 crates/dp-config     TOML loading/validation, JSON profile import
 crates/dp-platform   OS backends behind traits (Windows: XInput, HID, ViGEm, HidHide, SendInput, hooks;
-                     Linux: evdev, uinput, EVIOCGRAB, X11)
+                     Linux: evdev, uinput, EVIOCGRAB, X11; macOS: IOKit HID, CoreBluetooth, Quartz events)
 crates/dp-ipc        daemon control protocol (local socket, JSON lines)
 crates/dp-service    remapping service shared by daemon and app (slots, auto-switch, live state)
 crates/doppelpad      the `doppelpad` CLI / daemon
 gui                  desktop app (Tauri 2 + Svelte), crate `dp-gui` in gui/src-tauri
-docs                 architecture, profile reference, desktop app, roadmap, Linux setup and tests
+docs                 architecture, profile reference, desktop app, roadmap, Linux and macOS setup
 profiles/examples    example profiles
 ```
 

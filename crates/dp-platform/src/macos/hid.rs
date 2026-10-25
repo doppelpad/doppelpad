@@ -1,7 +1,8 @@
 //! Raw HID controllers on macOS: DualShock 4, DualSense, Nintendo Switch and Switch 2 pads,
 //! Steam controllers and other HID gamepads (read through their report descriptor). This is the macOS scanner of the shared HID backend ([`crate::hidhost`]): it
 //! lists HID devices through an IOHIDManager, leaves out the stand-ins macOS makes for the
-//! controllers it supports itself, and opens the controllers it has drivers for.
+//! controllers it supports itself, and opens the controllers it has drivers for. Switch 2
+//! controllers connected over Bluetooth LE ([`super::ble`]) join them.
 //!
 //! A controller is hidden by opening it exclusively (seizing it): no other program, the
 //! GameController framework included, gets its reports until Doppelpad lets it go.
@@ -14,6 +15,7 @@ use std::time::Instant;
 use objc2_core_foundation::CFRetained;
 use objc2_io_kit::{IOHIDDevice, IOHIDManager, kIOHIDOptionsTypeNone};
 
+use super::ble;
 use super::hidio::HidIo;
 use super::props::Props;
 use crate::generic::GenericDriver;
@@ -22,8 +24,9 @@ use crate::hidhost::{
     Devices, DriverKind, Found, HidBackend, MakeDriver, SKIP_FOREIGN, driver_kind, parse_bt_address,
 };
 use crate::nintendo::switch1::{Link, Switch1Driver};
+use crate::nintendo::switch2::Switch2Driver;
 use crate::nintendo::wired::WiredDriver;
-use crate::nintendo::{self, Model};
+use crate::nintendo::{self, Model, NINTENDO_VID};
 use crate::scan::Pass;
 use crate::sony::SonyDriver;
 use crate::steam::SteamDriver;
@@ -32,6 +35,7 @@ use crate::{DeviceHider, DeviceId, JoyConSide, Result};
 
 /// The HID backend with the macOS scanner.
 pub fn backend() -> HidBackend {
+    ble::start_if_allowed();
     let mut scan = Scanner {
         skip: HashMap::new(),
     };
@@ -61,11 +65,15 @@ impl Scanner {
         self.skip.retain(|_, until| now < *until);
         let present: Vec<(String, CFRetained<IOHIDDevice>)> =
             hid_devices().into_iter().map(|d| (path(&d), d)).collect();
+        let wireless = ble::poll();
         devices.sweep(
-            |path| present.iter().any(|(p, _)| p == path),
+            |path| present.iter().any(|(p, _)| p == path) || wireless.connected.contains(path),
             &mut self.skip,
             now,
         );
+        for pad in wireless.ready {
+            start_ble(devices, pad);
+        }
 
         for (path, device) in present {
             if pass.stopping() {
@@ -96,6 +104,27 @@ impl Scanner {
             }
         }
     }
+}
+
+/// Start a Switch 2 controller connected over Bluetooth LE.
+fn start_ble(devices: &Devices, pad: ble::Ready) {
+    let found = Found {
+        path: pad.path,
+        id: DeviceId(pad.id.clone()),
+        transport: "Bluetooth",
+        vid: NINTENDO_VID,
+        pid: pad.advert.pid,
+        // Nothing to seize: no other program sees the controller.
+        instance_paths: vec![pad.id],
+        bluetooth: true,
+        bt_address: None,
+    };
+    let (model, commands) = (pad.advert.model, pad.commands);
+    devices.start(
+        pad.io,
+        found,
+        Box::new(move |_io| Box::new(Switch2Driver::bluetooth(model, Box::new(commands)))),
+    );
 }
 
 /// Every HID device there is now.

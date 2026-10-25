@@ -81,6 +81,7 @@ const live = {
   pad_overlay: true,
   mappings_overlay: true,
   app_navigation: true,
+  screenshot: true,
 } satisfies Keys<LiveState>;
 
 const device = {
@@ -110,7 +111,7 @@ const dsuSettings = { enabled: true, lan: true, port: true } satisfies Keys<DsuS
 const liveHttp = { settings: true, address: true, error: true } satisfies Keys<LiveHttp>;
 const httpSettings = { enabled: true, lan: true, port: true, token: true } satisfies Keys<HttpSettings>;
 const runtime = { prevent_sleep: true, pause_unfocused: true, keep_offline_pads: true } satisfies Keys<RuntimeOptions>;
-const drivers = { virtual_pads: true, device_hiding: true, input_access: true } satisfies Keys<LiveState['drivers']>;
+const drivers = { virtual_pads: true, device_hiding: true, input_access: true, bluetooth: true } satisfies Keys<LiveState['drivers']>;
 const driverState = { available: true, error: true } satisfies Keys<DriverState>;
 const deviceSlots = { id: true, slots: true, active_slot: true } satisfies Keys<LiveState['device_slots'][number]>;
 const session = {
@@ -150,6 +151,7 @@ const osdSettings = {
   keep_layer: true,
   controller: true,
   battery: true,
+  screenshot: true,
   monitor: true,
   corner: true,
   scale: true,

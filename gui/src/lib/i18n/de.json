@@ -1156,6 +1156,7 @@
       "keep_layer": "Stehen lassen, solange die Ebene aktiv ist",
       "controller": "Controller verbunden oder getrennt",
       "battery": "Controller-Akku schwach (40 %) oder fast leer (20 %)",
+      "screenshot": "Screenshot gespeichert (oder nicht)",
       "monitor": "Monitor",
       "primary": "Hauptmonitor ({size})",
       "monitor_n": "Monitor {n} ({size})",
@@ -1305,7 +1306,10 @@
     "not_allowed": "nicht erlaubt",
     "not_allowed_named": "{driver} nicht erlaubt",
     "not_on_macos": "unter macOS noch nicht",
-    "open_settings": "Einstellungen öffnen"
+    "open_settings": "Einstellungen öffnen",
+    "bluetooth": "Bluetooth (Switch-2-Controller)",
+    "allow": "Erlauben",
+    "bluetooth_hint": "Halte die kleine Pairing-Taste eines Switch 2 Pro Controllers, bis seine Lichter laufen: Doppelpad verbindet ihn. Nach dem Ausschalten des Controllers erneut."
   },
   "dirs": {
     "up": "Hoch",
@@ -1513,7 +1517,9 @@
     "battery_low": "Akku schwach: {level} %",
     "battery_critical": "Akku fast leer: {level} %",
     "steam_input": "Steam läuft",
-    "steam_input_detail": "Tasten doppelt? Steam Input für {game} ausschalten."
+    "steam_input_detail": "Tasten doppelt? Steam Input für {game} ausschalten.",
+    "screenshot": "Screenshot gespeichert",
+    "screenshot_failed": "Kein Screenshot"
   },
   "overlays": {
     "no_mappings": "Auf dieser Ebene ist nichts belegt.",

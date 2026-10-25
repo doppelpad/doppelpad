@@ -17,6 +17,7 @@ impl NullPlatform {
                 virtual_pads: Err(PlatformError::Unsupported("virtual gamepads")),
                 device_hiding: Err(PlatformError::Unsupported("device hiding")),
                 input_access: Err(PlatformError::Unsupported("keyboard and mouse")),
+                bluetooth: Err(PlatformError::Unsupported("Bluetooth")),
                 hiding_problems: Vec::new(),
             },
             gamepads: Vec::new(),

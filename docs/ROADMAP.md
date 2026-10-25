@@ -49,11 +49,13 @@ to keep. Linux stays a preview in 1.0 (see [Platforms](#platforms)).
 - macOS beyond the preview: tests on real hardware (keyboard and mouse, overlays over games,
   Bluetooth and other controllers), signing and notarization, release builds, virtual
   controllers (an entitlement from Apple), the GameCube adapter (see [Platforms](#platforms)).
-- More controllers: Switch 2 over Bluetooth, Wii Remote, DualShock 3, analog keyboards. Switch 2
-  controllers speak Bluetooth Low Energy with Nintendo's own protocol, not HID: no system pairs
-  them as a controller, so Doppelpad would connect them itself (CoreBluetooth on macOS, WinRT
-  on Windows, BlueZ on Linux). Hobby projects read their input that way on macOS; motion and
-  rumble are not worked out there yet.
+- More controllers: Switch 2 over Bluetooth on Windows and Linux, Wii Remote, DualShock 3,
+  analog keyboards. Switch 2 controllers speak Bluetooth Low Energy with Nintendo's own
+  protocol, not HID: no system pairs them as a controller, so Doppelpad connects them itself
+  (done with CoreBluetooth on macOS; WinRT on Windows, an ATT socket on Linux). The pads never
+  ask for a faster connection, so the host's default sets the input rate: about 33 Hz on macOS,
+  17 Hz on Windows 10 (Windows 11 may ask for more), 20–33 Hz on Linux unless BlueZ is
+  configured otherwise.
 - More from imported JSON profiles: crosshair shapes, radial-menu icons, mouse regions, rumble
   mode, virtual gyro stick values.
 - Overlays in `doppelpad daemon`, not only in the app.
@@ -99,7 +101,7 @@ to keep. Linux stays a preview in 1.0 (see [Platforms](#platforms)).
 | Hide physical controller | ✅ via HidHide; Linux: `EVIOCGRAB` (tested on a Steam Deck) |
 | Ignore list and controller groups (several pads as one) | ✅ |
 | On-screen overlays: notifications (remap, slot, layer, controllers, battery), crosshairs with magnifier, radial menus, controller overlay, mappings sheet | ✅ Windows, in the app (not in `doppelpad daemon`; ⏳ testing in games) |
-| Battery levels (DualShock 4, DualSense, Switch controllers, Xbox) in the app, tray and notifications | ✅ Windows (⏳ hardware testing); Linux: Sony and Switch controllers through sysfs (tested with a DualSense) |
+| Battery levels (DualShock 4, DualSense, Switch and Switch 2 controllers, Xbox) in the app, tray and notifications | ✅ Windows (⏳ hardware testing); Linux: Sony and Switch controllers through sysfs (tested with a DualSense); macOS: through the drivers (a Switch 2 Pro Controller's shown in the app) |
 | Light bar colours and animations, the game's light bar colour, player LEDs per slot, DualSense mic LED | ✅ USB and Bluetooth (⏳ hardware testing); Linux: light bar and player LEDs through the driver's LED devices, no mic LED (tested with a DualSense) |
 | DualSense adaptive trigger effects (presets and custom) | ✅ (⏳ hardware testing) |
 | Vibration settings (motor strength, swap, minimum gap); rumble for Sony controllers over Bluetooth | ✅ (⏳ hardware testing) |
@@ -119,7 +121,7 @@ to keep. Linux stays a preview in 1.0 (see [Platforms](#platforms)).
 | Xbox and XInput controllers | ✅ |
 | DualShock 4, DualSense, DualSense Edge | ✅ raw HID |
 | Nintendo Switch controllers (Pro Controller, Joy-Con paired or sideways, NSO and Switch-style wired pads; gyro, rumble) | ✅ Windows via raw HID (⏳ hardware testing); Linux through hid-nintendo |
-| Switch 2 controllers (Pro Controller, GameCube controller) | ✅ Windows over USB (⏳ hardware testing); macOS over USB (tried with a Pro Controller); ⏳ Bluetooth (Low Energy with Nintendo's own protocol, see Later); ⏳ Linux |
+| Switch 2 controllers (Pro Controller, GameCube controller) | ✅ Windows over USB (⏳ hardware testing); macOS over USB (tried with a Pro Controller), and the Pro Controller over Bluetooth LE (tried in the app); ⏳ Bluetooth on Windows and Linux (see Later); ⏳ Linux |
 | Steam Controller (USB, wireless receiver) and Steam Deck, with Steam's desktop mode turned off while remapping | ✅ Windows (⏳ hardware testing); ⏳ Bluetooth LE; ⏳ Linux |
 | Generic HID gamepads and joysticks, with a wizard that identifies the buttons | ✅ Windows (⏳ hardware testing); Linux reads them through evdev |
 | GameCube USB adapter (official and Wii U-mode clones) | ✅ Windows (⏳ hardware testing); ⏳ Linux |
@@ -164,14 +166,14 @@ to keep. Linux stays a preview in 1.0 (see [Platforms](#platforms)).
 
    | Responsibility | Status |
    |---|---|
-   | Read controllers | ✅ IOKit HID with the Windows backend's drivers (Sony, Nintendo, Steam, generic pads through their report descriptor), Switch 2 controllers started over their USB command channel; Apple's stand-in Xbox 360 pads left out (tried with a DualSense, a Switch Pro Controller and a Switch 2 Pro Controller on USB, and the Switch Pro Controller over Bluetooth) |
+   | Read controllers | ✅ IOKit HID with the Windows backend's drivers (Sony, Nintendo, Steam, generic pads through their report descriptor), Switch 2 controllers started over their USB command channel; Apple's stand-in Xbox 360 pads left out (tried with a DualSense, a Switch Pro Controller and a Switch 2 Pro Controller on USB, and both Pro Controllers over Bluetooth) |
    | Hide physical controllers | ✅ seizing the device, which keeps it from the GameController framework too; for every config that asks, as there is no virtual controller (tried with a DualSense and a Switch Pro Controller) |
    | Virtual controller | ❌ needs Apple's entitlement for virtual HID devices; the GameController framework may still ignore one |
    | Keyboard/mouse output | ✅ Quartz events, media keys as system events (tried: motion, clicks, wheel, keys, media keys) |
    | Keyboard/mouse capture | ✅ event tap (tried: a key remapped) |
    | Foreground app | ✅ the window server's window list, Wine games by their `.exe` (tried); installed Steam and Epic games suggested |
-   | Power commands, close window, screenshots | ✅ `loginwindow`, `pmset`, the accessibility API, `screencapture` (⏳ testing); no hibernate |
+   | Power commands, close window, screenshots | ✅ `loginwindow`, `pmset`, the accessibility API, `screencapture` (tried: sleep, close window, screenshots; ⏳ shut down, restart, log out); no hibernate |
    | Controller extras | ✅ batteries, lights, trigger effects and rumble through the drivers (tried: battery, DualSense light bar, player lights and rumble of Switch and Switch 2 controllers); keep-awake and the lock-screen pause (tried); ⏳ turning Sony pads off over Bluetooth |
-   | Desktop app | ✅ menu bar, overlays over full-screen games without taking the focus (tried: notifications over another program; ⏳ testing in games), start at login, `.dpgame` from the Finder, permissions in the driver list and welcome guide |
+   | Desktop app | ✅ menu bar, overlays over full-screen programs without taking the focus, as non-activating panels (tried: notifications over another program, crosshair and controller overlay over a video in full screen; ⏳ testing in games), start at login, `.dpgame` from the Finder, permissions in the driver list and welcome guide |
    | Download | ⏳ the release workflow builds a universal `.dmg` and the command-line tool; on a tag only with the repository variable `MACOS_RELEASES`; signing and notarization need an Apple Developer ID |
    | Not on macOS yet | virtual controllers, the GameCube adapter, Xbox controllers over USB, the crosshair magnifier, cursor clipping |

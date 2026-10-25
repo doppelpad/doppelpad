@@ -577,7 +577,7 @@ export interface Battery {
 }
 
 /** The drivers Doppelpad uses, by what they do, and what keyboard and mouse need from the OS (`Driver` in commands.rs). */
-export type Driver = 'virtual_pads' | 'device_hiding' | 'input_access';
+export type Driver = 'virtual_pads' | 'device_hiding' | 'input_access' | 'bluetooth';
 
 /** A newer version than the running one (`UpdateInfo` in updates.rs). */
 export interface UpdateInfo {
@@ -633,8 +633,10 @@ export interface LiveState {
   virtual_pad: string | null;
   hidden_devices: number;
   warnings: string[];
-  /** `input_access`: on macOS the Accessibility permission keyboard and mouse need; available elsewhere. */
-  drivers: { virtual_pads: DriverState; device_hiding: DriverState; input_access: DriverState };
+  /** `input_access`: on macOS the Accessibility permission keyboard and mouse need; available elsewhere.
+   * `bluetooth`: on macOS the Bluetooth permission Switch 2 controllers over Bluetooth need; not available
+   * elsewhere yet. */
+  drivers: { virtual_pads: DriverState; device_hiding: DriverState; input_access: DriverState; bluetooth: DriverState };
   /** Controllers with slots of their own. */
   device_slots: { id: string; slots: (string | null)[]; active_slot: number }[];
   /** Running profiles, the default session (`owner` null) first. */
@@ -649,6 +651,8 @@ export interface LiveState {
   mappings_overlay: boolean;
   /** How often the app-navigation hotkey fired; each change turns controller navigation on or off. */
   app_navigation: number;
+  /** The screenshot command's last run: how often it ran, the file it saved or why it saved none. */
+  screenshot: { count: number; file: string | null; error: string | null };
 }
 
 // ----- library --------------------------------------------------------------------------
@@ -816,6 +820,8 @@ export interface OsdSettings {
   keep_layer: boolean;
   controller: boolean;
   battery: boolean;
+  /** The screenshot command saved a screenshot, or could not. */
+  screenshot: boolean;
   /** Index into the monitors, the primary one first. */
   monitor: number;
   corner: Corner;
@@ -837,6 +843,7 @@ export type OsdEvent =
   | { kind: 'battery_low'; name: string; level: number }
   | { kind: 'battery_critical'; name: string; level: number }
   | { kind: 'steam_input'; game: string }
+  | { kind: 'screenshot'; file: string | null; error: string | null }
   | { kind: 'test' };
 
 export type OsdMessage = OsdEvent & { id: number; lang: string; opacity: number; scale: number; corner: Corner };

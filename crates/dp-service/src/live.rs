@@ -157,6 +157,19 @@ pub struct LiveState {
     /// How often the app-navigation hotkey fired; the app turns its controller navigation
     /// on or off at each change.
     pub app_navigation: u32,
+    /// The screenshot command's last run; the app tells of each new one.
+    pub screenshot: LiveScreenshot,
+}
+
+/// What the screenshot command did.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize)]
+pub struct LiveScreenshot {
+    /// How often it ran.
+    pub count: u32,
+    /// The file name of the screenshot it saved.
+    pub file: Option<String>,
+    /// Why it saved none.
+    pub error: Option<String>,
 }
 
 /// The slots of a controller that has its own.

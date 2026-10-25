@@ -1156,6 +1156,7 @@
       "keep_layer": "Keep it up while the layer is active",
       "controller": "Controller connected or disconnected",
       "battery": "Controller battery low (40 %) or critical (20 %)",
+      "screenshot": "Screenshot saved (or not)",
       "monitor": "Monitor",
       "primary": "Primary monitor ({size})",
       "monitor_n": "Monitor {n} ({size})",
@@ -1305,7 +1306,10 @@
     "not_allowed": "not allowed",
     "not_allowed_named": "{driver} not allowed",
     "not_on_macos": "not on macOS yet",
-    "open_settings": "Open settings"
+    "open_settings": "Open settings",
+    "bluetooth": "Bluetooth (Switch 2 controllers)",
+    "allow": "Allow",
+    "bluetooth_hint": "Hold the small pairing button on a Switch 2 Pro Controller until its lights run: Doppelpad connects it. Do it again after the controller was off."
   },
   "dirs": {
     "up": "Up",
@@ -1513,7 +1517,9 @@
     "battery_low": "Battery low: {level} %",
     "battery_critical": "Battery critical: {level} %",
     "steam_input": "Steam is running",
-    "steam_input_detail": "Buttons act twice? Turn off Steam Input for {game}."
+    "steam_input_detail": "Buttons act twice? Turn off Steam Input for {game}.",
+    "screenshot": "Screenshot saved",
+    "screenshot_failed": "No screenshot"
   },
   "overlays": {
     "no_mappings": "Nothing is mapped on this layer.",
