@@ -19,8 +19,11 @@
 # that `tauri signer generate` made (see docs/GUI.md#updates). For a signed and notarized macOS
 # app also APPLE_CERTIFICATE (the Developer ID Application certificate as base64 .p12),
 # APPLE_CERTIFICATE_PASSWORD, APPLE_SIGNING_IDENTITY, APPLE_ID, APPLE_PASSWORD (an app-specific
-# password) and APPLE_TEAM_ID; without them the app is signed ad hoc, and Gatekeeper asks
-# before its first start (docs/MACOS.md#install).
+# password) and APPLE_TEAM_ID. Until then MACOS_CERTIFICATE, MACOS_CERTIFICATE_PASSWORD and
+# MACOS_SIGNING_IDENTITY sign it with a self-signed certificate that
+# gui/scripts/macos-signing-certificate.sh made, so that macOS keeps its permissions across
+# updates; Gatekeeper still asks before its first start. Without either the app is signed ad
+# hoc (docs/MACOS.md#signing-releases).
 name: Release
 
 on:
@@ -321,9 +324,10 @@ jobs:
         working-directory: gui
         run: npm ci
 
-      # Without the Apple secrets the bundler signs ad hoc; set but empty, it would try a
-      # signing identity named "".
-      - name: Apple signing, if set up
+      # The best signing set up: a Developer ID (signed and notarized), else the self-signed
+      # certificate, else ad hoc. The bundler signs with APPLE_SIGNING_IDENTITY when it is set;
+      # set but empty, it would try an identity named "".
+      - name: Signing, as far as it is set up
         env:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
@@ -331,18 +335,46 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          MACOS_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
         run: |
-          if [ -z "$APPLE_SIGNING_IDENTITY" ]; then
-            echo "::warning::No Apple signing secrets: the macOS app is signed ad hoc"
+          if [ -n "$APPLE_SIGNING_IDENTITY" ]; then
+            for v in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID; do
+              {
+                echo "$v<<DP_SECRET"
+                printenv "$v"
+                echo "DP_SECRET"
+              } >> "$GITHUB_ENV"
+            done
             exit 0
           fi
-          for v in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID; do
-            {
-              echo "$v<<DP_SECRET"
-              printenv "$v"
-              echo "DP_SECRET"
-            } >> "$GITHUB_ENV"
-          done
+          if [ -z "$MACOS_CERTIFICATE" ]; then
+            echo "::warning::No signing secrets: the macOS app is signed ad hoc"
+            exit 0
+          fi
+          # The self-signed certificate, in a keychain of its own on this runner.
+          keychain="$RUNNER_TEMP/doppelpad-signing.keychain-db"
+          password=$(openssl rand -hex 16)
+          security create-keychain -p "$password" "$keychain"
+          security set-keychain-settings -t 3600 -u "$keychain"
+          security unlock-keychain -p "$password" "$keychain"
+          printf '%s' "$MACOS_CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/signing.p12"
+          security import "$RUNNER_TEMP/signing.p12" -k "$keychain" \
+            -P "$MACOS_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          rm "$RUNNER_TEMP/signing.p12"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$password" \
+            "$keychain" > /dev/null
+          # codesign signs only with identities in the keychain search list that are trusted
+          # for code signing, and no one vouches for a self-signed certificate: this runner
+          # trusts it, in the admin domain, which GitHub's runners let root change without a
+          # prompt (changing the authorization rule for it is refused).
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+          security find-certificate -c "$MACOS_SIGNING_IDENTITY" -p "$keychain" > "$RUNNER_TEMP/signing.pem"
+          sudo security add-trusted-cert -d -r trustRoot -p codeSign \
+            -k /Library/Keychains/System.keychain "$RUNNER_TEMP/signing.pem"
+          security find-identity -v -p codesigning "$keychain"
+          echo "APPLE_SIGNING_IDENTITY=$MACOS_SIGNING_IDENTITY" >> "$GITHUB_ENV"
 
       # `tauri build` with tauri.macos.conf.json for both kinds of Mac: the .app, the .dmg and
       # the updater's .app.tar.gz with its .sig. Like the Linux job, it adds them to the draft
@@ -359,6 +391,14 @@ jobs:
           tagName: ${{ env.RELEASE_ID && github.ref_name || '' }}
           releaseBody: ${{ needs.windows.outputs.notes }}
           releaseDraft: true
+
+      # The app's signature in the log: who signed it, and the requirement macOS ties its
+      # permissions to (stable across releases unless signed ad hoc).
+      - name: Signature
+        run: |
+          app=target/universal-apple-darwin/release/bundle/macos/Doppelpad.app
+          codesign -dvv "$app" 2>&1 | grep -E '^(Identifier|Authority|Signature|TeamIdentifier)='
+          codesign -d -r- "$app" 2>&1 | grep designated
 
       # `doppelpad` for both kinds of Mac in one file, with its licenses.
       - name: Command-line tool
