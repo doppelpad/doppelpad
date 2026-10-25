@@ -127,8 +127,8 @@ console. The controller does not ask for a faster connection: on Windows 10 its 
 arrives about 17 times a second once the connection has settled (faster only in the first
 20 seconds or so), against 250 over USB. That is enough for menus and slow games; use the
 cable for anything fast. Doppelpad asks Windows 11 for a faster connection. Only the Pro
-Controller connects over Bluetooth so far. On Windows 10 connecting, every button, motion
-and the battery level were tried; rumble, the player lights and turning it off not yet.
+Controller connects over Bluetooth so far. On Windows 10 connecting, every button, motion,
+the battery level, player light 1 and rumble were tried; turning it off not yet.
 
 reWASD keeps controllers to itself while it runs. The app offers to quit it at start-up
 (see [docs/GUI.md](docs/GUI.md#rewasd-running-at-start-up)).
