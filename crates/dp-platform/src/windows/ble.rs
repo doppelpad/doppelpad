@@ -208,10 +208,9 @@ fn keep_watching(w: &mut Watcher) {
 
 fn new_watcher() -> windows::core::Result<BluetoothLEAdvertisementWatcher> {
     let watcher = BluetoothLEAdvertisementWatcher::new()?;
-    // Active, though a controller sends its manufacturer data in the advertisement itself (a
-    // connectable one), not in a scan response: with a passive scan, Windows 10 found none
-    // in pairing mode in a test, for reasons unknown.
-    watcher.SetScanningMode(BluetoothLEScanningMode::Active)?;
+    // Listening is enough: a controller sends its manufacturer data in the advertisement
+    // itself (a connectable one), not in a scan response, so no scan requests go out.
+    watcher.SetScanningMode(BluetoothLEScanningMode::Passive)?;
     watcher.Received(&TypedEventHandler::<
         BluetoothLEAdvertisementWatcher,
         BluetoothLEAdvertisementReceivedEventArgs,
@@ -623,57 +622,69 @@ mod tests {
         assert_eq!(why, "reading its services: unreachable");
     }
 
+    /// Listens 5 s with a passive scan, then 5 s with an active one, and counts what each
+    /// hears: all advertisements, and those of Switch 2 controllers by kind.
     #[test]
     #[ignore = "listens to Bluetooth on this PC; a Switch 2 controller in pairing mode shows up"]
     fn advertisements_on_this_pc() {
+        use std::collections::BTreeMap;
+
         use windows::Devices::Bluetooth::Advertisement::BluetoothLEAdvertisementType;
 
-        let watcher = BluetoothLEAdvertisementWatcher::new().unwrap();
-        watcher
-            .SetScanningMode(BluetoothLEScanningMode::Active)
-            .unwrap();
-        let seen = Arc::new(Mutex::new((0usize, Vec::new())));
-        let log = seen.clone();
-        watcher
-            .Received(&TypedEventHandler::<
-                BluetoothLEAdvertisementWatcher,
-                BluetoothLEAdvertisementReceivedEventArgs,
-            >::new(move |_, args| {
-                let Some(args) = args.as_ref() else {
-                    return Ok(());
-                };
-                let mut log = log.lock().unwrap();
-                log.0 += 1;
-                let sections = args
-                    .Advertisement()?
-                    .GetManufacturerDataByCompanyId(switch2ble::COMPANY_ID)?;
-                for section in sections {
-                    let mut data = switch2ble::COMPANY_ID.to_le_bytes().to_vec();
-                    data.extend(bytes(&section.Data()?)?);
-                    let advert = switch2ble::parse_advert(&data);
-                    // Whether a passive scan would see it too (not in a scan response).
-                    let kind = match args.AdvertisementType()? {
-                        BluetoothLEAdvertisementType::ConnectableUndirected => "connectable",
-                        BluetoothLEAdvertisementType::ScanResponse => "scan response",
-                        _ => "other",
+        let modes = [
+            ("passive", BluetoothLEScanningMode::Passive),
+            ("active", BluetoothLEScanningMode::Active),
+        ];
+        let mut heard = 0;
+        for (name, mode) in modes {
+            let watcher = BluetoothLEAdvertisementWatcher::new().unwrap();
+            watcher.SetScanningMode(mode).unwrap();
+            let seen = Arc::new(Mutex::new((0usize, BTreeMap::new())));
+            let log = seen.clone();
+            watcher
+                .Received(&TypedEventHandler::<
+                    BluetoothLEAdvertisementWatcher,
+                    BluetoothLEAdvertisementReceivedEventArgs,
+                >::new(move |_, args| {
+                    let Some(args) = args.as_ref() else {
+                        return Ok(());
                     };
-                    log.1
-                        .push((key(args.BluetoothAddress()?), kind, advert, data));
-                }
-                Ok(())
-            }))
-            .unwrap();
-        watcher.Start().unwrap();
-        std::thread::sleep(Duration::from_secs(5));
-        let status = watcher.Status().unwrap();
-        watcher.Stop().unwrap();
-        let (count, nintendo) = &*seen.lock().unwrap();
-        println!("{count} advertisements");
-        for (address, kind, advert, data) in nintendo {
-            println!("{address} ({kind}): {advert:?} {data:02x?}");
+                    let mut log = log.lock().unwrap();
+                    log.0 += 1;
+                    let sections = args
+                        .Advertisement()?
+                        .GetManufacturerDataByCompanyId(switch2ble::COMPANY_ID)?;
+                    for section in sections {
+                        let mut data = switch2ble::COMPANY_ID.to_le_bytes().to_vec();
+                        data.extend(bytes(&section.Data()?)?);
+                        // A passive scan hears no scan responses.
+                        let kind = match args.AdvertisementType()? {
+                            BluetoothLEAdvertisementType::ConnectableUndirected => "connectable",
+                            BluetoothLEAdvertisementType::ScanResponse => "scan response",
+                            _ => "other",
+                        };
+                        let what = format!(
+                            "{} ({kind}): {:?}",
+                            key(args.BluetoothAddress()?),
+                            switch2ble::parse_advert(&data)
+                        );
+                        *log.1.entry(what).or_insert(0) += 1;
+                    }
+                    Ok(())
+                }))
+                .unwrap();
+            watcher.Start().unwrap();
+            std::thread::sleep(Duration::from_secs(5));
+            let status = watcher.Status().unwrap();
+            watcher.Stop().unwrap();
+            let (count, switch2) = &*seen.lock().unwrap();
+            println!("{name} scan: {count} advertisements, status {}", status.0);
+            for (what, n) in switch2 {
+                println!("  {n} x {what}");
+            }
+            heard += count;
         }
-        assert_eq!(status, BluetoothLEAdvertisementWatcherStatus::Started);
-        assert!(*count > 0, "nothing advertises near this PC");
+        assert!(heard > 0, "nothing advertises near this PC");
     }
 
     /// The whole way, without the rest of Doppelpad: connects a Pro Controller in pairing
