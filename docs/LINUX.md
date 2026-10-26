@@ -16,12 +16,12 @@ Doppelpad runs on Linux with only kernel interfaces. No extra drivers are needed
 > a DualSense and a Switch Pro Controller over USB, a USB keyboard and mouse, and the desktop
 > app. A second run on SteamOS 3.9 covered batteries, lights, turning off over Bluetooth,
 > keeping awake and the lock screen with a DualSense. A fourth run tried a Switch 2 Pro
-> Controller over Bluetooth with the command-line tool: connecting from pairing mode, every
-> button, the sticks, triggers and motion, the battery level, player light 1, rumble, turning
-> it off, and going away when turned off. The [results](LINUX-TESTING.md#results) list what works and
-> what is still open. DualShock 4, Joy-Cons, Switch controllers over Bluetooth, the Switch 2
-> Pro Controller in the app, other distributions and Game Mode are untested. Reports from
-> Linux users are very welcome.
+> Controller over Bluetooth with the command-line tool and the app: connecting from pairing
+> mode, every button, the sticks, triggers and motion, the battery level, player light 1,
+> rumble, turning it off, and going away when turned off. The
+> [results](LINUX-TESTING.md#results) list what works and what is still open. DualShock 4,
+> Joy-Cons, Switch controllers over Bluetooth, other distributions and Game Mode are
+> untested. Reports from Linux users are very welcome.
 
 ## Install
 

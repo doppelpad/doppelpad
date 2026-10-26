@@ -248,8 +248,8 @@ examples in [`profiles/examples/`](profiles/examples).
 
 The Linux column was tested on a Steam Deck (SteamOS 3.8 and 3.9, desktop mode) with a
 DualSense over USB and Bluetooth and a Switch Pro Controller over USB, and a Switch 2 Pro
-Controller over Bluetooth with the command-line tool; DualShock 4, Joy-Cons and Switch
-controllers over Bluetooth are untested. Linux setup (udev
+Controller over Bluetooth; DualShock 4, Joy-Cons and Switch controllers over Bluetooth are
+untested. Linux setup (udev
 rule for `/dev/uinput` and `/dev/input`, not needed on SteamOS) is in
 [docs/LINUX.md](docs/LINUX.md), the hardware test checklist and its results in
 [docs/LINUX-TESTING.md](docs/LINUX-TESTING.md).
