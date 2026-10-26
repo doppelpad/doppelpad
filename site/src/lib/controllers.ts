@@ -79,8 +79,8 @@ const PADS: Pad[] = [
     back: 'switch2proBack',
     family: 'nintendo',
     note: {
-      en: 'Over USB and Bluetooth on Windows, with the GL and GR buttons (awaiting hardware tests; over Bluetooth Windows 10 reads it unevenly, 17 to about 50 times a second, against 250 over USB). Linux is planned.',
-      de: 'Über USB und Bluetooth unter Windows, mit den Tasten GL und GR (Hardwaretest steht aus; über Bluetooth liest Windows 10 ihn ungleichmäßig 17- bis etwa 50-mal pro Sekunde, über USB 250-mal). Linux ist geplant.',
+      en: 'Over USB and Bluetooth on Windows, with the GL and GR buttons (awaiting hardware tests; over Bluetooth Windows 10 reads it unevenly, 17 to about 50 times a second, against 250 over USB). On Linux over Bluetooth, about 20 times a second.',
+      de: 'Über USB und Bluetooth unter Windows, mit den Tasten GL und GR (Hardwaretest steht aus; über Bluetooth liest Windows 10 ihn ungleichmäßig 17- bis etwa 50-mal pro Sekunde, über USB 250-mal). Unter Linux über Bluetooth, etwa 20-mal pro Sekunde.',
     },
   },
   {

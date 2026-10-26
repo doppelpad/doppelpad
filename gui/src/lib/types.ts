@@ -635,7 +635,7 @@ export interface LiveState {
   warnings: string[];
   /** `input_access`: on macOS the Accessibility permission keyboard and mouse need; available elsewhere.
    * `bluetooth`: what Switch 2 controllers over Bluetooth need: on macOS the Bluetooth permission, on Windows
-   * a Bluetooth LE adapter that is on; not available on Linux yet. */
+   * a Bluetooth LE adapter that is on, on Linux BlueZ with an adapter that is on. */
   drivers: { virtual_pads: DriverState; device_hiding: DriverState; input_access: DriverState; bluetooth: DriverState };
   /** Controllers with slots of their own. */
   device_slots: { id: string; slots: (string | null)[]; active_slot: number }[];

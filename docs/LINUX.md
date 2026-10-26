@@ -5,6 +5,7 @@ Doppelpad runs on Linux with only kernel interfaces. No extra drivers are needed
 | Need | Linux backend (`crates/dp-platform/src/linux`) |
 |---|---|
 | Read controllers | evdev (`/dev/input/event*`). DualShock 4 / DualSense motion sensors and touchpad come from their own event nodes and are merged into the controller. |
+| Switch 2 controllers over Bluetooth | BlueZ finds them, Doppelpad connects them itself on an L2CAP socket (see [below](#switch-2-controllers-over-bluetooth)) |
 | Hide the physical controller | `EVIOCGRAB` on the controller's event nodes |
 | Virtual controller | uinput Xbox 360 pad (`045e:028e`, laid out like the kernel's `xpad` driver, with rumble) |
 | Keyboard / mouse output | uinput keyboard + mouse (with high-resolution wheel) |
@@ -14,11 +15,13 @@ Doppelpad runs on Linux with only kernel interfaces. No extra drivers are needed
 > **Status:** first tested on real hardware on a Steam Deck (SteamOS 3.8, desktop mode) with
 > a DualSense and a Switch Pro Controller over USB, a USB keyboard and mouse, and the desktop
 > app. A second run on SteamOS 3.9 covered batteries, lights, turning off over Bluetooth,
-> keeping awake and the lock screen with a DualSense. The [results](LINUX-TESTING.md#results)
-> list what works and what is still open.
-> DualShock 4, Joy-Cons, Switch controllers over Bluetooth, other distributions and Game Mode
-> are untested. Reports
-> from Linux users are very welcome.
+> keeping awake and the lock screen with a DualSense. A fourth run tried a Switch 2 Pro
+> Controller over Bluetooth with the command-line tool and the app: connecting from pairing
+> mode, every button, the sticks, triggers and motion, the battery level, player light 1,
+> rumble, turning it off, and going away when turned off. The
+> [results](LINUX-TESTING.md#results) list what works and what is still open. DualShock 4,
+> Joy-Cons, Switch controllers over Bluetooth, other distributions and Game Mode are
+> untested. Reports from Linux users are very welcome.
 
 ## Install
 
@@ -108,9 +111,11 @@ Joy-Cons from hid-nintendo:
 - The IMU node reports in Nintendo's axes (x toward the triggers, y left, z up); Doppelpad
   converts them to its own (pitch, yaw, roll).
 
-Switch 2 controllers are not supported on Linux yet: without a kernel driver they stay silent
-until their USB vendor interface is initialised, which only the Windows backend does today.
-On SteamOS 3.8, Steam doesn't initialise a Switch 2 Pro Controller either.
+Over USB, Switch 2 controllers are not supported on Linux yet: without a kernel driver they
+stay silent until their USB vendor interface is initialised, which only the Windows and macOS
+backends do today. On SteamOS 3.8, Steam doesn't initialise a Switch 2 Pro Controller either.
+Over Bluetooth, Doppelpad connects them itself (see
+[below](#switch-2-controllers-over-bluetooth)).
 
 hid-playstation and hid-nintendo create extra nodes, "… Motion Sensors" / "(IMU)" and
 "… Touchpad", on the same parent device. Doppelpad attaches them to the controller:
@@ -145,6 +150,47 @@ goes to the controller's HID device in sysfs, and to BlueZ:
 Controller ids look like `evdev:054c:0ce6:a0:b1:c2:d3:e4:f5`: vendor and product id, then the
 Bluetooth address, the USB port or the device node, so a controller keeps its id when it
 reconnects. Its event node is what gets hidden.
+
+### Switch 2 controllers over Bluetooth
+
+Over Bluetooth, Switch 2 controllers speak Bluetooth Low Energy with Nintendo's own protocol
+rather than HID, and drop the link when a computer tries to pair them the standard way. Don't
+pair them in the desktop's Bluetooth settings (remove one that is listed there); Doppelpad
+connects them itself:
+
+1. Bluetooth must be on. `doppelpad doctor` and Settings › Drivers in the app show whether it
+   is.
+2. Hold the small pairing button on top of the controller until its lights run. Doppelpad
+   connects it within a few seconds and lights player 1.
+
+It works without pairing, so the controller stays paired with its console, and has to be put
+into pairing mode again after it was off. A controller that only looks for its console (a
+button pressed while it is off) is left alone, so Doppelpad never takes it from a Switch 2
+nearby. Nothing needs setting up: no udev rule, no root.
+
+How it works: while Doppelpad runs, it keeps a Bluetooth LE discovery of its own running in
+BlueZ, which reports the controllers' advertisements. For a controller in pairing mode,
+Doppelpad opens an L2CAP socket on its Attribute Protocol channel (which needs no privileges),
+finds its characteristics and switches its input on, the way Windows and macOS do it.
+BlueZ's own `Connect` cannot be used: its GATT client never finishes reading these
+controllers, whose Generic Attribute service is empty, and stops after 30 s without a
+single characteristic. Closing the socket ends the link, so a controller is let go when
+Doppelpad quits; in the test it then turned off.
+
+- Only the Pro Controller for now; the GameCube controller and the Joy-Con 2 are not
+  connected.
+- BlueZ's default connection interval sets the pace, which the controller never asks to
+  change: about 20 reports a second, 17 to 19 after the first 20 seconds or so (measured on a
+  Steam Deck), against 250 over USB on other systems. That is enough for menus and slower
+  games, but less smooth in fast ones.
+- Input, motion, the battery level, player lights and rumble work as on Windows and macOS.
+  No other program sees the controller, so there is nothing to hide.
+- A controller that is turned off is let go within half a second.
+- Turning it off (the `power_off` command, and the idle time) ends its link, as quitting
+  Doppelpad does, and the controller switches off (tried).
+- Steam keeps a discovery of its own running on SteamOS. While one runs, the adapter may hold
+  back the advertisement the connection waits for, so Doppelpad starts the scan over when the
+  controller has not connected after 2 seconds; connecting took 0.4 s in the tests.
 
 ### Hiding
 
@@ -295,6 +341,11 @@ fail without a warning.
 - **Another program holds the device** ("EVIOCGRAB … Device or resource busy"). Only one
   program can grab a device. Stop other remappers (input-remapper, keyd, Steam Input for
   that controller) first.
+- **A Switch 2 controller doesn't connect over Bluetooth:**
+  - `doppelpad doctor` should say `ok` for Bluetooth: BlueZ (`bluetoothd`) running, with an
+    adapter that is on.
+  - Remove the controller from the desktop's Bluetooth settings if it was paired there.
+  - `DOPPELPAD_LOG=info,dp_platform::linux::ble=debug doppelpad monitor` shows each step.
 - **Debug logging:** `doppelpad --log dp_platform=debug run …`, or set
   `DOPPELPAD_LOG=dp_platform=debug`.
 
@@ -308,6 +359,9 @@ The backend was written from public kernel interfaces and documentation:
   axis ranges, and the names of their batteries and LEDs
 - `Documentation/ABI/testing/sysfs-class-power` and `sysfs-class-led-multicolor`
 - the D-Bus interfaces of systemd-logind (`org.freedesktop.login1`) and BlueZ
+- for Switch 2 controllers over Bluetooth: ndeadly's `switch2_controller_research`
+  (`bluetooth_interface.md`), the Attribute Protocol in the Bluetooth Core Specification
+  (Vol 3, Part F), and `struct sockaddr_l2` in BlueZ's `lib/l2cap.h`
   (`org.bluez.Device1`)
 
 It uses the MIT/Apache-licensed `evdev` and `x11rb` crates.

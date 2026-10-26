@@ -56,7 +56,7 @@ pub enum Driver {
     DeviceHiding,
     /// What keyboard and mouse need from the OS: on macOS the Accessibility permission.
     InputAccess,
-    /// Switch 2 controllers over Bluetooth: on macOS the Bluetooth permission, on Windows
+    /// Switch 2 controllers over Bluetooth: on macOS the Bluetooth permission, elsewhere
     /// Bluetooth itself.
     Bluetooth,
 }

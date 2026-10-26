@@ -1,5 +1,6 @@
 //! The raw-HID backend of Windows and macOS: DualShock 4, DualSense, Nintendo Switch pads,
-//! Steam controllers and other HID gamepads (read through their report descriptor).
+//! Steam controllers and other HID gamepads (read through their report descriptor). On Linux,
+//! where evdev reads the controllers, it runs only Switch 2 controllers over Bluetooth LE.
 //!
 //! A scanner thread, which each OS provides, re-enumerates HID devices every couple of seconds
 //! and starts one thread per supported controller. That thread owns the device: it runs the
@@ -146,7 +147,8 @@ pub(crate) struct Found {
     /// What hides it (see [`DeviceInfo::instance_paths`]).
     pub instance_paths: Vec<String>,
     pub bluetooth: bool,
-    /// The controller's Bluetooth address (Sony pads report it as their serial number).
+    /// The controller's Bluetooth address, for a pad that is turned off by dropping its link
+    /// (Sony pads report it as their serial number).
     pub bt_address: Option<u64>,
 }
 
@@ -542,6 +544,8 @@ pub(crate) struct HidBackend {
     /// Woken for an immediate scan that also retries skipped interfaces.
     scanner: Rescanner,
     disconnect: Disconnect,
+    /// Runs once the backend stopped (see [`HidBackend::on_drop`]).
+    stopped: Option<fn()>,
 }
 
 impl HidBackend {
@@ -559,7 +563,15 @@ impl HidBackend {
             devices,
             scanner,
             disconnect,
+            stopped: None,
         }
+    }
+
+    /// Run `stopped` when the backend is dropped, after every driver restored its device.
+    #[cfg_attr(not(target_os = "linux"), allow(dead_code))] // only Linux has links to let go
+    pub(crate) fn on_drop(mut self, stopped: fn()) -> Self {
+        self.stopped = Some(stopped);
+        self
     }
 
     /// The devices, for a hider that opens them exclusively.
@@ -574,6 +586,9 @@ impl Drop for HidBackend {
         // No new device may come in once the list is drained.
         self.scanner.stop();
         self.devices.stop_all();
+        if let Some(stopped) = self.stopped {
+            stopped();
+        }
     }
 }
 
@@ -631,7 +646,8 @@ impl GamepadBackend for HidBackend {
             if !d.is(id) || !d.bluetooth {
                 continue;
             }
-            // Sony pads have no off command: their Bluetooth link is dropped instead.
+            // Sony pads, and Switch 2 pads over Bluetooth LE on Linux, have no off command:
+            // their Bluetooth link is dropped instead.
             if let Some(addr) = d.bt_address {
                 return match (self.disconnect)(addr) {
                     Ok(()) => true,
