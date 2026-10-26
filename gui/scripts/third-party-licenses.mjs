@@ -172,11 +172,12 @@ function mergeAbout(results) {
   return { crates: [...crates.values()], licenses: [...licenses.values()] };
 }
 
-// Crates and their texts from cargo-about's JSON output.
-function rustFromAbout(about) {
+// Crates and their texts from cargo-about's JSON output, of the crates in `shipped`.
+function rustFromAbout(about, shipped) {
   const crates = new Map();
   for (const { package: p } of about.crates) {
     if (!p.source) continue; // a workspace member: Doppelpad itself
+    if (!shipped.has(label(p))) continue;
     crates.set(p.id, {
       name: p.name,
       version: p.version,
@@ -425,7 +426,16 @@ async function generate() {
   } finally {
     await rm(tmp, { recursive: true, force: true });
   }
-  const rust = rustFromAbout(about);
+  // cargo-about resolves the features of normal and build dependencies together, so a crate
+  // that only a build script uses can come along: swift-rs (and base64 0.21 with it), which
+  // tauri-build uses on macOS. cargo tree, like cargo, keeps them apart; those crates are not
+  // in the programs, so they are left out.
+  const all = shippedCrates(TARGETS, { linked: false });
+  const buildOnly = [...new Set(about.crates.filter((c) => c.package.source).map((c) => label(c.package)))]
+    .filter((x) => !all.has(x))
+    .sort();
+  if (buildOnly.length) console.log(`third-party-licenses: left out, only build scripts use them: ${buildOnly.join(', ')}`);
+  const rust = rustFromAbout(about, all);
   const packages = await shippedPackages();
   const texts = [...rust.texts, ...packages.flatMap((p) => npmTexts(p, rust.crates))];
 
@@ -433,9 +443,6 @@ async function generate() {
   const fromAbout = new Set(rust.crates.map(label));
   const unlisted = [...shippedCrates(TARGETS, { linked: true })].filter((x) => !fromAbout.has(x));
   if (unlisted.length) fail(`cargo-about did not list these crates: ${unlisted.sort().join(', ')}`);
-  const all = shippedCrates(TARGETS, { linked: false });
-  const unknown = [...fromAbout].filter((x) => !all.has(x));
-  if (unknown.length) fail(`cargo-about lists crates that cargo tree does not: ${unknown.sort().join(', ')}`);
 
   const groups = groupTexts(texts);
   await writeFile(OUT_FILE, render(rust.crates, packages, groups));
