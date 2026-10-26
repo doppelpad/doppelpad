@@ -1,5 +1,6 @@
-//! Linux backends: evdev input, uinput virtual pad and keyboard/mouse output, `EVIOCGRAB`
-//! device hiding and capture, and X11 foreground detection.
+//! Linux backends: evdev input, Switch 2 controllers over Bluetooth LE through BlueZ, uinput
+//! virtual pad and keyboard/mouse output, `EVIOCGRAB` device hiding and capture, and X11
+//! foreground detection.
 //!
 //! Needs read access to `/dev/input/event*` and write access to `/dev/uinput`; see
 //! `docs/LINUX.md` for the udev rule. Everything Doppelpad creates through uinput carries a
@@ -7,12 +8,13 @@
 //! devices (the Linux counterpart of the `VirtualIgnoreList` on Windows).
 //!
 //! The pure translation code (`codes`, `padmap`, `x360`, `kbmmap`, `procname`, `sysfs`,
-//! `logind`, `appimage`) also compiles in tests on other OSes, so it is unit-tested
+//! `logind`, `appimage`, `att`) also compiles in tests on other OSes, so it is unit-tested
 //! everywhere.
 
 #![cfg_attr(not(target_os = "linux"), allow(dead_code))]
 
 mod appimage;
+mod att;
 mod codes;
 mod kbmmap;
 mod logind;
@@ -21,6 +23,8 @@ mod procname;
 mod sysfs;
 mod x360;
 
+#[cfg(target_os = "linux")]
+mod ble;
 #[cfg(target_os = "linux")]
 mod capture;
 #[cfg(target_os = "linux")]
@@ -62,12 +66,13 @@ pub fn platform() -> crate::Platform {
             virtual_pads: dev::check_uinput(),
             device_hiding: Ok(()),
             input_access: Ok(()),
-            bluetooth: Err(crate::PlatformError::Unsupported(
-                "Switch 2 controllers over Bluetooth",
-            )),
+            bluetooth: ble::check(),
             hiding_problems: Vec::new(),
         },
-        gamepads: vec![Box::new(crate::joycon::JoyConCombiner::new(gamepads))],
+        gamepads: vec![
+            Box::new(crate::joycon::JoyConCombiner::new(gamepads)),
+            Box::new(ble::backend()),
+        ],
         virtual_pads: Box::new(uinput::UinputFactory::default()),
         kbm_out: Box::new(uinput::UinputKbm::new()),
         kbm_capture: Box::new(capture::GrabCapture::default()),

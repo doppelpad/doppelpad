@@ -687,112 +687,12 @@ mod tests {
         assert!(heard > 0, "nothing advertises near this PC");
     }
 
-    /// The whole way, without the rest of Doppelpad: connects a Pro Controller in pairing
-    /// mode, starts its driver (player light 1 comes on), rumbles in the first second and
-    /// then reports second by second what arrives (sticks and triggers as their largest
-    /// deflection), until the controller is let go (polled once a second, as the scanner
-    /// does), or 30 s after its input stopped. Run with `--nocapture`, hold the pairing
-    /// button, then press buttons, move the sticks, pull the triggers, tilt it, and turn it
-    /// off at the end.
+    /// Connects a Pro Controller in pairing mode near this PC and drives it for a while; see
+    /// [`switch2gatt::drive_controller`]. Run with `--nocapture`.
     #[test]
     #[ignore = "connects a Switch 2 Pro Controller in pairing mode near this PC"]
     fn switch2_pro_over_bluetooth() {
-        use dp_core::pad::{Axis, PadButton, Rumble};
-
-        use crate::hidhost::{HidHandle, Wait};
-        use crate::nintendo::switch2::Switch2Driver;
-        use crate::padio::PadDriver;
-
-        println!("hold the pairing button until the lights run");
-        let until = Instant::now() + Duration::from_secs(60);
-        let mut pad = None;
-        while pad.is_none() && Instant::now() < until {
-            pad = poll().ready.pop();
-            std::thread::sleep(Duration::from_millis(100));
-        }
-        let Ready {
-            id,
-            advert,
-            mut io,
-            commands,
-            ..
-        } = pad.expect("no controller in pairing mode connected");
-        let mut driver = Switch2Driver::bluetooth(advert.model, Box::new(commands));
-        let started = Instant::now();
-        let identity = driver.init(&mut io).expect("the driver starts");
-        println!(
-            "{id}: {} started in {} ms; player light 1 should be on",
-            identity.name,
-            started.elapsed().as_millis()
-        );
-
-        const AXES: [Axis; 6] = [
-            Axis::LeftX,
-            Axis::LeftY,
-            Axis::RightX,
-            Axis::RightY,
-            Axis::LeftTrigger,
-            Axis::RightTrigger,
-        ];
-        let mut last_report = Instant::now();
-        for second in 1.. {
-            let _ = poll();
-            let rumble = if second == 1 {
-                Rumble {
-                    low: 0.6,
-                    high: 0.6,
-                }
-            } else {
-                Rumble::default()
-            };
-            let end = Instant::now() + Duration::from_secs(1);
-            let (mut reports, mut motion, mut pressed) = (0u32, false, Vec::new());
-            let mut peak = [0.0f32; 6];
-            while Instant::now() < end {
-                match io.wait(Duration::from_millis(20)) {
-                    Ok(Wait::Report(_)) => {
-                        reports += 1;
-                        last_report = Instant::now();
-                        if let Some(s) = driver.parse(io.report(), last_report) {
-                            motion |= s.motion.is_some();
-                            for b in PadButton::ALL.iter().filter(|b| s.pressed(**b)) {
-                                if !pressed.contains(&b.name()) {
-                                    pressed.push(b.name());
-                                }
-                            }
-                            for (p, a) in peak.iter_mut().zip(AXES) {
-                                if s.axis(a).abs() > p.abs() {
-                                    *p = s.axis(a);
-                                }
-                            }
-                        }
-                    }
-                    Ok(Wait::Woken | Wait::Timeout) => {}
-                    Err(e) => {
-                        println!(
-                            "second {second}: the controller was let go, {:.1} s after its \
-                             last report ({e})",
-                            last_report.elapsed().as_secs_f32()
-                        );
-                        return;
-                    }
-                }
-                if let Err(e) = driver.service(&mut io, rumble) {
-                    println!("second {second}: rumble failed: {e}");
-                }
-            }
-            println!(
-                "second {second}: {reports} reports, motion {motion}, battery {:?}, \
-                 sticks {:+.2?}, triggers {:.2?}, pressed {pressed:?}",
-                driver.battery().map(|b| b.level),
-                &peak[..4],
-                &peak[4..],
-            );
-            if last_report.elapsed() > Duration::from_secs(30) {
-                println!("the controller was not let go 30 s after its input stopped");
-                return;
-            }
-        }
+        switch2gatt::drive_controller(poll);
     }
 
     #[test]

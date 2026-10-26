@@ -126,7 +126,8 @@ On Windows:
   the thread pool; a `dp-ble-connect` thread sets up each Switch 2 controller that is found.
 
 On Windows and macOS the HID controllers share one backend (`dp-platform/src/hidhost.rs`);
-each OS brings the scanner that finds and opens them.
+each OS brings the scanner that finds and opens them. On Linux it runs only the Switch 2
+controllers connected over Bluetooth.
 
 On Linux:
 
@@ -136,6 +137,9 @@ On Linux:
 - **uinput FF thread** per virtual pad: answers games' rumble uploads.
 - **capture scanner plus one thread per grabbed keyboard/mouse:** these re-inject
   unsuppressed events through a passthrough device.
+- **Bluetooth:** `dp-ble` follows BlueZ's D-Bus signals; a `dp-ble-connect` thread sets up
+  each Switch 2 controller that is found, a `dp-ble-input` thread reads it, and its device
+  thread runs in the HID backend as on Windows and macOS.
 
 On macOS:
 
@@ -172,6 +176,7 @@ limitations in a future backend.
 | Need | Doppelpad on Linux |
 |---|---|
 | Read controllers | evdev; hid-playstation / hid-nintendo motion and touchpad nodes merged in |
+| Switch 2 over Bluetooth | a BlueZ discovery (D-Bus, `zbus`) finds a pad in pairing mode; Doppelpad connects it on an L2CAP socket on its ATT channel and speaks ATT itself (`linux/att.rs`), as BlueZ's GATT client never finishes reading these pads; it runs in the HID backend like the Windows and macOS ones (`linux/ble.rs`, shared link in `switch2gatt.rs`) |
 | Hide the physical pad | `EVIOCGRAB` through a duplicate of the reader's descriptor, so Doppelpad keeps reading |
 | Virtual controller | uinput Xbox 360 pad (`045e:028e`, xpad layout) with `FF_RUMBLE` fed back |
 | Keyboard/mouse capture | `EVIOCGRAB` per device + one uinput passthrough device each |

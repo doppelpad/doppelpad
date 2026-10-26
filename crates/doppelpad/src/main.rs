@@ -453,7 +453,6 @@ fn doctor() -> Result<()> {
         "Accessibility (keyboard/mouse): {}",
         ok(drivers.input_access)
     );
-    #[cfg(any(windows, target_os = "macos"))]
     println!("Bluetooth (Switch 2 pads):      {}", ok(drivers.bluetooth));
     match dp_config::portable_dir() {
         Some(dir) => println!(

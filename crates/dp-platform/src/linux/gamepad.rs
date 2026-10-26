@@ -525,9 +525,12 @@ impl Scanner {
             let id = dev.input_id();
             if crate::nintendo::is_switch2(id.vendor(), id.product()) {
                 // Without a kernel driver these stay silent until their USB vendor interface
-                // is initialised, which the Linux backend does not do yet.
+                // is initialised, which the Linux backend does not do yet. Over Bluetooth they
+                // have no input node; `ble` connects them.
                 if !self.warned_switch2 {
-                    tracing::warn!("Switch 2 controllers are not supported on Linux yet");
+                    tracing::warn!(
+                        "Switch 2 controllers are not supported on Linux over USB yet, only over Bluetooth"
+                    );
                     self.warned_switch2 = true;
                 }
                 self.nodes.ignore(path);

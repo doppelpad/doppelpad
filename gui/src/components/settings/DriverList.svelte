@@ -20,9 +20,9 @@
   // "missing" at the right and the error as tooltip; `row` (welcome guide): a missing driver's
   // row in the warning colour, with a download button. On macOS the permission keyboard and
   // mouse need instead, with a button to its settings, and virtual controllers as not there yet.
-  // In the settings on macOS and Windows also Bluetooth, which only Switch 2 controllers over
-  // Bluetooth need, so it is never missing: on macOS its permission, on Windows whether it is
-  // there and on.
+  // In the settings also Bluetooth, which only Switch 2 controllers over Bluetooth need, so it is
+  // never missing: on macOS its permission, elsewhere whether it is there and on, with a button
+  // to Windows' Bluetooth settings (Linux desktops have no one place for them).
   import { CircleAlert, CircleCheck } from '@lucide/svelte';
   import { api } from '../../lib/api';
   import { t } from '../../lib/i18n/index.svelte';
@@ -38,11 +38,7 @@
   const macPads = $derived(
     mac && tone === 'icon' && app.live ? [{ key: 'virtual_pads' as const, state: app.live.drivers.virtual_pads }] : [],
   );
-  const bluetooth = $derived(
-    (mac || platform === 'windows') && tone === 'icon' && app.live
-      ? [{ key: 'bluetooth' as const, state: app.live.drivers.bluetooth }]
-      : [],
-  );
+  const bluetooth = $derived(tone === 'icon' && app.live ? [{ key: 'bluetooth' as const, state: app.live.drivers.bluetooth }] : []);
 
   /** A permission the user gives in macOS's settings rather than a driver to install. */
   const permission = (key: Driver) => key === 'input_access' || key === 'bluetooth';
@@ -67,7 +63,7 @@
         <span class="state">{missing(d.key)}</span>
         {#if d.key === 'input_access'}
           <button class="btn" onclick={() => app.attempt(api.openDriverPage(d.key))}>{t('drivers.open_settings')}</button>
-        {:else if d.key === 'bluetooth'}
+        {:else if d.key === 'bluetooth' && platform !== 'linux'}
           <button class="btn" onclick={() => app.attempt(api.openDriverPage(d.key))}>
             {t(mac ? 'drivers.allow' : 'drivers.open_settings')}
           </button>

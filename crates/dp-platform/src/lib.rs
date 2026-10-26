@@ -36,7 +36,7 @@ pub mod generic;
 pub mod groups;
 #[cfg(any(target_os = "macos", test))]
 pub(crate) mod hiddesc;
-#[cfg(any(windows, target_os = "macos", test))]
+#[cfg(any(windows, target_os = "linux", target_os = "macos", test))]
 pub(crate) mod hidhost;
 pub mod holders;
 pub mod joycon;
@@ -57,7 +57,7 @@ pub mod scan;
 pub mod sony;
 pub mod steam;
 pub mod stores;
-#[cfg(any(windows, target_os = "macos", test))]
+#[cfg(any(windows, target_os = "linux", target_os = "macos", test))]
 pub(crate) mod switch2gatt;
 #[cfg(any(windows, target_os = "macos"))]
 pub(crate) mod switch2usb;
@@ -541,8 +541,8 @@ pub struct DriverReport {
     /// permission, which the user grants; elsewhere there is nothing to ask for.
     pub input_access: Result<()>,
     /// Whether Switch 2 controllers can be connected over Bluetooth LE: on macOS the
-    /// Bluetooth permission, on Windows a Bluetooth LE adapter that is on; not available on
-    /// Linux yet.
+    /// Bluetooth permission, on Windows a Bluetooth LE adapter that is on, on Linux BlueZ with
+    /// an adapter that is on.
     pub bluetooth: Result<()>,
     /// Connected devices the hiding driver keeps from Doppelpad, explained for the user.
     pub hiding_problems: Vec<String>,

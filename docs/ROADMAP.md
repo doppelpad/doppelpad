@@ -44,18 +44,20 @@ to keep. Linux stays a preview in 1.0 (see [Platforms](#platforms)).
 
 - Linux beyond the preview: virtual DualShock 4, the Steam Controller and the Steam Deck's own
   controls, native Wayland (foreground app, overlays), screenshots, DualSense trigger effects,
-  Switch 2 controllers, the GameCube adapter, generic-pad layouts; tests with DualShock 4,
-  Joy-Cons, Bluetooth and other distributions.
+  Switch 2 controllers over USB, the GameCube adapter, generic-pad layouts; tests with
+  DualShock 4, Joy-Cons, Bluetooth and other distributions.
 - macOS beyond the preview: tests on real hardware (keyboard and mouse, overlays over games,
   Bluetooth and other controllers), signing and notarization, release builds, virtual
   controllers (an entitlement from Apple), the GameCube adapter (see [Platforms](#platforms)).
-- More controllers: Switch 2 over Bluetooth on Linux, Wii Remote, DualShock 3, analog
-  keyboards. Switch 2 controllers speak Bluetooth Low Energy with Nintendo's own protocol, not
-  HID: no system pairs them as a controller, so Doppelpad connects them itself (done with
-  CoreBluetooth on macOS and WinRT on Windows; an ATT socket on Linux). The pads never ask for
-  a faster connection, so the host's default sets the input rate: about 33 Hz on macOS; on Windows 10
-  unevenly, at times a steady 17 Hz, at times 15–105 reports a second (about 45 on average;
-  measured, what switches between the two is not known); 20–33 Hz on Linux unless BlueZ is configured otherwise. Doppelpad asks Windows 11 for a faster one.
+- More controllers: the Switch 2 GameCube controller and Joy-Con 2 over Bluetooth, Wii Remote,
+  DualShock 3, analog keyboards. Switch 2 controllers speak Bluetooth Low Energy with
+  Nintendo's own protocol, not HID: no system pairs them as a controller, so Doppelpad
+  connects them itself (done for the Pro Controller with CoreBluetooth on macOS, WinRT on
+  Windows and an ATT socket of its own on Linux). The pads never ask for a faster connection,
+  so the host's default sets the input rate: about 33 Hz on macOS; on Windows 10 unevenly, at
+  times a steady 17 Hz, at times 15–105 reports a second (about 45 on average; measured, what
+  switches between the two is not known); on Linux with BlueZ's defaults about 20 Hz, 17–19
+  after the first 20 s (measured on a Steam Deck). Doppelpad asks Windows 11 for a faster one.
 - More from imported JSON profiles: crosshair shapes, radial-menu icons, mouse regions, rumble
   mode, virtual gyro stick values.
 - Overlays in `doppelpad daemon`, not only in the app.
@@ -105,7 +107,7 @@ to keep. Linux stays a preview in 1.0 (see [Platforms](#platforms)).
 | Light bar colours and animations, the game's light bar colour, player LEDs per slot, DualSense mic LED | ✅ USB and Bluetooth (⏳ hardware testing); Linux: light bar and player LEDs through the driver's LED devices, no mic LED (tested with a DualSense) |
 | DualSense adaptive trigger effects (presets and custom) | ✅ (⏳ hardware testing) |
 | Vibration settings (motor strength, swap, minimum gap); rumble for Sony controllers over Bluetooth | ✅ (⏳ hardware testing) |
-| Turn wireless controllers off (command and idle timeout) | ✅ Windows (⏳ hardware testing); Linux: Sony and Switch controllers over Bluetooth through BlueZ (tested with a DualSense) |
+| Turn wireless controllers off (command and idle timeout) | ✅ Windows (⏳ hardware testing); Linux: Sony and Switch controllers over Bluetooth through BlueZ (tested with a DualSense), the Switch 2 Pro Controller over Bluetooth by ending its link (⏳ hardware testing) |
 | Keep the PC awake while mappings run, pause on the lock screen, optional pause when the game is not in front | ✅ Windows; Linux: keep-awake and the lock-screen pause through logind (tested on a Steam Deck) |
 | DSU (cemuhook) motion server for emulators | ✅ (⏳ testing with emulators) |
 | Local HTTP API with event stream ([API.md](API.md)) | ✅ off by default; localhost only, network access with a token |
@@ -121,7 +123,7 @@ to keep. Linux stays a preview in 1.0 (see [Platforms](#platforms)).
 | Xbox and XInput controllers | ✅ |
 | DualShock 4, DualSense, DualSense Edge | ✅ raw HID |
 | Nintendo Switch controllers (Pro Controller, Joy-Con paired or sideways, NSO and Switch-style wired pads; gyro, rumble) | ✅ Windows via raw HID (⏳ hardware testing); Linux through hid-nintendo |
-| Switch 2 controllers (Pro Controller, GameCube controller) | ✅ Windows over USB (⏳ hardware testing), and the Pro Controller over Bluetooth LE (tried on Windows 10: connecting, every button and trigger, both sticks, motion, battery, player light, rumble, letting it go 3 s after it was turned off, where Windows notices only after about 10 s; ⏳ Windows 11); macOS over USB (tried with a Pro Controller), and the Pro Controller over Bluetooth LE (tried in the app); ⏳ Linux, over USB and Bluetooth (see Later) |
+| Switch 2 controllers (Pro Controller, GameCube controller) | ✅ Windows over USB (⏳ hardware testing), and the Pro Controller over Bluetooth LE (tried on Windows 10: connecting, every button and trigger, both sticks, motion, battery, player light, rumble, letting it go 3 s after it was turned off, where Windows notices only after about 10 s; ⏳ Windows 11); macOS over USB (tried with a Pro Controller), and the Pro Controller over Bluetooth LE (tried in the app); Linux: the Pro Controller over Bluetooth LE (tried on a Steam Deck with the command-line tool: connecting, every button and trigger, both sticks, motion, battery, player light, rumble, letting it go when turned off; ⏳ the app), ⏳ USB |
 | Steam Controller (USB, wireless receiver) and Steam Deck, with Steam's desktop mode turned off while remapping | ✅ Windows (⏳ hardware testing); ⏳ Bluetooth LE; ⏳ Linux |
 | Generic HID gamepads and joysticks, with a wizard that identifies the buttons | ✅ Windows (⏳ hardware testing); Linux reads them through evdev |
 | GameCube USB adapter (official and Wii U-mode clones) | ✅ Windows (⏳ hardware testing); ⏳ Linux |
@@ -147,7 +149,7 @@ to keep. Linux stays a preview in 1.0 (see [Platforms](#platforms)).
 
    | Responsibility | Status |
    |---|---|
-   | Read controllers | ✅ evdev, with DS4/DualSense/Switch motion and touchpad nodes merged, Joy-Cons paired |
+   | Read controllers | ✅ evdev, with DS4/DualSense/Switch motion and touchpad nodes merged, Joy-Cons paired; the Switch 2 Pro Controller over Bluetooth on an ATT socket of Doppelpad's own, found by a BlueZ discovery |
    | Hide physical controllers | ✅ `EVIOCGRAB`; hidraw readers such as Steam Input and SDL HIDAPI still see the pad |
    | Virtual Xbox 360 pad with rumble feedback | ✅ uinput (`045e:028e`, xpad layout, `FF_RUMBLE`) |
    | Virtual DualShock 4 | ⏳ needs a `uhid` DS4 emulation |
@@ -157,8 +159,8 @@ to keep. Linux stays a preview in 1.0 (see [Platforms](#platforms)).
    | Power commands, close window | ✅ `systemctl` / `loginctl`, EWMH |
    | Controller extras | ✅ batteries and lights through sysfs, turning off over Bluetooth through BlueZ, keep-awake and the lock-screen pause through logind (tried with a DualSense; Switch controllers not yet) |
    | Download | ✅ the app as an AppImage that updates itself, built on Ubuntu 22.04; the command-line tool as a `.tar.gz` (⏳ the AppImage on a Steam Deck) |
-   | Not on Linux yet | screenshots, DualSense trigger effects and microphone LED, Steam controllers (the Deck's trackpads, ··· and analog triggers with Steam closed), Switch 2 controllers, generic-pad layouts, GameCube adapter; overlays that keep their place and stay over fullscreen games on Wayland |
-   | Hardware testing | ✅ first pass on a Steam Deck (DualSense, Switch Pro Controller, keyboard and mouse, desktop app), second pass on SteamOS 3.9 (controller extras, DualSense over Bluetooth); ⏳ DualShock 4, Joy-Cons, Switch controllers over Bluetooth, Game Mode, other distributions |
+   | Not on Linux yet | screenshots, DualSense trigger effects and microphone LED, Steam controllers (the Deck's trackpads, ··· and analog triggers with Steam closed), Switch 2 controllers over USB, generic-pad layouts, GameCube adapter; overlays that keep their place and stay over fullscreen games on Wayland |
+   | Hardware testing | ✅ first pass on a Steam Deck (DualSense, Switch Pro Controller, keyboard and mouse, desktop app), second pass on SteamOS 3.9 (controller extras, DualSense over Bluetooth), a Switch 2 Pro Controller over Bluetooth with the command-line tool; ⏳ DualShock 4, Joy-Cons, Switch controllers over Bluetooth, Game Mode, other distributions |
 
    It requires a udev rule for `/dev/uinput` and the input devices, except on SteamOS.
 3. **macOS**: implemented in `dp-platform/src/macos`; unit-tested and tried with a DualSense,

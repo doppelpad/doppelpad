@@ -52,6 +52,8 @@ dispatch2 = "0.3"
 evdev = "0.13"
 libc = "0.2"
 x11rb = "0.13"
+# BlueZ over D-Bus, for Bluetooth LE (Switch 2 controllers)
+zbus = "5"
 
 # Lints on top of the defaults, for every member crate (`[lints] workspace = true`).
 [workspace.lints.rust]

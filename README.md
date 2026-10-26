@@ -93,7 +93,7 @@ macOS has no release builds yet: build it from source as described in
 
 | | |
 |---|---|
-| **Inputs** | Xbox controllers (XInput), DualShock 4 and DualSense incl. gyro, touchpad and Edge paddles (USB/Bluetooth), Nintendo Switch Pro Controller, Joy-Con (paired automatically, or sideways on their own), Nintendo Switch Online and Switch-style wired pads incl. gyro (USB/Bluetooth), Switch 2 Pro Controller (USB and Bluetooth) and GameCube controller (USB), GameCube controllers on the official USB adapter and clones in its Wii U mode (Windows), Steam Controller (USB and its wireless receiver) and Steam Deck incl. trackpads, gyro and back buttons (Windows), other HID gamepads and joysticks (identify their buttons once; Windows), keyboard, mouse buttons, wheel, mouse motion |
+| **Inputs** | Xbox controllers (XInput), DualShock 4 and DualSense incl. gyro, touchpad and Edge paddles (USB/Bluetooth), Nintendo Switch Pro Controller, Joy-Con (paired automatically, or sideways on their own), Nintendo Switch Online and Switch-style wired pads incl. gyro (USB/Bluetooth), Switch 2 Pro Controller (USB and Bluetooth; on Linux Bluetooth only) and GameCube controller (USB; not on Linux), GameCube controllers on the official USB adapter and clones in its Wii U mode (Windows), Steam Controller (USB and its wireless receiver) and Steam Deck incl. trackpads, gyro and back buttons (Windows), other HID gamepads and joysticks (identify their buttons once; Windows), keyboard, mouse buttons, wheel, mouse motion |
 | **Outputs** | Virtual Xbox 360 or DualShock 4 controller, keyboard, mouse buttons/motion/wheel, controller rumble, a DSU (cemuhook) motion server for emulators |
 | **Triggers** | Any button, stick direction, trigger pull/full pull, touchpad region, gyro direction, key, mouse button, wheel — alone or as combos of up to 4 |
 | **Activators** | single, long press, double tap, triple tap, start (on press), release |
@@ -239,7 +239,7 @@ examples in [`profiles/examples/`](profiles/examples).
 | | Windows | Linux | macOS |
 |---|---|---|---|
 | Engine, profiles, CLI, desktop app | ✅ | ✅ | ✅ |
-| Read controllers | ✅ XInput, raw HID (Sony, Nintendo), Switch 2 Pro Controller over Bluetooth too (tried briefly) | ✅ evdev (incl. DualSense/Switch gyro + touchpad) | ✅ IOKit HID (Sony, Nintendo, Steam, generic pads), Switch 2 Pro Controller over Bluetooth too |
+| Read controllers | ✅ XInput, raw HID (Sony, Nintendo), Switch 2 Pro Controller over Bluetooth too (tried briefly) | ✅ evdev (incl. DualSense/Switch gyro + touchpad), Switch 2 Pro Controller over Bluetooth | ✅ IOKit HID (Sony, Nintendo, Steam, generic pads), Switch 2 Pro Controller over Bluetooth too |
 | Virtual controller | ✅ Xbox 360, DualShock 4 (ViGEmBus) | ✅ Xbox 360 (uinput) | — (needs an entitlement from Apple) |
 | Hide physical controller | ✅ HidHide | ✅ `EVIOCGRAB` | ✅ seizing the device |
 | Keyboard/mouse output | ✅ `SendInput` | ✅ uinput | ✅ Quartz events |
@@ -247,8 +247,9 @@ examples in [`profiles/examples/`](profiles/examples).
 | Per-game auto-switching | ✅ | ✅ X11 / XWayland | ✅ |
 
 The Linux column was tested on a Steam Deck (SteamOS 3.8 and 3.9, desktop mode) with a
-DualSense over USB and Bluetooth and a Switch Pro Controller over USB; DualShock 4, Joy-Cons
-and Switch controllers over Bluetooth are untested. Linux setup (udev
+DualSense over USB and Bluetooth and a Switch Pro Controller over USB, and a Switch 2 Pro
+Controller over Bluetooth with the command-line tool; DualShock 4, Joy-Cons and Switch
+controllers over Bluetooth are untested. Linux setup (udev
 rule for `/dev/uinput` and `/dev/input`, not needed on SteamOS) is in
 [docs/LINUX.md](docs/LINUX.md), the hardware test checklist and its results in
 [docs/LINUX-TESTING.md](docs/LINUX-TESTING.md).

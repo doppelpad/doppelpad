@@ -16,6 +16,8 @@ serde_json.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true
+# The hardware tests' log
+tracing-subscriber.workspace = true
 
 [target.'cfg(windows)'.dependencies]
 vigem-client.workspace = true
@@ -74,6 +76,7 @@ objc2-io-kit.workspace = true
 evdev.workspace = true
 libc.workspace = true
 x11rb.workspace = true
+zbus.workspace = true
 
 [lints]
 workspace = true
