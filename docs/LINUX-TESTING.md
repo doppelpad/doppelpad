@@ -560,7 +560,7 @@ A smoke test of the app built from source (L9.1–L9.7), and of the AppImage the
 workflow builds (L9.8).
 
 1. Install Tauri's Linux dependencies. On Arch (in the container on SteamOS):
-   `sudo pacman -S --needed webkit2gtk-4.1 gtk3 libappindicator-gtk3 librsvg nodejs npm`.
+   `sudo pacman -S --needed webkit2gtk-4.1 gtk3 gtk-layer-shell libappindicator-gtk3 librsvg nodejs npm`.
 2. Build:
 
    ```bash
@@ -664,11 +664,13 @@ Found in the first run and left for the maintainer, with what was seen:
   `BTN_THUMB2`), the ··· button (`BTN_BASE`) and the analog triggers (`ABS_HAT2X/Y`) are not
   read; L2/R2 arrive as digital `BTN_TL2`/`BTN_TR2`.
 - **K6, overlays on Wayland** (L9.7). The app runs as a native Wayland window, so the
-  compositor ignores overlay positions: the OSD and the controller overlay appear in the
-  middle of the screen. Over a fullscreen game the overlay takes the focus, and then ends
-  up behind the game. A layer-shell surface (wlr-layer-shell, which KWin supports) would
-  stay on top without focus and could be anchored to a corner. The controller overlay also
-  shows the default session's controller, not the one whose profile toggled it.
+  compositor ignored overlay positions: the OSD and the controller overlay appeared in the
+  middle of the screen, the OSD's window 200 px high instead of 84. Over a fullscreen game
+  the overlay took the focus, and then ended up behind the game. Fixed in `81c0d0f`: where
+  the compositor supports wlr-layer-shell (KWin does), the overlays are layer surfaces,
+  anchored to their corner and never focused; on GNOME, which has none, they stay as they
+  were. The controller overlay also shows the default session's controller, not the one
+  whose profile toggled it.
 - **K7, stick jitter at rest.** DualSense sticks are 8-bit; one step of jitter is 257 units
   on the virtual pad, above its `fuzz` of 16, so it sends 60–100 events a second while the
   sticks rest (L3.2).
@@ -818,5 +820,5 @@ Driver = kernel driver of the gamepad node. Columns are the checks.
 | L9.4 Apply to a slot | ✅ | `doppelpad status` reaches the app's service |
 | L9.5 Tray | ✅ | quitting from the tray releases everything. Second run: per-controller icons failed for ids with a slash, fixed in `8a0d69f`, and a reconnected controller's icon stayed hidden, fixed in `3acb566` (K9). |
 | L9.6 Log file | ✅ | `~/.local/state/doppelpad/logs` |
-| L9.7 Overlays | ⚠️ | Fixed in `374edfa`: the first overlay crashed the app (tao panicked). They now show above other windows, but in the middle of the screen, and over a fullscreen game they take the focus (K6). |
+| L9.7 Overlays | ✅ | Fixed in `374edfa`: the first overlay crashed the app (tao panicked). They then showed above other windows, but in the middle of the screen, and over a fullscreen game they took the focus (K6). Since `81c0d0f` they are layer-shell surfaces on KWin (2026-10-26, KDE Plasma 6.7.3): the OSD at the bottom right above the panel at its size, the crosshair in the middle, the controller overlay in its corner, the mappings overlay and a radial menu, driven by a controller through a test profile; the crosshair over a video in Firefox in fullscreen, which kept its focus and its fullscreen. |
 | L9.8 AppImage | ✅ | Third run, started from Dolphin on the host: window, controllers and tray icon, without a container or `DBUS_SYSTEM_BUS_ADDRESS`. L9.3–L9.5 as in the container; quitting from the tray removes the virtual devices and releases the grab. Keeping awake and the lock-screen pause work (L8.6, L8.7). *Check now* says that no `linux-x86_64` build was found, as v0.5.0 has none. `doctor` from the `.tar.gz` runs on the host; the tool needs glibc 2.35. The library list had every library under `-` and no copyright files, because `dpkg -S` takes `/libfoo.so.1` for a whole path; fixed in `cfa4e13`. Two libraries are GPL only (K13). A `launch` of Konsole failed (`version XZ_5.4 not found`), because programs Doppelpad started inherited the AppImage's `LD_LIBRARY_PATH` and more; fixed in `2ae9ff1`. They also stayed behind as zombie processes; fixed in `2d08949`. The AppImage built from `72f0671` has the full library list and starts Konsole without the AppImage's environment. Programs still started in the AppImage's `usr` folder, which goes away when Doppelpad ends; fixed in `d86007c`. The AppImage built from `e7acb0a` starts them in the folder it was started from, carries neither `libtiff5` nor `libjbig0`, and has the GPL source beside it (K13). |

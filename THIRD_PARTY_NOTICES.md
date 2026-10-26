@@ -398,8 +398,9 @@ Lesser General Public License for more details.
 ## Libraries in the Linux AppImage
 
 The Linux AppImage carries the system libraries the app needs from Ubuntu 22.04, unmodified:
-WebKitGTK, which draws the app's window, GTK and the libraries they use, and
-libayatana-appindicator for the tray icon. They are separate shared libraries under their
+WebKitGTK, which draws the app's window, GTK and the libraries they use,
+libayatana-appindicator for the tray icon, and gtk-layer-shell (MIT), which places the
+overlays on Wayland. They are separate shared libraries under their
 own licenses, most of them the GNU Lesser General Public License. Each release has
 `Doppelpad_<version>_amd64_libraries.txt` beside the AppImage. It lists every library with
 the Ubuntu package it comes from and that package's source package and version, then gives

@@ -133,7 +133,7 @@ jobs:
       - name: System libraries for the app
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev patchelf file xdg-utils
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libgtk-layer-shell-dev patchelf file xdg-utils
 
       # The AppImage takes every gdk-pixbuf loader that is installed. The TIFF loader would
       # bring libtiff and with it jbigkit, which is under the GPL alone, and the app shows no

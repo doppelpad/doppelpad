@@ -17,7 +17,7 @@ compiler and the system libraries in the AppImage are covered in THIRD_PARTY_NOT
 
 ## Rust crates
 
-447 crates.
+449 crates.
 
 | Crate | Version | License | Used under |
 |---|---|---|---|
@@ -160,6 +160,8 @@ compiler and the system libraries in the AppImage are covered in THIRD_PARTY_NOT
 | [glob](https://crates.io/crates/glob/0.3.4) | 0.3.4 | MIT OR Apache-2.0 | Apache-2.0 |
 | [gobject-sys](https://crates.io/crates/gobject-sys/0.18.0) | 0.18.0 | MIT | MIT |
 | [gtk](https://crates.io/crates/gtk/0.18.2) | 0.18.2 | MIT | MIT |
+| [gtk-layer-shell](https://crates.io/crates/gtk-layer-shell/0.8.2) | 0.8.2 | MIT | MIT |
+| [gtk-layer-shell-sys](https://crates.io/crates/gtk-layer-shell-sys/0.7.2) | 0.7.2 | MIT | MIT |
 | [gtk-sys](https://crates.io/crates/gtk-sys/0.18.2) | 0.18.2 | MIT | MIT |
 | [gtk3-macros](https://crates.io/crates/gtk3-macros/0.18.2) | 0.18.2 | MIT | MIT |
 | [hashbrown](https://crates.io/crates/hashbrown/0.17.1) | 0.17.1 | MIT OR Apache-2.0 | Apache-2.0 |
@@ -8003,7 +8005,7 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT
 
-Used by: block2 0.6.2, dlopen2 0.8.2, dlopen2_derive 0.4.3, minisign-verify 0.2.5, objc2 0.6.5, objc2-encode 4.1.0, objc2-foundation 0.3.2
+Used by: block2 0.6.2, dlopen2 0.8.2, dlopen2_derive 0.4.3, gtk-layer-shell 0.8.2, gtk-layer-shell-sys 0.7.2, minisign-verify 0.2.5, objc2 0.6.5, objc2-encode 4.1.0, objc2-foundation 0.3.2
 
 ```text
 MIT License

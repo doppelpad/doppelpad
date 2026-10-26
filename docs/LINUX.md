@@ -310,14 +310,20 @@ desktops such as KDE Plasma set while their lock screen shows.
 ## Desktop app
 
 The [AppImage](#install) brings WebKitGTK along, so it runs on SteamOS without a container.
-Built from source, the app needs WebKitGTK on the system; on SteamOS that means a container
-(see [LINUX-TESTING.md § 9](LINUX-TESTING.md#9-desktop-app)). There, `npx tauri build` in
-`gui/` makes the AppImage too (`tauri.linux.conf.json`), and `--no-bundle` only the program.
+Built from source, the app needs WebKitGTK and gtk-layer-shell on the system (Arch
+`gtk-layer-shell`, Debian and Ubuntu `libgtk-layer-shell-dev`); on SteamOS that means a
+container (see [LINUX-TESTING.md § 9](LINUX-TESTING.md#9-desktop-app)). There, `npx tauri
+build` in `gui/` makes the AppImage too (`tauri.linux.conf.json`), and `--no-bundle` only the
+program.
 
-On a Wayland desktop the app is a native Wayland
-window, and the compositor decides where windows go: the OSD and the controller overlay
-appear in the middle of the screen instead of the chosen corner. Over a fullscreen game an
-overlay takes the focus and then ends up behind the game.
+On a Wayland desktop the app is a native Wayland window, and a Wayland window cannot place
+itself. So the overlays (notifications, crosshairs, radial menus, the controller and mappings
+overlays) are layer-shell surfaces there, where the compositor supports them (KDE Plasma and
+wlroots-based ones such as Sway and Hyprland): above every window, fullscreen ones included,
+in the chosen corner and clear of panels, and never with the keyboard focus. GNOME has no
+layer shell; there they stay ordinary windows, which the compositor puts in the middle of
+the screen, and which over a fullscreen game take the focus and then end up behind it. On
+X11 they go where they should, as windows.
 
 Tray icons go through libappindicator, which cannot remove an icon. The icon of a
 controller that went away is hidden, and desktops such as KDE Plasma list it among the

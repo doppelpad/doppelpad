@@ -43,9 +43,9 @@ to keep. Linux stays a preview in 1.0 (see [Platforms](#platforms)).
 ### Later
 
 - Linux beyond the preview: virtual DualShock 4, the Steam Controller and the Steam Deck's own
-  controls, native Wayland (foreground app, overlays), screenshots, DualSense trigger effects,
-  Switch 2 controllers over USB, the GameCube adapter, generic-pad layouts; tests with
-  DualShock 4, Joy-Cons, Bluetooth and other distributions.
+  controls, native Wayland (the foreground app; overlays on GNOME), screenshots, DualSense
+  trigger effects, Switch 2 controllers over USB, the GameCube adapter, generic-pad layouts;
+  tests with DualShock 4, Joy-Cons, Bluetooth and other distributions.
 - macOS beyond the preview: tests on real hardware (keyboard and mouse, overlays over games,
   Bluetooth and other controllers), signing and notarization, release builds, virtual
   controllers (an entitlement from Apple), the GameCube adapter (see [Platforms](#platforms)).
@@ -159,7 +159,7 @@ to keep. Linux stays a preview in 1.0 (see [Platforms](#platforms)).
    | Power commands, close window | ✅ `systemctl` / `loginctl`, EWMH |
    | Controller extras | ✅ batteries and lights through sysfs, turning off over Bluetooth through BlueZ, keep-awake and the lock-screen pause through logind (tried with a DualSense; Switch controllers not yet) |
    | Download | ✅ the app as an AppImage that updates itself, built on Ubuntu 22.04; the command-line tool as a `.tar.gz` (⏳ the AppImage on a Steam Deck) |
-   | Not on Linux yet | screenshots, DualSense trigger effects and microphone LED, Steam controllers (the Deck's trackpads, ··· and analog triggers with Steam closed), Switch 2 controllers over USB, generic-pad layouts, GameCube adapter; overlays that keep their place and stay over fullscreen games on Wayland |
+   | Not on Linux yet | screenshots, DualSense trigger effects and microphone LED, Steam controllers (the Deck's trackpads, ··· and analog triggers with Steam closed), Switch 2 controllers over USB, generic-pad layouts, GameCube adapter; overlays that keep their place on GNOME's Wayland (it has no layer shell) |
    | Hardware testing | ✅ first pass on a Steam Deck (DualSense, Switch Pro Controller, keyboard and mouse, desktop app), second pass on SteamOS 3.9 (controller extras, DualSense over Bluetooth), a Switch 2 Pro Controller over Bluetooth with the command-line tool and the app; ⏳ DualShock 4, Joy-Cons, Switch controllers over Bluetooth, Game Mode, other distributions |
 
    It requires a udev rule for `/dev/uinput` and the input devices, except on SteamOS.
