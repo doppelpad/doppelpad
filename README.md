@@ -130,7 +130,7 @@ pair: leave them out of Windows' Bluetooth settings, Doppelpad connects them its
 the small pairing button on top of a Switch 2 Pro Controller until its lights run, and
 Doppelpad connects it; again after the controller was off. It stays paired with its
 console. The controller does not ask for a faster connection: on Windows 10 its input
-arrives unevenly, at times a steady 17 times a second, at times 15 to 100 times (about 45
+arrives unevenly, at times a steady 17 times a second, at times 15 to 105 times (about 45
 on average), against 250 over USB. That is enough for menus and slow games; use the cable
 for anything fast. Doppelpad asks Windows 11 for a faster connection. Only the Pro
 Controller connects over Bluetooth so far. On Windows 10 connecting, every button and

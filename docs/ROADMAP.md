@@ -137,7 +137,7 @@ to keep. Linux stays a preview in 1.0 (see [Platforms](#platforms)).
 | Desktop app: editor, tray, 4 slots per controller, autodetect, English/German, analog editors, controller drawings | ✅ |
 | First-run guide and config templates (virtual Xbox, virtual DualShock 4, desktop, keyboard/mouse) | ✅ |
 | Sharing: games as `.dpgame` bundles, printable bindings sheet, layer presets | ✅ |
-| Installer | ✅ Windows setup (NSIS) that installs missing ViGEmBus/HidHide; ⏳ code signing, test on a clean Windows install. Linux: an AppImage, and the command-line tool as a `.tar.gz` (⏳ the AppImage on a Steam Deck) |
+| Installer | ✅ Windows setup (NSIS) that installs missing ViGEmBus/HidHide; ⏳ code signing, test on a clean Windows install. Linux: an AppImage, and the command-line tool as a `.tar.gz` (the AppImage tried on a Steam Deck) |
 | Updates from GitHub Releases: check at start-up (can be turned off) and *Check now*, signed setups, release workflow for version tags | ✅ (0.4.0 updated itself to 0.5.0); Linux: the AppImage updates itself (⏳ from the first release with an AppImage to the next) |
 
 ## Platforms
@@ -158,7 +158,7 @@ to keep. Linux stays a preview in 1.0 (see [Platforms](#platforms)).
    | Foreground app | ✅ X11 / XWayland; ⏳ native Wayland (compositor-specific protocols) |
    | Power commands, close window | ✅ `systemctl` / `loginctl`, EWMH |
    | Controller extras | ✅ batteries and lights through sysfs, turning off over Bluetooth through BlueZ, keep-awake and the lock-screen pause through logind (tried with a DualSense; Switch controllers not yet) |
-   | Download | ✅ the app as an AppImage that updates itself, built on Ubuntu 22.04; the command-line tool as a `.tar.gz` (⏳ the AppImage on a Steam Deck) |
+   | Download | ✅ the app as an AppImage that updates itself, built on Ubuntu 22.04; the command-line tool as a `.tar.gz` (the AppImage tried on a Steam Deck) |
    | Not on Linux yet | screenshots, DualSense trigger effects and microphone LED, Steam controllers (the Deck's trackpads, ··· and analog triggers with Steam closed), generic-pad layouts, GameCube adapter; overlays that keep their place on GNOME's Wayland (it has no layer shell) |
    | Hardware testing | ✅ first pass on a Steam Deck (DualSense, Switch Pro Controller, keyboard and mouse, desktop app), second pass on SteamOS 3.9 (controller extras, DualSense over Bluetooth), a Switch 2 Pro Controller over Bluetooth with the command-line tool and the app; ⏳ DualShock 4, Joy-Cons, Switch controllers over Bluetooth, Game Mode, other distributions |
 
