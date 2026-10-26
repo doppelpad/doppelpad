@@ -26,7 +26,6 @@ use zbus::message::Type as MessageType;
 use zbus::zvariant::{OwnedObjectPath, OwnedValue, Value};
 
 use super::att;
-use crate::hidhost::HidBackend;
 use crate::nintendo::Switch2Model;
 use crate::nintendo::switch2ble::{self, Advert};
 use crate::switch2gatt::{self, Feed, Links, Poll, Ready, Target, Writer};
@@ -82,29 +81,9 @@ pub fn check() -> crate::Result<()> {
     }
 }
 
-/// The backend the controllers run in: the HID backend, its scanner fed by [`poll`]. When it
-/// stops, every controller is let go.
-pub(crate) fn backend() -> HidBackend {
-    let mut skip = HashMap::new();
-    HidBackend::new(
-        move |_pass, devices| {
-            let now = Instant::now();
-            skip.retain(|_, until| now < *until);
-            let wireless = poll();
-            devices.sweep(|path| wireless.connected.contains(path), &mut skip, now);
-            for pad in wireless.ready {
-                // Nothing to hide: no other program sees it.
-                pad.start(devices, Vec::new());
-            }
-        },
-        turn_off,
-    )
-    .on_drop(let_all_go)
-}
-
 /// Turn the controller with this address off. It has no command for that, but turns off when
 /// its link ends.
-fn turn_off(address: u64) -> io::Result<()> {
+pub(super) fn turn_off(address: u64) -> io::Result<()> {
     let wanted = format!("{address:012x}");
     let path = central()
         .state
@@ -125,8 +104,9 @@ fn turn_off(address: u64) -> io::Result<()> {
     }
 }
 
-/// What changed since the last call. Looks for controllers from the first call on.
-fn poll() -> Poll {
+/// What changed since the last call, for the HID backend's scanner ([`super::hid`]). Looks for
+/// controllers from the first call on.
+pub(super) fn poll() -> Poll {
     let c = central();
     keep_watching(&mut c.watch.lock().unwrap());
     c.state.lock().unwrap().links.poll()
@@ -630,7 +610,7 @@ fn let_go(path: &str, why: &str) {
 }
 
 /// Let every controller go.
-fn let_all_go() {
+pub(super) fn let_all_go() {
     let Some(c) = CENTRAL.get() else {
         return;
     };
@@ -1240,7 +1220,7 @@ mod tests {
         use crate::GamepadBackend;
 
         log();
-        let mut backend = backend();
+        let mut backend = super::super::hid::backend();
         println!("hold the pairing button until the lights run");
         let until = Instant::now() + Duration::from_secs(1800);
         let mut pads = Vec::new();

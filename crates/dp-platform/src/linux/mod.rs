@@ -1,6 +1,6 @@
-//! Linux backends: evdev input, Switch 2 controllers over Bluetooth LE through BlueZ, uinput
-//! virtual pad and keyboard/mouse output, `EVIOCGRAB` device hiding and capture, and X11
-//! foreground detection.
+//! Linux backends: evdev input, Switch 2 controllers on USB (hidraw) and over Bluetooth LE
+//! (BlueZ), uinput virtual pad and keyboard/mouse output, `EVIOCGRAB` device hiding and
+//! capture, and X11 foreground detection.
 //!
 //! Needs read access to `/dev/input/event*` and write access to `/dev/uinput`; see
 //! `docs/LINUX.md` for the udev rule. Everything Doppelpad creates through uinput carries a
@@ -34,6 +34,10 @@ mod foreground;
 #[cfg(target_os = "linux")]
 mod gamepad;
 #[cfg(target_os = "linux")]
+mod hid;
+#[cfg(target_os = "linux")]
+mod hidraw;
+#[cfg(target_os = "linux")]
 mod system;
 #[cfg(target_os = "linux")]
 mod uinput;
@@ -60,7 +64,8 @@ pub fn os_version() -> String {
 #[cfg(target_os = "linux")]
 pub fn platform() -> crate::Platform {
     let gamepads = gamepad::EvdevBackend::new();
-    let hider = gamepads.hider();
+    let hid = hid::backend();
+    let hider = hid::Hider::new(gamepads.hider(), &hid);
     crate::Platform {
         probe_drivers: || crate::DriverReport {
             virtual_pads: dev::check_uinput(),
@@ -71,7 +76,7 @@ pub fn platform() -> crate::Platform {
         },
         gamepads: vec![
             Box::new(crate::joycon::JoyConCombiner::new(gamepads)),
-            Box::new(ble::backend()),
+            Box::new(hid),
         ],
         virtual_pads: Box::new(uinput::UinputFactory::default()),
         kbm_out: Box::new(uinput::UinputKbm::new()),

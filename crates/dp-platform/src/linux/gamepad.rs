@@ -396,7 +396,6 @@ impl EvdevBackend {
             shared: shared.clone(),
             nodes: NodeTracker::default(),
             warned_access: false,
-            warned_switch2: false,
         };
         let (scanned, first_scan) = std::sync::mpsc::sync_channel(1);
         let scanner = Rescanner::spawn("dp-evdev-scan", RESCAN, move |pass| {
@@ -453,7 +452,6 @@ struct Scanner {
     /// for the next new controller.
     nodes: NodeTracker,
     warned_access: bool,
-    warned_switch2: bool,
 }
 
 impl Scanner {
@@ -524,15 +522,9 @@ impl Scanner {
             readable.push(path.clone());
             let id = dev.input_id();
             if crate::nintendo::is_switch2(id.vendor(), id.product()) {
-                // Without a kernel driver these stay silent until their USB vendor interface
-                // is initialised, which the Linux backend does not do yet. Over Bluetooth they
-                // have no input node; `ble` connects them.
-                if !self.warned_switch2 {
-                    tracing::warn!(
-                        "Switch 2 controllers are not supported on Linux over USB yet, only over Bluetooth"
-                    );
-                    self.warned_switch2 = true;
-                }
+                // The generic node usbhid makes for one on USB. The HID backend reads it
+                // through hidraw, as only its driver starts it (see `hid`), and grabs this
+                // node to hide it.
                 self.nodes.ignore(path);
                 continue;
             }
