@@ -5,6 +5,7 @@ Doppelpad runs on Linux with only kernel interfaces. No extra drivers are needed
 | Need | Linux backend (`crates/dp-platform/src/linux`) |
 |---|---|
 | Read controllers | evdev (`/dev/input/event*`). DualShock 4 / DualSense motion sensors and touchpad come from their own event nodes and are merged into the controller. |
+| Switch 2 controllers on USB | hidraw, started over their USB command interface (see [below](#switch-2-controllers-on-usb)) |
 | Switch 2 controllers over Bluetooth | BlueZ finds them, Doppelpad connects them itself on an L2CAP socket (see [below](#switch-2-controllers-over-bluetooth)) |
 | Hide the physical controller | `EVIOCGRAB` on the controller's event nodes |
 | Virtual controller | uinput Xbox 360 pad (`045e:028e`, laid out like the kernel's `xpad` driver, with rumble) |
@@ -18,7 +19,7 @@ Doppelpad runs on Linux with only kernel interfaces. No extra drivers are needed
 > keeping awake and the lock screen with a DualSense. A fourth run tried a Switch 2 Pro
 > Controller over Bluetooth with the command-line tool and the app: connecting from pairing
 > mode, every button, the sticks, triggers and motion, the battery level, player light 1,
-> rumble, turning it off, and going away when turned off. The
+> rumble, turning it off, and going away when turned off; a fifth one tried it on USB. The
 > [results](LINUX-TESTING.md#results) list what works and what is still open. DualShock 4,
 > Joy-Cons, Switch controllers over Bluetooth, other distributions and Game Mode are
 > untested. Reports from Linux users are very welcome.
@@ -42,7 +43,8 @@ source doesn't look for updates.
 
 ## Setup
 
-Doppelpad needs read access to `/dev/input/event*` and write access to `/dev/uinput`.
+Doppelpad needs read access to `/dev/input/event*` and write access to `/dev/uinput`, and for
+Switch 2 controllers on USB to their hidraw and USB device nodes.
 Don't run it as root. Give your user access instead:
 
 1. Create `/etc/udev/rules.d/60-doppelpad.rules`:
@@ -53,10 +55,12 @@ Don't run it as root. Give your user access instead:
    KERNEL=="event*", SUBSYSTEM=="input", MODE="0660", GROUP="input"
    # Controllers' light bars and player lights (hid-playstation, hid-sony, hid-nintendo).
    SUBSYSTEM=="leds", ACTION=="add", DRIVERS=="playstation|sony|nintendo", RUN+="/bin/sh -c 'chmod a+w /sys%p/brightness /sys%p/multi_intensity 2>/dev/null'"
+   # Switch 2 controllers on USB: their HID interface and their USB command interface.
+   KERNEL=="hidraw*", ATTRS{idVendor}=="057e", ATTRS{idProduct}=="2066|2067|2069|2073", MODE="0660", GROUP="input"
+   SUBSYSTEM=="usb", ATTR{idVendor}=="057e", ATTR{idProduct}=="2066|2067|2069|2073", MODE="0660", GROUP="input"
    ```
 
-   The last rule, the LED rule, lets every user set these controllers' lights, and nothing
-   else.
+   The LED rule lets every user set these controllers' lights, and nothing else.
 
 2. Load uinput now and at every boot, reload the rules, and join the group:
 
@@ -83,7 +87,8 @@ capture leaves them alone. The nodes that stay unreadable, such as the touchscre
 audio jacks, are not needed. SteamOS 3.9 also ships `70-steam-jupiter-leds.rules`, which
 gives the `deck` user the brightness and colour of every LED, so controllers' lights need no
 rule either. Where that file is missing, put the LED rule in a file of its own under
-`/etc/udev/rules.d` and run the two `udevadm` commands.
+`/etc/udev/rules.d` and run the two `udevadm` commands. A Switch 2 controller on USB was
+open to the `deck` user on SteamOS 3.9 too, its hidraw node and its USB device node alike.
 
 ## Controllers
 
@@ -111,11 +116,8 @@ Joy-Cons from hid-nintendo:
 - The IMU node reports in Nintendo's axes (x toward the triggers, y left, z up); Doppelpad
   converts them to its own (pitch, yaw, roll).
 
-Over USB, Switch 2 controllers are not supported on Linux yet: without a kernel driver they
-stay silent until their USB vendor interface is initialised, which only the Windows and macOS
-backends do today. On SteamOS 3.8, Steam doesn't initialise a Switch 2 Pro Controller either.
-Over Bluetooth, Doppelpad connects them itself (see
-[below](#switch-2-controllers-over-bluetooth)).
+Switch 2 controllers have no kernel driver, so evdev does not read them; Doppelpad starts and
+reads them itself, on USB and over Bluetooth (see the next two sections).
 
 hid-playstation and hid-nintendo create extra nodes, "… Motion Sensors" / "(IMU)" and
 "… Touchpad", on the same parent device. Doppelpad attaches them to the controller:
@@ -150,6 +152,25 @@ goes to the controller's HID device in sysfs, and to BlueZ:
 Controller ids look like `evdev:054c:0ce6:a0:b1:c2:d3:e4:f5`: vendor and product id, then the
 Bluetooth address, the USB port or the device node, so a controller keeps its id when it
 reconnects. Its event node is what gets hidden.
+
+### Switch 2 controllers on USB
+
+On USB a Switch 2 controller stays silent until its USB command interface (a vendor interface
+next to the HID one) starts it. Doppelpad does that, as on Windows and macOS, and reads its
+input through hidraw: 250 reports a second, with motion, the battery, player lights and
+rumble. On SteamOS the logged-in user may open both interfaces already; elsewhere they need
+the Switch 2 lines of the udev rule in [Setup](#setup).
+
+- The kernel gives the controller a generic input node (`usbhid`) too, which only says
+  something once Doppelpad has started the controller. Doppelpad leaves that node alone and
+  grabs it to hide the controller. Programs that open the controller's hidraw node
+  themselves, such as Steam and SDL's HIDAPI drivers, still see it (as with every controller,
+  see [Hiding](#hiding)).
+- Only one program can use the command interface. If another one holds it (Steam, for
+  example), the controller runs on that program's start with default stick calibration, and
+  Doppelpad takes the interface over once it is free, as on Windows.
+- Tried with a Pro Controller; the GameCube controller and the Joy-Con 2 use the same driver
+  but were not tried.
 
 ### Switch 2 controllers over Bluetooth
 
@@ -347,6 +368,12 @@ fail without a warning.
 - **Another program holds the device** ("EVIOCGRAB … Device or resource busy"). Only one
   program can grab a device. Stop other remappers (input-remapper, keyd, Steam Input for
   that controller) first.
+- **A Switch 2 controller on USB isn't listed:**
+  - `ls -l /dev/hidraw*` and `ls -l /dev/bus/usb/*/*` (or `getfacl`): your user needs to
+    read and write the controller's hidraw node and its USB device node; see the udev rule
+    in [Setup](#setup).
+  - `DOPPELPAD_LOG=info,dp_platform=debug doppelpad monitor` shows whether its command
+    interface could be claimed.
 - **A Switch 2 controller doesn't connect over Bluetooth:**
   - `doppelpad doctor` should say `ok` for Bluetooth: BlueZ (`bluetoothd`) running, with an
     adapter that is on.

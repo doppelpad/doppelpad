@@ -674,12 +674,11 @@ Found in the first run and left for the maintainer, with what was seen:
 - **K7, stick jitter at rest.** DualSense sticks are 8-bit; one step of jitter is 257 units
   on the virtual pad, above its `fuzz` of 16, so it sends 60–100 events a second while the
   sticks rest (L3.2).
-- **K8, Switch 2 controllers over USB** stay unsupported, as documented: neither Doppelpad
-  nor Steam initialises a Switch 2 Pro Controller on SteamOS 3.8, and not even its hidraw node
-  sends anything. The platform-neutral driver in `nintendo/switch2.rs` and `nusb` (the user
-  has `uaccess` on the USB node) would carry over; since the fourth run the HID backend runs on
-  Linux too (for the Pro Controller over Bluetooth), so what is missing is a scanner that opens
-  hidraw nodes.
+- **K8, Switch 2 controllers over USB** stayed unsupported, as documented: neither Doppelpad
+  nor Steam initialised a Switch 2 Pro Controller on SteamOS 3.8, and not even its hidraw node
+  sent anything. *Fifth run:* the HID backend, which runs on Linux since the fourth run, now
+  opens their hidraw nodes and starts them over their command interface through `nusb`, with
+  the driver of Windows and macOS.
 
 Found in the second run and left for the maintainer:
 
@@ -718,15 +717,15 @@ Found in the third run and left for the maintainer:
 
 ### Test machine
 
-| | First run | Second run | Third run | Fourth run |
-|---|---|---|---|---|
-| Machine | Steam Deck LCD ("Jupiter"), desktop mode | the same | the same | the same (Bluetooth: Realtek `13d3:3553`, BlueZ 5.87) |
-| Distribution (`VERSION_ID` and `BUILD_ID` in `/etc/os-release`) | SteamOS 3.8.28 (build 20260922.1) | SteamOS 3.9.5 (build 20261023.100) | the same | the same |
-| Kernel (`uname -r`) | 6.18.50-valve2-1-neptune-618-gc7289a96b14d | 7.2.7-valve2-2-neptune-72-g31504582a073 | the same | the same |
-| Desktop and session type | KDE Plasma 6.4.3, Wayland (`DISPLAY=:0` for XWayland) | KDE Plasma 6.7.3, Wayland | the same | the same |
-| Steam running | yes, except for L2.6 and the Switch Pro's L2.3 | yes | yes | yes |
-| Doppelpad commit (`git rev-parse --short HEAD`) | `ca8c455` plus the fixes on `linux-hardware-test` | `989add8` plus the fixes on `linux-device-test` | the release workflow's AppImage from `4b7548d`, then from `72f0671` on `linux-appimage-test` | `linux-switch2-ble`: the command-line tool, the hardware tests in `linux/ble.rs`, and the app built in the Arch container |
-| Date | 2026-10-23 | 2026-10-24 | 2026-10-24 | 2026-10-26 |
+| | First run | Second run | Third run | Fourth run | Fifth run |
+|---|---|---|---|---|---|
+| Machine | Steam Deck LCD ("Jupiter"), desktop mode | the same | the same | the same (Bluetooth: Realtek `13d3:3553`, BlueZ 5.87) | the same |
+| Distribution (`VERSION_ID` and `BUILD_ID` in `/etc/os-release`) | SteamOS 3.8.28 (build 20260922.1) | SteamOS 3.9.5 (build 20261023.100) | the same | the same | the same |
+| Kernel (`uname -r`) | 6.18.50-valve2-1-neptune-618-gc7289a96b14d | 7.2.7-valve2-2-neptune-72-g31504582a073 | the same | the same | the same |
+| Desktop and session type | KDE Plasma 6.4.3, Wayland (`DISPLAY=:0` for XWayland) | KDE Plasma 6.7.3, Wayland | the same | the same | the same |
+| Steam running | yes, except for L2.6 and the Switch Pro's L2.3 | yes | yes | yes | yes |
+| Doppelpad commit (`git rev-parse --short HEAD`) | `ca8c455` plus the fixes on `linux-hardware-test` | `989add8` plus the fixes on `linux-device-test` | the release workflow's AppImage from `4b7548d`, then from `72f0671` on `linux-appimage-test` | `linux-switch2-ble`: the command-line tool, the hardware tests in `linux/ble.rs`, and the app built in the Arch container | `linux-switch2-usb`: the command-line tool and the hardware test in `linux/hid.rs` |
+| Date | 2026-10-23 | 2026-10-24 | 2026-10-24 | 2026-10-26 | 2026-10-26 |
 
 The CLI was built in a Debian 13 container and run on the host; the app was built and run in
 an Arch container ([setup](#steam-deck-steamos)). Checks marked *fake pad* were driven by a
@@ -752,6 +751,11 @@ up. Doppelpad now speaks ATT itself on an L2CAP socket, which found everything i
 also found that connecting while Steam's discovery runs could time out, twice in a row, until
 Doppelpad started the scan over after the connection attempt (connected in 0.4 s).
 
+The fifth run tried the Switch 2 Pro Controller on USB with `doppelpad monitor`, `doppelpad
+run` and the hardware test `linux::hid::tests::switch2_on_usb`. Its hidraw node and its USB
+device node were open to the `deck` user, and nothing held its command interface, Steam
+included.
+
 ### Controllers
 
 Driver = kernel driver of the gamepad node. Columns are the checks.
@@ -761,7 +765,7 @@ Driver = kernel driver of the gamepad node. Columns are the checks.
 | DualSense `054c:0ce6` | Bluetooth | playstation | ✅ | ➖ | ➖ | ✅ | ✅ | ➖ | ➖ | Second run. Its id is its Bluetooth address, which hid-playstation also gives it on USB, so switching between USB and Bluetooth keeps the id and the profile. The HID device sits under uhid (BlueZ `UserspaceHID`). |
 | DualSense `054c:0ce6` | USB | playstation | ✅ | ⚠️ | ⚠️ | ✅ | ✅ | ✅ | ✅ | Mute never arrives (see L2.2). Gyro signs right. Touchpad: phantom touch at (0,0) fixed in `020954d`; with Steam running, `steamos-manager` inhibits the touchpad node (K4), with `InhibitDs` off touch and click work. L3.5: rumble kept running after a stop, fixed in `fcbeaf3` and measured with the controller's accelerometer. |
 | Switch Pro Controller `057e:2009` | USB | nintendo | ✅ | ✅ | ⚠️ | ➖ | ➖ | ➖ | ✅ | Capture is `Misc`, ZL/ZR digital. IMU silent while Steam drives the controller (K4); with Steam closed, gravity confirms the axes Doppelpad assumes. |
-| Switch 2 Pro Controller `057e:2069` | USB | usbhid | ⚠️ | ➖ | ➖ | ➖ | ➖ | ➖ | ➖ | Skipped with "not supported on Linux yet", as documented (K8). |
+| Switch 2 Pro Controller `057e:2069` | USB | usbhid (generic), read through hidraw | ✅ | ✅ | ✅ | ✅ | ⚠️ | ➖ | ✅ | Skipped with "not supported on Linux yet" in the first run (K8). Fifth run: started in 0.4 s over its command interface, id `hid:057e:2069:<USB port>`; every button, sticks to ±1, ZL/ZR to 1, motion, 250 reports a second, battery 100 % while charging, player light 1 and rumble from the driver, let go 0.3 s after it was unplugged. With `hide_physical` and a virtual pad its generic input node was grabbed (another grab got `EBUSY`), and free again after the profile stopped; A came out as B on the virtual pad and LB rumbled. Steam made one of its Xbox 360 pads for it once Doppelpad had started it (K3, K4). L2.7: the driver's level only, the app was not tried. |
 | Switch 2 Pro Controller `057e:2069` | Bluetooth LE | none (Doppelpad's ATT socket) | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | ➖ | Fourth run. Id `ble:057e:2069:<address>`, as on Windows. Every button (GL/GR as `PaddleUL`/`PaddleUR`, C as `Misc2`, Capture as `Misc`), sticks to ±1, ZL/ZR to 1, motion. Player light 1 and rumble from the driver; about 20 reports a second, 17–19 after the first 20 s. Turned off, it was let go 0.4 s after its last report; Doppelpad quitting ended the link, and so did the backend's `power_off`, after which the controller switched off and stayed away. In the app: Settings › Drivers lists Bluetooth as ok with the pairing hint, the controller shows as "Switch 2 Pro Controller (Bluetooth)" with its picture, buttons and sticks light up, and the battery shows (L2.7). Not in the tray: on KDE its icons have no tooltip at all (the StatusNotifierItem that libayatana-appindicator exports has no `ToolTip`). Killing the app ended the link too. |
 | Steam Deck controls `28de:1205` | built in | hid-steam | ⚠️ | ⚠️ | ⚠️ | ➖ | ➖ | ➖ | ➖ | See L2.6 and L6.4. |
 | Fake pad `045e:028e` | uinput | — | ✅ | ✅ | ➖ | ✅ | ➖ | ✅ | ✅ | Stable id from `phys`. |

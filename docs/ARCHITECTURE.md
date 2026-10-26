@@ -127,7 +127,7 @@ On Windows:
 
 On Windows and macOS the HID controllers share one backend (`dp-platform/src/hidhost.rs`);
 each OS brings the scanner that finds and opens them. On Linux it runs only the Switch 2
-controllers connected over Bluetooth.
+controllers, which no kernel driver starts: on USB through hidraw, and over Bluetooth.
 
 On Linux:
 
@@ -176,6 +176,7 @@ limitations in a future backend.
 | Need | Doppelpad on Linux |
 |---|---|
 | Read controllers | evdev; hid-playstation / hid-nintendo motion and touchpad nodes merged in |
+| Switch 2 on USB | hidraw for the input, the USB command interface through `nusb` (usbfs; exclusive, so Steam may hold it); hiding grabs the generic input node `usbhid` makes for it (`linux/hidraw.rs`, `linux/hid.rs`) |
 | Switch 2 over Bluetooth | a BlueZ discovery (D-Bus, `zbus`) finds a pad in pairing mode; Doppelpad connects it on an L2CAP socket on its ATT channel and speaks ATT itself (`linux/att.rs`), as BlueZ's GATT client never finishes reading these pads; it runs in the HID backend like the Windows and macOS ones (`linux/ble.rs`, shared link in `switch2gatt.rs`) |
 | Hide the physical pad | `EVIOCGRAB` through a duplicate of the reader's descriptor, so Doppelpad keeps reading |
 | Virtual controller | uinput Xbox 360 pad (`045e:028e`, xpad layout) with `FF_RUMBLE` fed back |
