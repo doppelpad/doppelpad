@@ -123,6 +123,7 @@ pub fn platform() -> crate::Platform {
             input_access: permissions::check(),
             bluetooth: ble::check(),
             hiding_problems: Vec::new(),
+            system_problems: Vec::new(),
         },
         gamepads: vec![Box::new(crate::joycon::JoyConCombiner::new(gamepads))],
         virtual_pads: Box::new(NoVirtualPads),

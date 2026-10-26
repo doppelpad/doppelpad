@@ -26,7 +26,6 @@ use zbus::message::Type as MessageType;
 use zbus::zvariant::{OwnedObjectPath, OwnedValue, Value};
 
 use super::att;
-use crate::hidhost::HidBackend;
 use crate::nintendo::Switch2Model;
 use crate::nintendo::switch2ble::{self, Advert};
 use crate::switch2gatt::{self, Feed, Links, Poll, Ready, Target, Writer};
@@ -39,8 +38,7 @@ const OBJECT_MANAGER: &str = "org.freedesktop.DBus.ObjectManager";
 
 /// Make sure the discovery runs this often.
 const RESCAN: Duration = Duration::from_secs(10);
-/// Give up on a controller that has not connected and answered by then. Also the longest any
-/// call to BlueZ may take.
+/// Give up on a controller that has not connected and answered by then.
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 /// How long a command may take to go out.
 const WRITE_TIMEOUT: Duration = Duration::from_secs(1);
@@ -82,29 +80,9 @@ pub fn check() -> crate::Result<()> {
     }
 }
 
-/// The backend the controllers run in: the HID backend, its scanner fed by [`poll`]. When it
-/// stops, every controller is let go.
-pub(crate) fn backend() -> HidBackend {
-    let mut skip = HashMap::new();
-    HidBackend::new(
-        move |_pass, devices| {
-            let now = Instant::now();
-            skip.retain(|_, until| now < *until);
-            let wireless = poll();
-            devices.sweep(|path| wireless.connected.contains(path), &mut skip, now);
-            for pad in wireless.ready {
-                // Nothing to hide: no other program sees it.
-                pad.start(devices, Vec::new());
-            }
-        },
-        turn_off,
-    )
-    .on_drop(let_all_go)
-}
-
 /// Turn the controller with this address off. It has no command for that, but turns off when
 /// its link ends.
-fn turn_off(address: u64) -> io::Result<()> {
+pub(super) fn turn_off(address: u64) -> io::Result<()> {
     let wanted = format!("{address:012x}");
     let path = central()
         .state
@@ -125,8 +103,9 @@ fn turn_off(address: u64) -> io::Result<()> {
     }
 }
 
-/// What changed since the last call. Looks for controllers from the first call on.
-fn poll() -> Poll {
+/// What changed since the last call, for the HID backend's scanner ([`super::hid`]). Looks for
+/// controllers from the first call on.
+pub(super) fn poll() -> Poll {
     let c = central();
     keep_watching(&mut c.watch.lock().unwrap());
     c.state.lock().unwrap().links.poll()
@@ -140,8 +119,6 @@ fn central() -> &'static Central {
 
 #[derive(Default)]
 struct Central {
-    /// The system bus, once connected; dropped when the connection broke.
-    bus: Mutex<Option<Connection>>,
     watch: Mutex<Watch>,
     state: Mutex<State>,
 }
@@ -190,17 +167,9 @@ impl From<io::Error> for Failure {
     }
 }
 
-/// The system bus, connected on first use and again after the connection broke.
+/// The system bus (see [`super::sysbus`]).
 fn bus() -> zbus::Result<Connection> {
-    let mut bus = central().bus.lock().unwrap();
-    if let Some(bus) = &*bus {
-        return Ok(bus.clone());
-    }
-    let connected = zbus::blocking::connection::Builder::system()?
-        .method_timeout(CONNECT_TIMEOUT)
-        .build()?;
-    *bus = Some(connected.clone());
-    Ok(connected)
+    super::sysbus::connection()
 }
 
 /// Follow BlueZ's signals and keep the discovery running, again after Bluetooth was off or
@@ -268,7 +237,7 @@ fn listen(bus: &Connection, listening: Arc<AtomicBool>) -> zbus::Result<()> {
             }
             // The connection broke: a new one with the next look.
             tracing::debug!("Bluetooth: the system bus is gone");
-            central().bus.lock().unwrap().take();
+            super::sysbus::reset();
             thread_listening.store(false, Ordering::Relaxed);
         });
     if let Err(e) = spawned {
@@ -630,7 +599,7 @@ fn let_go(path: &str, why: &str) {
 }
 
 /// Let every controller go.
-fn let_all_go() {
+pub(super) fn let_all_go() {
     let Some(c) = CENTRAL.get() else {
         return;
     };
@@ -1240,7 +1209,7 @@ mod tests {
         use crate::GamepadBackend;
 
         log();
-        let mut backend = backend();
+        let mut backend = super::super::hid::backend();
         println!("hold the pairing button until the lights run");
         let until = Instant::now() + Duration::from_secs(1800);
         let mut pads = Vec::new();

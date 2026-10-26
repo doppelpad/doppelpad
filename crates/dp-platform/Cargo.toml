@@ -75,6 +75,7 @@ objc2-io-kit.workspace = true
 [target.'cfg(target_os = "linux")'.dependencies]
 evdev.workspace = true
 libc.workspace = true
+nusb.workspace = true
 x11rb.workspace = true
 zbus.workspace = true
 

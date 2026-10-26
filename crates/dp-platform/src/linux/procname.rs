@@ -1,4 +1,4 @@
-//! Process names from `/proc`, for automatic profile switching.
+//! Process names from `/proc`, for automatic profile switching, and whether a program runs.
 
 use std::path::Path;
 
@@ -25,6 +25,21 @@ pub fn process_name(pid: u32) -> Option<String> {
         return Some(name);
     }
     (!comm.is_empty()).then(|| comm.to_owned())
+}
+
+/// Whether a process of this name runs (any case), as `comm` names it: for telling which
+/// program holds a controller.
+pub fn running(name: &str) -> bool {
+    let Ok(procs) = std::fs::read_dir("/proc") else {
+        return false;
+    };
+    procs.flatten().any(|p| {
+        p.file_name()
+            .to_str()
+            .is_some_and(|n| n.bytes().all(|b| b.is_ascii_digit()))
+            && std::fs::read_to_string(p.path().join("comm"))
+                .is_ok_and(|comm| comm.trim_end().eq_ignore_ascii_case(name))
+    })
 }
 
 /// The kernel cuts `comm` to this many bytes.

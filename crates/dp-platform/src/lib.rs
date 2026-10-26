@@ -59,10 +59,10 @@ pub mod steam;
 pub mod stores;
 #[cfg(any(windows, target_os = "linux", target_os = "macos", test))]
 pub(crate) mod switch2gatt;
-#[cfg(any(windows, target_os = "macos"))]
+#[cfg(any(windows, target_os = "linux", target_os = "macos"))]
 pub(crate) mod switch2usb;
 pub mod timer;
-#[cfg(any(windows, target_os = "macos"))]
+#[cfg(any(windows, target_os = "linux", target_os = "macos"))]
 pub(crate) mod usb;
 #[cfg(any(target_os = "linux", target_os = "macos", test))]
 pub(crate) mod wine;
@@ -546,6 +546,9 @@ pub struct DriverReport {
     pub bluetooth: Result<()>,
     /// Connected devices the hiding driver keeps from Doppelpad, explained for the user.
     pub hiding_problems: Vec<String>,
+    /// What the system's own services cannot do for Doppelpad, explained for the user: on
+    /// Linux the system bus or logind out of reach.
+    pub system_problems: Vec<String>,
 }
 
 pub struct Platform {

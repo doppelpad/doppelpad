@@ -481,7 +481,11 @@ fn doctor() -> Result<()> {
     }
     println!();
     scan(&mut rt);
-    for p in rt.hiding_problems().into_iter().chain(rt.device_problems()) {
+    let problems = drivers.system_problems.into_iter();
+    for p in problems
+        .chain(rt.hiding_problems())
+        .chain(rt.device_problems())
+    {
         println!("problem: {p}");
     }
     print_response(Response::Devices {

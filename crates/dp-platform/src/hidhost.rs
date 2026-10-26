@@ -1,6 +1,7 @@
 //! The raw-HID backend of Windows and macOS: DualShock 4, DualSense, Nintendo Switch pads,
 //! Steam controllers and other HID gamepads (read through their report descriptor). On Linux,
-//! where evdev reads the controllers, it runs only Switch 2 controllers over Bluetooth LE.
+//! where evdev reads the controllers, it runs only Switch 2 controllers (on USB and over
+//! Bluetooth LE), which no kernel driver starts.
 //!
 //! A scanner thread, which each OS provides, re-enumerates HID devices every couple of seconds
 //! and starts one thread per supported controller. That thread owns the device: it runs the
@@ -198,7 +199,8 @@ struct Device {
     shared: Arc<Shared>,
     thread: Option<JoinHandle<()>>,
     /// What hides it (see [`DeviceInfo::instance_paths`]).
-    #[cfg_attr(not(target_os = "macos"), allow(dead_code))] // only macOS hides this way
+    #[cfg_attr(not(any(target_os = "linux", target_os = "macos")), allow(dead_code))]
+    // Windows hides with HidHide
     instance_paths: Vec<String>,
     bluetooth: bool,
     bt_address: Option<u64>,
@@ -219,7 +221,7 @@ impl Device {
     }
 
     /// Open the device exclusively while any of its instance paths is in `hidden`.
-    #[cfg_attr(not(target_os = "macos"), allow(dead_code))] // only macOS hides this way
+    #[cfg_attr(not(any(target_os = "linux", target_os = "macos")), allow(dead_code))] // Windows hides with HidHide
     fn set_hidden(&self, hidden: &HashSet<String>) {
         let on = self.instance_paths.iter().any(|p| hidden.contains(p));
         if self.shared.exclusive.swap(on, Ordering::Relaxed) != on {
@@ -338,7 +340,7 @@ impl Devices {
     }
 
     /// Open exactly the devices with these instance paths exclusively.
-    #[cfg_attr(not(target_os = "macos"), allow(dead_code))] // only macOS hides this way
+    #[cfg_attr(not(any(target_os = "linux", target_os = "macos")), allow(dead_code))] // Windows hides with HidHide
     pub(crate) fn set_hidden(&self, instance_paths: &[String]) {
         let mut hidden = self.hidden.lock().unwrap();
         *hidden = instance_paths.iter().cloned().collect();
@@ -575,7 +577,7 @@ impl HidBackend {
     }
 
     /// The devices, for a hider that opens them exclusively.
-    #[cfg_attr(not(target_os = "macos"), allow(dead_code))] // only macOS hides this way
+    #[cfg_attr(not(any(target_os = "linux", target_os = "macos")), allow(dead_code))] // Windows hides with HidHide
     pub(crate) fn devices(&self) -> Arc<Devices> {
         self.devices.clone()
     }
@@ -687,6 +689,104 @@ impl GamepadBackend for HidBackend {
 
     fn rescan(&mut self) {
         self.scanner.wake();
+    }
+}
+
+#[cfg(all(test, any(windows, target_os = "linux")))]
+pub(crate) mod testing {
+    use std::time::{Duration, Instant};
+
+    use dp_core::pad::{Axis, PadButton, Rumble};
+
+    use super::{HidHandle, Wait};
+    use crate::padio::PadDriver;
+
+    /// A hardware test of a controller and its driver, without the rest of Doppelpad: starts
+    /// the driver (player light 1 comes on), rumbles in the first second and then reports
+    /// second by second what arrives (sticks and triggers as their largest deflection), until
+    /// the device goes away or 30 s after its input stopped. `tick` runs once a second, as the
+    /// scanner would.
+    pub(crate) fn drive(
+        id: &str,
+        mut driver: Box<dyn PadDriver>,
+        io: &mut impl HidHandle,
+        mut tick: impl FnMut(),
+    ) {
+        let started = Instant::now();
+        let identity = driver.init(io).expect("the driver starts");
+        println!(
+            "{id}: {} started in {} ms; player light 1 should be on",
+            identity.name,
+            started.elapsed().as_millis()
+        );
+
+        const AXES: [Axis; 6] = [
+            Axis::LeftX,
+            Axis::LeftY,
+            Axis::RightX,
+            Axis::RightY,
+            Axis::LeftTrigger,
+            Axis::RightTrigger,
+        ];
+        let mut last_report = Instant::now();
+        for second in 1.. {
+            tick();
+            let rumble = if second == 1 {
+                Rumble {
+                    low: 0.6,
+                    high: 0.6,
+                }
+            } else {
+                Rumble::default()
+            };
+            let end = Instant::now() + Duration::from_secs(1);
+            let (mut reports, mut motion, mut pressed) = (0u32, false, Vec::new());
+            let mut peak = [0.0f32; 6];
+            while Instant::now() < end {
+                match io.wait(Duration::from_millis(20)) {
+                    Ok(Wait::Report(_)) => {
+                        reports += 1;
+                        last_report = Instant::now();
+                        if let Some(s) = driver.parse(io.report(), last_report) {
+                            motion |= s.motion.is_some();
+                            for b in PadButton::ALL.iter().filter(|b| s.pressed(**b)) {
+                                if !pressed.contains(&b.name()) {
+                                    pressed.push(b.name());
+                                }
+                            }
+                            for (p, a) in peak.iter_mut().zip(AXES) {
+                                if s.axis(a).abs() > p.abs() {
+                                    *p = s.axis(a);
+                                }
+                            }
+                        }
+                    }
+                    Ok(Wait::Woken | Wait::Timeout) => {}
+                    Err(e) => {
+                        println!(
+                            "second {second}: the controller was let go, {:.1} s after its \
+                             last report ({e})",
+                            last_report.elapsed().as_secs_f32()
+                        );
+                        return;
+                    }
+                }
+                if let Err(e) = driver.service(io, rumble) {
+                    println!("second {second}: rumble failed: {e}");
+                }
+            }
+            println!(
+                "second {second}: {reports} reports, motion {motion}, battery {:?}, \
+                 sticks {:+.2?}, triggers {:.2?}, pressed {pressed:?}",
+                driver.battery().map(|b| b.level),
+                &peak[..4],
+                &peak[4..],
+            );
+            if last_report.elapsed() > Duration::from_secs(30) {
+                println!("the controller was not let go 30 s after its input stopped");
+                return;
+            }
+        }
     }
 }
 

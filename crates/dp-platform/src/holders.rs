@@ -14,6 +14,8 @@ const KNOWN: &[(&str, &str)] = &[
     ("Dolphin", "Dolphin"),
     ("steam.exe", "Steam"),
     ("steam_osx", "Steam"),
+    // Steam as Linux names it.
+    ("steam", "Steam"),
 ];
 
 /// The running program that most likely holds a controller; `running` tells whether an
