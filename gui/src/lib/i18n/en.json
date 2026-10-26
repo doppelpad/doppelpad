@@ -1308,6 +1308,7 @@
     "not_on_macos": "not on macOS yet",
     "open_settings": "Open settings",
     "bluetooth": "Bluetooth (Switch 2 controllers)",
+    "bluetooth_unavailable": "not available",
     "allow": "Allow",
     "bluetooth_hint": "Hold the small pairing button on a Switch 2 Pro Controller until its lights run: Doppelpad connects it. Do it again after the controller was off."
   },

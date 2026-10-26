@@ -57,6 +57,8 @@ pub mod scan;
 pub mod sony;
 pub mod steam;
 pub mod stores;
+#[cfg(any(windows, target_os = "macos", test))]
+pub(crate) mod switch2gatt;
 #[cfg(any(windows, target_os = "macos"))]
 pub(crate) mod switch2usb;
 pub mod timer;
@@ -539,7 +541,8 @@ pub struct DriverReport {
     /// permission, which the user grants; elsewhere there is nothing to ask for.
     pub input_access: Result<()>,
     /// Whether Switch 2 controllers can be connected over Bluetooth LE: on macOS the
-    /// Bluetooth permission; not available elsewhere yet.
+    /// Bluetooth permission, on Windows a Bluetooth LE adapter that is on; not available on
+    /// Linux yet.
     pub bluetooth: Result<()>,
     /// Connected devices the hiding driver keeps from Doppelpad, explained for the user.
     pub hiding_problems: Vec<String>,

@@ -30,6 +30,9 @@ crossbeam-channel = "0.5"
 interprocess = "2"
 vigem-client = { version = "0.1.4", features = ["unstable_xtarget_notification"] }
 windows-sys = "0.61"
+# WinRT, for Bluetooth LE (Switch 2 controllers)
+windows = { version = "0.62", default-features = false, features = ["std"] }
+windows-future = { version = "0.3", default-features = false, features = ["std"] }
 nusb = "0.2"
 ctrlc = "3"
 trash = "5"

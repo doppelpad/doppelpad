@@ -20,6 +20,14 @@ tempfile.workspace = true
 [target.'cfg(windows)'.dependencies]
 vigem-client.workspace = true
 nusb.workspace = true
+windows = { workspace = true, features = [
+    "Devices_Bluetooth_Advertisement",
+    "Devices_Bluetooth_GenericAttributeProfile",
+    "Devices_Radios",
+    "Foundation_Collections",
+    "Storage_Streams",
+] }
+windows-future.workspace = true
 windows-sys = { workspace = true, features = [
     "Win32_Devices_Bluetooth",
     "Win32_Foundation",

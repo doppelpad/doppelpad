@@ -2,8 +2,8 @@
 //!
 //! macOS cannot pair them (see [`crate::nintendo::switch2ble`]), so Doppelpad looks for one
 //! in pairing mode itself, connects it and subscribes to its input. The controller then runs
-//! in the HID backend like any other: a [`BleIo`] carries its reports, a [`GattCommands`] its
-//! commands. A controller that is looking for the console it is paired with is left alone.
+//! in the HID backend like any other, over a [`crate::switch2gatt`] link. A controller that is
+//! looking for the console it is paired with is left alone.
 //!
 //! Bluetooth needs a permission. Doppelpad turns it on by itself only once the permission is
 //! given; [`request`] (the app's *Allow* button) turns it on regardless, which brings up
@@ -15,12 +15,10 @@
 
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
-use std::io;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex, OnceLock};
-use std::time::{Duration, Instant};
+use std::sync::{Mutex, OnceLock};
+use std::time::Duration;
 
-use crossbeam_channel::{Receiver, RecvTimeoutError, Sender};
 use dispatch2::{DispatchQueue, DispatchRetained, DispatchTime};
 use objc2::rc::Retained;
 use objc2::runtime::{AnyObject, ProtocolObject};
@@ -36,18 +34,15 @@ use objc2_foundation::{
     NSString,
 };
 
-use crate::hidhost::{HidHandle, Wait, Wake};
+use crate::nintendo::Switch2Model;
 use crate::nintendo::switch2ble::{self, Advert};
-use crate::nintendo::{NINTENDO_VID, Switch2Model};
-use crate::padio::{BulkIo, ReportIo};
+use crate::switch2gatt::{self, BleIo, Feed, GattCommands, Links, Poll, Ready, Target, Writer};
 
 /// Start the scan over again this often: CoreBluetooth reports a controller once per scan,
 /// and one first seen looking for its console may be put into pairing mode later.
 const RESCAN: Duration = Duration::from_secs(10);
 /// Give up on a controller that has not connected and answered by then.
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
-/// Input reports a device thread may fall behind by before the oldest are dropped.
-const QUEUED_REPORTS: usize = 64;
 
 /// The Bluetooth permission, as a driver check.
 pub fn check() -> crate::Result<()> {
@@ -104,33 +99,11 @@ fn can_ask() -> bool {
         .is_some()
 }
 
-/// The controllers that are connected, by path, and those ready for the scanner to start.
-pub(crate) struct Poll {
-    pub connected: HashSet<String>,
-    pub ready: Vec<Ready>,
-}
-
-/// A connected controller, set up and waiting for its device thread.
-pub(crate) struct Ready {
-    pub path: String,
-    pub id: String,
-    pub advert: Advert,
-    pub io: BleIo,
-    pub commands: GattCommands,
-}
-
 /// What changed since the last call.
 pub(crate) fn poll() -> Poll {
-    let Some(c) = CENTRAL.get() else {
-        return Poll {
-            connected: HashSet::new(),
-            ready: Vec::new(),
-        };
-    };
-    let mut links = c.links.lock().unwrap();
-    Poll {
-        connected: links.connected.clone(),
-        ready: std::mem::take(&mut links.ready),
+    match CENTRAL.get() {
+        Some(c) => c.links.lock().unwrap().poll(),
+        None => Poll::default(),
     }
 }
 
@@ -151,13 +124,6 @@ struct Central {
     /// CoreBluetooth's side, made by [`start`].
     cb: OnQueue<RefCell<Option<Cb>>>,
     links: Mutex<Links>,
-}
-
-#[derive(Default)]
-struct Links {
-    /// Paths of the controllers that are connected and set up.
-    connected: HashSet<String>,
-    ready: Vec<Ready>,
 }
 
 /// A value used only on the central's queue.
@@ -182,6 +148,8 @@ struct Cb {
 /// One controller, from discovery until it disconnects.
 struct Peer {
     peripheral: Retained<CBPeripheral>,
+    /// The peripheral identifier.
+    key: String,
     advert: Advert,
     input: Option<Retained<CBCharacteristic>>,
     command: Option<Retained<CBCharacteristic>>,
@@ -189,36 +157,9 @@ struct Peer {
     vibration: Option<Retained<CBCharacteristic>>,
     /// Notifications switched on so far: input and replies make it ready.
     notifying: u8,
-    link: Arc<Link>,
-    events: Sender<Event>,
-    replies: Sender<Vec<u8>>,
-    /// The receiving ends, until the controller is handed to the scanner.
-    receivers: Option<(Receiver<Event>, Receiver<Vec<u8>>)>,
-}
-
-/// What the queue and a controller's device thread share.
-struct Link {
-    /// The peripheral identifier.
-    key: String,
-    gone: AtomicBool,
-}
-
-impl Link {
-    fn check(&self) -> io::Result<()> {
-        if self.gone.load(Ordering::Relaxed) {
-            Err(io::Error::new(
-                io::ErrorKind::NotConnected,
-                "the Bluetooth link is gone",
-            ))
-        } else {
-            Ok(())
-        }
-    }
-}
-
-enum Event {
-    Report(Vec<u8>),
-    Wake,
+    feed: Feed,
+    /// The device thread's ends, until the controller is handed to the scanner.
+    ends: Option<(BleIo, GattCommands)>,
 }
 
 /// Run `f` with CoreBluetooth's side, if Bluetooth was started. Only on the queue.
@@ -354,31 +295,26 @@ fn on_discover(p: &CBPeripheral, ad: &NSDictionary<NSString, AnyObject>) {
             p.setDelegate(Some(ProtocolObject::from_ref(&*cb.delegate)));
             cb.manager.connectPeripheral_options(p, None);
         }
-        let (events, events_rx) = crossbeam_channel::bounded(QUEUED_REPORTS);
-        let (replies, replies_rx) = crossbeam_channel::bounded(QUEUED_REPORTS);
+        let (feed, io, commands) = switch2gatt::link(Box::new(QueueWriter { key: key.clone() }));
         cb.peers.insert(
             key.clone(),
             Peer {
                 peripheral: p.retain(),
+                key: key.clone(),
                 advert,
                 input: None,
                 command: None,
                 reply: None,
                 vibration: None,
                 notifying: 0,
-                link: Arc::new(Link {
-                    key: key.clone(),
-                    gone: AtomicBool::new(false),
-                }),
-                events,
-                replies,
-                receivers: Some((events_rx, replies_rx)),
+                feed,
+                ends: Some((io, commands)),
             },
         );
         let when = DispatchTime::try_from(CONNECT_TIMEOUT).unwrap_or(DispatchTime::NOW);
         let _ = central().queue.after(when, move || {
             with_cb(|cb| {
-                if cb.peers.get(&key).is_some_and(|p| p.receivers.is_some()) {
+                if cb.peers.get(&key).is_some_and(|p| p.ends.is_some()) {
                     tracing::info!("Bluetooth: the controller did not connect in time");
                     cancel(cb, &key);
                 }
@@ -398,15 +334,12 @@ fn cancel(cb: &mut Cb, key: &str) {
 
 /// Tell a controller's device thread it is gone, and forget it.
 fn drop_peer(peer: &Peer) {
-    peer.link.gone.store(true, Ordering::Relaxed);
-    let _ = peer.events.try_send(Event::Wake);
-    let mut links = central().links.lock().unwrap();
-    links.connected.remove(&path(&peer.link.key));
-    links.ready.retain(|r| r.io.link.key != peer.link.key);
-}
-
-fn path(key: &str) -> String {
-    format!("ble:{key}")
+    peer.feed.close();
+    central()
+        .links
+        .lock()
+        .unwrap()
+        .remove(&switch2gatt::path(&peer.key));
 }
 
 fn on_connect(p: &CBPeripheral) {
@@ -530,32 +463,12 @@ fn on_notifying(p: &CBPeripheral, error: Option<&NSError>) {
         if peer.notifying < 2 {
             return;
         }
-        let Some((events_rx, replies_rx)) = peer.receivers.take() else {
+        let Some((io, commands)) = peer.ends.take() else {
             return;
         };
-        let id = format!(
-            "ble:{NINTENDO_VID:04x}:{:04x}:{}",
-            peer.advert.pid, peer.link.key
-        );
-        let ready = Ready {
-            path: path(&peer.link.key),
-            id,
-            advert: peer.advert,
-            io: BleIo {
-                link: peer.link.clone(),
-                events: events_rx,
-                waker: Arc::new(BleWaker(peer.events.clone())),
-                report: Vec::new(),
-            },
-            commands: GattCommands {
-                link: peer.link.clone(),
-                replies: replies_rx,
-            },
-        };
         tracing::info!("Bluetooth: Switch 2 Pro Controller connected");
-        let mut links = central().links.lock().unwrap();
-        links.connected.insert(ready.path.clone());
-        links.ready.push(ready);
+        let ready = Ready::new(&peer.key, peer.advert, io, commands);
+        central().links.lock().unwrap().add(ready);
     });
 }
 
@@ -573,152 +486,50 @@ fn on_value(p: &CBPeripheral, ch: &CBCharacteristic) {
             slot.as_deref().is_some_and(|c| std::ptr::eq(c, ch))
         };
         if is(&peer.input) {
-            let _ = peer.events.try_send(Event::Report(value.to_vec()));
+            peer.feed.input(value.to_vec());
         } else if is(&peer.reply) {
-            let _ = peer.replies.try_send(value.to_vec());
+            peer.feed.reply(value.to_vec());
         }
     });
 }
 
-#[derive(Clone, Copy)]
-enum Target {
-    Command,
-    Vibration,
+/// Writes to the controller with this peripheral identifier, through the queue.
+struct QueueWriter {
+    key: String,
 }
 
-/// Write to one of a controller's characteristics, without response.
-fn write(link: &Link, target: Target, data: Vec<u8>) {
-    let key = link.key.clone();
-    central().queue.exec_async(move || {
-        with_cb(|cb| {
-            let Some(peer) = cb.peers.get(&key) else {
-                return;
-            };
-            let slot = match target {
-                Target::Command => &peer.command,
-                Target::Vibration => &peer.vibration,
-            };
-            let Some(ch) = slot else {
-                return;
-            };
-            // SAFETY: writing to a characteristic of a connected peripheral.
-            unsafe {
-                // Rumble comes again soon; commands are worth the wait.
-                if matches!(target, Target::Vibration)
-                    && !peer.peripheral.canSendWriteWithoutResponse()
-                {
-                    tracing::trace!("Bluetooth: no room for a rumble report");
+impl Writer for QueueWriter {
+    fn write(&self, target: Target, data: Vec<u8>) {
+        let key = self.key.clone();
+        central().queue.exec_async(move || {
+            with_cb(|cb| {
+                let Some(peer) = cb.peers.get(&key) else {
                     return;
+                };
+                let slot = match target {
+                    Target::Command => &peer.command,
+                    Target::Vibration => &peer.vibration,
+                };
+                let Some(ch) = slot else {
+                    return;
+                };
+                // SAFETY: writing to a characteristic of a connected peripheral.
+                unsafe {
+                    // Rumble comes again soon; commands are worth the wait.
+                    if matches!(target, Target::Vibration)
+                        && !peer.peripheral.canSendWriteWithoutResponse()
+                    {
+                        tracing::trace!("Bluetooth: no room for a rumble report");
+                        return;
+                    }
+                    peer.peripheral.writeValue_forCharacteristic_type(
+                        &NSData::with_bytes(&data),
+                        ch,
+                        CBCharacteristicWriteType::WithoutResponse,
+                    );
                 }
-                peer.peripheral.writeValue_forCharacteristic_type(
-                    &NSData::with_bytes(&data),
-                    ch,
-                    CBCharacteristicWriteType::WithoutResponse,
-                );
-            }
+            });
         });
-    });
-}
-
-/// A connected controller's reports, for its device thread.
-pub(crate) struct BleIo {
-    link: Arc<Link>,
-    events: Receiver<Event>,
-    waker: Arc<BleWaker>,
-    /// The last input report, its ID in front.
-    report: Vec<u8>,
-}
-
-struct BleWaker(Sender<Event>);
-
-impl Wake for BleWaker {
-    fn wake(&self) {
-        let _ = self.0.try_send(Event::Wake);
-    }
-}
-
-impl HidHandle for BleIo {
-    fn wait(&mut self, timeout: Duration) -> io::Result<Wait> {
-        self.link.check()?;
-        let event = self.events.recv_timeout(timeout);
-        self.link.check()?;
-        match event {
-            Ok(Event::Report(value)) => {
-                switch2ble::input_report(&value, &mut self.report);
-                Ok(Wait::Report(self.report.len()))
-            }
-            Ok(Event::Wake) => Ok(Wait::Woken),
-            Err(RecvTimeoutError::Timeout) => Ok(Wait::Timeout),
-            Err(RecvTimeoutError::Disconnected) => Err(io::ErrorKind::NotConnected.into()),
-        }
-    }
-
-    fn report(&self) -> &[u8] {
-        &self.report
-    }
-
-    fn waker(&self) -> Arc<dyn Wake> {
-        self.waker.clone()
-    }
-}
-
-impl ReportIo for BleIo {
-    fn write(&mut self, report: &[u8]) -> io::Result<()> {
-        self.link.check()?;
-        write(
-            &self.link,
-            Target::Vibration,
-            switch2ble::output_report(report),
-        );
-        Ok(())
-    }
-
-    fn read(&mut self, buf: &mut [u8], timeout: Duration) -> io::Result<Option<usize>> {
-        let until = Instant::now() + timeout;
-        loop {
-            match self.wait(until.saturating_duration_since(Instant::now()))? {
-                Wait::Report(n) => {
-                    let n = n.min(buf.len());
-                    buf[..n].copy_from_slice(&self.report[..n]);
-                    return Ok(Some(n));
-                }
-                Wait::Woken if Instant::now() < until => {}
-                Wait::Woken | Wait::Timeout => return Ok(None),
-            }
-        }
-    }
-}
-
-/// A connected controller's command channel: commands out, replies back as notifications.
-pub(crate) struct GattCommands {
-    link: Arc<Link>,
-    replies: Receiver<Vec<u8>>,
-}
-
-impl BulkIo for GattCommands {
-    fn command(&mut self, cmd: &[u8], reply_len: usize, timeout: Duration) -> io::Result<Vec<u8>> {
-        self.link.check()?;
-        // Late replies to commands that timed out.
-        while self.replies.try_recv().is_ok() {}
-        write(&self.link, Target::Command, cmd.to_vec());
-        let until = Instant::now() + timeout;
-        loop {
-            match self
-                .replies
-                .recv_timeout(until.saturating_duration_since(Instant::now()))
-            {
-                // The reply repeats the command and subcommand.
-                Ok(mut reply) if reply.len() >= 4 && reply[0] == cmd[0] && reply[3] == cmd[3] => {
-                    reply.truncate(reply_len);
-                    return Ok(reply);
-                }
-                Ok(_) => {}
-                Err(RecvTimeoutError::Timeout) => return Err(io::ErrorKind::TimedOut.into()),
-                Err(RecvTimeoutError::Disconnected) => {
-                    return Err(io::ErrorKind::NotConnected.into());
-                }
-            }
-        }
     }
 }
 

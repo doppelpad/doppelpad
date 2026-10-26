@@ -1308,6 +1308,7 @@
     "not_on_macos": "unter macOS noch nicht",
     "open_settings": "Einstellungen öffnen",
     "bluetooth": "Bluetooth (Switch-2-Controller)",
+    "bluetooth_unavailable": "nicht verfügbar",
     "allow": "Erlauben",
     "bluetooth_hint": "Halte die kleine Pairing-Taste eines Switch 2 Pro Controllers, bis seine Lichter laufen: Doppelpad verbindet ihn. Nach dem Ausschalten des Controllers erneut."
   },
