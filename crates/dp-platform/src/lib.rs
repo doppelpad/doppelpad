@@ -546,6 +546,9 @@ pub struct DriverReport {
     pub bluetooth: Result<()>,
     /// Connected devices the hiding driver keeps from Doppelpad, explained for the user.
     pub hiding_problems: Vec<String>,
+    /// What the system's own services cannot do for Doppelpad, explained for the user: on
+    /// Linux the system bus or logind out of reach.
+    pub system_problems: Vec<String>,
 }
 
 pub struct Platform {

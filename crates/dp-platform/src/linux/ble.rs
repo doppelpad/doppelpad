@@ -38,8 +38,7 @@ const OBJECT_MANAGER: &str = "org.freedesktop.DBus.ObjectManager";
 
 /// Make sure the discovery runs this often.
 const RESCAN: Duration = Duration::from_secs(10);
-/// Give up on a controller that has not connected and answered by then. Also the longest any
-/// call to BlueZ may take.
+/// Give up on a controller that has not connected and answered by then.
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 /// How long a command may take to go out.
 const WRITE_TIMEOUT: Duration = Duration::from_secs(1);
@@ -120,8 +119,6 @@ fn central() -> &'static Central {
 
 #[derive(Default)]
 struct Central {
-    /// The system bus, once connected; dropped when the connection broke.
-    bus: Mutex<Option<Connection>>,
     watch: Mutex<Watch>,
     state: Mutex<State>,
 }
@@ -170,17 +167,9 @@ impl From<io::Error> for Failure {
     }
 }
 
-/// The system bus, connected on first use and again after the connection broke.
+/// The system bus (see [`super::sysbus`]).
 fn bus() -> zbus::Result<Connection> {
-    let mut bus = central().bus.lock().unwrap();
-    if let Some(bus) = &*bus {
-        return Ok(bus.clone());
-    }
-    let connected = zbus::blocking::connection::Builder::system()?
-        .method_timeout(CONNECT_TIMEOUT)
-        .build()?;
-    *bus = Some(connected.clone());
-    Ok(connected)
+    super::sysbus::connection()
 }
 
 /// Follow BlueZ's signals and keep the discovery running, again after Bluetooth was off or
@@ -248,7 +237,7 @@ fn listen(bus: &Connection, listening: Arc<AtomicBool>) -> zbus::Result<()> {
             }
             // The connection broke: a new one with the next look.
             tracing::debug!("Bluetooth: the system bus is gone");
-            central().bus.lock().unwrap().take();
+            super::sysbus::reset();
             thread_listening.store(false, Ordering::Relaxed);
         });
     if let Err(e) = spawned {

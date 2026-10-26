@@ -134,6 +134,8 @@ struct DriverWatch {
     status: DriverStatus,
     /// Connected devices the hiding driver keeps from Doppelpad.
     hiding_problems: Vec<String>,
+    /// What the system's own services cannot do for Doppelpad.
+    system_problems: Vec<String>,
     /// A report has arrived.
     known: bool,
     reports: Receiver<DriverReport>,
@@ -149,6 +151,7 @@ impl DriverWatch {
         DriverWatch {
             status: DriverStatus::default(),
             hiding_problems: Vec::new(),
+            system_problems: Vec::new(),
             known: false,
             reports,
             _probe: probe,
@@ -584,15 +587,18 @@ impl Service {
                 drivers.bluetooth
             );
         }
-        let problems = report.hiding_problems;
-        for p in problems
+        let known = [&self.drivers.hiding_problems, &self.drivers.system_problems];
+        for p in report
+            .hiding_problems
             .iter()
-            .filter(|p| !self.drivers.hiding_problems.contains(p))
+            .chain(&report.system_problems)
+            .filter(|p| !known.iter().any(|k| k.contains(p)))
         {
             tracing::warn!("{p}");
         }
         self.drivers.status = drivers;
-        self.drivers.hiding_problems = problems;
+        self.drivers.hiding_problems = report.hiding_problems;
+        self.drivers.system_problems = report.system_problems;
         self.drivers.known = true;
     }
 

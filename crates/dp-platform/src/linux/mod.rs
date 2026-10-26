@@ -38,6 +38,8 @@ mod hid;
 #[cfg(target_os = "linux")]
 mod hidraw;
 #[cfg(target_os = "linux")]
+mod sysbus;
+#[cfg(target_os = "linux")]
 mod system;
 #[cfg(target_os = "linux")]
 mod uinput;
@@ -73,6 +75,7 @@ pub fn platform() -> crate::Platform {
             input_access: Ok(()),
             bluetooth: ble::check(),
             hiding_problems: Vec::new(),
+            system_problems: sysbus::problems(),
         },
         gamepads: vec![
             Box::new(crate::joycon::JoyConCombiner::new(gamepads)),

@@ -690,6 +690,10 @@ Found in the second run and left for the maintainer:
   system bus, as in the Arch container without `DBUS_SYSTEM_BUS_ADDRESS`, keeping awake, the
   lock-screen pause and turning off fail silently: the inhibitor exits at once, and the lock
   watch gives up with a debug line. A warning in the app would help.
+  *Fixed after the fifth run:* the driver check, every 5 s, also pings logind on the system
+  bus; when the bus or logind does not answer, the app shows a warning and `doppelpad doctor`
+  a problem saying what does not work. Checked with the command-line tool in the Arch
+  container, with and without `DBUS_SYSTEM_BUS_ADDRESS`.
 - **K11, Steam sets controllers' lights.** Steam writes a controller's lights through hidraw
   when it takes the controller over, past the driver. Doppelpad now writes its own again for
   6 s after a controller connects (`a2cc63a`). Whether Steam sets them again later, for

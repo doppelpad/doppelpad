@@ -350,11 +350,12 @@ Tray icons go through libappindicator, which cannot remove an icon. The icon of 
 controller that went away is hidden, and desktops such as KDE Plasma list it among the
 tray's hidden icons until the controller is back or the app quits.
 
-Keeping awake, the lock-screen pause and turning controllers off talk to the system bus. A
-container may not share it: the Arch Distrobox container on SteamOS has no `/run/dbus`.
-There, start the app with
-`DBUS_SYSTEM_BUS_ADDRESS=unix:path=/run/host/run/dbus/system_bus_socket`; otherwise they
-fail without a warning.
+Keeping awake, the lock-screen pause, turning controllers off and Switch 2 controllers over
+Bluetooth talk to the system bus. A container may not share it: the Arch Distrobox container
+on SteamOS has no `/run/dbus`. There, start the app with
+`DBUS_SYSTEM_BUS_ADDRESS=unix:path=/run/host/run/dbus/system_bus_socket`. Without it they
+fail, and the app and `doppelpad doctor` say so; likewise when systemd-logind does not
+answer.
 
 ## Troubleshooting
 

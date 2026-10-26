@@ -19,6 +19,7 @@ impl NullPlatform {
                 input_access: Err(PlatformError::Unsupported("keyboard and mouse")),
                 bluetooth: Err(PlatformError::Unsupported("Bluetooth")),
                 hiding_problems: Vec::new(),
+                system_problems: Vec::new(),
             },
             gamepads: Vec::new(),
             virtual_pads: Box::new(NullPlatform),

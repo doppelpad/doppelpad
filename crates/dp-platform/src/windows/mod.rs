@@ -75,6 +75,7 @@ pub fn platform() -> Platform {
             input_access: Ok(()),
             bluetooth: ble::check(),
             hiding_problems: hidhide::problems(),
+            system_problems: Vec::new(),
         },
         gamepads: vec![
             Box::new(xinput::XInputBackend::new()),
