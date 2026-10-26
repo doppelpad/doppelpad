@@ -29,6 +29,11 @@ tauri-plugin-single-instance = "2"
 # Without `zip`: the update is the setup itself, not a zipped one (createUpdaterArtifacts).
 tauri-plugin-updater = { version = "2", default-features = false, features = ["rustls-tls", "system-proxy"] }
 
+# Overlays on Wayland are layer-shell surfaces (overlay.rs); `gtk` is the version Tauri uses.
+[target.'cfg(target_os = "linux")'.dependencies]
+gtk = "0.18"
+gtk-layer-shell = { version = "0.8", features = ["v0_6"] }
+
 [features]
 # Embed the built frontend instead of loading the dev server (set by `tauri build`).
 custom-protocol = ["tauri/custom-protocol"]

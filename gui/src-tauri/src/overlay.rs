@@ -3,6 +3,10 @@
 //! where its [`Placement`] says. They load `overlay.html`, which picks its content by the
 //! window label. They live apart from the main window, so they work while it is hidden
 //! in the tray.
+//!
+//! On Wayland a window cannot place itself (KWin puts it in the middle of the screen) and may
+//! take the focus from a game; there the overlays are layer-shell surfaces instead (see
+//! [`layer`]), where the compositor supports them.
 
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -230,6 +234,10 @@ fn window(app: &AppHandle, kind: OverlayKind) -> tauri::Result<(WebviewWindow, b
     // so on Linux `raise` does it.
     #[cfg(not(target_os = "linux"))]
     w.set_ignore_cursor_events(true)?;
+    #[cfg(target_os = "linux")]
+    if layer::supported() {
+        layer::init(&w);
+    }
     #[cfg(windows)]
     if let Ok(hwnd) = w.hwnd() {
         dp_platform::windows::overlay::prepare(hwnd.0 as isize);
@@ -263,6 +271,14 @@ pub fn primary_monitor(app: &AppHandle) -> Option<Monitor> {
 
 /// Size and move `w` to `placement`; without monitors it stays as it is.
 fn place(app: &AppHandle, w: &WebviewWindow, placement: Placement) -> tauri::Result<()> {
+    #[cfg(target_os = "linux")]
+    if layer::supported() {
+        let screens: Vec<Screen> = monitors(app).iter().map(Screen::of).collect();
+        if let Some(anchoring) = anchoring(placement, &screens) {
+            layer::place(w, anchoring);
+        }
+        return Ok(());
+    }
     let Some((position, size)) = rect(app, placement) else {
         return Ok(());
     };
@@ -310,6 +326,197 @@ fn rect(
     ))
 }
 
+/// A monitor, as [`anchoring`] needs it: in physical pixels, and its scale.
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))] // only for layer surfaces
+#[derive(Clone, Copy, Debug)]
+struct Screen {
+    position: PhysicalPosition<i32>,
+    size: PhysicalSize<u32>,
+    scale: f64,
+}
+
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+impl Screen {
+    fn of(m: &Monitor) -> Screen {
+        Screen {
+            position: *m.position(),
+            size: *m.size(),
+            scale: m.scale_factor(),
+        }
+    }
+
+    /// Where GDK has the monitor: its position in logical pixels.
+    fn origin(&self) -> (i32, i32) {
+        (
+            (f64::from(self.position.x) / self.scale).round() as i32,
+            (f64::from(self.position.y) / self.scale).round() as i32,
+        )
+    }
+
+    fn contains(&self, p: PhysicalPosition<i32>) -> bool {
+        let (x, y) = (self.position.x, self.position.y);
+        (x..x + self.size.width as i32).contains(&p.x)
+            && (y..y + self.size.height as i32).contains(&p.y)
+    }
+}
+
+/// How a layer surface takes a placement, in logical pixels: the monitor (its origin), the
+/// margin to each edge it is anchored to (`None`: not anchored), and its size (`None`:
+/// stretched between its anchors).
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Anchoring {
+    monitor: (i32, i32),
+    top: Option<i32>,
+    right: Option<i32>,
+    bottom: Option<i32>,
+    left: Option<i32>,
+    size: Option<(i32, i32)>,
+}
+
+/// Where `placement` puts a layer surface on `screens` (the primary one first). A corner keeps
+/// [`MARGIN`] from the monitor's edges; the compositor keeps panels free besides.
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+fn anchoring(placement: Placement, screens: &[Screen]) -> Option<Anchoring> {
+    let margin = MARGIN.round() as i32;
+    match placement {
+        Placement::Corner {
+            monitor,
+            corner,
+            size,
+        } => {
+            let s = screens.get(monitor).or(screens.first())?;
+            let (top, left) = match corner {
+                Corner::TopLeft => (true, true),
+                Corner::TopRight => (true, false),
+                Corner::BottomLeft => (false, true),
+                Corner::BottomRight => (false, false),
+            };
+            Some(Anchoring {
+                monitor: s.origin(),
+                top: top.then_some(margin),
+                right: (!left).then_some(margin),
+                bottom: (!top).then_some(margin),
+                left: left.then_some(margin),
+                size: Some((size.0.round() as i32, size.1.round() as i32)),
+            })
+        }
+        Placement::Rect { position, size } => {
+            let s = screens
+                .iter()
+                .find(|s| s.contains(position))
+                .or(screens.first())?;
+            let logical = |v: i32| (f64::from(v) / s.scale).round() as i32;
+            Some(Anchoring {
+                monitor: s.origin(),
+                top: Some(logical(position.y - s.position.y)),
+                right: None,
+                bottom: None,
+                left: Some(logical(position.x - s.position.x)),
+                size: Some((logical(size.width as i32), logical(size.height as i32))),
+            })
+        }
+        Placement::PrimaryMonitor => Some(Anchoring {
+            monitor: screens.first()?.origin(),
+            top: Some(0),
+            right: Some(0),
+            bottom: Some(0),
+            left: Some(0),
+            size: None,
+        }),
+    }
+}
+
+/// Overlays as layer-shell surfaces (wlr-layer-shell, which KWin and wlroots compositors
+/// support), through gtk-layer-shell: on the overlay layer above every window, fullscreen
+/// games included, anchored where Doppelpad says, and never with the keyboard focus.
+#[cfg(target_os = "linux")]
+pub mod layer {
+    use std::sync::OnceLock;
+
+    use gtk::prelude::*;
+    use gtk_layer_shell::{Edge, KeyboardMode, Layer, LayerShell};
+    use tauri::WebviewWindow;
+
+    use super::Anchoring;
+
+    static SUPPORTED: OnceLock<bool> = OnceLock::new();
+
+    /// Find out whether the compositor takes layer surfaces (not on X11). On the main
+    /// thread, once GTK runs.
+    pub fn detect() {
+        let supported = gtk_layer_shell::is_supported();
+        tracing::info!(
+            "overlays: {}",
+            if supported {
+                "layer-shell surfaces"
+            } else {
+                "windows (no layer shell)"
+            }
+        );
+        let _ = SUPPORTED.set(supported);
+    }
+
+    pub(super) fn supported() -> bool {
+        SUPPORTED.get().copied().unwrap_or(false)
+    }
+
+    /// Make a new overlay window a layer surface, before it is first shown.
+    pub(super) fn init(w: &WebviewWindow) {
+        let window = w.clone();
+        let _ = w.run_on_main_thread(move || {
+            let Ok(gtk) = window.gtk_window() else {
+                return;
+            };
+            // A window becomes a layer surface only before it is realized.
+            if gtk.is_realized() {
+                gtk.unrealize();
+            }
+            // tao gives every window on Wayland a title bar of its own.
+            gtk.set_titlebar(None::<&gtk::Widget>);
+            gtk.init_layer_shell();
+            gtk.set_layer(Layer::Overlay);
+            gtk.set_keyboard_mode(KeyboardMode::None);
+            gtk.set_namespace("doppelpad-overlay");
+        });
+    }
+
+    /// Anchor and size the layer surface `w` as `a` says.
+    pub(super) fn place(w: &WebviewWindow, a: Anchoring) {
+        let window = w.clone();
+        let _ = w.run_on_main_thread(move || {
+            let Ok(gtk) = window.gtk_window() else {
+                return;
+            };
+            if let Some(display) = gtk::gdk::Display::default() {
+                let monitor = (0..display.n_monitors())
+                    .filter_map(|i| display.monitor(i))
+                    .find(|m| {
+                        let g = m.geometry();
+                        (g.x(), g.y()) == a.monitor
+                    });
+                if let Some(m) = monitor {
+                    gtk.set_monitor(&m);
+                }
+            }
+            for (edge, margin) in [
+                (Edge::Top, a.top),
+                (Edge::Right, a.right),
+                (Edge::Bottom, a.bottom),
+                (Edge::Left, a.left),
+            ] {
+                gtk.set_anchor(edge, margin.is_some());
+                gtk.set_layer_shell_margin(edge, margin.unwrap_or(0));
+            }
+            let (width, height) = a.size.unwrap_or((-1, -1));
+            gtk.set_size_request(width, height);
+            if let Some((width, height)) = a.size {
+                gtk.resize(width, height);
+            }
+        });
+    }
+}
+
 /// Run `f` with `w`'s NSWindow on the main thread, where AppKit wants it.
 #[cfg(target_os = "macos")]
 fn on_main(w: &WebviewWindow, f: impl FnOnce(*mut std::ffi::c_void) + Send + 'static) {
@@ -354,4 +561,90 @@ pub fn hide(w: &WebviewWindow) {
     });
     #[cfg(not(target_os = "macos"))]
     let _ = w.hide();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A Steam Deck's screen, and a 4K monitor at 200 % to its right.
+    fn screens() -> [Screen; 2] {
+        [
+            Screen {
+                position: PhysicalPosition::new(0, 0),
+                size: PhysicalSize::new(1280, 800),
+                scale: 1.0,
+            },
+            Screen {
+                position: PhysicalPosition::new(1280, 0),
+                size: PhysicalSize::new(3840, 2160),
+                scale: 2.0,
+            },
+        ]
+    }
+
+    #[test]
+    fn corners_anchor_two_edges() {
+        let toast = |monitor, corner| Placement::Corner {
+            monitor,
+            corner,
+            size: (380.0, 84.0),
+        };
+        assert_eq!(
+            anchoring(toast(0, Corner::BottomRight), &screens()),
+            Some(Anchoring {
+                monitor: (0, 0),
+                top: None,
+                right: Some(24),
+                bottom: Some(24),
+                left: None,
+                size: Some((380, 84)),
+            })
+        );
+        let top_left = anchoring(toast(1, Corner::TopLeft), &screens()).unwrap();
+        assert_eq!(top_left.monitor, (640, 0), "GDK's logical position");
+        assert_eq!((top_left.top, top_left.left), (Some(24), Some(24)));
+        assert_eq!((top_left.bottom, top_left.right), (None, None));
+        assert_eq!(top_left.size, Some((380, 84)), "logical, at any scale");
+        assert_eq!(
+            anchoring(toast(5, Corner::TopRight), &screens())
+                .unwrap()
+                .monitor,
+            (0, 0),
+            "a monitor that is gone: the primary one"
+        );
+        assert_eq!(anchoring(toast(0, Corner::TopLeft), &[]), None);
+    }
+
+    #[test]
+    fn rectangles_go_by_their_monitor() {
+        // The crosshair, centred on the second monitor.
+        let rect = Placement::Rect {
+            position: PhysicalPosition::new(1280 + 1880, 1040),
+            size: PhysicalSize::new(80, 80),
+        };
+        assert_eq!(
+            anchoring(rect, &screens()),
+            Some(Anchoring {
+                monitor: (640, 0),
+                top: Some(520),
+                right: None,
+                bottom: None,
+                left: Some(940),
+                size: Some((40, 40)),
+            })
+        );
+    }
+
+    #[test]
+    fn the_primary_monitor_is_covered() {
+        let a = anchoring(Placement::PrimaryMonitor, &screens()).unwrap();
+        assert_eq!(a.monitor, (0, 0));
+        assert_eq!(
+            [a.top, a.right, a.bottom, a.left],
+            [Some(0); 4],
+            "anchored to every edge"
+        );
+        assert_eq!(a.size, None);
+    }
 }

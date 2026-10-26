@@ -142,6 +142,8 @@ fn main() {
                 main_focused: AtomicBool::new(false),
                 min_size_held: AtomicBool::new(false),
             });
+            #[cfg(target_os = "linux")]
+            overlay::layer::detect();
             app.manage(overlay::Overlays::default());
             app.manage(osd::OsdState::default());
             app.manage(updates::PendingUpdate::default());
