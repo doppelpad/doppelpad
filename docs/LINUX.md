@@ -17,8 +17,8 @@ Doppelpad runs on Linux with only kernel interfaces. No extra drivers are needed
 > app. A second run on SteamOS 3.9 covered batteries, lights, turning off over Bluetooth,
 > keeping awake and the lock screen with a DualSense. A fourth run tried a Switch 2 Pro
 > Controller over Bluetooth with the command-line tool: connecting from pairing mode, every
-> button, the sticks, triggers and motion, the battery level, player light 1, rumble, and
-> going away when turned off. The [results](LINUX-TESTING.md#results) list what works and
+> button, the sticks, triggers and motion, the battery level, player light 1, rumble, turning
+> it off, and going away when turned off. The [results](LINUX-TESTING.md#results) list what works and
 > what is still open. DualShock 4, Joy-Cons, Switch controllers over Bluetooth, the Switch 2
 > Pro Controller in the app, other distributions and Game Mode are untested. Reports from
 > Linux users are very welcome.
@@ -187,8 +187,7 @@ Doppelpad quits; in the test it then turned off.
   No other program sees the controller, so there is nothing to hide.
 - A controller that is turned off is let go within half a second.
 - Turning it off (the `power_off` command, and the idle time) ends its link, as quitting
-  Doppelpad does, after which the controller turned off in the test; the command itself is
-  not tried yet (the hardware test `linux::ble::tests::switch2_pro_turned_off` does it).
+  Doppelpad does, and the controller switches off (tried).
 - Steam keeps a discovery of its own running on SteamOS. While one runs, the adapter may hold
   back the advertisement the connection waits for, so Doppelpad starts the scan over when the
   controller has not connected after 2 seconds; connecting took 0.4 s in the tests.
