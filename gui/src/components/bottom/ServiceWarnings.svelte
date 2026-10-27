@@ -25,7 +25,7 @@
 <style>
   .service-warnings {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     gap: 12px;
     padding: 6px 16px;
     background: color-mix(in srgb, var(--warning) 6%, transparent);
