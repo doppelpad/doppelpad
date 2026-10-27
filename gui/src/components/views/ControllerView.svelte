@@ -325,6 +325,13 @@
     border-color: var(--line-strong);
     z-index: 2;
   }
+  /* Cut short like a summary when the chip is at its widest; the tooltip has the whole text. */
+  .name,
+  .sum {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
   .name {
     font-size: var(--fs-xs);
     font-weight: 600;
@@ -334,9 +341,6 @@
     font-size: 11.5px;
     font-weight: 500;
     color: var(--accent);
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
   }
   .chip.mapped .name {
     color: var(--text);
