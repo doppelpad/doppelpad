@@ -1,0 +1,21 @@
+name: Feature request
+description: Suggest something Doppelpad should do.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please describe the idea in your own words and don't paste code, screenshots or text from reWASD or other proprietary tools. The [roadmap](https://github.com/doppelpad/doppelpad/blob/main/docs/ROADMAP.md) lists what is planned already.
+
+  - type: textarea
+    id: idea
+    attributes:
+      label: What Doppelpad should do
+      description: And in which game or situation you would use it.
+    validations:
+      required: true
+  - type: textarea
+    id: today
+    attributes:
+      label: How you do it today
+      description: A workaround, another tool, or not at all.
