@@ -124,6 +124,7 @@ export const api = {
   setBlocked: (id: string, blocked: boolean) => invoke<void>('set_blocked', { id, blocked }),
   setGroups: (groups: DeviceGroup[]) => invoke<void>('set_groups', { groups }),
   setPowerOffAfter: (minutes: number) => invoke<void>('set_power_off_after', { minutes }),
+  setSwitch2Bluetooth: (on: boolean) => invoke<void>('set_switch2_bluetooth', { on }),
   powerOff: (id: string) => invoke<void>('power_off', { id }),
   setLayout: (layout: GenericLayout) => invoke<void>('set_layout', { layout }),
   forgetLayout: (device: string) => invoke<void>('forget_layout', { device }),

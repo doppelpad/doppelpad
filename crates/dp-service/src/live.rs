@@ -122,6 +122,8 @@ pub struct LiveState {
     pub groups: Vec<DeviceGroup>,
     /// Wireless controllers turn off after this many minutes without input; 0 never.
     pub power_off_after_min: u32,
+    /// Doppelpad looks for Switch 2 controllers in pairing mode over Bluetooth.
+    pub switch2_bluetooth: bool,
     /// Generic pad models with a recorded layout (`vvvv:pppp`).
     pub layouts: Vec<String>,
     pub dsu: LiveDsu,

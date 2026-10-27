@@ -1094,7 +1094,9 @@
       "power_off_after": "Kabellose Controller ausschalten nach",
       "never": "nie",
       "minutes": "{n} min ohne Eingabe",
-      "power_off_hint": "Spart Akku, wenn du den Controller liegen lässt. Ein Druck auf die Home-Taste schaltet ihn wieder ein."
+      "power_off_hint": "Spart Akku, wenn du den Controller liegen lässt. Ein Druck auf die Home-Taste schaltet ihn wieder ein.",
+      "switch2_bluetooth": "Über Bluetooth nach Switch-2-Controllern suchen",
+      "switch2_bluetooth_hint": "Doppelpad horcht, solange es läuft, auf einen Switch 2 Pro Controller im Pairing-Modus. Schalte es aus, wenn du keinen über Bluetooth verbindest; verbundene Controller bleiben."
     },
     "battery": "Akku {level} %",
     "battery_charging": "Akku {level} %, lädt"

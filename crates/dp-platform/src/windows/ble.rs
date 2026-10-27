@@ -4,7 +4,7 @@
 //! advertisements for one in pairing mode, connects it without pairing and subscribes to its
 //! input. The controller then runs in the HID backend like any other, over a
 //! [`crate::switch2gatt`] link. A controller that is looking for the console it is paired with
-//! is left alone.
+//! is left alone. The watcher runs only while the search is on ([`crate::set_switch2_search`]).
 //!
 //! The pads never ask for a faster connection, so Doppelpad asks Windows for one. Windows 11
 //! can be asked; Windows 10 keeps its default, which in tests brought the reports unevenly:
@@ -20,7 +20,7 @@ use std::time::{Duration, Instant};
 
 use windows::Devices::Bluetooth::Advertisement::{
     BluetoothLEAdvertisementReceivedEventArgs, BluetoothLEAdvertisementWatcher,
-    BluetoothLEAdvertisementWatcherStatus, BluetoothLEScanningMode,
+    BluetoothLEAdvertisementWatcherStatus, BluetoothLEManufacturerData, BluetoothLEScanningMode,
 };
 use windows::Devices::Bluetooth::GenericAttributeProfile::{
     GattCharacteristic, GattClientCharacteristicConfigurationDescriptorValue,
@@ -178,8 +178,17 @@ impl From<windows::core::Error> for Failure {
     }
 }
 
-/// Start the watcher, and start it again after Windows stopped it.
+/// Start the watcher, and start it again after Windows stopped it; stop it while the search
+/// is off.
 fn keep_watching(w: &mut Watcher) {
+    if !crate::switch2_search() {
+        if let Some(x) = w.watcher.take() {
+            let _ = x.Stop();
+            tracing::info!("Bluetooth: no longer looking for Switch 2 controllers");
+        }
+        w.started = None;
+        return;
+    }
     let status = w.watcher.as_ref().and_then(|x| x.Status().ok());
     if status == Some(BluetoothLEAdvertisementWatcherStatus::Started)
         || w.started.is_some_and(|at| at.elapsed() < RESTART)
@@ -211,6 +220,15 @@ fn new_watcher() -> windows::core::Result<BluetoothLEAdvertisementWatcher> {
     // Listening is enough: a controller sends its manufacturer data in the advertisement
     // itself (a connectable one), not in a scan response, so no scan requests go out.
     watcher.SetScanningMode(BluetoothLEScanningMode::Passive)?;
+    // Only advertisements with Nintendo's manufacturer data come through: the Bluetooth stack
+    // drops every other device's (phones, headphones) instead of handing each to Doppelpad.
+    let nintendo = BluetoothLEManufacturerData::new()?;
+    nintendo.SetCompanyId(switch2ble::COMPANY_ID)?;
+    watcher
+        .AdvertisementFilter()?
+        .Advertisement()?
+        .ManufacturerData()?
+        .Append(&nintendo)?;
     watcher.Received(&TypedEventHandler::<
         BluetoothLEAdvertisementWatcher,
         BluetoothLEAdvertisementReceivedEventArgs,
@@ -244,7 +262,8 @@ fn on_advert(args: &BluetoothLEAdvertisementReceivedEventArgs) -> windows::core:
 
 fn discovered(address: u64, kind: BluetoothAddressType, advert: Advert) {
     let mut state = central().state.lock().unwrap();
-    if state.peers.contains_key(&address) {
+    // An advertisement can still come in just after the search was turned off.
+    if state.peers.contains_key(&address) || !crate::switch2_search() {
         return;
     }
     if !advert.pairing || advert.model != Switch2Model::Pro {
@@ -685,6 +704,85 @@ mod tests {
             heard += count;
         }
         assert!(heard > 0, "nothing advertises near this PC");
+    }
+
+    /// Listens 5 s unfiltered and picks the company whose manufacturer data comes most often,
+    /// then 5 s through a filter on that company like [`new_watcher`]'s (a company identifier,
+    /// no data): its advertisements come through, and only those.
+    #[test]
+    #[ignore = "listens to Bluetooth on this PC; needs a device nearby that sends manufacturer data"]
+    fn the_filter_lets_one_company_through() {
+        use std::collections::BTreeMap;
+
+        // The companies in each advertisement's manufacturer data.
+        let listen = |company: Option<u16>| -> Vec<Vec<u16>> {
+            let watcher = BluetoothLEAdvertisementWatcher::new().unwrap();
+            watcher
+                .SetScanningMode(BluetoothLEScanningMode::Passive)
+                .unwrap();
+            if let Some(id) = company {
+                let filter = BluetoothLEManufacturerData::new().unwrap();
+                filter.SetCompanyId(id).unwrap();
+                watcher
+                    .AdvertisementFilter()
+                    .and_then(|f| f.Advertisement())
+                    .and_then(|a| a.ManufacturerData())
+                    .and_then(|m| m.Append(&filter))
+                    .unwrap();
+            }
+            let seen = Arc::new(Mutex::new(Vec::new()));
+            let log = seen.clone();
+            watcher
+                .Received(&TypedEventHandler::<
+                    BluetoothLEAdvertisementWatcher,
+                    BluetoothLEAdvertisementReceivedEventArgs,
+                >::new(move |_, args| {
+                    if let Some(args) = args.as_ref() {
+                        let companies = args
+                            .Advertisement()?
+                            .ManufacturerData()?
+                            .into_iter()
+                            .map(|section| section.CompanyId())
+                            .collect::<windows::core::Result<Vec<u16>>>()?;
+                        log.lock().unwrap().push(companies);
+                    }
+                    Ok(())
+                }))
+                .unwrap();
+            watcher.Start().unwrap();
+            std::thread::sleep(Duration::from_secs(5));
+            watcher.Stop().unwrap();
+            seen.lock().unwrap().clone()
+        };
+
+        let all = listen(None);
+        let mut counts = BTreeMap::<u16, usize>::new();
+        for id in all.iter().flatten() {
+            *counts.entry(*id).or_default() += 1;
+        }
+        println!(
+            "unfiltered: {} advertisements, by company {counts:04x?}",
+            all.len()
+        );
+        let company = counts
+            .iter()
+            .max_by_key(|(_, n)| **n)
+            .map(|(id, _)| *id)
+            .expect("no manufacturer data near this PC");
+
+        let filtered = listen(Some(company));
+        println!(
+            "filtered on {company:04x}: {} advertisements",
+            filtered.len()
+        );
+        assert!(
+            !filtered.is_empty(),
+            "the company's advertisements come through"
+        );
+        assert!(
+            filtered.iter().all(|ids| ids.contains(&company)),
+            "and only those: {filtered:04x?}"
+        );
     }
 
     /// Connects a Pro Controller in pairing mode near this PC and drives it for a while; see

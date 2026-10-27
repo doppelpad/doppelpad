@@ -113,6 +113,8 @@ pub struct SlotState {
     pub groups: Vec<DeviceGroup>,
     /// Turn wireless controllers off after this many minutes without input; 0 never.
     pub power_off_after_min: u32,
+    /// Look for Switch 2 controllers in pairing mode over Bluetooth.
+    pub switch2_bluetooth: bool,
     /// How generic pad models' inputs map to pad controls.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub layouts: Vec<GenericLayout>,
@@ -171,6 +173,7 @@ impl Default for SlotState {
             blocked: Vec::new(),
             groups: Vec::new(),
             power_off_after_min: 0,
+            switch2_bluetooth: true,
             layouts: Vec::new(),
             dsu: DsuSettings::default(),
             runtime: RuntimeOptions::default(),
@@ -328,6 +331,7 @@ auto_switch = false
 player_lights = "while_remapping"
 mic_led = false
 power_off_after_min = 0
+switch2_bluetooth = true
 
 [devices."hid:pad"]
 slots = [
@@ -364,6 +368,7 @@ auto_switch = true
 player_lights = "while_remapping"
 mic_led = false
 power_off_after_min = 0
+switch2_bluetooth = true
 "#;
         let text = std::fs::read_to_string(&path).unwrap();
         assert_eq!(text, format!("{head}{tail}"));
@@ -378,5 +383,10 @@ power_off_after_min = 0
         std::fs::write(&path, "remap_on = false\n").unwrap();
         assert!(!SlotState::load(&path).value.remap_on);
         assert!(SlotState::load(&path).value.auto_switch);
+
+        // A file from before the Bluetooth search could be turned off keeps it on.
+        assert!(SlotState::load(&path).value.switch2_bluetooth);
+        std::fs::write(&path, "switch2_bluetooth = false\n").unwrap();
+        assert!(!SlotState::load(&path).value.switch2_bluetooth);
     }
 }

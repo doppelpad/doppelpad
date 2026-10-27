@@ -282,6 +282,7 @@ impl Service {
         svc.apply_policy();
         svc.apply_layouts();
         svc.apply_power_off();
+        svc.apply_switch2_bluetooth();
         svc.apply_dsu();
         svc.apply_http();
         svc.rt.set_prevent_sleep(svc.state.runtime.prevent_sleep);
@@ -506,6 +507,11 @@ impl Service {
         self.rt.set_power_off_after(
             (minutes > 0).then(|| std::time::Duration::from_secs(u64::from(minutes) * 60)),
         );
+    }
+
+    /// Looking for Switch 2 controllers over Bluetooth.
+    fn apply_switch2_bluetooth(&self) {
+        dp_platform::set_switch2_search(self.state.switch2_bluetooth);
     }
 
     /// Player lights and microphone LED of every controller, from the slots and remapping.

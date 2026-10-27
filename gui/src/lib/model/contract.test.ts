@@ -61,6 +61,7 @@ const live = {
   blocked: true,
   groups: true,
   power_off_after_min: true,
+  switch2_bluetooth: true,
   layouts: true,
   dsu: true,
   http: true,

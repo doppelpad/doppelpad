@@ -110,6 +110,9 @@ into pairing mode again after it was off. A controller that only looks for its c
 button pressed while it is off) is left alone, so Doppelpad never takes it from a Switch 2
 nearby.
 
+- Doppelpad scans for controllers in pairing mode while it runs. If you don't connect one over
+  Bluetooth, turn *Look for Switch 2 controllers over Bluetooth* off in Settings › Controllers:
+  the scan stops, and controllers already connected stay.
 - Only the Pro Controller for now; the GameCube controller and the Joy-Con 2 are not connected.
 - macOS sets the connection's pace, which the controller cannot change: about 33 reports a
   second, against 250 over USB. That is enough for menus and most games, but less smooth in

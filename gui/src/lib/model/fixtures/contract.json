@@ -105,6 +105,7 @@
       }
     ],
     "power_off_after_min": 0,
+    "switch2_bluetooth": false,
     "layouts": [
       "0079:0006"
     ],

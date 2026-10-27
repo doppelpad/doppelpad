@@ -7,7 +7,8 @@
 //! itself, which connects it without pairing, finds the characteristics and switches input and
 //! reply notifications on. The controller then runs in the HID backend as on Windows and macOS,
 //! over a [`crate::switch2gatt`] link. A controller that is looking for the console it is paired
-//! with is left alone. Closing the socket ends the link, also when Doppelpad ends.
+//! with is left alone. Closing the socket ends the link, also when Doppelpad ends. The discovery
+//! runs only while the search is on ([`crate::set_switch2_search`]).
 //!
 //! A `dp-ble` thread follows BlueZ's signals: what the discovery finds, and controllers that
 //! disconnect. Each controller is set up on a `dp-ble-connect` thread, as that waits for the
@@ -127,6 +128,8 @@ struct Central {
 struct Watch {
     /// When the discovery was last looked at.
     checked: Option<Instant>,
+    /// Whether the search was on then ([`crate::set_switch2_search`]).
+    searching: bool,
     /// The `dp-ble` thread follows BlueZ's signals.
     listening: Arc<AtomicBool>,
 }
@@ -173,12 +176,23 @@ fn bus() -> zbus::Result<Connection> {
 }
 
 /// Follow BlueZ's signals and keep the discovery running, again after Bluetooth was off or
-/// BlueZ started over; not while a controller connects (see [`connect`]).
+/// BlueZ started over; not while a controller connects (see [`connect`]). While the search is
+/// off, no discovery of Doppelpad's runs.
 fn keep_watching(w: &mut Watch) {
-    if w.checked.is_some_and(|at| at.elapsed() < RESCAN) {
+    let search = crate::switch2_search();
+    // At once when the search was turned on or off.
+    if search == w.searching && w.checked.is_some_and(|at| at.elapsed() < RESCAN) {
         return;
     }
+    let stopped = w.searching && !search;
     w.checked = Some(Instant::now());
+    w.searching = search;
+    if !search {
+        if stopped {
+            stop_searching();
+        }
+        return;
+    }
     let bus = match bus() {
         Ok(bus) => bus,
         Err(e) => {
@@ -210,6 +224,28 @@ fn keep_watching(w: &mut Watch) {
             for (path, ifaces) in &objects {
                 if ifaces.get(ADAPTER).is_some_and(|a| flag(a, "Powered")) {
                     discover(&bus, path.as_str());
+                }
+            }
+        }
+        Err(e) => tracing::debug!("Bluetooth: cannot ask BlueZ for its adapters: {e}"),
+    }
+}
+
+/// End Doppelpad's discovery on every adapter. Controllers already connected stay.
+fn stop_searching() {
+    tracing::info!("Bluetooth: no longer looking for Switch 2 controllers");
+    let bus = match bus() {
+        Ok(bus) => bus,
+        Err(e) => {
+            tracing::debug!("Bluetooth: cannot reach the system bus: {e}");
+            return;
+        }
+    };
+    match managed_objects(&bus) {
+        Ok(objects) => {
+            for (path, ifaces) in &objects {
+                if ifaces.contains_key(ADAPTER) {
+                    stop_discovery(&bus, path.as_str());
                 }
             }
         }
@@ -331,7 +367,9 @@ fn on_device(path: &str, props: &Properties) {
 
 fn discovered(path: &str, advert: Advert) {
     let mut state = central().state.lock().unwrap();
-    if state.peers.contains_key(path) {
+    // Other programs' discoveries (Steam's, a desktop's Bluetooth settings) still bring
+    // advertisements in while the search is off.
+    if state.peers.contains_key(path) || !crate::switch2_search() {
         return;
     }
     if !advert.pairing || advert.model != Switch2Model::Pro {
@@ -373,7 +411,10 @@ fn connect(path: String, advert: Advert) {
     let adapter = adapter_of(&path).to_owned();
     let opened = bus().map_err(Failure::from).and_then(|bus| {
         let opened = open(&bus, &path, &adapter, advert);
-        discover(&bus, &adapter);
+        // Not when the search was turned off meanwhile.
+        if crate::switch2_search() {
+            discover(&bus, &adapter);
+        }
         opened
     });
     let mut state = central().state.lock().unwrap();

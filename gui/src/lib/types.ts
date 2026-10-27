@@ -619,6 +619,8 @@ export interface LiveState {
   groups: DeviceGroup[];
   /** Wireless controllers turn off after this many minutes without input; 0 never. */
   power_off_after_min: number;
+  /** Doppelpad looks for Switch 2 controllers in pairing mode over Bluetooth. */
+  switch2_bluetooth: boolean;
   /** Generic pad models with a recorded layout (`vvvv:pppp`). */
   layouts: string[];
   dsu: LiveDsu;

@@ -1094,7 +1094,9 @@
       "power_off_after": "Turn wireless controllers off after",
       "never": "never",
       "minutes": "{n} min without input",
-      "power_off_hint": "Saves battery when you put the controller down. Pressing its home button turns it back on."
+      "power_off_hint": "Saves battery when you put the controller down. Pressing its home button turns it back on.",
+      "switch2_bluetooth": "Look for Switch 2 controllers over Bluetooth",
+      "switch2_bluetooth_hint": "Doppelpad listens for a Switch 2 Pro Controller in pairing mode while it runs. Turn it off if you don't connect one over Bluetooth; connected controllers stay."
     },
     "battery": "Battery {level} %",
     "battery_charging": "Battery {level} %, charging"

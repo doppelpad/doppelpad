@@ -140,6 +140,7 @@ impl Service {
             ServiceCmd::SetBlocked { id, blocked } => self.set_blocked(id, blocked),
             ServiceCmd::SetGroups(groups) => self.set_groups(groups),
             ServiceCmd::SetPowerOffAfter(minutes) => self.set_power_off_after(minutes),
+            ServiceCmd::SetSwitch2Bluetooth(on) => self.set_switch2_bluetooth(on),
             ServiceCmd::SetLayout(layout) => self.set_layout(layout),
             ServiceCmd::SetRuntimeOptions(o) => self.set_runtime_options(o),
             ServiceCmd::SetHttp(settings) => self.set_http(settings),
@@ -381,6 +382,17 @@ impl Service {
         ServiceReply::Ok(match minutes {
             0 => "controllers stay on".into(),
             m => format!("controllers turn off after {m} min without input"),
+        })
+    }
+
+    fn set_switch2_bluetooth(&mut self, on: bool) -> ServiceReply {
+        self.state.switch2_bluetooth = on;
+        self.apply_switch2_bluetooth();
+        self.save_state();
+        ServiceReply::Ok(if on {
+            "looking for Switch 2 controllers over Bluetooth".into()
+        } else {
+            "no longer looking for Switch 2 controllers over Bluetooth".into()
         })
     }
 

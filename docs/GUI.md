@@ -537,6 +537,11 @@ the small pairing button on top of a Switch 2 Pro Controller until its lights ru
 Doppelpad connects it; again after the controller was off. It stays paired with its
 console.
 
+- Doppelpad listens for controllers in pairing mode while it runs, with a passive scan that
+  only Nintendo's advertisements get through. If you don't connect one over Bluetooth, turn
+  *Look for Switch 2 controllers over Bluetooth* off in *Settings → Controllers*: the scan
+  stops, and controllers already connected stay. The Bluetooth row in *Settings → Drivers*
+  goes with it.
 - Only the Pro Controller connects over Bluetooth so far.
 - The controller does not ask for a faster connection: on Windows 10 its input arrives
   unevenly, at times a steady 17 times a second, at times 15 to 105 times (about 45 on

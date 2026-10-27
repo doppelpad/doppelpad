@@ -100,6 +100,7 @@ impl Service {
             blocked: self.state.blocked.clone(),
             groups: self.state.groups.clone(),
             power_off_after_min: self.state.power_off_after_min,
+            switch2_bluetooth: self.state.switch2_bluetooth,
             runtime: self.state.runtime,
             locked: self.pause.locked,
             focus_paused: self.pause.focus_paused,

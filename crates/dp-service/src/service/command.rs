@@ -72,6 +72,8 @@ pub enum ServiceCmd {
     SetGroups(Vec<DeviceGroup>),
     /// Turn wireless controllers off after this many minutes without input; 0 never.
     SetPowerOffAfter(u32),
+    /// Look for Switch 2 controllers over Bluetooth, or stop looking.
+    SetSwitch2Bluetooth(bool),
     /// Store how a generic pad model's inputs map to pad controls (replaces its old one).
     SetLayout(GenericLayout),
     /// Go back to the guessed layout for a generic pad model (`vvvv:pppp`).

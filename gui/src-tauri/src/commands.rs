@@ -650,6 +650,12 @@ pub fn set_power_off_after(state: State<AppState>, minutes: u32) -> CmdResult<()
     state.call(ServiceCmd::SetPowerOffAfter(minutes))
 }
 
+/// Look for Switch 2 controllers over Bluetooth, or stop looking.
+#[tauri::command(async)]
+pub fn set_switch2_bluetooth(state: State<AppState>, on: bool) -> CmdResult<()> {
+    state.call(ServiceCmd::SetSwitch2Bluetooth(on))
+}
+
 /// Store how a generic pad model's inputs map to pad controls.
 #[tauri::command(async)]
 pub fn set_layout(state: State<AppState>, layout: GenericLayout) -> CmdResult<()> {

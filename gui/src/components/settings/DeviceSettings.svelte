@@ -1,6 +1,8 @@
 <script lang="ts">
   // Which controllers Doppelpad uses: devices it ignores completely, and groups of controllers
   // that act as one (one profile, one set of slots). Only connected devices can be grouped.
+  // Below, turning idle wireless controllers off and the search for Switch 2 controllers over
+  // Bluetooth.
   import { Plus, Trash2 } from '@lucide/svelte';
   import { api } from '../../lib/api';
   import { t } from '../../lib/i18n/index.svelte';
@@ -8,6 +10,7 @@
   import { padColor } from '../../lib/model/padColors';
   import type { DeviceGroup } from '../../lib/types';
   import Select from '../ui/Select.svelte';
+  import Toggle from '../ui/Toggle.svelte';
   import SettingRow from './SettingRow.svelte';
   import SettingsSection from './SettingsSection.svelte';
   import { tip } from '../../lib/tooltip.svelte';
@@ -108,6 +111,13 @@
     />
   </SettingRow>
   <p class="hint">{t('devices.settings.power_off_hint')}</p>
+
+  <Toggle
+    checked={live?.switch2_bluetooth ?? true}
+    label={t('devices.settings.switch2_bluetooth')}
+    onchange={(on) => app.attempt(api.setSwitch2Bluetooth(on))}
+  />
+  <p class="hint">{t('devices.settings.switch2_bluetooth_hint')}</p>
 </SettingsSection>
 
 <style>

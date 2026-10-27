@@ -22,7 +22,8 @@
   // mouse need instead, with a button to its settings, and virtual controllers as not there yet.
   // In the settings also Bluetooth, which only Switch 2 controllers over Bluetooth need, so it is
   // never missing: on macOS its permission, elsewhere whether it is there and on, with a button
-  // to Windows' Bluetooth settings (Linux desktops have no one place for them).
+  // to Windows' Bluetooth settings (Linux desktops have no one place for them). Not while the
+  // search for them is off (Settings › Controllers).
   import { CircleAlert, CircleCheck } from '@lucide/svelte';
   import { api } from '../../lib/api';
   import { t } from '../../lib/i18n/index.svelte';
@@ -38,7 +39,9 @@
   const macPads = $derived(
     mac && tone === 'icon' && app.live ? [{ key: 'virtual_pads' as const, state: app.live.drivers.virtual_pads }] : [],
   );
-  const bluetooth = $derived(tone === 'icon' && app.live ? [{ key: 'bluetooth' as const, state: app.live.drivers.bluetooth }] : []);
+  const bluetooth = $derived(
+    tone === 'icon' && app.live?.switch2_bluetooth ? [{ key: 'bluetooth' as const, state: app.live.drivers.bluetooth }] : [],
+  );
 
   /** A permission the user gives in macOS's settings rather than a driver to install. */
   const permission = (key: Driver) => key === 'input_access' || key === 'bluetooth';

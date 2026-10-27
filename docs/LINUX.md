@@ -189,8 +189,12 @@ into pairing mode again after it was off. A controller that only looks for its c
 button pressed while it is off) is left alone, so Doppelpad never takes it from a Switch 2
 nearby. Nothing needs setting up: no udev rule, no root.
 
-How it works: while Doppelpad runs, it keeps a Bluetooth LE discovery of its own running in
-BlueZ, which reports the controllers' advertisements. For a controller in pairing mode,
+If you don't connect one over Bluetooth, turn *Look for Switch 2 controllers over Bluetooth*
+off in Settings › Controllers: Doppelpad's discovery stops, and controllers already connected
+stay.
+
+How it works: while Doppelpad runs and that search is on, it keeps a Bluetooth LE discovery of
+its own running in BlueZ, which reports the controllers' advertisements. For a controller in pairing mode,
 Doppelpad opens an L2CAP socket on its Attribute Protocol channel (which needs no privileges),
 finds its characteristics and switches its input on, the way Windows and macOS do it.
 BlueZ's own `Connect` cannot be used: its GATT client never finishes reading these

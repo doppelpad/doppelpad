@@ -7,7 +7,7 @@
 //!
 //! Bluetooth needs a permission. Doppelpad turns it on by itself only once the permission is
 //! given; [`request`] (the app's *Allow* button) turns it on regardless, which brings up
-//! macOS's prompt.
+//! macOS's prompt. It scans only while the search is on ([`crate::set_switch2_search`]).
 //!
 //! CoreBluetooth objects are not thread-safe. They live on one serial dispatch queue, where the
 //! manager's and the controllers' delegate calls run; the device threads submit their writes
@@ -99,12 +99,29 @@ fn can_ask() -> bool {
         .is_some()
 }
 
-/// What changed since the last call.
+/// What changed since the last call. Turning the search on or off takes effect here rather
+/// than with the next rescan.
 pub(crate) fn poll() -> Poll {
-    match CENTRAL.get() {
-        Some(c) => c.links.lock().unwrap().poll(),
-        None => Poll::default(),
+    let Some(c) = CENTRAL.get() else {
+        return Poll::default();
+    };
+    let search = crate::switch2_search();
+    if c.searching.swap(search, Ordering::SeqCst) != search {
+        if search {
+            tracing::info!("Bluetooth: looking for Switch 2 controllers in pairing mode");
+        } else {
+            tracing::info!("Bluetooth: no longer looking for Switch 2 controllers");
+        }
+        c.queue.exec_async(|| {
+            with_cb(|cb| {
+                // SAFETY: reading the state of a live manager.
+                if unsafe { cb.manager.state() } == CBManagerState::PoweredOn {
+                    scan(cb);
+                }
+            });
+        });
     }
+    c.links.lock().unwrap().poll()
 }
 
 static CENTRAL: OnceLock<Central> = OnceLock::new();
@@ -113,6 +130,7 @@ fn central() -> &'static Central {
     CENTRAL.get_or_init(|| Central {
         queue: DispatchQueue::new("dev.doppelpad.bluetooth", None),
         started: AtomicBool::new(false),
+        searching: AtomicBool::new(crate::switch2_search()),
         cb: OnQueue(RefCell::new(None)),
         links: Mutex::default(),
     })
@@ -121,6 +139,8 @@ fn central() -> &'static Central {
 struct Central {
     queue: DispatchRetained<DispatchQueue>,
     started: AtomicBool,
+    /// Whether the search was on at the last [`poll`].
+    searching: AtomicBool,
     /// CoreBluetooth's side, made by [`start`].
     cb: OnQueue<RefCell<Option<Cb>>>,
     links: Mutex<Links>,
@@ -172,7 +192,9 @@ fn start() {
     if c.started.swap(true, Ordering::SeqCst) {
         return;
     }
-    tracing::info!("Bluetooth: looking for Switch 2 controllers in pairing mode");
+    if crate::switch2_search() {
+        tracing::info!("Bluetooth: looking for Switch 2 controllers in pairing mode");
+    }
     c.queue.exec_async(|| {
         let c = central();
         let delegate = Delegate::new();
@@ -206,12 +228,15 @@ fn start() {
     });
 }
 
+/// Start the scan over, or only stop it while the search is off.
 fn scan(cb: &Cb) {
     // SAFETY: no service filter and no options: everything that advertises.
     unsafe {
         cb.manager.stopScan();
-        cb.manager
-            .scanForPeripheralsWithServices_options(None, None);
+        if crate::switch2_search() {
+            cb.manager
+                .scanForPeripheralsWithServices_options(None, None);
+        }
     }
 }
 
@@ -273,7 +298,8 @@ fn on_discover(p: &CBPeripheral, ad: &NSDictionary<NSString, AnyObject>) {
     };
     let key = key_of(p);
     with_cb(|cb| {
-        if cb.peers.contains_key(&key) {
+        // A peripheral can still be reported just after the search was turned off.
+        if cb.peers.contains_key(&key) || !crate::switch2_search() {
             return;
         }
         if !advert.pairing || advert.model != Switch2Model::Pro {

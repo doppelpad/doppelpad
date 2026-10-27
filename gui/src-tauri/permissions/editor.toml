@@ -48,6 +48,7 @@ permissions = [
   "allow-set-blocked",
   "allow-set-groups",
   "allow-set-power-off-after",
+  "allow-set-switch2-bluetooth",
   "allow-power-off",
   "allow-set-layout",
   "allow-forget-layout",

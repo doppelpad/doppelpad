@@ -46,6 +46,7 @@ const COMMANDS: &[&str] = &[
     "set_blocked",
     "set_groups",
     "set_power_off_after",
+    "set_switch2_bluetooth",
     "power_off",
     "set_layout",
     "forget_layout",

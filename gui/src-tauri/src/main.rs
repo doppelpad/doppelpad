@@ -232,6 +232,7 @@ fn main() {
             commands::set_blocked,
             commands::set_groups,
             commands::set_power_off_after,
+            commands::set_switch2_bluetooth,
             commands::power_off,
             commands::set_layout,
             commands::forget_layout,

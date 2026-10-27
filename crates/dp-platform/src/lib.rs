@@ -645,6 +645,21 @@ pub fn foreground_program() -> Option<String> {
     }
 }
 
+/// Whether the Bluetooth backends look for Switch 2 controllers in pairing mode.
+static SWITCH2_SEARCH: AtomicBool = AtomicBool::new(true);
+
+/// Look for Switch 2 controllers in pairing mode over Bluetooth LE, or stop looking: the
+/// Windows watcher, the BlueZ discovery and the CoreBluetooth scan run only while it is on (on
+/// until turned off). Controllers already connected stay.
+pub fn set_switch2_search(on: bool) {
+    SWITCH2_SEARCH.store(on, Ordering::Relaxed);
+}
+
+/// Whether to look for Switch 2 controllers over Bluetooth LE now.
+pub(crate) fn switch2_search() -> bool {
+    SWITCH2_SEARCH.load(Ordering::Relaxed)
+}
+
 /// Whether Steam runs: its Steam Input may take a virtual controller and remap it again
 /// (Windows and macOS; `false` elsewhere for now).
 pub fn steam_running() -> bool {
