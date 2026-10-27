@@ -1,6 +1,6 @@
 # Roadmap
 
-State of version 0.6.0. "⏳ hardware testing" marks features that are implemented and
+State of version 0.7.0. "⏳ hardware testing" marks features that are implemented and
 unit-tested but have not run against the real device yet.
 
 ## Road to 1.0
@@ -47,8 +47,8 @@ to keep. Linux stays a preview in 1.0 (see [Platforms](#platforms)).
   trigger effects, the GameCube adapter, generic-pad layouts;
   tests with DualShock 4, Joy-Cons, Bluetooth and other distributions.
 - macOS beyond the preview: tests on real hardware (keyboard and mouse, overlays over games,
-  Bluetooth and other controllers), signing and notarization, release builds, virtual
-  controllers (an entitlement from Apple), the GameCube adapter (see [Platforms](#platforms)).
+  Bluetooth and other controllers), notarization (an Apple Developer ID), virtual controllers
+  (an entitlement from Apple), the GameCube adapter (see [Platforms](#platforms)).
 - More controllers: the Switch 2 GameCube controller and Joy-Con 2 over Bluetooth, Wii Remote,
   DualShock 3, analog keyboards. Switch 2 controllers speak Bluetooth Low Energy with
   Nintendo's own protocol, not HID: no system pairs them as a controller, so Doppelpad
@@ -102,7 +102,7 @@ to keep. Linux stays a preview in 1.0 (see [Platforms](#platforms)).
 | Multiple controllers / multiple virtual pads | ✅ each controller can have its own slots, config and virtual pad (⏳ hardware testing) |
 | Hide physical controller | ✅ via HidHide; Linux: `EVIOCGRAB` (tested on a Steam Deck) |
 | Ignore list and controller groups (several pads as one) | ✅ |
-| On-screen overlays: notifications (remap, slot, layer, controllers, battery), crosshairs with magnifier, radial menus, controller overlay, mappings sheet | ✅ Windows, in the app (not in `doppelpad daemon`; ⏳ testing in games) |
+| On-screen overlays: notifications (remap, slot, layer, controllers, battery), crosshairs with magnifier, radial menus, controller overlay, mappings sheet | ✅ Windows, in the app (not in `doppelpad daemon`; ⏳ testing in games); Linux: layer-shell surfaces on Wayland, ordinary windows on X11 and GNOME; macOS: panels over full-screen programs, no magnifier yet |
 | Battery levels (DualShock 4, DualSense, Switch and Switch 2 controllers, Xbox) in the app, tray and notifications | ✅ Windows (⏳ hardware testing); Linux: Sony and Switch controllers through sysfs (tested with a DualSense); macOS: through the drivers (a Switch 2 Pro Controller's shown in the app) |
 | Light bar colours and animations, the game's light bar colour, player LEDs per slot, DualSense mic LED | ✅ USB and Bluetooth (⏳ hardware testing); Linux: light bar and player LEDs through the driver's LED devices, no mic LED (tested with a DualSense) |
 | DualSense adaptive trigger effects (presets and custom) | ✅ (⏳ hardware testing) |
@@ -177,5 +177,5 @@ to keep. Linux stays a preview in 1.0 (see [Platforms](#platforms)).
    | Power commands, close window, screenshots | ✅ `loginwindow`, `pmset`, the accessibility API, `screencapture` (tried: sleep, close window, screenshots; ⏳ shut down, restart, log out); no hibernate |
    | Controller extras | ✅ batteries, lights, trigger effects and rumble through the drivers (tried: battery, DualSense light bar, player lights and rumble of Switch and Switch 2 controllers); keep-awake and the lock-screen pause (tried); ⏳ turning Sony pads off over Bluetooth |
    | Desktop app | ✅ menu bar, overlays over full-screen programs without taking the focus, as non-activating panels (tried: notifications over another program, crosshair and controller overlay over a video in full screen; ⏳ testing in games), start at login, `.dpgame` from the Finder, permissions in the driver list and welcome guide |
-   | Download | ✅ every release after 0.6.0 has a universal `.dmg` that updates itself and the command-line tool, signed with a self-signed certificate so that the permissions should stay across updates (built and signed on GitHub once); ⏳ notarization, without which Gatekeeper asks before the first start, needs an Apple Developer ID |
+   | Download | ✅ every release since 0.7.0 has a universal `.dmg` that updates itself and the command-line tool, signed with a self-signed certificate so that the permissions should stay across updates (built and signed on GitHub once); ⏳ notarization, without which Gatekeeper asks before the first start, needs an Apple Developer ID |
    | Not on macOS yet | virtual controllers, the GameCube adapter, Xbox controllers over USB, the crosshair magnifier, cursor clipping |

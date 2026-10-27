@@ -524,6 +524,29 @@ the `power_off` command in a mapping, or by themselves: *Turn wireless controlle
 switches off a controller that had no input for that many minutes (resting sticks with a
 little drift do not count). Wired controllers stay on. Its home button turns it back on.
 
+### Switch 2 controllers
+
+Over USB, Doppelpad talks to a Switch 2 controller's USB command interface through WinUSB,
+which Windows normally sets up by itself. Only one program can use it at a time. While Steam
+holds it, the controller works with default stick calibration. Close Steam and Doppelpad
+takes the interface over within a few seconds, without reconnecting the controller.
+
+Over Bluetooth, Switch 2 controllers speak Nintendo's own protocol, which Windows cannot
+pair: leave them out of Windows' Bluetooth settings, Doppelpad connects them itself. Hold
+the small pairing button on top of a Switch 2 Pro Controller until its lights run, and
+Doppelpad connects it; again after the controller was off. It stays paired with its
+console.
+
+- Only the Pro Controller connects over Bluetooth so far.
+- The controller does not ask for a faster connection: on Windows 10 its input arrives
+  unevenly, at times a steady 17 times a second, at times 15 to 105 times (about 45 on
+  average), against 250 over USB. That is enough for menus and slow games; use the cable for
+  anything fast. Doppelpad asks Windows 11 for a faster connection.
+- Windows notices that the controller was turned off only about 10 seconds later, so
+  Doppelpad lets it go after 3 seconds without input.
+- Tried on Windows 10: connecting, every button and trigger, both sticks, motion, the battery
+  level, player light 1, rumble, and letting the controller go when it was turned off.
+
 ## Controller hotkeys
 
 *Settings → Hotkeys* sets button combos that work in every config, with
