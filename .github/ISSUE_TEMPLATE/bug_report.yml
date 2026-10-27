@@ -1,0 +1,129 @@
+name: Bug report
+description: Something in Doppelpad doesn't work as it should.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting this. The version, the controller and the log usually decide whether a problem can be found, so please fill in as much as you can.
+
+        Please don't paste code, screenshots or text from reWASD or other proprietary tools: Doppelpad is built only from public documentation, open drivers and its own observations.
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Windows 11
+        - Windows 10
+        - Linux
+        - SteamOS (Steam Deck)
+        - macOS
+    validations:
+      required: true
+
+  - type: input
+    id: os-version
+    attributes:
+      label: OS version
+      description: >
+        Windows: the version in *Settings › System › About* (for example 24H2).
+        Linux: the distribution and desktop, and X11 or Wayland.
+        SteamOS: its version, and desktop mode or Game Mode.
+        macOS: the version, and Apple silicon or Intel.
+      placeholder: Fedora 42, KDE Plasma 6 on Wayland
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Doppelpad version
+      description: >
+        The app shows it under *Settings* (the gear at the top right) › *General* › *Updates*,
+        next to *Check now*. The command-line tool prints it with `doppelpad --version`.
+      placeholder: 0.7.0
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install
+    attributes:
+      label: How you installed it
+      options:
+        - Windows setup (.exe)
+        - Linux AppImage
+        - macOS .dmg
+        - Command-line tool from a release (.tar.gz)
+        - Built from source
+        - Portable copy (Windows)
+    validations:
+      required: true
+
+  - type: input
+    id: controller
+    attributes:
+      label: Controller
+      description: The model, as exactly as you know it. Leave it empty if no controller is involved.
+      placeholder: DualSense Edge
+  - type: dropdown
+    id: connection
+    attributes:
+      label: Connection
+      multiple: true
+      options:
+        - USB cable
+        - Bluetooth
+        - Wireless receiver or dongle
+        - Built in (Steam Deck, handheld PC)
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to make it happen
+      description: What you did, in order, so it can be tried on another PC. Name the game if it only happens in one.
+      placeholder: |
+        1. Open the config "Racing" for the game …
+        2. Map R2 to …
+        3. Start the game and press …
+
+  - type: textarea
+    id: doctor
+    attributes:
+      label: Output of `doppelpad doctor`
+      description: |
+        It names the version, the drivers and the controllers Doppelpad finds.
+        - **Windows** (PowerShell): `& "C:\Program Files\Doppelpad\doppelpad.exe" doctor`
+        - **Linux, macOS**: `./doppelpad doctor`, with the tool from the release's `.tar.gz`
+        - **Built from source**: `cargo run --release -p doppelpad -- doctor`
+      render: text
+
+  - type: textarea
+    id: log
+    attributes:
+      label: Log file
+      description: |
+        Drag `doppelpad-gui.log` into this box. *Settings › Files › Open log folder* shows it, or look in:
+        - **Windows**: `%LOCALAPPDATA%\doppelpad\logs`
+        - **Linux**: `~/.local/state/doppelpad/logs` (or `$XDG_STATE_HOME/doppelpad/logs`)
+        - **macOS**: `~/Library/Application Support/doppelpad/logs`
+
+        If the problem happened before the app was last restarted, add the earlier logs too (`doppelpad-gui.log.1` is the run before). GitHub takes those only zipped.
+
+  - type: textarea
+    id: more
+    attributes:
+      label: Anything else
+      description: Other programs that use the controller (Steam, DS4Windows, emulators), whether it worked in an earlier version, or a screenshot of Doppelpad.
