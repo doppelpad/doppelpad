@@ -180,10 +180,19 @@ fn present(
     }
 }
 
-/// Hide the overlay of `kind` and forget what it showed.
+/// Hide the overlay of `kind` and forget what it showed. The page forgets it too: the window
+/// shows again before the next content reaches the page, and would show the old one meanwhile
+/// (the last radial menu with its last sector lit).
 pub fn dismiss(app: &AppHandle, kind: OverlayKind) {
-    if let Some(page) = app.state::<Overlays>().pages.lock().unwrap().get_mut(&kind) {
-        page.content = None;
+    let ready = match app.state::<Overlays>().pages.lock().unwrap().get_mut(&kind) {
+        Some(page) => {
+            page.content = None;
+            page.ready
+        }
+        None => false,
+    };
+    if ready {
+        let _ = app.emit_to(label(kind), &label(kind), Value::Null);
     }
     if let Some(w) = app.get_webview_window(&label(kind)) {
         hide(&w);
