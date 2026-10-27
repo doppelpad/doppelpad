@@ -6,7 +6,7 @@ members = ["crates/dp-core", "crates/dp-config", "crates/dp-platform", "crates/d
 default-members = ["crates/dp-core", "crates/dp-config", "crates/dp-platform", "crates/dp-ipc", "crates/dp-service", "crates/doppelpad"]
 
 [workspace.package]
-version = "0.6.0"
+version = "0.7.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/doppelpad/doppelpad"
