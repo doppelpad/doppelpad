@@ -1,13 +1,13 @@
 ---
 title: Open-Source-Controller-Remapping
-description: Freies Open-Source-Controller-Remapping für Windows, Linux als Vorschau. Umbelegungen, Kombinationen, Makros, Shift-Ebenen, Gyro-Zielen und virtuelle Xbox- oder DualShock-4-Controller.
+description: Freies Open-Source-Controller-Remapping für Windows, Linux und macOS als Vorschau. Umbelegungen, Kombinationen, Makros, Shift-Ebenen, Gyro-Zielen und virtuelle Xbox- oder DualShock-4-Controller.
 template: splash
 editUrl: false
 hero:
   title: Doppelpad
-  tagline: Freies Open-Source-Controller-Remapping für Windows, Linux als Vorschau. Tasten umbelegen, Kombinationen und Makros bauen, Shift-Ebenen anlegen, mit Gyro zielen oder mit Tastatur und Maus als Xbox-Controller spielen.
+  tagline: Freies Open-Source-Controller-Remapping für Windows, Linux und macOS als Vorschau. Tasten umbelegen, Kombinationen und Makros bauen, Shift-Ebenen anlegen, mit Gyro zielen oder mit Tastatur und Maus als Xbox-Controller spielen.
   actions:
-    - text: Für Windows herunterladen
+    - text: Herunterladen
       link: https://github.com/doppelpad/doppelpad/releases/latest
       icon: download
       variant: primary
@@ -30,8 +30,9 @@ import { version } from '../../../../../gui/package.json';
 
 <Aside type="note" title={`Frühe Vorschau (${version})`}>
 Die Remapping-Engine, das Profilformat, der Import und die Windows-Backends sind fertig und mit
-Unit-Tests abgedeckt, echte DualSense-Eingaben sind geprüft. Die Desktop-App ist neu und wird noch
-verfeinert, und mehrere Controller und Funktionen liefen noch nicht auf echter Hardware. Welche
+Unit-Tests abgedeckt, echte DualSense-Eingaben sind geprüft. Linux und macOS sind Vorschauen,
+ausprobiert auf einem Steam Deck und einem Mac. Die Desktop-App wird noch verfeinert, und mehrere
+Controller und Funktionen liefen noch nicht auf echter Hardware. Welche
 das sind, steht in der [Roadmap](https://github.com/doppelpad/doppelpad/blob/main/docs/ROADMAP.md)
 (englisch). Mit Ecken und Kanten ist zu rechnen.
 </Aside>
@@ -71,7 +72,7 @@ das sind, steht in der [Roadmap](https://github.com/doppelpad/doppelpad/blob/mai
   </Card>
   <Card title="Overlays" icon="desktop">
     Einblendungen, Fadenkreuze mit Lupe, Radialmenüs, ein Controller-Overlay und eine
-    Belegungsübersicht (Windows, in der App).
+    Belegungsübersicht (in der App).
   </Card>
   <Card title="Teilen und importieren" icon="document">
     Spiele als `.dpgame`-Paket teilen, eine Belegungsübersicht drucken, Ebenen-Vorlagen anlegen
@@ -95,9 +96,9 @@ in der App. Wähle einen aus, um Vorder- und Rückseite zu sehen.
   sides={{ front: 'Vorderseite', back: 'Rückseite', label: 'Controller' }}
 />
 
-Außerdem unterstützt: der Steam Controller (USB und sein Funkempfänger) und das Steam Deck mit
-Trackpads, Gyro und Rücktasten (Windows, Hardwaretest steht aus), sowie Tastaturen und Mäuse als
-Eingabe. Die Paddles des Xbox Elite, die Wii-Fernbedienung und der DualShock 3 werden noch nicht
+Außerdem unterstützt: der Steam Controller (USB und sein Funkempfänger; Windows und macOS) und das
+Steam Deck mit Trackpads, Gyro und Rücktasten (Windows), beide mit ausstehendem Hardwaretest,
+sowie Tastaturen und Mäuse als Eingabe. Die Paddles des Xbox Elite, die Wii-Fernbedienung und der DualShock 3 werden noch nicht
 unterstützt.
 
 ## Herunterladen
@@ -106,9 +107,21 @@ unterstützt.
   Neueste Version herunterladen
 </LinkButton>
 
-Doppelpad läuft unter **Windows 10 und 11 (x64)**. Das Setup installiert die beiden nötigen
-Treiber, wenn sie fehlen. Unter Linux ist Doppelpad eine Vorschau, die du aus dem Quellcode baust;
-die Einrichtung steht auf der [Linux-Seite](handbook/linux/) (englisch).
+Doppelpad läuft unter **Windows 10 und 11 (x64)**: Lade `Doppelpad_<version>_x64-setup.exe`
+herunter und starte es. Das Setup installiert die beiden nötigen Treiber, wenn sie fehlen.
+
+**Linux** und **macOS** sind Vorschauen:
+
+- **Linux** (64 Bit, glibc 2.35 oder neuer): Lade `Doppelpad_<version>_amd64.AppImage` herunter,
+  mach es ausführbar und starte es. Andere Distributionen als SteamOS brauchen eine udev-Regel
+  für die Eingabegeräte; sie steht auf der [Linux-Seite](handbook/linux/) (englisch).
+- **macOS** (13 oder neuer, Apple Silicon oder Intel): Lade `Doppelpad_<version>_universal.dmg`
+  herunter und zieh Doppelpad in den Ordner Programme. macOS lässt kein Programm einen
+  virtuellen Controller anlegen, deshalb werden Controller dort nur zu Tastatur- und
+  Mauseingaben; was das bedeutet und welche Berechtigungen Doppelpad braucht, steht auf der
+  [macOS-Seite](handbook/macos/) (englisch).
+
+Auf allen drei Systemen bietet Doppelpad neue Versionen selbst an.
 
 <Aside type="caution" title="Windows SmartScreen warnt dich">
 Das Setup ist noch nicht code-signiert; das Signieren ist für später geplant. Windows kennt
@@ -127,9 +140,25 @@ Auch der Browser meldet vielleicht, dass die Datei nicht häufig heruntergeladen
 **Beibehalten**.
 </Aside>
 
+<Aside type="caution" title="macOS fragt vor dem ersten Start">
+Die App ist noch nicht von Apple beglaubigt (notarisiert), deshalb öffnet macOS sie anfangs nicht
+per Doppelklick:
+
+<Steps>
+
+1. Öffne Doppelpad aus dem Ordner Programme. macOS verweigert das Öffnen; schließe die Meldung.
+2. Wähle in **Systemeinstellungen › Datenschutz & Sicherheit** neben dem Hinweis zu Doppelpad
+   **Dennoch öffnen** und bestätige.
+
+</Steps>
+
+Zum Senden von Tasten- und Mauseingaben braucht Doppelpad die Berechtigung **Bedienungshilfen**.
+Die App zeigt, wo du sie erteilst; beende Doppelpad danach und öffne es erneut.
+</Aside>
+
 ## Treiber
 
-Doppelpad nutzt zwei Open-Source-Treiber von Nefarius und keine geschlossenen:
+Unter Windows nutzt Doppelpad zwei Open-Source-Treiber von Nefarius und keine geschlossenen:
 
 - **[ViGEmBus](https://github.com/nefarius/ViGEmBus)** erzeugt den virtuellen Xbox-360- oder
   DualShock-4-Controller, den Spiele sehen. Er ist für die Controller-Ausgabe nötig.
@@ -137,8 +166,9 @@ Doppelpad nutzt zwei Open-Source-Treiber von Nefarius und keine geschlossenen:
   damit sie keine doppelten Eingaben sehen. Er ist optional.
 
 Das Setup installiert beide, wenn sie fehlen. `doppelpad doctor` prüft die Treiber und listet die
-erkannten Controller auf. Linux braucht keine zusätzlichen Treiber, nur eine udev-Regel für
-`/dev/uinput` und die Eingabegeräte.
+erkannten Controller auf. Linux und macOS brauchen keine zusätzlichen Treiber: Linux nur eine
+udev-Regel für `/dev/uinput` und die Eingabegeräte (nicht unter SteamOS), macOS nur die
+Berechtigung Bedienungshilfen.
 
 ## Häufige Fragen
 
@@ -151,9 +181,10 @@ Konto und kein Abo.
 </details>
 
 <details>
-<summary>Warum warnt Windows vor dem Setup?</summary>
+<summary>Warum warnen Windows und macOS vor Doppelpad?</summary>
 
-Das Setup ist noch nicht code-signiert, deshalb kennt SmartScreen den Herausgeber nicht. Unter
+Weder das Windows-Setup noch die Mac-App ist von einem Herausgeber signiert, den Windows oder
+Apple schon kennen, deshalb fragen SmartScreen und Gatekeeper erst nach. Unter
 [Herunterladen](#herunterladen) steht, wie du es trotzdem startest.
 
 </details>
@@ -161,10 +192,12 @@ Das Setup ist noch nicht code-signiert, deshalb kennt SmartScreen den Herausgebe
 <details>
 <summary>Läuft es unter Linux oder macOS?</summary>
 
-Das Linux-Backend (evdev und uinput) ist fertig und mit Unit-Tests abgedeckt, wurde aber noch
-nicht auf echter Hardware getestet; siehe die [Linux-Seite](handbook/linux/). macOS ist geplant.
-Die Engine lässt sich dort bauen, aber ein virtuelles Gamepad braucht eine signierte
-Treibererweiterung, für die Apple eine eigene Berechtigung vergeben muss.
+Ja, beides als Vorschau. Unter Linux, getestet auf einem Steam Deck, bekommen Spiele wie unter
+Windows einen virtuellen Xbox-360-Controller; siehe die [Linux-Seite](handbook/linux/). Unter
+macOS braucht ein virtueller Controller eine Berechtigung von Apple, deshalb macht Doppelpad dort
+aus Controllern Tastatur- und Mauseingaben: Ebenen, Makros, Turbo und Gyro-Zielen gehen, die
+Tasten eines Controllers für ein Spiel zu tauschen geht nicht. Siehe die
+[macOS-Seite](handbook/macos/).
 
 </details>
 

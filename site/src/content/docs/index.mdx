@@ -1,13 +1,13 @@
 ---
 title: Open-source controller remapping
-description: Free, open-source controller remapping for Windows, with Linux in preview. Remaps, combos, macros, shift layers, gyro aiming and virtual Xbox or DualShock 4 controllers.
+description: Free, open-source controller remapping for Windows, with Linux and macOS in preview. Remaps, combos, macros, shift layers, gyro aiming and virtual Xbox or DualShock 4 controllers.
 template: splash
 editUrl: false
 hero:
   title: Doppelpad
-  tagline: Free, open-source controller remapping for Windows, with Linux in preview. Remap buttons, build combos and macros, add shift layers, aim with gyro, or play with keyboard and mouse as an Xbox controller.
+  tagline: Free, open-source controller remapping for Windows, with Linux and macOS in preview. Remap buttons, build combos and macros, add shift layers, aim with gyro, or play with keyboard and mouse as an Xbox controller.
   actions:
-    - text: Download for Windows
+    - text: Download
       link: https://github.com/doppelpad/doppelpad/releases/latest
       icon: download
       variant: primary
@@ -30,8 +30,9 @@ import { version } from '../../../../gui/package.json';
 
 <Aside type="note" title={`Early preview (${version})`}>
 The remapping engine, the profile format, the importer and the Windows backends are implemented
-and unit-tested, and real DualSense input has been verified. The desktop app is new and still
-being polished, and several controllers and features have not run on real hardware yet. The
+and unit-tested, and real DualSense input has been verified. Linux and macOS are previews, tried
+on a Steam Deck and on a Mac. The desktop app is still being polished, and several controllers
+and features have not run on real hardware yet. The
 [roadmap](https://github.com/doppelpad/doppelpad/blob/main/docs/ROADMAP.md) marks which. Expect
 rough edges.
 </Aside>
@@ -70,7 +71,7 @@ rough edges.
   </Card>
   <Card title="Overlays" icon="desktop">
     On-screen notifications, crosshairs with a magnifier, radial menus, a controller overlay and
-    a mappings sheet (Windows, in the app).
+    a mappings sheet (in the app).
   </Card>
   <Card title="Share and import" icon="document">
     Share games as `.dpgame` bundles, print a bindings sheet, keep layer presets, and import
@@ -93,9 +94,9 @@ app. Pick one to see its front and back.
   sides={{ front: 'Front', back: 'Back', label: 'Controllers' }}
 />
 
-Also supported: the Steam Controller (USB and its wireless receiver) and the Steam Deck with
-trackpads, gyro and back buttons (Windows, awaiting hardware tests), plus keyboards and mice as
-inputs. Xbox Elite paddles, the Wii Remote and the DualShock 3 are not supported yet.
+Also supported: the Steam Controller (USB and its wireless receiver; Windows and macOS) and the
+Steam Deck with trackpads, gyro and back buttons (Windows), both awaiting hardware tests, plus
+keyboards and mice as inputs. Xbox Elite paddles, the Wii Remote and the DualShock 3 are not supported yet.
 
 ## Download
 
@@ -103,9 +104,20 @@ inputs. Xbox Elite paddles, the Wii Remote and the DualShock 3 are not supported
   Download the latest release
 </LinkButton>
 
-Doppelpad runs on **Windows 10 and 11 (x64)**. The setup installs the two drivers it needs when
-they are missing. On Linux, Doppelpad is a preview that you build from source; the
-[Linux page](handbook/linux/) has the setup.
+Doppelpad runs on **Windows 10 and 11 (x64)**: take `Doppelpad_<version>_x64-setup.exe` and run
+it. The setup installs the two drivers it needs when they are missing.
+
+**Linux** and **macOS** are previews:
+
+- **Linux** (64-bit, glibc 2.35 or newer): take `Doppelpad_<version>_amd64.AppImage`, make it
+  executable and start it. Other distributions than SteamOS need a udev rule for the input
+  devices; the [Linux page](handbook/linux/) has it.
+- **macOS** (13 or later, Apple silicon or Intel): take `Doppelpad_<version>_universal.dmg` and
+  drag Doppelpad into Applications. macOS lets no program create a virtual controller, so there
+  controllers become keyboard and mouse input only; the [macOS page](handbook/macos/) says what
+  that means and which permissions Doppelpad asks for.
+
+On all three, Doppelpad offers new versions itself.
 
 <Aside type="caution" title="Windows SmartScreen will warn you">
 The setup is not code-signed yet; signing is planned for later. Windows therefore does not know
@@ -124,9 +136,24 @@ Download the setup only from the GitHub releases page above, then:
 Your browser may also say that the file is not commonly downloaded. Choose **Keep** to keep it.
 </Aside>
 
+<Aside type="caution" title="macOS asks before the first start">
+The app is not notarized by Apple yet, so macOS will not open it with a double click at first:
+
+<Steps>
+
+1. Open Doppelpad from Applications. macOS refuses to open it; close the message.
+2. In **System Settings › Privacy & Security**, choose **Open Anyway** next to the note about
+   Doppelpad and confirm.
+
+</Steps>
+
+Sending keys and mouse input needs the **Accessibility** permission. The app shows where to grant
+it; quit and open Doppelpad again afterwards.
+</Aside>
+
 ## Drivers
 
-Doppelpad uses two open-source drivers by Nefarius and no closed ones:
+On Windows, Doppelpad uses two open-source drivers by Nefarius and no closed ones:
 
 - **[ViGEmBus](https://github.com/nefarius/ViGEmBus)** creates the virtual Xbox 360 or
   DualShock 4 controller that games see. It is needed for controller output.
@@ -134,8 +161,8 @@ Doppelpad uses two open-source drivers by Nefarius and no closed ones:
   so they don't see double input. It is optional.
 
 The setup installs both when they are missing. `doppelpad doctor` checks the drivers and lists
-the detected controllers. Linux needs no extra drivers, only a udev rule for `/dev/uinput` and
-the input devices.
+the detected controllers. Linux and macOS need no extra drivers: Linux only a udev rule for
+`/dev/uinput` and the input devices (not on SteamOS), macOS only its Accessibility permission.
 
 ## FAQ
 
@@ -148,20 +175,22 @@ account and no subscription.
 </details>
 
 <details>
-<summary>Why does Windows warn about the setup?</summary>
+<summary>Why do Windows and macOS warn about Doppelpad?</summary>
 
-The setup is not code-signed yet, so SmartScreen does not know its publisher. See
-[Download](#download) for how to start it anyway.
+Neither the Windows setup nor the Mac app is signed by a publisher that Windows or Apple know
+yet, so SmartScreen and Gatekeeper ask first. See [Download](#download) for how to start it
+anyway.
 
 </details>
 
 <details>
 <summary>Does it run on Linux or macOS?</summary>
 
-The Linux backend (evdev and uinput) is implemented and unit-tested but has not been tested on
-real hardware yet; see the [Linux page](handbook/linux/). macOS is planned. The engine
-compiles there, but a virtual gamepad needs a signed driver extension that requires an Apple
-entitlement.
+Yes, both as previews. On Linux, tested on a Steam Deck, Doppelpad gives games a virtual Xbox
+360 controller as on Windows; see the [Linux page](handbook/linux/). On macOS a virtual
+controller needs an entitlement from Apple, so there Doppelpad turns controllers into keyboard
+and mouse input: layers, macros, turbo and gyro aiming work, swapping a controller's buttons
+for a game does not. See the [macOS page](handbook/macos/).
 
 </details>
 

@@ -14,6 +14,7 @@ const HANDBOOK: Record<string, string> = {
   'GUI.md': 'desktop-app',
   'PROFILES.md': 'profiles',
   'LINUX.md': 'linux',
+  'MACOS.md': 'macos',
 };
 
 /** Starlight's pages from src/content/docs plus the handbook pages from ../docs. */

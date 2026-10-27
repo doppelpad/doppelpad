@@ -29,8 +29,8 @@ const PADS: Pad[] = [
     back: 'xboxBack',
     family: 'xbox',
     note: {
-      en: 'Xbox and other XInput controllers. XInput hides the Elite paddles and trigger rumble for now.',
-      de: 'Xbox- und andere XInput-Controller. Die Elite-Paddles und Trigger-Rumble verdeckt XInput vorerst.',
+      en: 'Xbox and other XInput controllers. XInput hides the Elite paddles and trigger rumble for now. On macOS over Bluetooth, as a generic pad; not over USB yet.',
+      de: 'Xbox- und andere XInput-Controller. Die Elite-Paddles und Trigger-Rumble verdeckt XInput vorerst. Unter macOS über Bluetooth als generisches Gamepad, über USB noch nicht.',
     },
   },
   {
@@ -59,8 +59,8 @@ const PADS: Pad[] = [
     back: 'switchproBack',
     family: 'nintendo',
     note: {
-      en: 'Also NSO and Switch-style wired pads, with gyro and rumble. Windows via raw HID (awaiting hardware tests), Linux through hid-nintendo.',
-      de: 'Auch NSO- und Switch-artige Kabel-Pads, mit Gyro und Rumble. Windows über Raw HID (Hardwaretest steht aus), Linux über hid-nintendo.',
+      en: 'Also NSO and Switch-style wired pads, with gyro and rumble. Windows via raw HID (awaiting hardware tests), Linux through hid-nintendo, macOS through IOKit HID (the Pro Controller tried over USB and Bluetooth).',
+      de: 'Auch NSO- und Switch-artige Kabel-Pads, mit Gyro und Rumble. Windows über Raw HID (Hardwaretest steht aus), Linux über hid-nintendo, macOS über IOKit HID (der Pro Controller über USB und Bluetooth ausprobiert).',
     },
   },
   {
@@ -69,8 +69,8 @@ const PADS: Pad[] = [
     back: 'joyconBack',
     family: 'joycon',
     note: {
-      en: 'Paired automatically, or sideways on their own (awaiting hardware tests on Windows).',
-      de: 'Automatisch als Paar oder einzeln quer (Hardwaretest unter Windows steht aus).',
+      en: 'Paired automatically, or sideways on their own (awaiting hardware tests).',
+      de: 'Automatisch als Paar oder einzeln quer (Hardwaretest steht aus).',
     },
   },
   {
@@ -79,8 +79,8 @@ const PADS: Pad[] = [
     back: 'switch2proBack',
     family: 'nintendo',
     note: {
-      en: 'Over USB and Bluetooth on Windows, with the GL and GR buttons (awaiting hardware tests; over Bluetooth Windows 10 reads it unevenly, at times 17 and at times about 45 times a second on average, against 250 over USB). On Linux over USB and Bluetooth (about 20 times a second there).',
-      de: 'Über USB und Bluetooth unter Windows, mit den Tasten GL und GR (Hardwaretest steht aus; über Bluetooth liest Windows 10 ihn ungleichmäßig, mal 17-, mal im Schnitt etwa 45-mal pro Sekunde, über USB 250-mal). Unter Linux über USB und Bluetooth (dort etwa 20-mal pro Sekunde).',
+      en: 'Over USB and Bluetooth on Windows, Linux and macOS, with the GL and GR buttons (on Windows over USB still awaiting hardware tests). Over USB it sends 250 times a second; over Bluetooth the system sets the pace: about 33 times on macOS, about 20 on Linux, and on Windows 10 unevenly, at times 17 and at times about 45 on average.',
+      de: 'Über USB und Bluetooth unter Windows, Linux und macOS, mit den Tasten GL und GR (unter Windows über USB steht der Hardwaretest noch aus). Über USB sendet er 250-mal pro Sekunde; über Bluetooth gibt das System den Takt vor: unter macOS etwa 33-mal, unter Linux etwa 20-mal und unter Windows 10 ungleichmäßig, mal 17-, mal im Schnitt etwa 45-mal.',
     },
   },
   {
@@ -89,8 +89,8 @@ const PADS: Pad[] = [
     back: 'gamecubeBack',
     family: 'gamecube',
     note: {
-      en: 'The Switch 2 GameCube controller over USB, and GameCube controllers on the official USB adapter or its Wii U-mode clones (Windows, awaiting hardware tests).',
-      de: 'Der GameCube-Controller der Switch 2 über USB und GameCube-Controller am offiziellen USB-Adapter oder seinen Klonen im Wii-U-Modus (Windows, Hardwaretest steht aus).',
+      en: 'The Switch 2 GameCube controller over USB (Windows, Linux and macOS), and GameCube controllers on the official USB adapter or its Wii U-mode clones (Windows). Both await hardware tests.',
+      de: 'Der GameCube-Controller der Switch 2 über USB (Windows, Linux und macOS) und GameCube-Controller am offiziellen USB-Adapter oder seinen Klonen im Wii-U-Modus (Windows). Bei beiden steht der Hardwaretest aus.',
     },
   },
   {
@@ -99,8 +99,8 @@ const PADS: Pad[] = [
     back: 'genericBack',
     family: 'generic',
     note: {
-      en: 'Other HID gamepads and joysticks: a wizard identifies their buttons once (Windows). Linux reads them through evdev.',
-      de: 'Andere HID-Gamepads und Joysticks: ein Assistent erkennt ihre Tasten einmalig (Windows). Linux liest sie über evdev.',
+      en: 'Other HID gamepads and joysticks: a wizard identifies their buttons once (Windows and macOS). Linux reads them through evdev.',
+      de: 'Andere HID-Gamepads und Joysticks: ein Assistent erkennt ihre Tasten einmalig (Windows und macOS). Linux liest sie über evdev.',
     },
   },
 ];

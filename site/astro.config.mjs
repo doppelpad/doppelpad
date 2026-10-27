@@ -17,7 +17,7 @@ export default defineConfig({
     starlight({
       title: 'Doppelpad',
       description:
-        'Free, open-source controller remapping for Windows, with Linux in preview: remaps, combos, macros, shift layers, gyro aiming and virtual Xbox or DualShock 4 controllers.',
+        'Free, open-source controller remapping for Windows, with Linux and macOS in preview: remaps, combos, macros, shift layers, gyro aiming and virtual Xbox or DualShock 4 controllers.',
       // App icon + wordmark, made by scripts/wordmark.mjs; the title stays as hidden text.
       logo: { dark: './src/assets/logo-dark.svg', light: './src/assets/logo-light.svg', replacesTitle: true },
       favicon: '/favicon.svg',
@@ -36,6 +36,7 @@ export default defineConfig({
             { slug: 'handbook/desktop-app', translations: { de: 'Desktop-App' } },
             { slug: 'handbook/profiles', translations: { de: 'Profil-Referenz' } },
             { slug: 'handbook/linux' },
+            { slug: 'handbook/macos' },
           ],
         },
         {
