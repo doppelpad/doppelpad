@@ -7,7 +7,7 @@
   import { app } from '../lib/state/app.svelte';
   import { platform } from '../lib/state/window.svelte';
   import type { Template } from '../lib/types';
-  import { TEMPLATES } from '../lib/model/labels';
+  import { templatesFor } from '../lib/model/labels';
   import IdentifyWizard from './IdentifyWizard.svelte';
   import DriverList, { driverStates } from './settings/DriverList.svelte';
   import Dialog from './ui/Dialog.svelte';
@@ -15,8 +15,11 @@
 
   const STEPS = ['welcome', 'drivers', 'controller', 'output', 'finish'] as const;
 
+  /** On macOS, which has no virtual controllers, only the desktop template. */
+  const templates = templatesFor(platform !== 'macos');
+
   let step = $state(0);
-  let template = $state<Template>('virtual_xbox');
+  let template = $state<Template>(templates[0]);
   let name = $state(t('welcome.default_game'));
   let useNow = $state(true);
   let busy = $state(false);
@@ -83,7 +86,7 @@
     {/if}
   {:else if STEPS[step] === 'output'}
     <p class="hint">{t('welcome.output.text')}</p>
-    {#each TEMPLATES as tpl (tpl)}
+    {#each templates as tpl (tpl)}
       <label class="choice">
         <input type="radio" name="template" value={tpl} checked={template === tpl} onchange={() => (template = tpl)} />
         <span>

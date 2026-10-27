@@ -471,10 +471,15 @@ impl Runtime {
     fn start(
         &mut self,
         owner: Option<DeviceId>,
-        profile: Profile,
+        mut profile: Profile,
         path: Option<PathBuf>,
     ) -> Result<()> {
         self.stop_session(owner.as_ref());
+        // Without virtual controllers (macOS) the config runs with keyboard and mouse; the file
+        // keeps the one it names for Windows and Linux.
+        if !self.platform.virtual_pads.exist() {
+            profile.output.virtual_pad = VirtualPadType::None;
+        }
         let mut warnings = Vec::new();
         let kind = match profile.output.virtual_pad {
             VirtualPadType::Xbox360 => Some(VirtualPadKind::Xbox360),

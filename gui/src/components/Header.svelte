@@ -4,7 +4,7 @@
   import { api } from '../lib/api';
   import { t } from '../lib/i18n/index.svelte';
   import { bindingsSheet } from '../lib/model/sheet';
-  import { TEMPLATES } from '../lib/model/labels';
+  import { templatesFor } from '../lib/model/labels';
   import { app } from '../lib/state/app.svelte';
   import { platform } from '../lib/state/window.svelte';
   import { shortcutLabel, withShortcut } from '../lib/state/shortcuts';
@@ -81,7 +81,7 @@
     { separator: true, label: '' },
     { label: t('header.new_config') + '…', onclick: () => app.newConfig(), disabled: !app.gameDir },
     { label: t('header.import'), onclick: importJson, disabled: !app.gameDir },
-    ...TEMPLATES.map((tpl) => ({
+    ...templatesFor(platform !== 'macos').map((tpl) => ({
       label: t('header.from_template', { template: t(`welcome.templates.${tpl}`) }),
       onclick: () => fromTemplate(tpl),
       disabled: !app.gameDir,

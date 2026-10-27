@@ -153,6 +153,21 @@ fn hiding_without_a_virtual_pad_where_the_platform_does() {
 }
 
 #[test]
+fn without_virtual_pads_a_config_runs_with_keyboard_and_mouse() {
+    let (mut rt, world) = testing::runtime_with(&[("pro", PadFamily::SwitchPro)]);
+    world.lock().unwrap().no_virtual_pads = true;
+    // The default asks for a virtual Xbox 360 controller.
+    rt.apply(Profile::default(), None)
+        .expect("applies all the same");
+    rt.tick();
+    assert!(world.lock().unwrap().virtual_pads.is_empty(), "none made");
+    assert_eq!(
+        rt.profile().map(|p| p.output.virtual_pad),
+        Some(dp_core::profile::VirtualPadType::None)
+    );
+}
+
+#[test]
 fn mirrors_are_used_only_when_picked() {
     let (mut rt, world) =
         testing::runtime_with(&[("steam", PadFamily::Xbox), ("ds", PadFamily::DualSense)]);

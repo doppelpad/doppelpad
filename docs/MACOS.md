@@ -144,8 +144,10 @@ mappings on top.
 
 macOS has no driver for virtual controllers that anyone may use. A program can make a virtual
 HID device with CoreHID or IOKit only with an entitlement Apple grants on request
-(`com.apple.developer.hid.virtual.device`); Doppelpad does not have one yet. Configs with a
-virtual controller do not start on macOS, and say why.
+(`com.apple.developer.hid.virtual.device`); Doppelpad does not have one yet. So on macOS every
+config runs with keyboard and mouse only: one that names a virtual controller (the default)
+starts all the same, without it, and keeps it for Windows and Linux. The app shows *No virtual
+controller* as chosen and offers only the templates that need none.
 
 Even with the entitlement, the GameController framework is built to ignore virtual devices, so
 a virtual DualShock 4 might reach games that read HID devices themselves (SDL, emulators,

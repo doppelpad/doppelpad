@@ -309,6 +309,12 @@ pub trait VirtualPad: Send {
 pub trait VirtualPadFactory: Send {
     fn available(&self) -> Result<()>;
     fn create(&mut self, kind: VirtualPadKind) -> Result<Box<dyn VirtualPad>>;
+    /// Whether the platform has virtual controllers at all, installed or not. Where it has none
+    /// (macOS, for now), every config runs with keyboard and mouse only, whichever virtual
+    /// controller it names for Windows and Linux.
+    fn exist(&self) -> bool {
+        true
+    }
 }
 
 /// Synthetic keyboard and mouse output.

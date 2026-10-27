@@ -35,6 +35,8 @@ pub struct World {
     pub hidden: Vec<String>,
     /// The hider hides controllers without a virtual one (as on macOS).
     pub hide_without_pad: bool,
+    /// The platform has no virtual controllers (as macOS).
+    pub no_virtual_pads: bool,
 }
 
 pub type Shared = Arc<Mutex<World>>;
@@ -105,6 +107,9 @@ impl VirtualPadFactory for FakeFactory {
             index: w.virtual_pads.len() - 1,
             kind,
         }))
+    }
+    fn exist(&self) -> bool {
+        !self.0.lock().unwrap().no_virtual_pads
     }
 }
 

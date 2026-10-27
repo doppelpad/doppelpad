@@ -19,6 +19,14 @@ export function configName(lib: Library, path: string): string {
 /** The config templates in the order the app offers them. */
 export const TEMPLATES: Template[] = ['virtual_xbox', 'virtual_ds4', 'desktop', 'keyboard_mouse'];
 
+/** The templates that play on a virtual controller. */
+const PAD_TEMPLATES: Template[] = ['virtual_xbox', 'virtual_ds4', 'keyboard_mouse'];
+
+/** The templates to offer: without virtual controllers (macOS) only those that need none. */
+export function templatesFor(virtualPads: boolean): Template[] {
+  return virtualPads ? TEMPLATES : TEMPLATES.filter((tpl) => !PAD_TEMPLATES.includes(tpl));
+}
+
 /** A combo as the user reads it, e.g. "LB + A". */
 export function comboLabel(c: Combo, family: PadFamily | null): string {
   return comboList(c)

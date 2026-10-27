@@ -110,6 +110,10 @@ impl crate::VirtualPadFactory for NoVirtualPads {
     ) -> crate::Result<Box<dyn crate::VirtualPad>> {
         Err(crate::PlatformError::Unsupported(NO_VIRTUAL_PADS))
     }
+
+    fn exist(&self) -> bool {
+        false
+    }
 }
 
 #[cfg(target_os = "macos")]

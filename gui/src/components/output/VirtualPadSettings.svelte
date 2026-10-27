@@ -1,7 +1,8 @@
 <script lang="ts">
   // Which virtual controller the config plays on (or none), and how the physical controller's
   // own input passes: hidden, passed through, muted where mapped, pressed again after a layer
-  // change.
+  // change. macOS has no virtual controllers: there every config runs without one, whichever it
+  // names for Windows and Linux, so none shows as chosen and the others cannot be picked.
   import { Gamepad2, Keyboard, TriangleAlert } from '@lucide/svelte';
   import { t } from '../../lib/i18n/index.svelte';
   import { app } from '../../lib/state/app.svelte';
@@ -18,6 +19,9 @@
   );
 
   const drivers = $derived(app.live?.drivers);
+  const mac = platform === 'macos';
+  /** The virtual controller the config runs with here. */
+  const shown = $derived<VirtualPadType>(mac ? 'none' : out.virtual_pad);
 
   function set(patch: Partial<Output>) {
     app.edit((p) => ({ ...p, output: { ...(p.output ?? {}), ...patch } }));
@@ -33,16 +37,23 @@
 <div class="section-title">{t('output.virtual_pad')}</div>
 <div class="cards">
   {#each PADS as p (p.id)}
-    <button class="card" class:active={out.virtual_pad === p.id} disabled={app.readOnly} onclick={() => set({ virtual_pad: p.id })}>
+    <button
+      class="card"
+      class:active={shown === p.id}
+      disabled={app.readOnly || (mac && p.id !== 'none')}
+      onclick={() => set({ virtual_pad: p.id })}
+    >
       <p.icon size={26} strokeWidth={1.5} />
       <span>{t(`output.${p.id}`)}</span>
     </button>
   {/each}
 </div>
-{#if out.virtual_pad !== 'none' && drivers && !drivers.virtual_pads.available}
+{#if mac}
+  <p class="hint">{t('output.no_virtual_pads_macos')}</p>
+{:else if out.virtual_pad !== 'none' && drivers && !drivers.virtual_pads.available}
   <div class="warn">
     <TriangleAlert size={15} />
-    {platform === 'macos' ? t('output.no_virtual_pads_macos') : t('output.driver_missing', { driver: 'ViGEmBus' })}
+    {t('output.driver_missing', { driver: 'ViGEmBus' })}
   </div>
 {/if}
 

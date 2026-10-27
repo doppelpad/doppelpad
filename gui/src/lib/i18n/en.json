@@ -225,7 +225,7 @@
     "kbm_source_hint": "With \"from scripts only\", programs such as AutoHotkey drive the mappings, for example the virtual controller, while your real keyboard and mouse stay untouched. \"Physical devices only\" lets injected input pass unchanged.",
     "driver_missing": "{driver} is not installed — this config cannot be applied yet.",
     "hide_missing": "HidHide is not installed — games will still see the physical controller.",
-    "no_virtual_pads_macos": "macOS has no virtual controllers yet — this config cannot be applied. Choose “No virtual controller” instead.",
+    "no_virtual_pads_macos": "macOS has no virtual controllers yet, so every config runs with keyboard and mouse here. A virtual controller the config names is used on Windows and Linux.",
     "mouse": "Mouse",
     "mouse_hint": "Held wheel actions repeat at this interval (0: one notch per press). The zones are the physical mouse's speeds (counts per second) for MouseMove controls; the low one is also where its directions start.",
     "wheel_repeat": "Wheel repeat",
