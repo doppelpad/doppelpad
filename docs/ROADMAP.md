@@ -11,8 +11,9 @@ to keep. Linux stays a preview in 1.0 (see [Platforms](#platforms)).
 
 ### Must
 
-- **Windows hardware test**: a checklist with results, like [LINUX-TESTING.md](LINUX-TESTING.md),
-  that clears every "⏳ hardware testing" below. First the code that writes to controllers and
+- **Windows hardware test**: work through [WINDOWS-TESTING.md](WINDOWS-TESTING.md), a
+  checklist like [LINUX-TESTING.md](LINUX-TESTING.md), and fill in its results, to clear every
+  "⏳ hardware testing" below. First the code that writes to controllers and
   has never run on one: light bars and player lights, DualSense trigger effects and mic LED,
   turning controllers off, Sony rumble over Bluetooth, the desktop mode of the Steam
   Controller and Steam Deck, the GameCube adapter. Then the virtual DualShock 4 (touchpad,
@@ -21,7 +22,7 @@ to keep. Linux stays a preview in 1.0 (see [Platforms](#platforms)).
   lock-screen pause.
 - **Clean install**: the setup on a fresh Windows 10 and Windows 11 without ViGEmBus or
   HidHide installs both, the app finds the controllers, and uninstalling leaves no controller
-  hidden.
+  hidden ([section 16](WINDOWS-TESTING.md#16-clean-install) of the checklist).
 - **Stable formats**: profiles, layer presets and settings files already carry a format
   version, older ones are brought up to date as they are read
   ([Format versions](PROFILES.md#format-versions)), and the [local HTTP API](API.md) has a
