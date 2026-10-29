@@ -13,7 +13,8 @@ use windows_sys::Win32::System::LibraryLoader::{
 
 use super::wide;
 use crate::{
-    Battery, DeviceId, DeviceInfo, GamepadBackend, PadFamily, PadSnapshot, VirtualIgnoreList,
+    Battery, DeviceId, DeviceInfo, GamepadBackend, PadFamily, PadSnapshot, Transport,
+    VirtualIgnoreList,
 };
 
 #[repr(C)]
@@ -53,8 +54,11 @@ type SetStateFn = unsafe extern "system" fn(u32, *mut XInputVibration) -> u32;
 type GetBatteryFn = unsafe extern "system" fn(u32, u8, *mut XInputBatteryInformation) -> u32;
 type PowerOffFn = unsafe extern "system" fn(u32) -> u32;
 
+/// The name of the backend, which its devices carry ([`DeviceInfo::backend`]).
+pub(super) const BACKEND: &str = "xinput";
 const SLOTS: u32 = 4;
-const RESCAN: Duration = Duration::from_secs(1);
+/// An empty slot is asked again after this: asking an empty slot is slow.
+const PROBE_EMPTY: Duration = Duration::from_secs(1);
 /// Battery levels change slowly; asking costs a call per slot.
 const BATTERY_EVERY: Duration = Duration::from_secs(10);
 const BATTERY_DEVTYPE_GAMEPAD: u8 = 0;
@@ -149,7 +153,7 @@ impl XInputBackend {
             power_off,
             batteries: Default::default(),
             infos: Default::default(),
-            last_probe: [None; 4],
+            last_probe: [None; SLOTS as usize],
             ignored: Vec::new(),
         }
     }
@@ -182,7 +186,8 @@ impl XInputBackend {
             family: PadFamily::Xbox,
             vendor_id: crate::MICROSOFT_VID,
             product_id: 0,
-            backend: "xinput".into(),
+            transport: Transport::Other,
+            backend: BACKEND.into(),
             instance_paths: Vec::new(),
             joycon: None,
             has_motion: false,
@@ -227,7 +232,7 @@ fn convert(g: &XInputGamepad) -> PadState {
 
 impl GamepadBackend for XInputBackend {
     fn name(&self) -> &'static str {
-        "xinput"
+        BACKEND
     }
 
     fn poll(&mut self, out: &mut Vec<PadSnapshot>) {
@@ -242,7 +247,8 @@ impl GamepadBackend for XInputBackend {
                 continue;
             }
             // Probing empty slots is slow, so only rescan them periodically.
-            if self.infos[i].is_none() && self.last_probe[i].is_some_and(|t| now - t < RESCAN) {
+            if self.infos[i].is_none() && self.last_probe[i].is_some_and(|t| now - t < PROBE_EMPTY)
+            {
                 continue;
             }
             let mut st = XInputState::default();

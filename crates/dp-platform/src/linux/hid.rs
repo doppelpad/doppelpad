@@ -6,15 +6,13 @@
 use std::collections::HashMap;
 use std::io;
 use std::sync::Arc;
-use std::time::Instant;
 
 use super::ble;
 use super::gamepad::GrabHider;
 use super::hidraw::{self, Entry, Hidraw};
-use crate::hidhost::{Devices, Found, HidBackend, MakeDriver, SKIP_FOREIGN};
-use crate::scan::Pass;
-use crate::switch2usb::{self, Locate, OpenError};
-use crate::{DeviceHider, DeviceId, Result};
+use crate::hidhost::{Devices, Found, HidBackend, Look, MakeDriver, scan_pass};
+use crate::switch2usb::{self, Locate};
+use crate::{DeviceHider, DeviceId, Result, Switch2Search, Transport};
 
 /// The start of the ids of the controllers on USB, which tells their instance paths from
 /// evdev's.
@@ -22,54 +20,43 @@ const ID_PREFIX: &str = "hid:";
 
 /// The backend: Switch 2 controllers on USB and over Bluetooth. When it stops, the Bluetooth
 /// ones are let go.
-pub(crate) fn backend() -> HidBackend {
+pub(crate) fn backend(search: Switch2Search) -> HidBackend {
     let mut skip = HashMap::new();
     HidBackend::new(
-        move |pass, devices| scan(pass, devices, &mut skip),
+        move |pass, devices| {
+            let present = hidraw::switch2_devices()
+                .into_iter()
+                .map(|e| (node(&e), e))
+                .collect();
+            let wireless = ble::poll(search.on());
+            scan_pass(
+                pass,
+                devices,
+                &mut skip,
+                present,
+                wireless,
+                |path, entry| look(path, &entry, devices),
+            );
+        },
         ble::turn_off,
     )
     .on_drop(ble::let_all_go)
 }
 
-/// One pass of the scanner: let go of what is gone, start what is new. `skip` holds the nodes
-/// not to open again for a while.
-fn scan(pass: &Pass, devices: &Devices, skip: &mut HashMap<String, Instant>) {
-    let now = Instant::now();
-    if pass.requested {
-        skip.clear();
-    }
-    skip.retain(|_, until| now < *until);
-    let wired = hidraw::switch2_devices();
-    let wireless = ble::poll();
-    devices.sweep(
-        |path| wired.iter().any(|e| node(e) == path) || wireless.connected.contains(path),
-        skip,
-        now,
-    );
-    for pad in wireless.ready {
-        // Nothing to hide: no other program sees it.
-        pad.start(devices, Vec::new());
-    }
-    for entry in wired {
-        if pass.stopping() {
-            return;
+/// Start a Switch 2 controller on USB.
+fn look(path: &str, entry: &Entry, devices: &Devices) -> Look {
+    match Hidraw::open(entry) {
+        Ok(io) => {
+            devices.start(io, found(entry), driver(entry));
+            Look::Started
         }
-        let path = node(&entry);
-        if devices.has(&path) || skip.contains_key(&path) {
-            continue;
-        }
-        match Hidraw::open(&entry) {
-            Ok(io) => devices.start(io, found(&entry), driver(&entry)),
-            Err(e) => {
-                tracing::debug!(path, "cannot open the Switch 2 controller: {e}");
-                let problem = (e.kind() == io::ErrorKind::PermissionDenied).then(|| {
-                    "a Switch 2 controller on USB cannot be read: it needs the udev rule from \
-                     docs/LINUX.md"
-                        .to_owned()
-                });
-                devices.set_problem(&path, problem);
-                skip.insert(path, now + SKIP_FOREIGN);
-            }
+        Err(e) => {
+            tracing::debug!(path, "cannot open the Switch 2 controller: {e}");
+            Look::Skip((e.kind() == io::ErrorKind::PermissionDenied).then(|| {
+                "a Switch 2 controller on USB cannot be read: it needs the udev rule from \
+                 docs/LINUX.md"
+                    .to_owned()
+            }))
         }
     }
 }
@@ -87,7 +74,8 @@ fn found(entry: &Entry) -> Found {
     Found {
         path: node(entry),
         id: DeviceId(id.clone()),
-        transport: "USB",
+        transport: Transport::Usb,
+        label: "USB",
         vid: entry.vid,
         pid: entry.pid,
         // Its device thread hides it (see `Hidraw::set_exclusive`).
@@ -106,29 +94,11 @@ fn driver(entry: &Entry) -> MakeDriver<Hidraw> {
             is_it: Box::new(move |d: &nusb::DeviceInfo| {
                 d.sysfs_path().file_name() == usb_device.file_name()
             }),
-            explain: usb_open_error,
+            holder: || crate::holders::likely_holder(super::procname::running),
+            refused: Some("it needs the udev rule from docs/LINUX.md"),
         };
         switch2usb::driver(model, locate)
     })
-}
-
-/// A user-facing explanation of why the Switch 2 command interface cannot be used.
-fn usb_open_error(e: &nusb::Error) -> OpenError {
-    if crate::usb::is_busy(e) {
-        let holder = crate::holders::likely_holder(super::procname::running);
-        return OpenError {
-            message: crate::holders::busy_message("the controller's USB command interface", holder),
-            busy: true,
-        };
-    }
-    match e.kind() {
-        nusb::ErrorKind::Disconnected => "the controller was disconnected".to_owned(),
-        nusb::ErrorKind::PermissionDenied => "the controller's USB command interface cannot be \
-                                              opened: it needs the udev rule from docs/LINUX.md"
-            .to_owned(),
-        _ => format!("cannot open the controller's USB command interface: {e}"),
-    }
-    .into()
 }
 
 /// Hides the controllers of both backends: evdev's by grabbing their nodes, the HID backend's
@@ -197,7 +167,7 @@ mod tests {
         assert_eq!(f.path, "/dev/hidraw11");
         assert_eq!(f.id.0, "hid:057e:2069:usb-0000:04:00.3-1.3/input0");
         assert_eq!(f.instance_paths, vec![f.id.0.clone()], "hidden by its id");
-        assert_eq!(f.transport, "USB");
+        assert_eq!((f.transport, f.label), (Transport::Usb, "USB"));
     }
 
     /// Starts the first Switch 2 controller on USB and drives it (see

@@ -1,11 +1,13 @@
 //! What sysfs tells about a controller's HID device besides its input: the battery under
 //! `power_supply/` and the lights under `leds/` (hid-playstation, hid-sony, hid-nintendo),
-//! and for a Bluetooth controller the adapter it is connected through. Names and values are
-//! the drivers' (see `docs/LINUX.md#sources`). No I/O, so it is unit-tested on every OS.
+//! and for a Bluetooth controller the adapter it is connected through, with the object paths
+//! BlueZ gives such devices. Names and values are the drivers' (see `docs/LINUX.md#sources`).
+//! No I/O, so it is unit-tested on every OS.
 
 use dp_core::pad::Rgb;
 
 use crate::Battery;
+use crate::bdaddr::BdAddr;
 
 /// A battery from its `power_supply` attributes: `capacity` in percent (hid-playstation) or
 /// `capacity_level` (hid-nintendo), and `status`. Levels give the percentages the Windows
@@ -95,21 +97,26 @@ pub fn player_writes(leds: &[String], n: u8) -> Vec<LedWrite> {
 /// `hid_device` (`/sys/devices/…/bluetooth/hci0/hci0:256/0005:054C:0CE6.0003`): the adapter
 /// comes from that path, else it is `hci0`.
 pub fn bluez_device_path(hid_device: &str, mac: &str) -> Option<String> {
-    let bytes: Vec<&str> = mac.trim().split(':').collect();
-    let valid = |b: &&str| b.len() == 2 && b.chars().all(|c| c.is_ascii_hexdigit());
-    if bytes.len() != 6 || !bytes.iter().all(valid) {
-        return None;
-    }
+    let address = BdAddr::parse(mac)?;
     let mut parts = hid_device.split('/');
     let adapter = parts
         .find(|&p| p == "bluetooth")
         .and_then(|_| parts.next())
         .filter(|a| a.starts_with("hci"))
         .unwrap_or("hci0");
-    Some(format!(
-        "/org/bluez/{adapter}/dev_{}",
-        bytes.join("_").to_ascii_uppercase()
-    ))
+    Some(format!("/org/bluez/{adapter}/dev_{}", address.upper('_')))
+}
+
+/// The address of the device at a BlueZ object path (`…/dev_98_B6_E9_12_34_56`).
+pub fn bluez_address(path: &str) -> Option<BdAddr> {
+    let name = path.rsplit('/').next()?.strip_prefix("dev_")?;
+    let well_formed = name.split('_').count() == 6 && name.split('_').all(|b| b.len() == 2);
+    well_formed.then(|| BdAddr::parse(name))?
+}
+
+/// The adapter a device's BlueZ object path is under (`/org/bluez/hci0`).
+pub fn bluez_adapter(path: &str) -> &str {
+    path.rsplit_once('/').map_or(path, |(adapter, _)| adapter)
 }
 
 #[cfg(test)]
@@ -247,5 +254,13 @@ mod tests {
         );
         assert_eq!(bluez_device_path(hid, ""), None);
         assert_eq!(bluez_device_path(hid, "usb-0000:00:14.0-1/input0"), None);
+
+        let path = "/org/bluez/hci0/dev_98_B6_E9_12_34_56";
+        assert_eq!(bluez_address(path), BdAddr::new(0x98B6_E912_3456));
+        assert_eq!(bluez_address("/org/bluez/hci0"), None);
+        assert_eq!(bluez_address(&format!("{path}/service0010")), None);
+        assert_eq!(bluez_address("/org/bluez/hci0/dev_98_B6"), None);
+        assert_eq!(bluez_address("/org/bluez/hci0/dev_98B6E9123456"), None);
+        assert_eq!(bluez_adapter(path), "/org/bluez/hci0");
     }
 }

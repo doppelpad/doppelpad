@@ -318,21 +318,8 @@ impl Pad {
 
 /// Ask BlueZ to end a Bluetooth connection, which turns the controller off.
 fn disconnect(device: &str) {
-    let args = [
-        "call",
-        "org.bluez",
-        device,
-        "org.bluez.Device1",
-        "Disconnect",
-    ];
-    match super::host_command("busctl").args(args).output() {
-        Ok(out) if out.status.success() => {}
-        Ok(out) => tracing::warn!(
-            device,
-            "BlueZ did not end the connection: {}",
-            String::from_utf8_lossy(&out.stderr).trim()
-        ),
-        Err(e) => tracing::warn!("cannot run busctl to turn the controller off: {e}"),
+    if let Err(e) = super::bluez::disconnect(device) {
+        tracing::warn!(device, "BlueZ did not end the connection: {e}");
     }
 }
 
@@ -604,6 +591,7 @@ fn open_pad(path: &Path, dev: Device) -> io::Result<Pad> {
         family,
         vendor_id: vendor,
         product_id: product,
+        transport: transport(id.bus_type().0),
         backend: "evdev".into(),
         instance_paths: vec![path.display().to_string()],
         joycon,

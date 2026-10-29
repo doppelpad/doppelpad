@@ -8,14 +8,15 @@
 //! devices (the Linux counterpart of the `VirtualIgnoreList` on Windows).
 //!
 //! The pure translation code (`codes`, `padmap`, `x360`, `kbmmap`, `procname`, `sysfs`,
-//! `logind`, `appimage`, `att`) also compiles in tests on other OSes, so it is unit-tested
-//! everywhere.
+//! `logind`, `appimage`, `att`, `gatt`) also compiles in tests on other OSes, so it is
+//! unit-tested everywhere.
 
 #![cfg_attr(not(target_os = "linux"), allow(dead_code))]
 
 mod appimage;
 mod att;
 mod codes;
+mod gatt;
 mod kbmmap;
 mod logind;
 mod padmap;
@@ -25,6 +26,8 @@ mod x360;
 
 #[cfg(target_os = "linux")]
 mod ble;
+#[cfg(target_os = "linux")]
+mod bluez;
 #[cfg(target_os = "linux")]
 mod capture;
 #[cfg(target_os = "linux")]
@@ -37,6 +40,8 @@ mod gamepad;
 mod hid;
 #[cfg(target_os = "linux")]
 mod hidraw;
+#[cfg(target_os = "linux")]
+mod l2cap;
 #[cfg(target_os = "linux")]
 mod sysbus;
 #[cfg(target_os = "linux")]
@@ -65,8 +70,9 @@ pub fn os_version() -> String {
 
 #[cfg(target_os = "linux")]
 pub fn platform() -> crate::Platform {
+    let switch2_search = crate::Switch2Search::default();
     let gamepads = gamepad::EvdevBackend::new();
-    let hid = hid::backend();
+    let hid = hid::backend(switch2_search.clone());
     let hider = hid::Hider::new(gamepads.hider(), &hid);
     crate::Platform {
         probe_drivers: || crate::DriverReport {
@@ -87,5 +93,6 @@ pub fn platform() -> crate::Platform {
         hider: Box::new(hider),
         foreground: Box::new(foreground::X11Foreground::default()),
         system: Box::new(system::LinuxSystem::default()),
+        switch2_search,
     }
 }

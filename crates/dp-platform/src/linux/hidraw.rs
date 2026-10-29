@@ -11,8 +11,8 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use super::dev::set_grab;
-use crate::hidhost::{HidHandle, Wait, Wake};
+use super::dev::{poll_until, pollfd, set_grab};
+use crate::hidhost::{HidHandle, Wait, Wake, read_via_wait};
 use crate::nintendo::{self, Model, Switch2Model};
 use crate::padio::ReportIo;
 
@@ -187,36 +187,17 @@ impl HidHandle for Hidraw {
         let until = Instant::now() + timeout;
         loop {
             let mut fds = [
-                libc::pollfd {
-                    fd: self.file.as_raw_fd(),
-                    events: libc::POLLIN,
-                    revents: 0,
-                },
-                libc::pollfd {
-                    fd: self.wake.0.as_raw_fd(),
-                    events: libc::POLLIN,
-                    revents: 0,
-                },
+                pollfd(self.file.as_raw_fd(), libc::POLLIN),
+                pollfd(self.wake.0.as_raw_fd(), libc::POLLIN),
             ];
-            let left = until.saturating_duration_since(Instant::now());
-            // Round up, so a wait of less than a millisecond still waits.
-            let ms = left.as_micros().div_ceil(1000).min(i32::MAX as u128) as libc::c_int;
-            // SAFETY: two valid pollfd entries that live through the call.
-            let n = unsafe { libc::poll(fds.as_mut_ptr(), 2, ms) };
-            if n < 0 {
-                let e = io::Error::last_os_error();
-                if e.kind() == io::ErrorKind::Interrupted {
-                    continue;
-                }
-                return Err(e);
-            }
+            poll_until(&mut fds, until)?;
             if fds[0].revents & libc::POLLIN != 0 {
                 match self.file.read(&mut self.report) {
                     // Unplugged: the node goes away.
                     Ok(0) => return Err(io::ErrorKind::NotConnected.into()),
                     Ok(n) => {
                         self.len = n;
-                        return Ok(Wait::Report(n));
+                        return Ok(Wait::Report);
                     }
                     Err(e) if e.kind() == io::ErrorKind::WouldBlock => continue,
                     Err(e) => return Err(e),
@@ -276,18 +257,7 @@ impl ReportIo for Hidraw {
     }
 
     fn read(&mut self, buf: &mut [u8], timeout: Duration) -> io::Result<Option<usize>> {
-        let until = Instant::now() + timeout;
-        loop {
-            match self.wait(until.saturating_duration_since(Instant::now()))? {
-                Wait::Report(n) => {
-                    let n = n.min(buf.len());
-                    buf[..n].copy_from_slice(&self.report[..n]);
-                    return Ok(Some(n));
-                }
-                Wait::Woken if Instant::now() < until => {}
-                Wait::Woken | Wait::Timeout => return Ok(None),
-            }
-        }
+        read_via_wait(self, buf, timeout)
     }
 }
 
@@ -327,15 +297,14 @@ mod tests {
     fn wake_ups_end_a_wait() {
         let fd = EventFd::new().unwrap();
         fd.wake();
-        let mut p = libc::pollfd {
-            fd: fd.0.as_raw_fd(),
-            events: libc::POLLIN,
-            revents: 0,
+        let ready = || {
+            poll_until(
+                &mut [pollfd(fd.0.as_raw_fd(), libc::POLLIN)],
+                Instant::now(),
+            )
         };
-        // SAFETY: one valid pollfd.
-        assert_eq!(unsafe { libc::poll(&raw mut p, 1, 0) }, 1);
+        assert_eq!(ready().unwrap(), 1);
         fd.drain();
-        // SAFETY: as above.
-        assert_eq!(unsafe { libc::poll(&raw mut p, 1, 0) }, 0, "drained");
+        assert_eq!(ready().unwrap(), 0, "drained");
     }
 }

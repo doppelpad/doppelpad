@@ -49,6 +49,7 @@ pub fn pad(id: &str, family: PadFamily) -> PadSnapshot {
             family,
             vendor_id: 0,
             product_id: 0,
+            transport: dp_platform::Transport::Usb,
             backend: "fake".into(),
             instance_paths: vec![format!("path-{id}")],
             joycon: None,

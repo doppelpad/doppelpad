@@ -877,18 +877,19 @@ fn the_switch2_bluetooth_search_is_kept() {
     let state = dir.path().join("state.toml");
     let (mut s, _) = service(dir.path(), Some(state.clone()));
     assert!(s.live().switch2_bluetooth, "on at first");
+    assert!(s.rt.platform_mut().switch2_search.on());
     s.handle(ServiceCmd::SetSwitch2Bluetooth(false))
         .into_result()
         .unwrap();
     assert!(!s.live().switch2_bluetooth);
+    assert!(
+        !s.rt.platform_mut().switch2_search.on(),
+        "the platform stops looking"
+    );
     assert!(
         !crate::slots::SlotState::load(&state)
             .value
             .switch2_bluetooth,
         "saved"
     );
-    // The switch is the process's: back on for the other tests.
-    s.handle(ServiceCmd::SetSwitch2Bluetooth(true))
-        .into_result()
-        .unwrap();
 }

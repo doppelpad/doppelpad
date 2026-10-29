@@ -2,21 +2,20 @@
 //!
 //! macOS cannot pair them (see [`crate::nintendo::switch2ble`]), so Doppelpad looks for one
 //! in pairing mode itself, connects it and subscribes to its input. The controller then runs
-//! in the HID backend like any other, over a [`crate::switch2gatt`] link. A controller that is
-//! looking for the console it is paired with is left alone.
+//! in the HID backend like any other, over a [`crate::switch2gatt`] link.
 //!
 //! Bluetooth needs a permission. Doppelpad turns it on by itself only once the permission is
 //! given; [`request`] (the app's *Allow* button) turns it on regardless, which brings up
-//! macOS's prompt. It scans only while the search is on ([`crate::set_switch2_search`]).
+//! macOS's prompt. It scans only while the search is on ([`crate::Switch2Search`]).
 //!
 //! CoreBluetooth objects are not thread-safe. They live on one serial dispatch queue, where the
 //! manager's and the controllers' delegate calls run; the device threads submit their writes
-//! to it.
+//! to it, and the scanner asks it for the controllers that are ready.
 
 use std::cell::RefCell;
-use std::collections::{HashMap, HashSet};
+use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Mutex, OnceLock};
+use std::sync::{Mutex, OnceLock, PoisonError};
 use std::time::Duration;
 
 use dispatch2::{DispatchQueue, DispatchRetained, DispatchTime};
@@ -34,15 +33,16 @@ use objc2_foundation::{
     NSString,
 };
 
-use crate::nintendo::Switch2Model;
-use crate::nintendo::switch2ble::{self, Advert};
-use crate::switch2gatt::{self, BleIo, Feed, GattCommands, Links, Poll, Ready, Target, Writer};
+use crate::nintendo::switch2ble::{self, Advert, Role};
+use crate::switch2gatt::{
+    self, Attempt, CONNECT_TIMEOUT, Gone, Peers, Poll, Ready, Target, Writer,
+};
 
 /// Start the scan over again this often: CoreBluetooth reports a controller once per scan,
 /// and one first seen looking for its console may be put into pairing mode later.
 const RESCAN: Duration = Duration::from_secs(10);
-/// Give up on a controller that has not connected and answered by then.
-const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
+/// Commands that wait for room on the link; more and the oldest go.
+const QUEUED_COMMANDS: usize = 16;
 
 /// The Bluetooth permission, as a driver check.
 pub fn check() -> crate::Result<()> {
@@ -99,29 +99,55 @@ fn can_ask() -> bool {
         .is_some()
 }
 
-/// What changed since the last call. Turning the search on or off takes effect here rather
-/// than with the next rescan.
-pub(crate) fn poll() -> Poll {
+/// What changed since the last call, with the search on or off as `search` says (turning it
+/// on or off takes effect here rather than with the next rescan). Controllers silent for too
+/// long are let go.
+pub(crate) fn poll(search: bool) -> Poll {
     let Some(c) = CENTRAL.get() else {
         return Poll::default();
     };
-    let search = crate::switch2_search();
-    if c.searching.swap(search, Ordering::SeqCst) != search {
+    let changed = c.searching.swap(search, Ordering::SeqCst) != search;
+    if changed && c.started.load(Ordering::SeqCst) {
         if search {
             tracing::info!("Bluetooth: looking for Switch 2 controllers in pairing mode");
         } else {
             tracing::info!("Bluetooth: no longer looking for Switch 2 controllers");
         }
-        c.queue.exec_async(|| {
-            with_cb(|cb| {
-                // SAFETY: reading the state of a live manager.
-                if unsafe { cb.manager.state() } == CBManagerState::PoweredOn {
-                    scan(cb);
-                }
-            });
-        });
     }
-    c.links.lock().unwrap().poll()
+    let polled = Mutex::new(Poll::default());
+    c.queue.exec_sync(|| {
+        let done = with_cb(|cb| {
+            if changed && powered_on(cb) {
+                scan(cb);
+            }
+            for key in cb.peers.silent() {
+                tracing::info!("Bluetooth: no input from the Switch 2 controller, letting it go");
+                cancel(cb, &key);
+            }
+            cb.peers.poll()
+        });
+        if let Some(p) = done {
+            *polled.lock().unwrap_or_else(PoisonError::into_inner) = p;
+        }
+    });
+    polled.into_inner().unwrap_or_else(PoisonError::into_inner)
+}
+
+/// Let every controller go and stop scanning, when the backend stops.
+pub(crate) fn let_all_go() {
+    let Some(c) = CENTRAL.get() else {
+        return;
+    };
+    c.searching.store(false, Ordering::SeqCst);
+    c.queue.exec_sync(|| {
+        with_cb(|cb| {
+            // SAFETY: stopping the scan of a live manager.
+            unsafe { cb.manager.stopScan() };
+            for key in cb.peers.keys() {
+                cancel(cb, &key);
+            }
+        });
+    });
 }
 
 static CENTRAL: OnceLock<Central> = OnceLock::new();
@@ -130,61 +156,95 @@ fn central() -> &'static Central {
     CENTRAL.get_or_init(|| Central {
         queue: DispatchQueue::new("dev.doppelpad.bluetooth", None),
         started: AtomicBool::new(false),
-        searching: AtomicBool::new(crate::switch2_search()),
+        searching: AtomicBool::new(true),
         cb: OnQueue(RefCell::new(None)),
-        links: Mutex::default(),
     })
 }
 
 struct Central {
     queue: DispatchRetained<DispatchQueue>,
     started: AtomicBool,
-    /// Whether the search was on at the last [`poll`].
+    /// Whether the search is on, as the scanner last told.
     searching: AtomicBool,
     /// CoreBluetooth's side, made by [`start`].
-    cb: OnQueue<RefCell<Option<Cb>>>,
-    links: Mutex<Links>,
+    cb: OnQueue,
 }
 
-/// A value used only on the central's queue.
-struct OnQueue<T>(T);
+/// CoreBluetooth's side, used only on the central's queue.
+struct OnQueue(RefCell<Option<Cb>>);
 
-// SAFETY: the value is only reached from work running on the central's serial queue (the
-// delegate calls, and the work `start`, `rescan_later` and `write` submit), so never from two
-// threads at once, and never from a thread other than the queue's.
-unsafe impl<T> Send for OnQueue<T> {}
+// SAFETY: the value is only reached through `with_cb`, which runs only on the central's serial
+// queue (the delegate calls, and the work `start`, `poll`, `let_all_go`, `rescan_later` and
+// `QueueWriter` submit to it): never from two threads at once, and never from a thread other
+// than the queue's. Debug builds assert that.
+unsafe impl Send for OnQueue {}
 // SAFETY: as above.
-unsafe impl<T> Sync for OnQueue<T> {}
+unsafe impl Sync for OnQueue {}
 
 struct Cb {
     manager: Retained<CBCentralManager>,
     delegate: Retained<Delegate>,
     /// Controllers being connected or connected, by peripheral identifier.
-    peers: HashMap<String, Peer>,
-    /// Controllers already logged as not wanted, by peripheral identifier.
-    passed: HashSet<String>,
+    peers: Peers<String, Peer, Peer>,
 }
 
-/// One controller, from discovery until it disconnects.
+/// One controller's peripheral and what was found on it.
 struct Peer {
     peripheral: Retained<CBPeripheral>,
-    /// The peripheral identifier.
-    key: String,
     advert: Advert,
     input: Option<Retained<CBCharacteristic>>,
     command: Option<Retained<CBCharacteristic>>,
     reply: Option<Retained<CBCharacteristic>>,
     vibration: Option<Retained<CBCharacteristic>>,
-    /// Notifications switched on so far: input and replies make it ready.
-    notifying: u8,
-    feed: Feed,
-    /// The device thread's ends, until the controller is handed to the scanner.
-    ends: Option<(BleIo, GattCommands)>,
+    /// Whether the input and the reply characteristic notify yet: both make it ready.
+    notifying: [bool; 2],
+    /// Commands waiting for room on the link.
+    commands: VecDeque<Vec<u8>>,
+}
+
+impl Peer {
+    fn new(peripheral: Retained<CBPeripheral>, advert: Advert) -> Peer {
+        Peer {
+            peripheral,
+            advert,
+            input: None,
+            command: None,
+            reply: None,
+            vibration: None,
+            notifying: [false; 2],
+            commands: VecDeque::new(),
+        }
+    }
+
+    /// Send the commands that wait, as far as there is room.
+    fn send_commands(&mut self) {
+        let Some(ch) = &self.command else {
+            self.commands.clear();
+            return;
+        };
+        // SAFETY: asking a connected peripheral for room.
+        while unsafe { self.peripheral.canSendWriteWithoutResponse() } {
+            let Some(data) = self.commands.pop_front() else {
+                return;
+            };
+            // SAFETY: writing to a characteristic of a connected peripheral.
+            unsafe {
+                self.peripheral.writeValue_forCharacteristic_type(
+                    &NSData::with_bytes(&data),
+                    ch,
+                    CBCharacteristicWriteType::WithoutResponse,
+                );
+            }
+        }
+    }
 }
 
 /// Run `f` with CoreBluetooth's side, if Bluetooth was started. Only on the queue.
 fn with_cb<R>(f: impl FnOnce(&mut Cb) -> R) -> Option<R> {
-    central().cb.0.borrow_mut().as_mut().map(f)
+    let c = central();
+    #[cfg(debug_assertions)]
+    c.queue.assert();
+    c.cb.0.borrow_mut().as_mut().map(f)
 }
 
 fn start() {
@@ -192,7 +252,7 @@ fn start() {
     if c.started.swap(true, Ordering::SeqCst) {
         return;
     }
-    if crate::switch2_search() {
+    if c.searching.load(Ordering::SeqCst) {
         tracing::info!("Bluetooth: looking for Switch 2 controllers in pairing mode");
     }
     c.queue.exec_async(|| {
@@ -215,12 +275,10 @@ fn start() {
         *c.cb.0.borrow_mut() = Some(Cb {
             manager,
             delegate,
-            peers: HashMap::new(),
-            passed: HashSet::new(),
+            peers: Peers::default(),
         });
         with_cb(|cb| {
-            // SAFETY: reading the state of a live manager.
-            if unsafe { cb.manager.state() } == CBManagerState::PoweredOn {
+            if powered_on(cb) {
                 scan(cb);
             }
         });
@@ -228,12 +286,17 @@ fn start() {
     });
 }
 
+fn powered_on(cb: &Cb) -> bool {
+    // SAFETY: reading the state of a live manager.
+    unsafe { cb.manager.state() == CBManagerState::PoweredOn }
+}
+
 /// Start the scan over, or only stop it while the search is off.
 fn scan(cb: &Cb) {
     // SAFETY: no service filter and no options: everything that advertises.
     unsafe {
         cb.manager.stopScan();
-        if crate::switch2_search() {
+        if central().searching.load(Ordering::SeqCst) {
             cb.manager
                 .scanForPeripheralsWithServices_options(None, None);
         }
@@ -244,8 +307,7 @@ fn rescan_later() {
     let when = DispatchTime::try_from(RESCAN).unwrap_or(DispatchTime::NOW);
     let _ = central().queue.after(when, || {
         with_cb(|cb| {
-            // SAFETY: reading the state of a live manager.
-            if unsafe { cb.manager.state() } == CBManagerState::PoweredOn {
+            if powered_on(cb) {
                 scan(cb);
             }
         });
@@ -258,14 +320,20 @@ fn key_of(p: &CBPeripheral) -> String {
     unsafe { p.identifier() }.UUIDString().to_string()
 }
 
-fn uuid_of(ch: &CBCharacteristic) -> String {
-    // SAFETY: the UUID of a live characteristic.
-    unsafe { ch.UUID().UUIDString() }.to_string()
+/// The UUID of a service or characteristic, as a number.
+fn uuid_of(uuid: &CBUUID) -> Option<u128> {
+    // SAFETY: the UUID of a live service or characteristic.
+    switch2ble::parse_uuid(&unsafe { uuid.UUIDString() }.to_string())
 }
 
-fn cbuuid(s: &str) -> Retained<CBUUID> {
+fn cbuuid(uuid: u128) -> Retained<CBUUID> {
     // SAFETY: a well-formed UUID string.
-    unsafe { CBUUID::UUIDWithString(&NSString::from_str(s)) }
+    unsafe { CBUUID::UUIDWithString(&NSString::from_str(&switch2ble::uuid_text(uuid))) }
+}
+
+/// Whether `slot` holds the characteristic `ch`.
+fn is(slot: &Option<Retained<CBCharacteristic>>, ch: &CBCharacteristic) -> bool {
+    slot.as_deref().is_some_and(|c| std::ptr::eq(c, ch))
 }
 
 fn on_state(manager: &CBManager) {
@@ -277,8 +345,8 @@ fn on_state(manager: &CBManager) {
             scan(cb);
         } else {
             // Bluetooth off or taken away: every link is gone.
-            for (_, peer) in cb.peers.drain() {
-                drop_peer(&peer);
+            for key in cb.peers.keys() {
+                cb.peers.let_go(&key);
             }
         }
     });
@@ -298,49 +366,23 @@ fn on_discover(p: &CBPeripheral, ad: &NSDictionary<NSString, AnyObject>) {
     };
     let key = key_of(p);
     with_cb(|cb| {
-        // A peripheral can still be reported just after the search was turned off.
-        if cb.peers.contains_key(&key) || !crate::switch2_search() {
+        let searching = central().searching.load(Ordering::SeqCst);
+        if !cb.peers.admit(&key, &advert, searching) {
             return;
         }
-        if !advert.pairing || advert.model != Switch2Model::Pro {
-            if cb.passed.insert(key) {
-                if advert.pairing {
-                    tracing::info!(
-                        model = ?advert.model,
-                        "Bluetooth: only the Switch 2 Pro Controller is supported over Bluetooth yet"
-                    );
-                } else {
-                    tracing::debug!(model = ?advert.model, "Bluetooth: a Switch 2 controller looks for its console, left alone");
-                }
-            }
-            return;
-        }
-        tracing::info!("Bluetooth: Switch 2 Pro Controller in pairing mode, connecting");
         // SAFETY: the delegate outlives the peripheral's use (both kept in `Cb`).
         unsafe {
             p.setDelegate(Some(ProtocolObject::from_ref(&*cb.delegate)));
             cb.manager.connectPeripheral_options(p, None);
         }
-        let (feed, io, commands) = switch2gatt::link(Box::new(QueueWriter { key: key.clone() }));
-        cb.peers.insert(
-            key.clone(),
-            Peer {
-                peripheral: p.retain(),
-                key: key.clone(),
-                advert,
-                input: None,
-                command: None,
-                reply: None,
-                vibration: None,
-                notifying: 0,
-                feed,
-                ends: Some((io, commands)),
-            },
-        );
+        let attempt = cb
+            .peers
+            .connecting(key.clone(), Peer::new(p.retain(), advert));
         let when = DispatchTime::try_from(CONNECT_TIMEOUT).unwrap_or(DispatchTime::NOW);
         let _ = central().queue.after(when, move || {
             with_cb(|cb| {
-                if cb.peers.get(&key).is_some_and(|p| p.ends.is_some()) {
+                // Only this attempt: the controller may have been let go and found again.
+                if cb.peers.is_connecting(&key, attempt) {
                     tracing::info!("Bluetooth: the controller did not connect in time");
                     cancel(cb, &key);
                 }
@@ -349,23 +391,14 @@ fn on_discover(p: &CBPeripheral, ad: &NSDictionary<NSString, AnyObject>) {
     });
 }
 
-/// Drop a controller: the connection, and its device thread's link.
+/// Let a controller go and end its connection.
 fn cancel(cb: &mut Cb, key: &str) {
-    if let Some(peer) = cb.peers.remove(key) {
-        // SAFETY: cancelling a peripheral of this manager.
-        unsafe { cb.manager.cancelPeripheralConnection(&peer.peripheral) };
-        drop_peer(&peer);
-    }
-}
-
-/// Tell a controller's device thread it is gone, and forget it.
-fn drop_peer(peer: &Peer) {
-    peer.feed.close();
-    central()
-        .links
-        .lock()
-        .unwrap()
-        .remove(&switch2gatt::path(&peer.key));
+    let peer = match cb.peers.let_go(&key.to_owned()) {
+        Some(Gone::Connecting(p) | Gone::Up(p)) => p,
+        None => return,
+    };
+    // SAFETY: cancelling a peripheral of this manager.
+    unsafe { cb.manager.cancelPeripheralConnection(&peer.peripheral) };
 }
 
 fn on_connect(p: &CBPeripheral) {
@@ -381,25 +414,18 @@ fn on_failed(p: &CBPeripheral, error: Option<&NSError>) {
         describe(error)
     );
     let key = key_of(p);
-    with_cb(|cb| {
-        if let Some(peer) = cb.peers.remove(&key) {
-            drop_peer(&peer);
-        }
-    });
+    with_cb(|cb| cb.peers.let_go(&key));
 }
 
 fn on_disconnect(p: &CBPeripheral, error: Option<&NSError>) {
     let key = key_of(p);
     with_cb(|cb| {
-        if let Some(peer) = cb.peers.remove(&key) {
+        if cb.peers.let_go(&key).is_some() {
             tracing::info!(
                 "Bluetooth: Switch 2 controller disconnected: {}",
                 describe(error)
             );
-            drop_peer(&peer);
         }
-        // To find it again when it comes back in pairing mode.
-        cb.passed.remove(&key);
         scan(cb);
     });
 }
@@ -417,7 +443,7 @@ fn on_services(p: &CBPeripheral, error: Option<&NSError>) {
     let service = unsafe { p.services() }.and_then(|services| {
         services.iter().find(|s| {
             // SAFETY: the UUID of a discovered service.
-            unsafe { s.UUID().UUIDString() }.to_string() == switch2ble::SERVICE
+            uuid_of(&*unsafe { s.UUID() }) == Some(switch2ble::SERVICE)
         })
     });
     match service {
@@ -436,22 +462,22 @@ fn on_services(p: &CBPeripheral, error: Option<&NSError>) {
 fn on_characteristics(p: &CBPeripheral, service: &CBService, error: Option<&NSError>) {
     let key = key_of(p);
     with_cb(|cb| {
-        let Some(peer) = cb.peers.get_mut(&key) else {
+        let Some((_, peer)) = cb.peers.setting_up(&key) else {
             return;
         };
-        let vibration = switch2ble::vibration(peer.advert.model);
         // SAFETY: the characteristics of a discovered service.
         for ch in unsafe { service.characteristics() }
             .iter()
             .flat_map(|a| a.iter())
         {
-            let uuid = uuid_of(&ch);
-            let slot = match uuid.as_str() {
-                switch2ble::INPUT => &mut peer.input,
-                switch2ble::COMMAND => &mut peer.command,
-                switch2ble::REPLY => &mut peer.reply,
-                u if u == vibration => &mut peer.vibration,
-                _ => continue,
+            // SAFETY: the UUID of a discovered characteristic.
+            let uuid = uuid_of(&*unsafe { ch.UUID() });
+            let slot = match uuid.and_then(|u| switch2ble::role(u, peer.advert.model)) {
+                Some(Role::Input) => &mut peer.input,
+                Some(Role::Command) => &mut peer.command,
+                Some(Role::Reply) => &mut peer.reply,
+                Some(Role::Vibration) => &mut peer.vibration,
+                None => continue,
             };
             *slot = Some(ch);
         }
@@ -471,7 +497,9 @@ fn on_characteristics(p: &CBPeripheral, service: &CBService, error: Option<&NSEr
     });
 }
 
-fn on_notifying(p: &CBPeripheral, error: Option<&NSError>) {
+/// A characteristic's notifications changed: once the input's and the replies' are on, the
+/// controller is ready.
+fn on_notifying(p: &CBPeripheral, ch: &CBCharacteristic, error: Option<&NSError>) {
     let key = key_of(p);
     with_cb(|cb| {
         if error.is_some() {
@@ -482,77 +510,108 @@ fn on_notifying(p: &CBPeripheral, error: Option<&NSError>) {
             cancel(cb, &key);
             return;
         }
-        let Some(peer) = cb.peers.get_mut(&key) else {
+        let Some((attempt, peer)) = cb.peers.setting_up(&key) else {
             return;
         };
-        peer.notifying += 1;
-        if peer.notifying < 2 {
+        // SAFETY: the state of a characteristic of a connected peripheral.
+        let on = unsafe { ch.isNotifying() };
+        if is(&peer.input, ch) {
+            peer.notifying[0] = on;
+        } else if is(&peer.reply, ch) {
+            peer.notifying[1] = on;
+        } else {
             return;
         }
-        let Some((io, commands)) = peer.ends.take() else {
+        if peer.notifying != [true; 2] {
             return;
-        };
-        tracing::info!("Bluetooth: Switch 2 Pro Controller connected");
-        let ready = Ready::new(&peer.key, peer.advert, io, commands);
-        central().links.lock().unwrap().add(ready);
+        }
+        cb.peers.up_from(&key, attempt, |peer| {
+            let writer = QueueWriter {
+                key: key.clone(),
+                attempt,
+            };
+            let (feed, io, commands) = switch2gatt::link(Box::new(writer));
+            let ready = Ready::new(&key, peer.advert, io, commands);
+            (feed, peer, ready)
+        });
     });
 }
 
 fn on_value(p: &CBPeripheral, ch: &CBCharacteristic) {
     let key = key_of(p);
     with_cb(|cb| {
-        let Some(peer) = cb.peers.get(&key) else {
+        let Some((feed, peer)) = cb.peers.up_conn(&key) else {
             return;
         };
         // SAFETY: the value of a characteristic that just notified.
         let Some(value) = (unsafe { ch.value() }) else {
             return;
         };
-        let is = |slot: &Option<Retained<CBCharacteristic>>| {
-            slot.as_deref().is_some_and(|c| std::ptr::eq(c, ch))
-        };
-        if is(&peer.input) {
-            peer.feed.input(value.to_vec());
-        } else if is(&peer.reply) {
-            peer.feed.reply(value.to_vec());
+        if is(&peer.input, ch) {
+            if !feed.input(value.to_vec()) {
+                tracing::info!("Bluetooth: nothing reads the controller any more, letting it go");
+                cancel(cb, &key);
+            }
+        } else if is(&peer.reply, ch) {
+            feed.reply(value.to_vec());
         }
     });
 }
 
-/// Writes to the controller with this peripheral identifier, through the queue.
+/// The link has room again: the commands that wait go out.
+fn on_ready_to_send(p: &CBPeripheral) {
+    let key = key_of(p);
+    with_cb(|cb| {
+        if let Some(peer) = cb.peers.up_conn_mut(&key) {
+            peer.send_commands();
+        }
+    });
+}
+
+/// Writes to a controller through the queue: to the connection `attempt` made, not to one made
+/// after it was let go.
+///
+/// As the [`Writer`] contract says, a rumble write the link has no room for is dropped; a
+/// command waits for room (CoreBluetooth says when there is), as on the other OSes.
 struct QueueWriter {
     key: String,
+    attempt: Attempt,
 }
 
 impl Writer for QueueWriter {
     fn write(&self, target: Target, data: Vec<u8>) {
-        let key = self.key.clone();
+        let (key, attempt) = (self.key.clone(), self.attempt);
         central().queue.exec_async(move || {
             with_cb(|cb| {
-                let Some(peer) = cb.peers.get(&key) else {
+                let Some(peer) = cb.peers.conn_mut(&key, attempt) else {
                     return;
                 };
-                let slot = match target {
-                    Target::Command => &peer.command,
-                    Target::Vibration => &peer.vibration,
-                };
-                let Some(ch) = slot else {
-                    return;
-                };
-                // SAFETY: writing to a characteristic of a connected peripheral.
-                unsafe {
-                    // Rumble comes again soon; commands are worth the wait.
-                    if matches!(target, Target::Vibration)
-                        && !peer.peripheral.canSendWriteWithoutResponse()
-                    {
-                        tracing::trace!("Bluetooth: no room for a rumble report");
-                        return;
+                match target {
+                    Target::Command => {
+                        if peer.commands.len() == QUEUED_COMMANDS {
+                            peer.commands.pop_front();
+                        }
+                        peer.commands.push_back(data);
+                        peer.send_commands();
                     }
-                    peer.peripheral.writeValue_forCharacteristic_type(
-                        &NSData::with_bytes(&data),
-                        ch,
-                        CBCharacteristicWriteType::WithoutResponse,
-                    );
+                    Target::Vibration => {
+                        let Some(ch) = &peer.vibration else {
+                            return;
+                        };
+                        // SAFETY: asking a connected peripheral for room, then writing to one
+                        // of its characteristics.
+                        unsafe {
+                            if !peer.peripheral.canSendWriteWithoutResponse() {
+                                tracing::trace!("Bluetooth: no room for a rumble report");
+                                return;
+                            }
+                            peer.peripheral.writeValue_forCharacteristic_type(
+                                &NSData::with_bytes(&data),
+                                ch,
+                                CBCharacteristicWriteType::WithoutResponse,
+                            );
+                        }
+                    }
                 }
             });
         });
@@ -631,10 +690,10 @@ define_class!(
         fn did_update_notification_state(
             &self,
             peripheral: &CBPeripheral,
-            _characteristic: &CBCharacteristic,
+            characteristic: &CBCharacteristic,
             error: Option<&NSError>,
         ) {
-            on_notifying(peripheral, error);
+            on_notifying(peripheral, characteristic, error);
         }
 
         #[unsafe(method(peripheral:didUpdateValueForCharacteristic:error:))]
@@ -645,6 +704,11 @@ define_class!(
             _error: Option<&NSError>,
         ) {
             on_value(peripheral, characteristic);
+        }
+
+        #[unsafe(method(peripheralIsReadyToSendWriteWithoutResponse:))]
+        fn is_ready_to_send(&self, peripheral: &CBPeripheral) {
+            on_ready_to_send(peripheral);
         }
     }
 );
@@ -676,12 +740,24 @@ mod tests {
             sel!(peripheral:didDiscoverCharacteristicsForService:error:),
             sel!(peripheral:didUpdateNotificationStateForCharacteristic:error:),
             sel!(peripheral:didUpdateValueForCharacteristic:error:),
+            sel!(peripheralIsReadyToSendWriteWithoutResponse:),
         ];
         for s in selectors {
             assert!(delegate.respondsToSelector(s), "{s:?}");
         }
         // Nothing was started: no prompt, and no controllers.
-        let nothing = poll();
+        let nothing = poll(true);
         assert!(nothing.connected.is_empty() && nothing.ready.is_empty());
+    }
+
+    /// Connects a Pro Controller in pairing mode near this Mac and drives it for a while; see
+    /// [`switch2gatt::drive_controller`]. Needs the Bluetooth permission. Run with
+    /// `--nocapture`.
+    #[test]
+    #[ignore = "connects a Switch 2 Pro Controller in pairing mode near this Mac"]
+    fn switch2_pro_over_bluetooth() {
+        start();
+        switch2gatt::drive_controller(|| poll(true));
+        let_all_go();
     }
 }

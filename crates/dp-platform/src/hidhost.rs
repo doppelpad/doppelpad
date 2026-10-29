@@ -11,8 +11,6 @@
 //!
 //! Built in tests everywhere so its pure parts are unit-tested on every OS.
 
-#![cfg_attr(not(any(windows, target_os = "macos")), allow(dead_code))]
-
 use std::collections::{HashMap, HashSet};
 use std::io;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -22,13 +20,21 @@ use std::time::{Duration, Instant};
 
 use dp_core::pad::{PadState, Rgb, Rumble};
 
-use crate::generic::{GenericLayout, RawInput};
+use crate::bdaddr::BdAddr;
+use crate::generic::{GenericDriver, GenericLayout, RawInput, ReportDecoder};
+use crate::nintendo::switch1::{Link, Switch1Driver};
+use crate::nintendo::wired::WiredDriver;
 use crate::nintendo::{self, Model};
 use crate::padio::{InitError, PadDriver, ReportIo};
 use crate::scan::{Pass, RESCAN, Rescanner};
-use crate::sony::{self, SonyModel};
-use crate::steam::{self, SteamModel};
-use crate::{Battery, DeviceId, DeviceInfo, GamepadBackend, Leds, PadSnapshot, TriggerEffects};
+use crate::sony::{self, SonyDriver, SonyModel};
+use crate::steam::{self, SteamDriver, SteamModel};
+use crate::switch2gatt::Poll;
+use crate::switch2usb::{self, Locate};
+use crate::{
+    Battery, DeviceId, DeviceInfo, GamepadBackend, JoyConSide, Leds, PadSnapshot, Transport,
+    TriggerEffects,
+};
 
 /// Interfaces that are not controllers we handle are not reopened for this long.
 pub(crate) const SKIP_FOREIGN: Duration = Duration::from_secs(30);
@@ -47,6 +53,7 @@ fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
 }
 
 /// HID usage page and usages (HID Usage Tables 1.4).
+#[cfg_attr(not(any(windows, target_os = "macos")), allow(dead_code))]
 pub(crate) mod usage {
     pub const PAGE_GENERIC: u16 = 0x01;
     pub const PAGE_VENDOR_DEFINED_BEGIN: u16 = 0xFF00;
@@ -55,6 +62,7 @@ pub(crate) mod usage {
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(not(any(windows, target_os = "macos")), allow(dead_code))]
 pub(crate) enum DriverKind {
     Sony(SonyModel),
     Nintendo(Model),
@@ -63,11 +71,12 @@ pub(crate) enum DriverKind {
     Generic,
 }
 
+#[cfg_attr(not(any(windows, target_os = "macos")), allow(dead_code))]
 impl DriverKind {
     /// How a controller of this kind is connected, as shown after its name.
-    pub(crate) fn transport(self, bluetooth: bool, pid: u16) -> &'static str {
+    pub(crate) fn label(self, transport: Transport, pid: u16) -> &'static str {
         match self {
-            _ if bluetooth => "Bluetooth",
+            _ if transport == Transport::Bluetooth => "Bluetooth",
             DriverKind::Steam(SteamModel::Receiver) => "wireless",
             DriverKind::Steam(SteamModel::Deck) => "built in",
             DriverKind::Nintendo(Model::Switch1) if pid == nintendo::pid::CHARGING_GRIP => {
@@ -78,14 +87,25 @@ impl DriverKind {
     }
 }
 
-/// Which driver handles a HID top-level collection, if any. `xbox_elsewhere`: Xbox pads are
-/// read by another backend (XInput on Windows), so they are left out here.
+/// Which backend reads Xbox pads.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(not(any(windows, target_os = "macos")), allow(dead_code))]
+pub(crate) enum XboxPads {
+    /// Another one (XInput on Windows): this one leaves them out.
+    Elsewhere,
+    /// This one, as generic pads (macOS).
+    #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+    Here,
+}
+
+/// Which driver handles a HID top-level collection, if any.
+#[cfg_attr(not(any(windows, target_os = "macos")), allow(dead_code))]
 pub(crate) fn driver_kind(
     vid: u16,
     pid: u16,
     usage_page: u16,
     usage: u16,
-    xbox_elsewhere: bool,
+    xbox: XboxPads,
 ) -> Option<DriverKind> {
     // Valve pads: the vendor collection; the others are their keyboard and mouse.
     if let Some(m) = steam::model_for(vid, pid) {
@@ -106,20 +126,157 @@ pub(crate) fn driver_kind(
     if let Some(m) = nintendo::model_for(vid, pid) {
         return pad.then_some(DriverKind::Nintendo(m));
     }
-    (pad && !(xbox_elsewhere && vid == crate::MICROSOFT_VID)).then_some(DriverKind::Generic)
+    let elsewhere = xbox == XboxPads::Elsewhere && vid == crate::MICROSOFT_VID;
+    (pad && !elsewhere).then_some(DriverKind::Generic)
 }
 
-/// A Bluetooth address from text such as `a4:ae:12:34:56:78` or `a4ae12345678` (Sony pads
-/// report theirs as their serial number).
-pub(crate) fn parse_bt_address(s: &str) -> Option<u64> {
-    let hex: String = s.chars().filter(char::is_ascii_hexdigit).collect();
-    (hex.len() == 12).then(|| u64::from_str_radix(&hex, 16).ok())?
+/// The driver a scanner picked for a controller: one of ours by its kind, or a generic pad
+/// with the decoder that reads its reports.
+#[cfg_attr(not(any(windows, target_os = "macos")), allow(dead_code))]
+pub(crate) enum Driver {
+    Sony(SonyModel),
+    Nintendo(Model),
+    Steam(SteamModel),
+    Generic(Box<dyn ReportDecoder>),
+}
+
+#[cfg_attr(not(any(windows, target_os = "macos")), allow(dead_code))]
+impl Driver {
+    /// The driver for `kind`. A generic pad needs the decoder `decoder` makes: without one
+    /// (its reports cannot be read) there is no driver.
+    pub(crate) fn of(
+        kind: DriverKind,
+        decoder: impl FnOnce() -> Option<Box<dyn ReportDecoder>>,
+    ) -> Option<Driver> {
+        Some(match kind {
+            DriverKind::Sony(m) => Driver::Sony(m),
+            DriverKind::Nintendo(m) => Driver::Nintendo(m),
+            DriverKind::Steam(m) => Driver::Steam(m),
+            DriverKind::Generic => Driver::Generic(decoder()?),
+        })
+    }
+}
+
+/// What a controller's driver is made from, besides its kind, as its scanner found it.
+#[cfg_attr(not(any(windows, target_os = "macos")), allow(dead_code))]
+pub(crate) struct Facts {
+    pub vid: u16,
+    pub pid: u16,
+    pub transport: Transport,
+    /// The name the device reports, which a generic pad is listed under.
+    pub product: Option<String>,
+    /// Its longest feature report (Sony pads).
+    pub feature_len: usize,
+    /// In a charging grip, which Joy-Con the interface holds.
+    pub grip_slot: Option<JoyConSide>,
+}
+
+/// Build a controller's driver; `switch2` tells how the OS finds a Switch 2 controller's
+/// command channel on USB.
+#[cfg_attr(not(any(windows, target_os = "macos")), allow(dead_code))]
+pub(crate) fn make_driver(
+    driver: Driver,
+    facts: Facts,
+    switch2: impl FnOnce() -> Locate,
+) -> Box<dyn PadDriver> {
+    let Facts {
+        vid,
+        pid,
+        transport,
+        ..
+    } = facts;
+    match driver {
+        Driver::Generic(decoder) => {
+            let name = facts.product.unwrap_or_else(|| "Game controller".into());
+            Box::new(GenericDriver::new(name, vid, pid, decoder))
+        }
+        Driver::Sony(m) => Box::new(SonyDriver::new(m, transport, facts.feature_len)),
+        Driver::Nintendo(Model::Switch1) => Box::new(Switch1Driver::new(Link {
+            transport,
+            vid,
+            pid,
+            grip_slot: facts
+                .grip_slot
+                .filter(|_| pid == nintendo::pid::CHARGING_GRIP),
+        })),
+        Driver::Nintendo(Model::Wired) => Box::new(WiredDriver::new(vid)),
+        Driver::Nintendo(Model::Switch2(m)) => switch2usb::driver(m, switch2()),
+        Driver::Steam(m) => Box::new(SteamDriver::new(m)),
+    }
+}
+
+/// What a scanner's look at a device it has not started made of it.
+pub(crate) enum Look {
+    /// A controller of ours: started.
+    Started,
+    /// Not a controller of ours, or one that cannot be opened (with why, when the user can act
+    /// on it): not looked at again for [`SKIP_FOREIGN`].
+    Skip(Option<String>),
+}
+
+/// One pass of a scanner, alike on every OS: let go of what is gone, start the Bluetooth LE
+/// controllers that are ready (`wireless`), then look at every device `present` lists (by
+/// path) that is neither started nor skipped. `skip` holds the paths not to look at again
+/// before a time; a pass asked for retries them.
+pub(crate) fn scan_pass<E>(
+    pass: &Pass,
+    devices: &Devices,
+    skip: &mut HashMap<String, Instant>,
+    present: Vec<(String, E)>,
+    wireless: Poll,
+    mut look: impl FnMut(&str, E) -> Look,
+) {
+    let now = Instant::now();
+    if pass.requested {
+        skip.clear();
+    }
+    skip.retain(|_, until| now < *until);
+    devices.sweep(
+        |path| present.iter().any(|(p, _)| p == path) || wireless.has(path),
+        skip,
+        now,
+    );
+    wireless.start(devices);
+    for (path, entry) in present {
+        if pass.stopping() {
+            return;
+        }
+        if skip.contains_key(&path) || devices.has(&path) {
+            continue;
+        }
+        if let Look::Skip(problem) = look(&path, entry) {
+            devices.set_problem(&path, problem);
+            skip.insert(path, now + SKIP_FOREIGN);
+        }
+    }
+}
+
+/// [`ReportIo::read`] on top of [`HidHandle::wait`]: the next report into `buf`, waiting up to
+/// `timeout`; wake-ups only matter to the device loop, so the wait goes on through them.
+pub(crate) fn read_via_wait<H: HidHandle + ?Sized>(
+    io: &mut H,
+    buf: &mut [u8],
+    timeout: Duration,
+) -> io::Result<Option<usize>> {
+    let until = Instant::now() + timeout;
+    loop {
+        match io.wait(until.saturating_duration_since(Instant::now()))? {
+            Wait::Report => {
+                let report = io.report();
+                let n = report.len().min(buf.len());
+                buf[..n].copy_from_slice(&report[..n]);
+                return Ok(Some(n));
+            }
+            Wait::Woken if Instant::now() < until => {}
+            Wait::Woken | Wait::Timeout => return Ok(None),
+        }
+    }
 }
 
 /// What [`HidHandle::wait`] ended with.
 pub(crate) enum Wait {
-    /// A report of this many bytes is in [`HidHandle::report`].
-    Report(usize),
+    /// A report is in [`HidHandle::report`].
+    Report,
     Woken,
     Timeout,
 }
@@ -150,8 +307,9 @@ pub(crate) struct Found {
     pub path: String,
     /// The id the controller is reported under.
     pub id: DeviceId,
-    /// How it is connected, shown after its name ("USB", "Bluetooth").
-    pub transport: &'static str,
+    pub transport: Transport,
+    /// How it is connected, as shown after its name ("USB", "Bluetooth", "USB grip").
+    pub label: &'static str,
     pub vid: u16,
     pub pid: u16,
     /// What hides it (see [`DeviceInfo::instance_paths`]).
@@ -159,7 +317,7 @@ pub(crate) struct Found {
     /// The controller's Bluetooth address, for a pad that is turned off by dropping its link
     /// (Sony pads report it as their serial number). The others are turned off by their
     /// driver, where it can ([`PadDriver::can_power_off`]).
-    pub bt_address: Option<u64>,
+    pub bt_address: Option<BdAddr>,
 }
 
 /// Builds a controller's driver on its thread, where it may talk to the device first.
@@ -293,7 +451,7 @@ struct Device {
     // Windows hides with HidHide
     instance_paths: Vec<String>,
     /// Its link is dropped to turn it off (see [`Found::bt_address`]).
-    bt_address: Option<u64>,
+    bt_address: Option<BdAddr>,
 }
 
 impl Device {
@@ -513,7 +671,7 @@ fn run_device<H: HidHandle>(mut io: H, found: &Found, make_driver: MakeDriver<H>
             .map_or(IDLE_WAIT, |d| d.saturating_duration_since(now))
             .min(IDLE_WAIT);
         match io.wait(timeout) {
-            Ok(Wait::Report(_)) => {
+            Ok(Wait::Report) => {
                 tracing::trace!(report = ?io.report(), "HID report");
                 let parsed = driver.parse(io.report(), Instant::now());
                 publish(shared, driver.as_ref(), parsed);
@@ -615,7 +773,8 @@ fn start<H: HidHandle>(
     };
     let info = Arc::new(DeviceInfo {
         id: found.id.clone(),
-        name: format!("{} ({})", identity.name, found.transport),
+        name: format!("{} ({})", identity.name, found.label),
+        transport: found.transport,
         family: identity.family,
         vendor_id: found.vid,
         product_id: found.pid,
@@ -694,7 +853,7 @@ fn apply_outputs(
 }
 
 /// Drops the Bluetooth connection to a controller at an address.
-pub(crate) type Disconnect = fn(u64) -> io::Result<()>;
+pub(crate) type Disconnect = fn(BdAddr) -> io::Result<()>;
 
 /// The backend: the devices a scanner keeps up to date.
 pub(crate) struct HidBackend {
@@ -725,8 +884,9 @@ impl HidBackend {
         }
     }
 
-    /// Run `stopped` when the backend is dropped, after every driver restored its device.
-    #[cfg_attr(not(target_os = "linux"), allow(dead_code))] // only Linux has links to let go
+    /// Run `stopped` when the backend is dropped, after every driver restored its device: the
+    /// Bluetooth LE client lets its controllers go there, as nothing else would end their links
+    /// before Doppelpad ends.
     pub(crate) fn on_drop(mut self, stopped: fn()) -> Self {
         self.stopped = Some(stopped);
         self
@@ -841,7 +1001,7 @@ impl GamepadBackend for HidBackend {
     }
 }
 
-#[cfg(all(test, any(windows, target_os = "linux")))]
+#[cfg(all(test, any(windows, target_os = "linux", target_os = "macos")))]
 pub(crate) mod testing {
     use std::time::{Duration, Instant};
 
@@ -893,7 +1053,7 @@ pub(crate) mod testing {
             let mut peak = [0.0f32; 6];
             while Instant::now() < end {
                 match io.wait(Duration::from_millis(20)) {
-                    Ok(Wait::Report(_)) => {
+                    Ok(Wait::Report) => {
                         reports += 1;
                         last_report = Instant::now();
                         if let Some(s) = driver.parse(io.report(), last_report) {
@@ -947,65 +1107,51 @@ mod tests {
     #[test]
     fn driver_kinds() {
         assert_eq!(
-            driver_kind(0x054C, 0x0CE6, 1, 5, true),
+            driver_kind(0x054C, 0x0CE6, 1, 5, XboxPads::Elsewhere),
             Some(DriverKind::Sony(SonyModel::DualSense))
         );
         assert_eq!(
-            driver_kind(0x054C, 0x0CE6, 1, 4, true),
+            driver_kind(0x054C, 0x0CE6, 1, 4, XboxPads::Elsewhere),
             None,
             "Sony needs the game pad collection"
         );
         assert_eq!(
-            driver_kind(0x057E, 0x2009, 1, 4, true),
+            driver_kind(0x057E, 0x2009, 1, 4, XboxPads::Elsewhere),
             Some(DriverKind::Nintendo(Model::Switch1))
         );
         assert_eq!(
-            driver_kind(0x057E, 0x2069, 1, 5, true),
+            driver_kind(0x057E, 0x2069, 1, 5, XboxPads::Elsewhere),
             Some(DriverKind::Nintendo(Model::Switch2(Switch2Model::Pro)))
         );
         assert_eq!(
-            driver_kind(0x057E, 0x2009, 0x0C, 1, true),
+            driver_kind(0x057E, 0x2009, 0x0C, 1, XboxPads::Elsewhere),
             None,
             "consumer collection"
         );
-        assert_eq!(driver_kind(0x046D, 0xC52B, 1, 6, true), None);
+        assert_eq!(driver_kind(0x046D, 0xC52B, 1, 6, XboxPads::Elsewhere), None);
         assert_eq!(
-            driver_kind(0x28DE, 0x1102, 0xFF00, 1, true),
+            driver_kind(0x28DE, 0x1102, 0xFF00, 1, XboxPads::Elsewhere),
             Some(DriverKind::Steam(SteamModel::Controller))
         );
         assert_eq!(
-            driver_kind(0x28DE, 0x1102, 1, 2, true),
+            driver_kind(0x28DE, 0x1102, 1, 2, XboxPads::Elsewhere),
             None,
             "lizard-mode mouse"
         );
         assert_eq!(
-            driver_kind(0x0079, 0x0006, 1, 4, true),
+            driver_kind(0x0079, 0x0006, 1, 4, XboxPads::Elsewhere),
             Some(DriverKind::Generic)
         );
         assert_eq!(
-            driver_kind(0x045E, 0x0B13, 1, 5, true),
+            driver_kind(0x045E, 0x0B13, 1, 5, XboxPads::Elsewhere),
             None,
             "Xbox: XInput"
         );
         assert_eq!(
-            driver_kind(0x045E, 0x0B13, 1, 5, false),
+            driver_kind(0x045E, 0x0B13, 1, 5, XboxPads::Here),
             Some(DriverKind::Generic),
             "Xbox without XInput"
         );
-    }
-
-    #[test]
-    fn bluetooth_addresses() {
-        assert_eq!(
-            parse_bt_address("a4:ae:12:34:56:78"),
-            Some(0xA4AE_1234_5678)
-        );
-        assert_eq!(parse_bt_address("A4AE12345678"), Some(0xA4AE_1234_5678));
-        assert_eq!(
-            parse_bt_address("10-18-49-75-fc-86"),
-            Some(0x1018_4975_FC86)
-        );
-        assert_eq!(parse_bt_address("12345"), None);
     }
 }
 
@@ -1075,7 +1221,7 @@ mod lifecycle {
             match self.events.recv_timeout(timeout) {
                 Ok(Event::Report(r)) => {
                     self.report = r;
-                    Ok(Wait::Report(self.report.len()))
+                    Ok(Wait::Report)
                 }
                 Ok(Event::Wake) => Ok(Wait::Woken),
                 Err(RecvTimeoutError::Timeout) => Ok(Wait::Timeout),
@@ -1164,11 +1310,12 @@ mod lifecycle {
         }
     }
 
-    fn found(path: &str, bt_address: Option<u64>) -> Found {
+    fn found(path: &str, bt_address: Option<BdAddr>) -> Found {
         Found {
             path: path.into(),
             id: DeviceId(format!("id-{path}")),
-            transport: "USB",
+            transport: Transport::Usb,
+            label: "USB",
             vid: 1,
             pid: 2,
             instance_paths: vec![format!("hide-{path}")],
@@ -1206,8 +1353,8 @@ mod lifecycle {
 
     static DISCONNECTED: AtomicU64 = AtomicU64::new(0);
 
-    fn disconnect(address: u64) -> io::Result<()> {
-        DISCONNECTED.store(address, Ordering::SeqCst);
+    fn disconnect(address: BdAddr) -> io::Result<()> {
+        DISCONNECTED.store(address.get(), Ordering::SeqCst);
         Ok(())
     }
 
@@ -1260,7 +1407,7 @@ mod lifecycle {
         // A Sony pad over Bluetooth: its link is dropped.
         let sony = plug(
             &b.devices,
-            found("sony", Some(0xA4AE_1234_5678)),
+            found("sony", BdAddr::new(0xA4AE_1234_5678)),
             false,
             false,
         );

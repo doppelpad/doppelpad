@@ -48,7 +48,11 @@ fn fake_pad(ty: u8, spi: HashMap<u32, Vec<u8>>) -> impl FnMut(&[u8]) -> Vec<Vec<
 
 fn link(bluetooth: bool, pid: u16) -> Link {
     Link {
-        bluetooth,
+        transport: if bluetooth {
+            Transport::Bluetooth
+        } else {
+            Transport::Usb
+        },
         vid: NINTENDO_VID,
         pid,
         grip_slot: None,

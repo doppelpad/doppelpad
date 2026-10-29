@@ -28,7 +28,7 @@ use crate::nintendo::gcadapter::{
 use crate::padio::ReportIo;
 use crate::scan::{RESCAN, Rescanner};
 use crate::usb::{endpoint_addrs, is_busy, transfer_error};
-use crate::{DeviceId, DeviceInfo, GamepadBackend, PadFamily, PadSnapshot};
+use crate::{DeviceId, DeviceInfo, GamepadBackend, PadFamily, PadSnapshot, Transport};
 
 const READ_WAIT: Duration = Duration::from_millis(50);
 /// The stronger motor at this level or more turns the plain GameCube motor on.
@@ -112,6 +112,7 @@ impl Shared {
                 family: PadFamily::GameCube,
                 vendor_id: NINTENDO_VID,
                 product_id: ADAPTER_PID,
+                transport: Transport::Usb,
                 backend: "gcadapter".into(),
                 instance_paths: hide.iter().cloned().collect(),
                 joycon: None,

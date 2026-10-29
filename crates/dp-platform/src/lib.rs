@@ -32,6 +32,7 @@ pub mod linux;
 #[cfg(any(target_os = "macos", test))]
 pub mod macos;
 
+pub(crate) mod bdaddr;
 pub mod generic;
 pub mod groups;
 #[cfg(any(target_os = "macos", test))]
@@ -162,6 +163,17 @@ pub enum JoyConSide {
     Right,
 }
 
+/// How a controller is connected to the computer.
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Transport {
+    Usb,
+    Bluetooth,
+    /// Built in, through a receiver of its own, or not known (XInput does not tell).
+    #[default]
+    Other,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DeviceInfo {
     pub id: DeviceId,
@@ -169,6 +181,9 @@ pub struct DeviceInfo {
     pub family: PadFamily,
     pub vendor_id: u16,
     pub product_id: u16,
+    /// How it is connected; the name may say more ("wireless", "USB grip").
+    #[serde(default)]
+    pub transport: Transport,
     /// Which backend produced it (`xinput`, `hid`, `evdev`, ...).
     pub backend: String,
     /// OS device-instance paths used to hide the device (HidHide blacklist entries on
@@ -535,7 +550,6 @@ pub trait SystemControl: Send {
     }
 }
 
-/// All backends for the current OS.
 /// What a driver probe found (see [`Platform::probe_drivers`]).
 #[derive(Debug)]
 pub struct DriverReport {
@@ -557,6 +571,31 @@ pub struct DriverReport {
     pub system_problems: Vec<String>,
 }
 
+/// Whether the Bluetooth backends look for Switch 2 controllers in pairing mode: the Windows
+/// watcher, the BlueZ discovery and the CoreBluetooth scan run only while it is on (on until
+/// turned off). Controllers already connected stay. Clones share the switch.
+#[derive(Clone, Debug)]
+pub struct Switch2Search(Arc<AtomicBool>);
+
+impl Default for Switch2Search {
+    fn default() -> Self {
+        Switch2Search(Arc::new(AtomicBool::new(true)))
+    }
+}
+
+impl Switch2Search {
+    /// Look for controllers, or stop looking.
+    pub fn set(&self, on: bool) {
+        self.0.store(on, Ordering::Relaxed);
+    }
+
+    /// Whether to look for controllers now.
+    pub fn on(&self) -> bool {
+        self.0.load(Ordering::Relaxed)
+    }
+}
+
+/// All backends for the current OS.
 pub struct Platform {
     /// Check the drivers the backends need. It keeps no state, so it can run on a thread of
     /// its own while the backends serve the engine loop.
@@ -568,6 +607,8 @@ pub struct Platform {
     pub hider: Box<dyn DeviceHider>,
     pub foreground: Box<dyn ForegroundWatcher>,
     pub system: Box<dyn SystemControl>,
+    /// The Switch 2 search of the Bluetooth backends; set it to turn the search on or off.
+    pub switch2_search: Switch2Search,
 }
 
 impl Platform {
@@ -649,21 +690,6 @@ pub fn foreground_program() -> Option<String> {
     {
         None
     }
-}
-
-/// Whether the Bluetooth backends look for Switch 2 controllers in pairing mode.
-static SWITCH2_SEARCH: AtomicBool = AtomicBool::new(true);
-
-/// Look for Switch 2 controllers in pairing mode over Bluetooth LE, or stop looking: the
-/// Windows watcher, the BlueZ discovery and the CoreBluetooth scan run only while it is on (on
-/// until turned off). Controllers already connected stay.
-pub fn set_switch2_search(on: bool) {
-    SWITCH2_SEARCH.store(on, Ordering::Relaxed);
-}
-
-/// Whether to look for Switch 2 controllers over Bluetooth LE now.
-pub(crate) fn switch2_search() -> bool {
-    SWITCH2_SEARCH.load(Ordering::Relaxed)
 }
 
 /// Whether Steam runs: its Steam Input may take a virtual controller and remap it again

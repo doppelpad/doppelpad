@@ -109,6 +109,7 @@ fn pair_info(left: &DeviceInfo, right: &DeviceInfo) -> Arc<DeviceInfo> {
         } else {
             pid::JOYCOND_PAIR
         },
+        transport: left.transport,
         backend: left.backend.clone(),
         instance_paths,
         joycon: None,
@@ -334,6 +335,7 @@ mod tests {
                 },
                 vendor_id: NINTENDO_VID,
                 product_id: pid::JOYCON_L,
+                transport: crate::Transport::Usb,
                 backend: "fake".into(),
                 instance_paths: vec![format!("path-{id}")],
                 joycon,

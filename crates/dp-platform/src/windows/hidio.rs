@@ -31,7 +31,7 @@ use windows_sys::Win32::System::Threading::{SetEvent, WaitForMultipleObjects};
 use super::hidparse::PreparsedData;
 use super::overlapped::{EventReset, event, run_overlapped};
 use super::{OwnedHandle, from_wide, wide};
-use crate::hidhost::{HidHandle, Wait, Wake};
+use crate::hidhost::{HidHandle, Wait, Wake, read_via_wait};
 use crate::padio::ReportIo;
 
 /// `CTL_CODE(FILE_DEVICE_KEYBOARD, 100, METHOD_OUT_DIRECT, FILE_ANY_ACCESS)`.
@@ -214,7 +214,7 @@ impl HidIo {
                     return Err(io::Error::last_os_error());
                 }
                 self.last_len = n as usize;
-                Ok(Wait::Report(n as usize))
+                Ok(Wait::Report)
             }
             r if r == WAIT_OBJECT_0 + 1 => Ok(Wait::Woken),
             WAIT_TIMEOUT => Ok(Wait::Timeout),
@@ -283,20 +283,7 @@ impl ReportIo for HidIo {
     }
 
     fn read(&mut self, buf: &mut [u8], timeout: Duration) -> io::Result<Option<usize>> {
-        let deadline = std::time::Instant::now() + timeout;
-        loop {
-            let left = deadline.saturating_duration_since(std::time::Instant::now());
-            match self.wait_report(left)? {
-                Wait::Report(n) => {
-                    let n = n.min(buf.len());
-                    buf[..n].copy_from_slice(&self.read.buf[..n]);
-                    return Ok(Some(n));
-                }
-                // Wake-ups only matter to the run loop; keep waiting.
-                Wait::Woken if !left.is_zero() => {}
-                _ => return Ok(None),
-            }
-        }
+        read_via_wait(self, buf, timeout)
     }
 
     fn get_feature(&mut self, buf: &mut [u8]) -> io::Result<usize> {

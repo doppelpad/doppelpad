@@ -25,7 +25,7 @@ use objc2_io_kit::{
 };
 
 use super::props::Props;
-use crate::hidhost::{HidHandle, Wait, Wake};
+use crate::hidhost::{HidHandle, Wait, Wake, read_via_wait};
 use crate::padio::ReportIo;
 
 /// Reports kept while nobody reads; older ones are dropped beyond this.
@@ -188,20 +188,7 @@ impl ReportIo for HidIo {
     }
 
     fn read(&mut self, buf: &mut [u8], timeout: Duration) -> io::Result<Option<usize>> {
-        let deadline = Instant::now() + timeout;
-        loop {
-            let left = deadline.saturating_duration_since(Instant::now());
-            match self.wait(left)? {
-                Wait::Report(n) => {
-                    let n = n.min(buf.len());
-                    buf[..n].copy_from_slice(&self.report[..n]);
-                    return Ok(Some(n));
-                }
-                // Wake-ups only matter to the device loop; keep waiting.
-                Wait::Woken if !left.is_zero() => {}
-                _ => return Ok(None),
-            }
-        }
+        read_via_wait(self, buf, timeout)
     }
 
     fn get_feature(&mut self, buf: &mut [u8]) -> io::Result<usize> {
@@ -250,7 +237,7 @@ impl HidHandle for HidIo {
                     self.report.push(0);
                 }
                 self.report.extend_from_slice(&r);
-                return Ok(Wait::Report(self.report.len()));
+                return Ok(Wait::Report);
             }
             if self.waker.woken.swap(false, Ordering::Acquire) {
                 return Ok(Wait::Woken);
