@@ -129,7 +129,6 @@
     "undo": "Rückgängig",
     "redo": "Wiederholen",
     "save": "Speichern",
-    "unsaved": "Ungespeicherte Änderungen",
     "discard_confirm": "Ungespeicherte Änderungen verwerfen?",
     "read_only": "Importierte Datei (schreibgeschützt) – zum Bearbeiten duplizieren",
     "options": "Optionen",
@@ -1077,7 +1076,6 @@
   "devices": {
     "none": "Kein Controller verbunden",
     "in_use": "Aktiv",
-    "pick": "Der Controller, auf dem die Slots laufen",
     "options": "Controller-Optionen",
     "own_slots": "Eigene Slots für diesen Controller",
     "own_hint": "Dieser Controller hat eigene Slots: eigene Config und eigener virtueller Controller",
@@ -1506,7 +1504,6 @@
     "errors": "{n} Fehler",
     "warnings": "{n} Warnungen",
     "service": "Warnungen des Remapping-Dienstes",
-    "go": "Hinzeigen",
     "rescan": "Controller suchen",
     "rescan_hint": "Jetzt nach Controllern suchen, auch nach denen, die ein anderes Programm bisher belegt hat"
   },

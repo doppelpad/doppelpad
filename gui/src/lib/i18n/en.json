@@ -129,7 +129,6 @@
     "undo": "Undo",
     "redo": "Redo",
     "save": "Save",
-    "unsaved": "Unsaved changes",
     "discard_confirm": "Discard the unsaved changes?",
     "read_only": "Imported file (read-only) — duplicate it to edit",
     "options": "Options",
@@ -1077,7 +1076,6 @@
   "devices": {
     "none": "No controller connected",
     "in_use": "In use",
-    "pick": "The controller the slots run on",
     "options": "Controller options",
     "own_slots": "Own slots for this controller",
     "own_hint": "This controller has slots of its own: its own config and virtual controller",
@@ -1506,7 +1504,6 @@
     "errors": "{n} errors",
     "warnings": "{n} warnings",
     "service": "Warnings from the remapping service",
-    "go": "Show it",
     "rescan": "Look for controllers",
     "rescan_hint": "Look for controllers now, also those another program held until now"
   },
