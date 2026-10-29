@@ -31,6 +31,25 @@ function takesKeys(el: unknown): boolean {
   return isTextEntry(el) || field(el)?.tagName === 'INPUT';
 }
 
+/** What the keyboard (Tab) can reach. */
+export const FOCUSABLE = [
+  'button',
+  'a[href]',
+  'input:not([type="hidden"])',
+  'textarea',
+  'summary',
+  '[tabindex]:not([tabindex="-1"])',
+  '[role="menuitem"]',
+  '[role="tab"]',
+].join(', ');
+
+/** The elements in `root` that Tab stops at, in their order: enabled, shown, not taken out of the order. */
+export function tabbables(root: Element): HTMLElement[] {
+  return [...root.querySelectorAll<HTMLElement>(FOCUSABLE)].filter(
+    (el) => el.tabIndex >= 0 && !(el as HTMLButtonElement).disabled && el.getClientRects().length > 0,
+  );
+}
+
 /** Open dialogs (ui/Dialog), the topmost last: Escape closes only that one. */
 export const dialogStack: symbol[] = [];
 

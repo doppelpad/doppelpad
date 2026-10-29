@@ -2,23 +2,12 @@
 // in `lib/padnav.ts`. The focus moves between the elements the keyboard reaches, inside the
 // open menu or dialog if there is one, as Tab would.
 
-import { menuOpen, modalOpen, popoverOpen } from '../lib/dom';
+import { FOCUSABLE, menuOpen, modalOpen, popoverOpen } from '../lib/dom';
 import { layerIds } from '../lib/model/profile';
 import { firstFocus, navAction, nextFocus, stepperOf } from '../lib/padnav';
 import { TOOLBAR_VIEWS, type View } from '../lib/model/views';
 import { app } from '../lib/state/app.svelte';
 import type { ControlName, Dir } from '../lib/types';
-
-const FOCUSABLE = [
-  'button',
-  'a[href]',
-  'input:not([type="hidden"])',
-  'textarea',
-  'summary',
-  '[tabindex]:not([tabindex="-1"])',
-  '[role="menuitem"]',
-  '[role="tab"]',
-].join(', ');
 
 /** Where the focus may go: the open menu or popover, else the dialog that has the focus (else the last one), else the window. */
 function scope(): HTMLElement {
