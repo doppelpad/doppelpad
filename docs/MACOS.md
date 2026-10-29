@@ -209,8 +209,8 @@ of another program's full-screen Space.
 The crosshair's magnifier is not available on macOS.
 
 Settings, configs, logs and the history of configs are in
-`~/Library/Application Support/doppelpad` (under `$XDG_CONFIG_HOME` and `$XDG_STATE_HOME`
-when those are set).
+`~/Library/Application Support/doppelpad`, for the app and the command-line tool alike (a
+shell's XDG variables do not move them: the app, started from the Finder, never sees those).
 
 ## Command-line tool
 

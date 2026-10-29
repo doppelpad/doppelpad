@@ -587,7 +587,7 @@ impl<'a> Importer<'a> {
             }
             cfg.zones.med = zone_entry(zones, "med");
             cfg.zones.high = zone_entry(zones, "high");
-            if crate::stick_zone_problem(cfg).is_some() {
+            if crate::validate::stick_zone_problem(cfg).is_some() {
                 self.diags.warn(
                     format!("{path}.sticks"),
                     "stick zones are out of order; the medium and high zones use their defaults",
@@ -642,7 +642,7 @@ impl<'a> Importer<'a> {
             if let Some(max) = int(t, "highZoneMax") {
                 cfg.full_pull = (max as f32 / AXIS_MAX).clamp(cfg.zones.low + 0.01, 1.0);
             }
-            if crate::zone_problem(cfg.zone_thresholds()).is_some() {
+            if crate::validate::zone_problem(cfg.zone_thresholds()).is_some() {
                 self.diags.warn(
                     format!("{path}.triggers"),
                     "trigger zones are out of order; the medium and high zones use their defaults",
