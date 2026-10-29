@@ -28,7 +28,7 @@ use dp_core::profile::{
 use dp_platform::generic::RawInput;
 use dp_platform::groups::{DeviceGroup, SeenDevice};
 use dp_platform::{Battery, PadFamily, VirtualPadKind};
-use dp_service::calibration::CalibrationStatus;
+use dp_service::CalibrationStatus;
 use dp_service::{LiveDevice, LiveDeviceSlots, LiveRadial, LiveState, SessionInfo, SessionOutput};
 use serde::Serialize;
 use serde_json::Value;
