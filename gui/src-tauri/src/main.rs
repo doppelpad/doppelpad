@@ -104,6 +104,7 @@ fn main() {
             app.manage(updates::PendingUpdate::default());
             tray::create(app.handle())?;
             overlay::spawn_watcher(app.handle(), "osd", osd::watch)?;
+            overlay::spawn_watcher(app.handle(), "steam-hint", osd::watch_steam)?;
             overlay::spawn_watcher(app.handle(), "crosshair", crosshair::watch)?;
             overlay::spawn_watcher(app.handle(), "radial", radial::watch)?;
             overlay::spawn_watcher(app.handle(), "pad-overlay", pad_overlay::watch)?;

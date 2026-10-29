@@ -20,7 +20,7 @@ use tauri::{
     WebviewWindow, WebviewWindowBuilder,
 };
 
-use crate::settings::Corner;
+use crate::settings::{Corner, ScreenRef};
 use crate::state::lock;
 
 /// Gap between an overlay and the edge of the monitor's work area, in logical pixels.
@@ -269,6 +269,18 @@ pub fn monitors(app: &AppHandle) -> Vec<Monitor> {
 /// The primary monitor.
 pub fn primary_monitor(app: &AppHandle) -> Option<Monitor> {
     monitors(app).into_iter().next()
+}
+
+/// [`monitors`] by name and place, as the settings keep a monitor.
+pub fn screens(app: &AppHandle) -> Vec<ScreenRef> {
+    monitors(app)
+        .iter()
+        .map(|m| ScreenRef {
+            name: m.name().cloned().unwrap_or_default(),
+            x: m.position().x,
+            y: m.position().y,
+        })
+        .collect()
 }
 
 /// Size and move `w` to `placement`; without monitors it stays as it is.

@@ -4,12 +4,16 @@ use tauri::{AppHandle, Manager, State};
 
 use super::{CmdResult, err};
 use crate::main_window::{MAIN_WINDOW, apply_zoom};
+use crate::overlay;
 use crate::settings::GuiSettings;
 use crate::state::AppState;
 
+/// The settings, with the notification monitor's index where that monitor is now.
 #[tauri::command]
-pub fn settings_get(state: State<AppState>) -> GuiSettings {
-    state.settings(GuiSettings::clone)
+pub fn settings_get(app: AppHandle, state: State<AppState>) -> GuiSettings {
+    let mut settings = state.settings(GuiSettings::clone);
+    settings.osd.monitor = settings.osd.monitor_index(&overlay::screens(&app));
+    settings
 }
 
 #[tauri::command(async)]
@@ -18,7 +22,9 @@ pub fn settings_set(
     state: State<AppState>,
     settings: GuiSettings,
 ) -> CmdResult<()> {
-    let settings = settings.clamped();
+    let mut settings = settings.clamped();
+    let old = state.settings(|s| s.osd.clone());
+    settings.osd = settings.osd.with_screen(&old, &overlay::screens(&app));
     let zoom = settings.zoom;
     let zoom_changed = state.save_settings(settings).map_err(err)?.zoom != zoom;
     // "Keep remapping active" may have changed.

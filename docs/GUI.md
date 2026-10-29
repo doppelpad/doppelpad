@@ -656,7 +656,10 @@ not show it) or could not (why). They also show
 while the window is closed to the tray, but not while the window has focus (it shows the same
 state) or in the first seconds after start. *Settings → Display → On-screen notifications*
 picks the events, the monitor and corner, the size, opacity and display time, and whether a
-layer message stays up while the layer is active; *Show a sample* previews them.
+layer message stays up while the layer is active; *Show a sample* previews them. The chosen
+monitor is kept by its name and place, so the messages stay on it when other monitors come and
+go. A layer message that stays up goes when the window takes the focus or the setting is
+switched off, and comes back afterwards while the layer is still active.
 
 Each message is a small window that stays above other windows, lets clicks through and never
 takes the focus, so it works over windowed and borderless games. Games in exclusive full-screen

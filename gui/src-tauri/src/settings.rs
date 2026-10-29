@@ -87,8 +87,13 @@ pub struct OsdSettings {
     pub battery: bool,
     /// The screenshot command saved a screenshot, or could not.
     pub screenshot: bool,
-    /// Index into the monitors, the primary one first.
+    /// Index into the monitors, the primary one first, as the window lists them; see
+    /// [`OsdSettings::monitor_index`].
     pub monitor: usize,
+    /// The monitor chosen, by name and place: an index points at another monitor once
+    /// monitors come and go. Missing in files from before it was kept (the index then counts).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub screen: Option<ScreenRef>,
     pub corner: Corner,
     /// Size in percent, 50–200.
     pub scale: u16,
@@ -110,6 +115,7 @@ impl Default for OsdSettings {
             battery: true,
             screenshot: true,
             monitor: 0,
+            screen: None,
             corner: Corner::BottomRight,
             scale: 100,
             opacity: 80,
@@ -118,10 +124,39 @@ impl Default for OsdSettings {
     }
 }
 
+/// A monitor by its system name and its position (physical pixels).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ScreenRef {
+    pub name: String,
+    pub x: i32,
+    pub y: i32,
+}
+
 impl OsdSettings {
     /// How long a message stays.
     pub fn duration(&self) -> Duration {
         Duration::from_secs(u64::from(self.seconds))
+    }
+
+    /// Where the chosen monitor is in `screens` (the monitors, the primary one first): found
+    /// by name and place, else at the index it was chosen with.
+    pub fn monitor_index(&self, screens: &[ScreenRef]) -> usize {
+        self.screen
+            .as_ref()
+            .and_then(|chosen| screens.iter().position(|s| s == chosen))
+            .unwrap_or(self.monitor)
+    }
+
+    /// These settings as the window sent them (it knows monitors by their index in
+    /// `screens`), with the monitor kept by name and place: the one chosen before (`old`)
+    /// while the index still points at it, else the one the index points at now.
+    pub fn with_screen(mut self, old: &OsdSettings, screens: &[ScreenRef]) -> OsdSettings {
+        let unchanged = self.monitor == old.monitor_index(screens);
+        self.screen = match &old.screen {
+            Some(chosen) if unchanged => Some(chosen.clone()),
+            _ => screens.get(self.monitor).cloned().or(self.screen),
+        };
+        self
     }
 }
 
@@ -282,6 +317,44 @@ mod tests {
             ..GuiSettings::default()
         };
         assert_eq!(s.clamped().silenced, ["a", "b"]);
+    }
+
+    #[test]
+    fn notifications_stay_on_their_monitor_when_others_come_and_go() {
+        let screen = |name: &str, x| ScreenRef {
+            name: name.into(),
+            x,
+            y: 0,
+        };
+        let (a, b, c) = (screen("A", 0), screen("B", 1920), screen("C", -1280));
+        // Chosen in the window: the second monitor.
+        let window = OsdSettings {
+            monitor: 1,
+            ..OsdSettings::default()
+        };
+        let chosen = window.with_screen(&OsdSettings::default(), &[a.clone(), b.clone()]);
+        assert_eq!(chosen.screen, Some(b.clone()));
+        // Another monitor joins before it: the choice follows B.
+        let now = [a.clone(), c.clone(), b.clone()];
+        assert_eq!(chosen.monitor_index(&now), 2);
+        // The window sends the settings back with the index it was shown: B stays chosen.
+        let again = OsdSettings {
+            monitor: 2,
+            ..chosen.clone()
+        };
+        assert_eq!(again.with_screen(&chosen, &now).screen, Some(b.clone()));
+        // B is gone: the index it was chosen with counts until it is back.
+        assert_eq!(chosen.monitor_index(&[a, c.clone()]), 1);
+        // A file from before monitors were kept by name: the index, until a choice is saved.
+        let old = OsdSettings {
+            monitor: 1,
+            ..OsdSettings::default()
+        };
+        assert_eq!(old.monitor_index(&now), 1);
+        let saved = old.clone().with_screen(&old, &now);
+        assert_eq!(saved.screen, Some(c));
+        // Settings without a monitor list (none reported) keep what they had.
+        assert_eq!(chosen.clone().with_screen(&chosen, &[]).screen, Some(b));
     }
 
     #[test]
