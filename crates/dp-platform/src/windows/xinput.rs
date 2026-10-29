@@ -7,7 +7,9 @@ use dp_core::pad::{
     Axis, PadButton, PadState, Rumble, axis_from_i16, unit_from_u8, unit_to_u16_trunc,
 };
 use windows_sys::Win32::Foundation::ERROR_SUCCESS;
-use windows_sys::Win32::System::LibraryLoader::{GetProcAddress, LoadLibraryW};
+use windows_sys::Win32::System::LibraryLoader::{
+    GetProcAddress, LOAD_LIBRARY_SEARCH_SYSTEM32, LoadLibraryExW,
+};
 
 use super::wide;
 use crate::{
@@ -95,8 +97,17 @@ impl XInputBackend {
         let mut get_battery = None;
         let mut power_off = None;
         for dll in ["xinput1_4.dll", "xinput1_3.dll", "xinput9_1_0.dll"] {
-            // SAFETY: plain library load; the handle is intentionally leaked for the process lifetime.
-            let h = unsafe { LoadLibraryW(wide(dll).as_ptr()) };
+            // Only from System32: the program's own folder (Downloads, for the command-line
+            // tool) must not be able to hand it a DLL of the same name.
+            // SAFETY: plain library load; the handle is intentionally leaked for the process
+            // lifetime.
+            let h = unsafe {
+                LoadLibraryExW(
+                    wide(dll).as_ptr(),
+                    std::ptr::null_mut(),
+                    LOAD_LIBRARY_SEARCH_SYSTEM32,
+                )
+            };
             if h.is_null() {
                 continue;
             }
