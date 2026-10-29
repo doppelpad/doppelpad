@@ -91,6 +91,8 @@ describe('groups', () => {
     expect(groupOf('TrackpadRightTap')).toEqual({ group: 'TrackpadRight', part: 'Tap' });
     expect(groupOf('GyroLeanLeftLow')).toEqual({ group: 'Gyro', part: 'LeanLeftLow' });
     expect(groupOf('MouseMove:DownRight')).toEqual({ group: 'MouseMove', part: 'DownRight' });
+    expect(groupOf('MouseMove:High')).toEqual({ group: 'MouseMove', part: 'High' });
+    expect(groupOf('DpadUpLeft')).toBeNull();
     expect(groupOf('TouchTap')).toBeNull();
     expect(groupOf('A')).toBeNull();
     expect(groupOf('LS')).toBeNull();

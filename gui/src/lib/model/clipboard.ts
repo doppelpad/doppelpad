@@ -2,7 +2,7 @@
 // activators, or a direction group (a stick's, the D-pad's, the touchpad's, a trackpad's, the
 // gyro's or the mouse's directions and zones, with the analog routes it is the source of).
 
-import { CARDINALS, DIRS8, GYRO_DIRS, TOUCH_REGIONS, DIAGONALS, ZONES } from './controls';
+import { CARDINALS, DIAGONALS, DIRS8, GYRO_DIRS, SIDES, TOUCH_REGIONS, TRACKPAD_PARTS, parseControl, zonedParts } from './controls';
 import { comboList, effectiveMappings, layerOf, ownMappings, sameCombo, tidyMapping } from './profile';
 import { layerRoutes, routeLayer, routeTargets, sourceOf, targetOf } from './routes';
 import { clone, nonEmpty, setOrDrop } from './util';
@@ -11,30 +11,49 @@ import type { AnalogMapping, AnalogSource, Combo, ControlName, Mapping, Profile 
 /** A group of direction-like controls that share their part names (`Up`, `UpLeftHigh`, `Center` …). */
 export type GroupId = 'LeftStick' | 'RightStick' | 'Dpad' | 'Touch' | 'TrackpadLeft' | 'TrackpadRight' | 'Gyro' | 'MouseMove';
 
-/** Directions, the zones in any direction, and every direction in every zone. */
-const withZones = (dirs: readonly string[]) => [...dirs, ...ZONES, ...dirs.flatMap((d) => ZONES.map((z) => d + z))];
-const TRACKPAD_PARTS = [...DIRS8, 'Center', 'Tap', 'Click'];
-
 /** Per group: the prefix of its control names, its parts, and the route source it is (if any). */
 export const GROUPS: Record<GroupId, { prefix: string; parts: ReadonlySet<string>; source?: AnalogSource }> = {
-  LeftStick: { prefix: 'LeftStick', parts: new Set(withZones(DIRS8)), source: 'left_stick' },
-  RightStick: { prefix: 'RightStick', parts: new Set(withZones(DIRS8)), source: 'right_stick' },
+  LeftStick: { prefix: 'LeftStick', parts: new Set(zonedParts(DIRS8)), source: 'left_stick' },
+  RightStick: { prefix: 'RightStick', parts: new Set(zonedParts(DIRS8)), source: 'right_stick' },
   Dpad: { prefix: 'Dpad', parts: new Set(CARDINALS) },
   Touch: { prefix: 'Touch', parts: new Set([...TOUCH_REGIONS, ...DIAGONALS]), source: 'touchpad' },
   TrackpadLeft: { prefix: 'TrackpadLeft', parts: new Set(TRACKPAD_PARTS) },
   TrackpadRight: { prefix: 'TrackpadRight', parts: new Set(TRACKPAD_PARTS) },
-  Gyro: { prefix: 'Gyro', parts: new Set(withZones(GYRO_DIRS)), source: 'gyro' },
-  MouseMove: { prefix: 'MouseMove:', parts: new Set(withZones(DIRS8)), source: 'mouse' },
+  Gyro: { prefix: 'Gyro', parts: new Set(zonedParts(GYRO_DIRS)), source: 'gyro' },
+  MouseMove: { prefix: 'MouseMove:', parts: new Set(zonedParts(DIRS8)), source: 'mouse' },
 };
-const GROUP_IDS = Object.keys(GROUPS) as GroupId[];
+
+/** A direction, a zone, or a direction in a zone, as a part name (`UpLeftHigh`). */
+const zonedPart = (dir: string | null, zone: string | null) => (dir ?? '') + (zone ?? '');
 
 /** The group a control belongs to and its part in it; `null` for other controls. */
 export function groupOf(c: ControlName): { group: GroupId; part: string } | null {
-  for (const group of GROUP_IDS) {
-    const { prefix, parts } = GROUPS[group];
-    if (c.startsWith(prefix) && parts.has(c.slice(prefix.length))) return { group, part: c.slice(prefix.length) };
+  const p = parseControl(c);
+  switch (p?.kind) {
+    case 'stick_dir':
+      return { group: SIDES[p.side].stick, part: p.dir };
+    case 'stick_zone':
+      return { group: SIDES[p.side].stick, part: zonedPart(p.dir, p.zone) };
+    case 'gyro':
+      return { group: 'Gyro', part: p.dir };
+    case 'gyro_zone':
+      return { group: 'Gyro', part: zonedPart(p.dir, p.zone) };
+    case 'mouse_move':
+      return { group: 'MouseMove', part: p.dir };
+    case 'mouse_zone':
+      return { group: 'MouseMove', part: zonedPart(p.dir, p.zone) };
+    case 'touch':
+      return { group: 'Touch', part: p.region };
+    case 'trackpad':
+      return { group: p.half === 'Left' ? 'TrackpadLeft' : 'TrackpadRight', part: p.part };
+    case 'button': {
+      // The D-pad's directions are buttons to the engine.
+      const part = c.slice(GROUPS.Dpad.prefix.length);
+      return c.startsWith(GROUPS.Dpad.prefix) && GROUPS.Dpad.parts.has(part) ? { group: 'Dpad', part } : null;
+    }
+    default:
+      return null;
   }
-  return null;
 }
 
 /** A mapping as it is copied: without the layer and the trigger it had. */

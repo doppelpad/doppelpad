@@ -12,5 +12,8 @@ describe('views', () => {
     expect(viewFor('Mouse:Left', 'keyboard')).toBe('mouse');
     expect(viewFor('A', 'back')).toBe('back');
     expect(viewFor('A', 'keyboard')).toBe('front');
+    expect(viewFor('Wheel:Up', 'back')).toBe('mouse');
+    expect(viewFor('MouseMove:LeftHigh', 'front')).toBe('mouse');
+    expect(viewFor('LeftStickUp', 'back')).toBe('back');
   });
 });

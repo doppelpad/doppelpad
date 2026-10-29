@@ -9,7 +9,7 @@
 //   and a stick that only passed through gets a route to the virtual stick it fed (consuming the
 //   physical one), so the physical sticks really trade places.
 
-import { DIRS8, SIDE_NAMES, SIDES, ZONES, parseControl } from './controls';
+import { DIRS8, SIDE_NAMES, SIDES, TRACKPAD_PARTS, ZONES, parseControl, zonedParts } from './controls';
 import { declaredLayer, patchLayer } from './layers';
 import { comboList, effectiveMappings, layerIds, layerOf, nativeAction, sameCombo, tidyMapping } from './profile';
 import { layerRoutes, routeLayer, sourceOf } from './routes';
@@ -22,9 +22,10 @@ export const TRANSFORMS: TransformKind[] = ['face', 'sticks', 'bumpers_triggers'
 
 type Pair = [ControlName, ControlName];
 
-/** A stick's direction parts: directions, zones in any direction, and every direction in every zone. */
-const STICK_PARTS = [...DIRS8, ...ZONES, ...DIRS8.flatMap((d) => ZONES.map((z) => d + z))];
-const STICK_PAIRS: Pair[] = [[SIDES.left.click, SIDES.right.click], ...STICK_PARTS.map((p): Pair => [`LeftStick${p}`, `RightStick${p}`])];
+const STICK_PAIRS: Pair[] = [
+  [SIDES.left.click, SIDES.right.click],
+  ...zonedParts(DIRS8).map((p): Pair => [`${SIDES.left.stick}${p}`, `${SIDES.right.stick}${p}`]),
+];
 const TRIGGER_PAIRS: Pair[] = [['LT', 'RT'], ['LTFull', 'RTFull'], ...ZONES.map((z): Pair => [`LT${z}`, `RT${z}`])];
 
 /**
@@ -63,7 +64,7 @@ function pairsOf(kind: TransformKind): { pairs: Pair[]; sticks: boolean } {
           ['DpadDown', 'A'],
           ['DpadLeft', 'X'],
           ['DpadRight', 'B'],
-          ...[...DIRS8, 'Center', 'Tap', 'Click'].map((p): Pair => [`TrackpadLeft${p}`, `TrackpadRight${p}`]),
+          ...TRACKPAD_PARTS.map((p): Pair => [`TrackpadLeft${p}`, `TrackpadRight${p}`]),
           ...STICK_PAIRS,
         ],
         sticks: true,

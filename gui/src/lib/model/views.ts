@@ -1,6 +1,7 @@
 // The editor's views: which there are, in the toolbar's order, what each one shows, and the
 // view that shows a place in the config.
 
+import { parseControl } from './controls';
 import { comboList } from './profile';
 import type { Activator, Combo } from '../types';
 
@@ -49,8 +50,9 @@ export type Place =
 export function viewFor(trigger: Combo, current: View): 'front' | 'back' | 'keyboard' | 'mouse' | 'shortcuts' {
   const list = comboList(trigger);
   if (list.length > 1) return 'shortcuts';
-  const c = list[0] ?? '';
-  if (c.startsWith('Key:')) return 'keyboard';
-  if (c.startsWith('Mouse:') || c.startsWith('Wheel:') || c.startsWith('MouseMove:')) return 'mouse';
+  const p = parseControl(list[0] ?? '');
+  // `null`: mouse motion without a direction.
+  if (!p || p.kind === 'mouse' || p.kind === 'wheel' || p.kind === 'mouse_move' || p.kind === 'mouse_zone') return 'mouse';
+  if (p.kind === 'key') return 'keyboard';
   return current === 'back' ? 'back' : 'front';
 }
