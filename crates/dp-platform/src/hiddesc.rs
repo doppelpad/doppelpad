@@ -73,6 +73,13 @@ const HAT_SWITCH: u16 = 0x39;
 /// More buttons than any pad has: the rest are ignored.
 const MAX_BUTTONS: usize = 32;
 
+/// What a pad's descriptor stays within. A descriptor beyond is not read at all: its numbers
+/// would make the parser allocate without bound (`Report Count 0xFFFFFFFF`) or overflow.
+/// The longest report, in bits.
+const MAX_REPORT_BITS: u32 = 8 * 4096;
+/// The input fields of all reports together.
+const MAX_FIELDS: usize = 1024;
+
 /// The short items of a descriptor, in order; long items are skipped, and a truncated item
 /// ends the list.
 pub fn items(desc: &[u8]) -> impl Iterator<Item = Item<'_>> {
@@ -214,8 +221,9 @@ struct Layout {
     button_arrays: Vec<ButtonArray>,
 }
 
-/// Collect the input fields of `desc`.
-fn layout(desc: &[u8]) -> Layout {
+/// Collect the input fields of `desc`; `None` for a descriptor beyond [`MAX_REPORT_BITS`] or
+/// [`MAX_FIELDS`].
+fn layout(desc: &[u8]) -> Option<Layout> {
     let mut g = Globals::default();
     let mut stack: Vec<Globals> = Vec::new();
     let mut usages: Vec<(u16, u16)> = Vec::new();
@@ -256,12 +264,24 @@ fn layout(desc: &[u8]) -> Layout {
                     Some((_, c)) => c,
                     None => {
                         cursors.push((g.report, 0));
-                        &mut cursors.last_mut().unwrap().1
+                        &mut cursors.last_mut()?.1
                     }
                 };
+                // Every offset below is within the report, so none overflows.
+                let end = g
+                    .size
+                    .checked_mul(g.count)
+                    .and_then(|bits| at.checked_add(bits))
+                    .filter(|&end| end <= MAX_REPORT_BITS)?;
                 let flags = item.unsigned();
                 let constant = flags & 0x01 != 0;
                 let variable = flags & 0x02 != 0;
+                // Fields of zero bits do not take room, so the report's end does not bound them.
+                if !constant
+                    && out.fields.len() + out.button_arrays.len() + g.count as usize > MAX_FIELDS
+                {
+                    return None;
+                }
                 let field = |i: u32, (page, usage): (u16, u16)| Field {
                     report: g.report,
                     offset: *at + i * g.size,
@@ -293,7 +313,7 @@ fn layout(desc: &[u8]) -> Layout {
                         });
                     }
                 }
-                *at += g.size * g.count;
+                *at = end;
                 usages.clear();
                 usage_min = None;
                 usage_max = None;
@@ -306,7 +326,7 @@ fn layout(desc: &[u8]) -> Layout {
             _ => {}
         }
     }
-    out
+    Some(out)
 }
 
 /// Decodes a generic pad's input reports (report ID first, 0 when unnumbered) into its buttons
@@ -322,9 +342,10 @@ pub struct Decoder {
 }
 
 impl Decoder {
-    /// The decoder for a descriptor, or `None` if it has no buttons or axes.
+    /// The decoder for a descriptor, or `None` if it has no buttons or axes, or is not a pad's
+    /// (see [`MAX_REPORT_BITS`]).
     pub fn new(desc: &[u8]) -> Option<Decoder> {
-        let layout = layout(desc);
+        let layout = layout(desc)?;
         let mut buttons: Vec<u16> = layout
             .fields
             .iter()
@@ -557,6 +578,29 @@ mod tests {
             (1.0, -1.0),
             "accelerator, brake"
         );
+    }
+
+    #[test]
+    fn descriptors_beyond_a_pads_are_not_read() {
+        // Generic desktop, game pad, buttons 1–8, 1-bit fields; then Report Count and Size.
+        let pad = |count: &[u8], size: &[u8]| {
+            let mut d = vec![0x05, 0x01, 0x09, 0x05, 0xA1, 0x01, 0x05, 0x09, 0x19, 0x01];
+            d.extend([0x29, 0x08, 0x15, 0x00, 0x25, 0x01]);
+            d.extend(count);
+            d.extend(size);
+            d.extend([0x81, 0x02, 0xC0]);
+            d
+        };
+        assert!(Decoder::new(&pad(&[0x95, 0x08], &[0x75, 0x01])).is_some());
+        // About 4 billion fields: refused at once rather than allocated.
+        let huge = pad(&[0x97, 0xFF, 0xFF, 0xFF, 0xFF], &[0x75, 0x01]);
+        assert!(Decoder::new(&huge).is_none());
+        // Count × size overflows 32 bits.
+        let overflow = pad(&[0x95, 0x02], &[0x77, 0x00, 0x00, 0x00, 0x80]);
+        assert!(Decoder::new(&overflow).is_none());
+        // Fields without bits take no room, but still count.
+        let empty = pad(&[0x96, 0xFF, 0xFF], &[0x75, 0x00]);
+        assert!(Decoder::new(&empty).is_none());
     }
 
     #[test]
