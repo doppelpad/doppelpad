@@ -142,7 +142,7 @@ goes to the controller's HID device in sysfs, and to BlueZ:
   hidraw and past the driver, so Doppelpad writes them again for a few seconds after a
   controller connects.
 - **Turning off** (the `power_off` command, and controllers turned off after the idle time):
-  Doppelpad ends the Bluetooth connection through BlueZ (`busctl`), and DualShock 4,
+  Doppelpad ends the Bluetooth connection through BlueZ (`Disconnect`), and DualShock 4,
   DualSense and Switch controllers switch off. A controller on its cable stays on. The
   adapter is taken from where the HID device sits in sysfs. With BlueZ's `UserspaceHID`, as
   on SteamOS 3.9, it sits under `uhid` instead, and the first adapter (`hci0`) is assumed.
@@ -194,8 +194,9 @@ off in Settings › Controllers: Doppelpad's discovery stops, and controllers al
 stay.
 
 How it works: while Doppelpad runs and that search is on, it keeps a Bluetooth LE discovery of
-its own running in BlueZ, which reports the controllers' advertisements. For a controller in pairing mode,
-Doppelpad opens an L2CAP socket on its Attribute Protocol channel (which needs no privileges),
+its own running in BlueZ (on a thread of its own, as a call to BlueZ may take a while), which
+reports the controllers' advertisements. For a controller in pairing mode, Doppelpad opens an
+L2CAP socket on its Attribute Protocol channel (which needs no privileges),
 finds its characteristics and switches its input on, the way Windows and macOS do it.
 BlueZ's own `Connect` cannot be used: its GATT client never finishes reading these
 controllers, whose Generic Attribute service is empty, and stops after 30 s without a
@@ -210,7 +211,8 @@ Doppelpad quits; in the test it then turned off.
   games, but less smooth in fast ones.
 - Input, motion, the battery level, player lights and rumble work as on Windows and macOS.
   No other program sees the controller, so there is nothing to hide.
-- A controller that is turned off is let go within half a second.
+- A controller that is turned off is let go within half a second; one whose input stops for
+  3 s is let go too.
 - Turning it off (the `power_off` command, and the idle time) ends its link, as quitting
   Doppelpad does, and the controller switches off (tried).
 - Steam keeps a discovery of its own running on SteamOS. While one runs, the adapter may hold
@@ -324,13 +326,14 @@ The power commands run `systemctl poweroff`, `reboot`, `suspend` and `hibernate`
 user may do that. `close_window` sends the EWMH `_NET_CLOSE_WINDOW` request for the active
 X11 window. The `screenshot` command is not available on Linux yet.
 
-While macros or toggles play input back, Doppelpad takes logind's idle lock
-(`systemd-inhibit --what=idle`), so the computer doesn't count as idle and doesn't go to sleep
-on its own. Whether the desktop's own power settings follow that lock is up to the desktop.
+While macros or toggles play input back, Doppelpad takes logind's idle lock (`Inhibit` for
+`idle`, on the system bus), so the computer doesn't count as idle and doesn't go to sleep on
+its own; the lock ends with Doppelpad, however it ends. Whether the desktop's own power
+settings follow that lock is up to the desktop.
 
 Remapping pauses while the session is locked, so nothing a controller does reaches the lock
-screen. Doppelpad asks logind once a second for the session's `LockedHint` (`busctl`), which
-desktops such as KDE Plasma set while their lock screen shows.
+screen. Doppelpad asks logind once a second for the session's `LockedHint` (on the system
+bus), which desktops such as KDE Plasma set while their lock screen shows.
 
 ## Desktop app
 
