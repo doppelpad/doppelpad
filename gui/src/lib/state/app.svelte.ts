@@ -86,6 +86,11 @@ export class AppState {
   configPath = $state<string | null>(null);
   profile = $state<Profile | null>(null);
   savedJson = $state('');
+  /**
+   * The draft as JSON, kept with every change that goes through the app (`commit`, undo, open):
+   * the undo steps and `dirty` compare it instead of turning the whole config into JSON again.
+   */
+  private draftJson = $state('');
   readOnly = $state(false);
   /** The validator's findings for the open config: from loading or saving, then after each change. */
   diagnostics = $state<DiagMsg[]>([]);
@@ -145,7 +150,7 @@ export class AppState {
 
   primary = $derived<LiveDevice | null>(this.live?.devices.find((d) => d.id === this.live?.primary) ?? this.live?.devices[0] ?? null);
   family = $derived<PadFamily | null>(this.primary?.family ?? null);
-  dirty = $derived(this.profile !== null && JSON.stringify(this.profile) !== this.savedJson);
+  dirty = $derived(this.profile !== null && this.draftJson !== this.savedJson);
   /** The layers of the config as saved; one added since is still being set up (see `waitsForSave`). */
   savedLayers = $derived<ReadonlySet<number>>(new Set(this.savedJson ? layerIds(JSON.parse(this.savedJson) as Profile) : []));
   /**
@@ -476,6 +481,7 @@ export class AppState {
     this.configPath = null;
     this.profile = null;
     this.savedJson = '';
+    this.draftJson = '';
     this.clearHistory();
     this.selected = null;
     this.stick = null;
@@ -487,7 +493,7 @@ export class AppState {
       const loaded = await api.configLoad(path);
       this.configPath = path;
       this.profile = loaded.profile;
-      this.savedJson = JSON.stringify(loaded.profile);
+      this.savedJson = this.draftJson = JSON.stringify(loaded.profile);
       this.readOnly = loaded.read_only;
       this.clearHistory();
       this.diagnostics = loaded.diagnostics;
@@ -508,27 +514,29 @@ export class AppState {
     if (this.readOnly) return;
     if (!this.profile) {
       this.profile = p;
+      this.draftJson = JSON.stringify(p);
       return;
     }
-    this.commit(JSON.stringify(this.profile), p);
+    this.commit(p);
   }
 
-  /** Change the draft profile; nothing happens without one or when it is read-only. */
+  /** Change the draft profile; nothing happens without one or when it is read-only. `change` may change it in place. */
   edit(change: (p: Profile) => Profile) {
     if (!this.profile || this.readOnly) return;
-    // Taken first: `change` may change the draft in place.
-    const before = JSON.stringify(this.profile);
-    this.commit(before, change(this.profile));
+    this.commit(change(this.profile));
   }
 
-  /** Make `next` the draft; `before` (the draft before, as JSON) becomes an undo step if anything changed. */
-  private commit(before: string, next: Profile) {
-    if (JSON.stringify(next) !== before) {
+  /** Make `next` the draft; the draft before becomes an undo step if anything changed. */
+  private commit(next: Profile) {
+    const before = this.draftJson;
+    const json = JSON.stringify(next);
+    if (json !== before) {
       this.history.record(before, this.editKey(), performance.now());
       this.syncHistory();
       this.checkSoon();
     }
     this.profile = next;
+    this.draftJson = json;
   }
 
   private checkTimer: ReturnType<typeof setTimeout> | undefined;
@@ -596,10 +604,11 @@ export class AppState {
 
   private travel(step: (current: string) => string | null) {
     if (!this.profile || this.readOnly) return;
-    const target = step(JSON.stringify(this.profile));
+    const target = step(this.draftJson);
     this.syncHistory();
     if (target === null) return;
     this.profile = JSON.parse(target) as Profile;
+    this.draftJson = target;
     if (!layerIds(this.profile).includes(this.layer)) this.layer = 0;
     this.checkSoon();
   }
@@ -618,6 +627,7 @@ export class AppState {
   async save(): Promise<boolean> {
     if (!this.profile || !this.configPath || this.readOnly) return false;
     // What is saved is the draft now; changes made while the save is under way stay unsaved.
+    const json = this.draftJson;
     const sent = $state.snapshot(this.profile) as Profile;
     try {
       const diags = await api.configSave(this.configPath, sent);
@@ -626,7 +636,7 @@ export class AppState {
         this.toast(t('notices.save_errors'), 'error');
         return false;
       }
-      this.savedJson = JSON.stringify(sent);
+      this.savedJson = json;
       await this.refreshLibrary();
       this.toast(t('notices.saved'), 'ok');
       return true;

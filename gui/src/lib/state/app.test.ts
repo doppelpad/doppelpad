@@ -177,6 +177,15 @@ describe('undo and redo', () => {
     expect(app.profile?.name).toBe('one.toml');
   });
 
+  it('an edit turns the config into JSON once', async () => {
+    await app.openConfig('one.toml', true);
+    const stringify = vi.spyOn(JSON, 'stringify');
+    rename('changed');
+    expect(app.dirty).toBe(true);
+    expect(stringify).toHaveBeenCalledTimes(1);
+    stringify.mockRestore();
+  });
+
   it('undoing a new layer leaves it for Main', async () => {
     await app.openConfig('one.toml', true);
     const { profile, id } = addLayer(app.profile!);
