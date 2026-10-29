@@ -607,14 +607,7 @@ pub(super) fn compile(p: &Profile) -> Compiled {
         }
 
         for (&mask, bids) in &table.bindings {
-            let mut rec = RecConfig {
-                single: false,
-                t_long: u64::from(p.timing.long_press_ms),
-                t_double: u64::from(p.timing.double_tap_ms),
-                t_triple: u64::from(p.timing.triple_tap_ms),
-                t_pulse: PULSE_KEY_MS,
-                ..Default::default()
-            };
+            let mut rec = RecConfig::new(&p.timing, PULSE_KEY_MS);
             for &bid in bids {
                 let b = &bindings[bid];
                 match b.activator {
