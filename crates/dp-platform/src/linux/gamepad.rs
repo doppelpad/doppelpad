@@ -728,14 +728,17 @@ impl GamepadBackend for EvdevBackend {
     /// Ends the Bluetooth connection, after which DualShock 4, DualSense and Switch
     /// controllers switch off. A controller on its cable stays on.
     fn power_off(&mut self, id: &DeviceId) -> bool {
-        let shared = self.shared.lock().unwrap();
-        let Some(pad) = shared.pads.values().find(|p| &p.info.id == id) else {
-            return false;
+        let path = {
+            let shared = self.shared.lock().unwrap();
+            let Some(pad) = shared.pads.values().find(|p| &p.info.id == id) else {
+                return false;
+            };
+            let (Some(device), Some(mac)) = (&pad.parent, &pad.bluetooth) else {
+                return false;
+            };
+            bluez_device_path(&device.to_string_lossy(), mac)
         };
-        let (Some(device), Some(mac)) = (&pad.parent, &pad.bluetooth) else {
-            return false;
-        };
-        let Some(path) = bluez_device_path(&device.to_string_lossy(), mac) else {
+        let Some(path) = path else {
             return false;
         };
         let spawned = std::thread::Builder::new()
@@ -745,22 +748,18 @@ impl GamepadBackend for EvdevBackend {
     }
 
     fn problems(&self) -> Vec<String> {
-        let shared = self.shared.lock().unwrap();
-        let mut out: Vec<String> = shared
-            .unreadable
-            .values()
-            .map(|name| {
-                format!(
-                    "the {name} cannot be read: controllers need the udev rule from docs/LINUX.md"
-                )
-            })
-            .collect();
-        out.extend(
-            shared
+        let (unreadable, mut out): (Vec<String>, Vec<String>) = {
+            let shared = self.shared.lock().unwrap();
+            let unreadable = shared.unreadable.values().cloned().collect();
+            let lights = shared
                 .pads
                 .values()
-                .filter_map(|p| p.lights_problem.clone()),
-        );
+                .filter_map(|p| p.lights_problem.clone());
+            (unreadable, lights.collect())
+        };
+        out.extend(unreadable.iter().map(|name| {
+            format!("the {name} cannot be read: controllers need the udev rule from docs/LINUX.md")
+        }));
         out.sort();
         out
     }
@@ -790,9 +789,11 @@ impl DeviceHider for GrabHider {
     }
 
     fn hide(&mut self, instance_paths: &[String]) -> Result<()> {
-        let mut shared = self.shared.lock().unwrap();
-        shared.hidden = instance_paths.iter().cloned().collect();
-        let result = shared.sync_grabs();
+        let result = {
+            let mut shared = self.shared.lock().unwrap();
+            shared.hidden = instance_paths.iter().cloned().collect();
+            shared.sync_grabs()
+        };
         if result.is_ok() && !instance_paths.is_empty() {
             tracing::info!(devices = ?instance_paths, "devices hidden via EVIOCGRAB");
         }
