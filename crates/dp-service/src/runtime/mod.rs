@@ -114,6 +114,8 @@ pub struct Runtime {
     snapshots: Vec<PadSnapshot>,
     /// The ids of `snapshots`, kept to notice a changed device list without allocating.
     device_ids: Vec<DeviceId>,
+    /// Goes up whenever `device_ids` changes.
+    device_generation: u64,
     /// The pad states of `snapshots` as the engines get them (hotkey buttons withheld).
     pad_buf: Vec<PadState>,
     /// Which controller the default session reads.
@@ -234,6 +236,7 @@ impl Runtime {
             clock: Clock::new(),
             snapshots: Vec::new(),
             device_ids: Vec::new(),
+            device_generation: 0,
             pad_buf: Vec::new(),
             binding: DefaultBinding::default(),
             hidden: Vec::new(),
@@ -426,6 +429,16 @@ impl Runtime {
     /// Every running session, the default one first.
     pub(crate) fn sessions(&self) -> Vec<SessionInfo> {
         self.sessions.iter().map(Session::info).collect()
+    }
+
+    /// The controllers that have sessions of their own.
+    pub(crate) fn session_owners(&self) -> impl Iterator<Item = &DeviceId> {
+        self.sessions.iter().filter_map(|s| s.owner.as_ref())
+    }
+
+    /// A number that changes whenever the list of connected controllers does.
+    pub(crate) fn device_generation(&self) -> u64 {
+        self.device_generation
     }
 
     /// Virtual pad of the default session.

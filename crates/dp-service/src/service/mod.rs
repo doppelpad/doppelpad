@@ -185,8 +185,8 @@ pub struct Service {
     fg: Foreground,
     drivers: DriverWatch,
     errors: Errors,
-    /// Connected controllers when their sessions were last brought in line.
-    connected: Vec<String>,
+    /// The runtime's device generation when the sessions were last brought in line.
+    devices_seen: u64,
     /// The DSU motion server.
     dsu: Listener<DsuServer>,
     /// The local HTTP API.
@@ -264,7 +264,7 @@ impl Service {
             },
             drivers: DriverWatch::start(probe),
             errors,
-            connected: Vec::new(),
+            devices_seen: 0,
             dsu: Listener::default(),
             http: Listener::default(),
             shared_live: SharedLive::default(),
@@ -309,12 +309,7 @@ impl Service {
         // With the option on, a disconnected controller keeps its session (and so its
         // virtual controller, idle) until it is back.
         let keep = self.state.runtime.keep_offline_pads;
-        let running: Vec<String> = self
-            .rt
-            .sessions()
-            .into_iter()
-            .filter_map(|s| s.owner)
-            .collect();
+        let running: Vec<String> = self.rt.session_owners().map(|d| d.0.clone()).collect();
         let wanted: Vec<(String, PathBuf)> = if self.state.remap_on {
             self.state
                 .devices
@@ -325,10 +320,8 @@ impl Service {
         } else {
             Vec::new()
         };
-        for s in self.rt.sessions() {
-            if let Some(owner) = s.owner
-                && !wanted.iter().any(|(id, _)| *id == owner)
-            {
+        for owner in running {
+            if !wanted.iter().any(|(id, _)| *id == owner) {
                 self.rt
                     .stop_device(&dp_platform::DeviceId::from(owner.clone()));
                 self.errors.devices.remove(&owner);
@@ -351,7 +344,7 @@ impl Service {
                 }
             }
         }
-        self.connected = connected;
+        self.devices_seen = self.rt.device_generation();
     }
 
     /// A controller's own slots if it has them, else the shared ones.
@@ -551,14 +544,7 @@ impl Service {
             self.turn_remap_off();
         }
         // Controllers with slots of their own start or stop as they come and go.
-        if self.rt.devices().len() != self.connected.len()
-            || self
-                .rt
-                .devices()
-                .iter()
-                .zip(&self.connected)
-                .any(|(s, id)| s.info.id.as_str() != id)
-        {
+        if self.rt.device_generation() != self.devices_seen {
             self.sync_devices();
         }
         let now = self.rt.now_ms();
