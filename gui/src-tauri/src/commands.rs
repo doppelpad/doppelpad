@@ -289,17 +289,8 @@ pub fn game_create_from_store(
     cover: Option<PathBuf>,
 ) -> CmdResult<Game> {
     library_change(&app, || {
-        let game = library::create_game(&state.library_dir(), &name).map_err(err)?;
-        let mut meta = game.meta.clone();
-        meta.processes = program.into_iter().collect();
-        library::update_game_meta(&game.dir, &meta).map_err(err)?;
-        if let Some(cover) = cover.filter(|c| c.is_file()) {
-            // A missing or odd cover leaves the game without a picture.
-            if let Err(e) = library::set_game_picture(&game.dir, Some(&cover)) {
-                tracing::warn!("cannot copy the cover of {name}: {e}");
-            }
-        }
-        library::read_game(&game.dir).map_err(err)
+        let (program, cover) = (program.as_deref(), cover.as_deref());
+        library::create_game_from_store(&state.library_dir(), &name, program, cover).map_err(err)
     })
 }
 
@@ -974,57 +965,37 @@ pub fn library_target(state: State<AppState>, dir: PathBuf) -> CmdResult<relocat
     .map_err(err)
 }
 
-#[derive(Serialize)]
-pub struct LibraryMoved {
-    dir: PathBuf,
-    /// The old folder, when the files moved (not when an existing library is used).
-    moved_from: Option<PathBuf>,
-    /// Old files that could not be removed; their copies are in `dir`.
-    left_behind: usize,
-}
-
 /// Move the library to `dir` (missing or empty), or use the Doppelpad library already there;
 /// `None` goes back to the default folder. Files are copied and checked, the new place is
-/// remembered and the service told (slots follow the files), and only then the old files go.
+/// remembered and the service told (slots follow the files), and only once it switched do the
+/// old files go.
 #[tauri::command(async)]
 pub fn library_move(
     app: AppHandle,
     state: State<AppState>,
     dir: Option<PathBuf>,
-) -> CmdResult<LibraryMoved> {
+) -> CmdResult<relocate::Moved> {
     let default = dp_config::default_profiles_dir();
     let to = dir.unwrap_or_else(|| default.clone());
     let disk = state.disk.lock().unwrap();
     let from = state.library_dir();
-    let copied = match relocate::check_move(&from, &to, &default).map_err(err)? {
-        relocate::Target::Foreign => return Err(err(relocate::MoveError::Foreign(to))),
-        relocate::Target::Library => None,
-        relocate::Target::Empty => Some(relocate::copy_library(&from, &to).map_err(err)?),
-    };
-    let choice = (!relocate::same_dir(&to, &default)).then_some(to.as_path());
-    if let Err(e) = relocate::save_choice(&dp_config::config_dir(), choice) {
-        if let Some(c) = copied {
-            c.undo();
+    let switch = |dir: &Path, moved_from: Option<&Path>| {
+        let told = state.call(ServiceCmd::UseLibrary {
+            dir: dir.to_path_buf(),
+            moved_from: moved_from.map(Path::to_path_buf),
+        });
+        if let Err(e) = &told {
+            tracing::warn!("the service did not switch the library: {e}");
         }
-        return Err(err(e));
-    }
-    let moved_from = copied.as_ref().map(|_| from.clone());
-    if let Err(e) = state.call(ServiceCmd::UseLibrary {
-        dir: to.clone(),
-        moved_from: moved_from.clone(),
-    }) {
-        tracing::warn!("the service did not switch the library: {e}");
-    }
+        told.is_ok()
+    };
+    let moved = relocate::move_library(&from, &to, &default, &dp_config::config_dir(), switch)
+        .map_err(err)?;
     *state.profiles_dir.lock().unwrap() = to.clone();
-    let left_behind = copied.map_or(0, relocate::Copied::remove_originals);
     drop(disk);
     tracing::info!(from = %from.display(), to = %to.display(), "library moved");
     crate::tray::refresh(&app);
-    Ok(LibraryMoved {
-        dir: to,
-        moved_from,
-        left_behind,
-    })
+    Ok(moved)
 }
 
 /// The app's log file, to attach to bug reports.

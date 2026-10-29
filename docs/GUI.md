@@ -707,7 +707,8 @@ takes it back.
 *Settings → Files → Configs are stored in → Change…* moves the games, configs and layer
 presets to another folder, for example one that a cloud drive keeps in sync. Doppelpad
 copies every file, checks each copy, switches to the new folder (the slots and the open
-config follow their files) and only then removes the old files. The new folder must be empty
+config follow their files) and only then removes the old files; if remapping could not switch,
+the old files stay, and the app says so. The new folder must be empty
 or already hold a Doppelpad library: a folder synced from another computer is used as it is,
 and the current configs then stay where they were. A folder with other files is refused.
 *Reset to default* moves everything back to `%APPDATA%\doppelpad\profiles`. The app, the

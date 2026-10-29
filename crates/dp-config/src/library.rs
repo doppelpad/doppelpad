@@ -389,6 +389,34 @@ pub fn create_game_with(root: &Path, name: &str, profile: &Profile) -> Result<Ga
     read_game(&dir)
 }
 
+/// A new game for one a store (Steam, Epic, GOG) installed: its name, the program that switches
+/// to it, and its cover (a cover that cannot be copied leaves the game without a picture). A
+/// game that cannot be set up completely goes again.
+pub fn create_game_from_store(
+    root: &Path,
+    name: &str,
+    program: Option<&str>,
+    cover: Option<&Path>,
+) -> Result<Game> {
+    let game = create_game(root, name)?;
+    let meta = GameMeta {
+        processes: program.map(str::to_owned).into_iter().collect(),
+        ..game.meta
+    };
+    let filled = update_game_meta(&game.dir, &meta).and_then(|()| {
+        if let Some(cover) = cover.filter(|c| c.is_file())
+            && let Err(e) = set_game_picture(&game.dir, Some(cover))
+        {
+            tracing::warn!("cannot copy the cover of {name}: {e}");
+        }
+        read_game(&game.dir)
+    });
+    if filled.is_err() {
+        let _ = std::fs::remove_dir_all(&game.dir);
+    }
+    filled
+}
+
 /// Give a game a picture (copied into its folder as `cover.<ext>`), or (`None`) remove it. The
 /// picture it had stays until the new one is in place.
 pub fn set_game_picture(dir: &Path, source: Option<&Path>) -> Result<GameMeta> {
@@ -684,6 +712,26 @@ mod tests {
             3,
             "game.toml, default.toml, cover.png: {names:?}"
         );
+    }
+
+    #[test]
+    fn games_from_a_store_bring_their_program_and_cover() {
+        let root = tempfile::tempdir().unwrap();
+        let library = root.path().join("profiles");
+        let cover = root.path().join("header.jpg");
+        std::fs::write(&cover, b"jpg").unwrap();
+        let g = create_game_from_store(&library, "Hades", Some("Hades.exe"), Some(&cover)).unwrap();
+        assert_eq!(g.meta.name, "Hades");
+        assert_eq!(g.meta.processes, ["Hades.exe"]);
+        assert_eq!(g.meta.image.as_deref(), Some("cover.jpg"));
+        assert_eq!(g.configs.len(), 1);
+        // A cover that is not a picture, or none: a game without one.
+        let odd = root.path().join("cover.txt");
+        std::fs::write(&odd, b"x").unwrap();
+        let g = create_game_from_store(&library, "Hades", None, Some(&odd)).unwrap();
+        assert_eq!((g.meta.image, g.meta.processes.len()), (None, 0));
+        let gone = root.path().join("gone.png");
+        assert!(create_game_from_store(&library, "Celeste", None, Some(&gone)).is_ok());
     }
 
     #[test]
