@@ -6,7 +6,7 @@
   import { api } from '../lib/api';
   import { language, t } from '../lib/i18n/index.svelte';
   import { isSame, profileChanges, type Changes } from '../lib/model/changes';
-  import { comboLabel } from '../lib/model/labels';
+  import { activatorPart, comboLabel, joinLabel } from '../lib/model/labels';
   import { app } from '../lib/state/app.svelte';
   import type { Profile } from '../lib/types';
   import Dialog from './ui/Dialog.svelte';
@@ -65,9 +65,7 @@
                     <li>
                       <span class="kind {c.kind}">{t(`history.${c.kind}`)}</span>
                       {comboLabel(c.trigger, app.family)}
-                      <span class="dim"
-                        >· {app.layerLabel(c.layer)}{c.activator !== 'single' ? ` · ${t(`activators.${c.activator}`)}` : ''}</span
-                      >
+                      <span class="dim">· {joinLabel(app.layerLabel(c.layer), activatorPart(c.activator))}</span>
                     </li>
                   {/each}
                   {#each open.changes.sections as s (s)}

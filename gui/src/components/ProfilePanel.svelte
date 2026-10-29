@@ -88,8 +88,8 @@
   <!-- Part of the title bar, beside the header; holds the macOS traffic lights. -->
   <div class="head" class:traffic-lights={platform === 'macos' && !win.fullscreen} data-tauri-drag-region="deep">
     <span class="title">{t('profiles.title')}</span>
-    <button class="icon-btn" use:tip={t('stores.title') + '…'} onclick={() => (libraryOpen = true)}><Library size={17} /></button>
-    <button class="icon-btn" use:tip={t('profiles.import') + '…'} onclick={importGame}><Download size={17} /></button>
+    <button class="icon-btn" use:tip={t('stores.menu')} onclick={() => (libraryOpen = true)}><Library size={17} /></button>
+    <button class="icon-btn" use:tip={t('profiles.import')} onclick={importGame}><Download size={17} /></button>
     <button class="icon-btn" use:tip={t('profiles.add')} onclick={addGame}><Plus size={18} /></button>
   </div>
 
@@ -122,10 +122,10 @@
           iconOnly
           items={[
             { label: t('common.rename'), onclick: () => renameGame(g) },
-            { label: t('game.settings') + '…', onclick: () => (settingsOf = g) },
+            { label: t('game.settings'), onclick: () => (settingsOf = g) },
             { label: t('common.duplicate'), onclick: () => duplicateGame(g) },
             { label: t('common.reveal'), onclick: () => app.attempt(api.reveal(g.dir)) },
-            { label: t('profiles.export') + '…', onclick: () => exportGame(g) },
+            { label: t('profiles.export'), onclick: () => exportGame(g) },
             { separator: true },
             { label: t('common.delete'), danger: true, onclick: () => app.deleteGame(g) },
           ]}

@@ -2,7 +2,7 @@
 // show them.
 
 import { has, t } from '../i18n/index.svelte';
-import type { Action, Combo, Library, Mapping, PadFamily, Profile, Template } from '../types';
+import type { Action, Activator, Combo, JumpMode, Library, Mapping, PadFamily, Profile, Template } from '../types';
 import { controlLabel } from './controls';
 import { comboKey, comboList, effectiveMappings, isMacroMode, layerName, layerOf, modeOf } from './profile';
 
@@ -166,7 +166,7 @@ export function actionLabel(a: Action): string {
   if ('trigger' in a)
     return `${a.trigger === 'left' ? 'LT' : 'RT'}${a.value !== undefined && a.value < 1 ? ` ${Math.round(a.value * 100)}%` : ''}`;
   if ('mouse_move' in a) return t('labels.mouse_move', { dir: ARROWS[a.mouse_move] ?? a.mouse_move });
-  if ('pause' in a) return `${a.pause} ms`;
+  if ('pause' in a) return msLabel(a.pause);
   if ('rumble' in a) return t('labels.rumble', { ms: a.rumble });
   if ('shake' in a) return t('picker.shake_axis', { axis: a.shake.toUpperCase() });
   if ('turn' in a) return t('labels.turn', { deg: `${a.turn > 0 ? '+' : ''}${a.turn}` });
@@ -185,6 +185,19 @@ export function actionLabel(a: Action): string {
   const unknown: never = a;
   return unknown;
 }
+
+/** Parts of a label joined as the app joins them ("Double tap · Toggle · 200 ms"); empty parts drop out. */
+export const joinLabel = (...parts: (string | false | null | undefined)[]) => parts.filter(Boolean).join(' · ');
+
+/** A time in milliseconds: "200 ms". */
+export const msLabel = (ms: number) => `${ms} ${t('common.ms')}`;
+
+/** How a mapping changes layer: its kind and its delay, if any ("Toggle · 200 ms"). */
+export const jumpLabel = (e: { mode: JumpMode; delayMs: number }) =>
+  joinLabel(t(`binding.jump_${e.mode}`), e.delayMs > 0 && msLabel(e.delayMs));
+
+/** An activator as a part of a label, left out for a single press, the usual one. */
+export const activatorPart = (a: Activator) => a !== 'single' && t(`activators.${a}`);
 
 function pressSuffix(p?: string): string {
   return p === 'down' ? ' ▼' : p === 'up' ? ' ▲' : '';

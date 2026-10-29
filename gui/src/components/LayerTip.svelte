@@ -3,7 +3,7 @@
   // with its activator, kind and delay, and on which layer it sits), whether it takes over
   // Main's mappings, what it gives back, and the radial menus it opens.
   import { t } from '../lib/i18n/index.svelte';
-  import { comboLabel } from '../lib/model/labels';
+  import { comboLabel, joinLabel, jumpLabel } from '../lib/model/labels';
   import { layerEntrances, layerRadialMenus } from '../lib/model/layers';
   import { layerInheritance, layerUnlock } from '../lib/model/profile';
   import { placePopup, windowBox } from '../lib/place';
@@ -42,7 +42,7 @@
       {#each entrances as e, i (i)}
         <li>
           <strong>{comboLabel(e.trigger, app.family)}</strong>
-          · {t(`activators.${e.activator}`)} · {t(`binding.jump_${e.mode}`)}{e.delayMs ? ` · ${e.delayMs} ms` : ''}
+          · {joinLabel(t(`activators.${e.activator}`), jumpLabel(e))}
           {#if e.from !== layer}<span class="from">{t('layers.tip_from', { layer: app.layerLabel(e.from) })}</span>{/if}
         </li>
       {/each}

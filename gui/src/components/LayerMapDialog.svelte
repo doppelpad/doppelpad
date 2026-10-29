@@ -4,7 +4,7 @@
   // with a warning (a switch nothing leaves again) are marked. Clicking a layer shows it;
   // clicking an arrow selects the mapping.
   import { t } from '../lib/i18n/index.svelte';
-  import { comboLabel } from '../lib/model/labels';
+  import { activatorPart, comboLabel, joinLabel, jumpLabel } from '../lib/model/labels';
   import { layerGraph, type MapEdge } from '../lib/model/layers';
   import { comboKey, layerIds } from '../lib/model/profile';
   import { app } from '../lib/state/app.svelte';
@@ -80,12 +80,12 @@
             y={a.ly}
             role="button"
             tabindex="0"
-            use:tip={`${t(`binding.jump_${e.mode}`)}${e.delayMs ? ` · ${e.delayMs} ms` : ''}`}
+            use:tip={jumpLabel(e)}
             onclick={() => showMapping(e)}
             onkeydown={(ev) => (ev.key === 'Enter' || ev.key === ' ') && showMapping(e)}
           >
             {MODE_MARK[e.mode]}
-            {comboLabel(e.trigger, app.family)}{e.activator !== 'single' ? ` · ${t(`activators.${e.activator}`)}` : ''}
+            {joinLabel(comboLabel(e.trigger, app.family), activatorPart(e.activator))}
           </text>
         </g>
       {/each}

@@ -47,7 +47,7 @@
     }
   },
   "sheet": {
-    "menu": "Save bindings sheet",
+    "menu": "Save bindings sheet…",
     "save_title": "Save the bindings sheet as HTML",
     "saved": "Bindings sheet saved; open it in a browser to print",
     "untitled": "Config",
@@ -72,11 +72,11 @@
     "hint": "Good to know"
   },
   "profiles": {
-    "export": "Export game",
+    "export": "Export game…",
     "export_title": "Save the game with all its configs",
     "bundle_filter": "Doppelpad game",
     "exported": "{name} exported",
-    "import": "Import game",
+    "import": "Import game…",
     "import_title": "Open a Doppelpad game",
     "imported": "{name} imported",
     "title": "Games",
@@ -121,6 +121,7 @@
   "header": {
     "from_template": "New from template: {template}",
     "new_config": "New config",
+    "new_config_menu": "New config…",
     "new_config_name": "Name of the config",
     "default_config_name": "Default",
     "import": "Import JSON profile…",
@@ -136,6 +137,7 @@
     "clear_confirm": "Remove all mappings from this config?",
     "delete_confirm": "Move the config “{name}” to the recycle bin?",
     "rename_config": "Rename config",
+    "rename_config_menu": "Rename config…",
     "settings": "Settings",
     "no_selection": "Select a game on the left or add a new one",
     "no_config": "This game has no config yet"
@@ -163,7 +165,7 @@
     "radial": "Radial menus"
   },
   "layers": {
-    "save_preset": "Save as preset",
+    "save_preset": "Save as preset…",
     "preset_name": "Name of the preset",
     "preset_saved": "Preset {name} saved",
     "insert_preset": "Insert preset: {name}",
@@ -171,7 +173,7 @@
     "main": "Main",
     "shift": "Shift {n}",
     "add": "Add shift layer",
-    "rename": "Rename",
+    "rename": "Rename…",
     "copy": "Copy mappings",
     "paste": "Paste mappings",
     "clear": "Clear layer",
@@ -180,7 +182,7 @@
     "inherit": "Unmapped controls use Main",
     "more": "More layers ({n})",
     "options": "Layer options",
-    "settings": "Layer settings",
+    "settings": "Layer settings…",
     "settings_title": "Settings of {layer}",
     "inherit_hint_on": "Controls this layer does not map do what they do on Main.",
     "inherit_hint_off": "Controls this layer does not map do nothing while it is active.",
@@ -668,12 +670,12 @@
     "hibernate": "Hibernate",
     "log_off": "Sign out of Windows",
     "power_confirm": "“{command}” runs every time this mapping fires, without asking again. Add it?",
-    "launch": "Launch program",
+    "launch": "Launch program…",
     "launch_path": "Path to the program (.exe)",
     "launch_args": "Arguments for the program (optional)",
     "break": "Break (next press plays the next part)",
-    "pause": "Pause",
-    "rumble": "Rumble",
+    "pause": "Pause…",
+    "rumble": "Rumble…",
     "mouse_buttons": "Buttons",
     "mouse_wheel": "Wheel",
     "mouse_move": "Movement",
@@ -1598,7 +1600,7 @@
     "who_presses": "Which mappings press this key?"
   },
   "transforms": {
-    "menu": "Swap or mirror controls",
+    "menu": "Swap or mirror controls…",
     "title": "Swap or mirror controls",
     "scope": "Where",
     "this_layer": "This layer ({layer})",
@@ -1616,11 +1618,12 @@
   },
   "layer_map": {
     "title": "Layer map",
+    "menu": "Layer map…",
     "empty": "This config has no shift layers yet.",
     "hint": "Each arrow is a mapping that changes layer: ⇣ while held, ⇄ toggle, → switch. Click a layer to show it, an arrow’s label to select its mapping. Orange marks layers nothing changes to and switches nothing leaves again."
   },
   "game": {
-    "settings": "Game settings",
+    "settings": "Game settings…",
     "title": "{name}",
     "name": "Name",
     "description": "Description",
@@ -1645,6 +1648,7 @@
   },
   "stores": {
     "title": "Games from your libraries",
+    "menu": "Games from your libraries…",
     "hint": "Games that Steam, Epic and GOG have installed on this PC, read from their own files. Adding one creates a game with its name, the program that switches to it and, from Steam, its cover.",
     "loading": "Looking for installed games…",
     "none": "No installed games found.",
@@ -1667,6 +1671,7 @@
   },
   "history": {
     "title": "Earlier versions",
+    "menu": "Earlier versions…",
     "hint": "Each time the config is saved over, the version before is kept (the last 20). Open one to see what restoring it would change.",
     "none": "No earlier versions yet. They are kept from the next save on.",
     "same": "This version is the same as the config now.",

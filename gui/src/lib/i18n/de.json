@@ -47,7 +47,7 @@
     }
   },
   "sheet": {
-    "menu": "Belegungsübersicht speichern",
+    "menu": "Belegungsübersicht speichern…",
     "save_title": "Belegungsübersicht als HTML speichern",
     "saved": "Belegungsübersicht gespeichert; zum Drucken im Browser öffnen",
     "untitled": "Config",
@@ -72,11 +72,11 @@
     "hint": "Gut zu wissen"
   },
   "profiles": {
-    "export": "Spiel exportieren",
+    "export": "Spiel exportieren…",
     "export_title": "Spiel mit allen Configs speichern",
     "bundle_filter": "Doppelpad-Spiel",
     "exported": "{name} exportiert",
-    "import": "Spiel importieren",
+    "import": "Spiel importieren…",
     "import_title": "Doppelpad-Spiel öffnen",
     "imported": "{name} importiert",
     "title": "Spiele",
@@ -121,6 +121,7 @@
   "header": {
     "from_template": "Neu aus Vorlage: {template}",
     "new_config": "Neue Config",
+    "new_config_menu": "Neue Config…",
     "new_config_name": "Name der Config",
     "default_config_name": "Standard",
     "import": "JSON-Profil importieren…",
@@ -136,6 +137,7 @@
     "clear_confirm": "Alle Mappings dieser Config entfernen?",
     "delete_confirm": "Config „{name}“ in den Papierkorb verschieben?",
     "rename_config": "Config umbenennen",
+    "rename_config_menu": "Config umbenennen…",
     "settings": "Einstellungen",
     "no_selection": "Wähle links ein Spiel oder füge ein neues hinzu",
     "no_config": "Dieses Spiel hat noch keine Config"
@@ -163,7 +165,7 @@
     "radial": "Radialmenüs"
   },
   "layers": {
-    "save_preset": "Als Vorlage speichern",
+    "save_preset": "Als Vorlage speichern…",
     "preset_name": "Name der Vorlage",
     "preset_saved": "Vorlage {name} gespeichert",
     "insert_preset": "Vorlage einfügen: {name}",
@@ -171,7 +173,7 @@
     "main": "Haupt",
     "shift": "Shift {n}",
     "add": "Shift-Ebene hinzufügen",
-    "rename": "Umbenennen",
+    "rename": "Umbenennen…",
     "copy": "Mappings kopieren",
     "paste": "Mappings einfügen",
     "clear": "Ebene leeren",
@@ -180,7 +182,7 @@
     "inherit": "Nicht belegte Tasten nutzen die Haupt-Ebene",
     "more": "Weitere Ebenen ({n})",
     "options": "Ebenen-Optionen",
-    "settings": "Ebenen-Einstellungen",
+    "settings": "Ebenen-Einstellungen…",
     "settings_title": "Einstellungen von {layer}",
     "inherit_hint_on": "Tasten, die diese Ebene nicht belegt, tun dasselbe wie auf der Haupt-Ebene.",
     "inherit_hint_off": "Tasten, die diese Ebene nicht belegt, tun nichts, solange sie aktiv ist.",
@@ -668,12 +670,12 @@
     "hibernate": "Ruhezustand",
     "log_off": "Von Windows abmelden",
     "power_confirm": "„{command}“ wird jedes Mal ohne Rückfrage ausgeführt, wenn diese Belegung auslöst. Hinzufügen?",
-    "launch": "Programm starten",
+    "launch": "Programm starten…",
     "launch_path": "Pfad zum Programm (.exe)",
     "launch_args": "Argumente für das Programm (optional)",
     "break": "Trenner (nächster Druck spielt den nächsten Teil)",
-    "pause": "Pause",
-    "rumble": "Vibration",
+    "pause": "Pause…",
+    "rumble": "Vibration…",
     "mouse_buttons": "Tasten",
     "mouse_wheel": "Mausrad",
     "mouse_move": "Bewegung",
@@ -1598,7 +1600,7 @@
     "who_presses": "Welche Mappings drücken diese Taste?"
   },
   "transforms": {
-    "menu": "Tasten tauschen oder spiegeln",
+    "menu": "Tasten tauschen oder spiegeln…",
     "title": "Tasten tauschen oder spiegeln",
     "scope": "Wo",
     "this_layer": "Diese Ebene ({layer})",
@@ -1616,11 +1618,12 @@
   },
   "layer_map": {
     "title": "Ebenen-Übersicht",
+    "menu": "Ebenen-Übersicht…",
     "empty": "Diese Config hat noch keine Shift-Ebenen.",
     "hint": "Jeder Pfeil ist ein Mapping, das die Ebene wechselt: ⇣ solange gedrückt, ⇄ umschalten, → wechseln. Ein Klick auf eine Ebene zeigt sie, auf die Beschriftung eines Pfeils wählt sein Mapping. Orange markiert Ebenen, auf die nichts wechselt, und Wechsel, aus denen nichts zurückführt."
   },
   "game": {
-    "settings": "Spiel-Einstellungen",
+    "settings": "Spiel-Einstellungen…",
     "title": "{name}",
     "name": "Name",
     "description": "Beschreibung",
@@ -1645,6 +1648,7 @@
   },
   "stores": {
     "title": "Spiele aus deinen Bibliotheken",
+    "menu": "Spiele aus deinen Bibliotheken…",
     "hint": "Spiele, die Steam, Epic und GOG auf diesem PC installiert haben, gelesen aus deren eigenen Dateien. Hinzufügen legt ein Spiel mit Namen, dem Programm, das dorthin wechselt, und bei Steam mit seinem Cover an.",
     "loading": "Suche installierte Spiele…",
     "none": "Keine installierten Spiele gefunden.",
@@ -1667,6 +1671,7 @@
   },
   "history": {
     "title": "Frühere Versionen",
+    "menu": "Frühere Versionen…",
     "hint": "Jedes Mal, wenn die Config überschrieben wird, bleibt die Version davor erhalten (die letzten 20). Öffne eine, um zu sehen, was das Wiederherstellen ändern würde.",
     "none": "Noch keine früheren Versionen. Sie werden ab dem nächsten Speichern aufbewahrt.",
     "same": "Diese Version ist gleich der Config jetzt.",

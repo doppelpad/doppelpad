@@ -80,7 +80,7 @@
       onclick: () => app.openConfig(c.path),
     })),
     { separator: true },
-    { label: t('header.new_config') + '…', onclick: () => app.newConfig(), disabled: !app.gameDir },
+    { label: t('header.new_config_menu'), onclick: () => app.newConfig(), disabled: !app.gameDir },
     { label: t('header.import'), onclick: importJson, disabled: !app.gameDir },
     ...templatesFor(platform !== 'macos').map((tpl) => ({
       label: t('header.from_template', { template: t(`welcome.templates.${tpl}`) }),
@@ -91,7 +91,7 @@
 
   const optionItems = $derived<MenuItem[]>([
     {
-      label: t('header.rename_config') + '…',
+      label: t('header.rename_config_menu'),
       onclick: () => app.renameConfig(),
       disabled: !app.profile || app.readOnly,
       detail: shortcutLabel('rename', mac),
@@ -102,10 +102,10 @@
       disabled: !app.configPath,
       detail: shortcutLabel('duplicate', mac),
     },
-    { label: t('sheet.menu') + '…', onclick: saveSheet, disabled: !app.profile },
+    { label: t('sheet.menu'), onclick: saveSheet, disabled: !app.profile },
     { label: t('common.reveal'), onclick: () => app.configPath && app.attempt(api.reveal(app.configPath)), disabled: !app.configPath },
     { label: t('header.clear_mappings'), onclick: clearMappings, disabled: !app.profile || app.readOnly },
-    { label: t('history.title') + '…', onclick: () => (historyOpen = true), disabled: !app.configPath || app.readOnly },
+    { label: t('history.menu'), onclick: () => (historyOpen = true), disabled: !app.configPath || app.readOnly },
     { label: t('shortcuts_list.title'), onclick: () => (app.shortcutsOpen = true), detail: shortcutLabel('help', mac) },
     { separator: true },
     { label: t('common.delete'), danger: true, onclick: remove, disabled: !app.configPath },
