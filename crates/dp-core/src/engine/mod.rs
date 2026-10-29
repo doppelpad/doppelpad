@@ -40,7 +40,7 @@ use self::recognizer::{RecEvent, Recognizer};
 use self::routes::RouteState;
 use self::touch::GestureTracker;
 use self::vm::{ActId, Activation, Outputs};
-use crate::control::{Control, TrackpadPart};
+use crate::control::{Control, TouchRegion, TrackpadPart};
 use crate::event::KbmEvent;
 use crate::keys::{Key, MouseButton, WheelDir};
 use crate::pad::{PadButton, PadState, Rumble, Stick};
@@ -105,6 +105,18 @@ fn uses(p: &Profile, f: impl Fn(&Control) -> bool) -> bool {
         || p.analog.iter().any(|r| r.while_held.iter().any(&f))
 }
 
+/// Buffers one tick fills and empties again (taken out with `mem::take` and put back), so
+/// a tick does not allocate.
+#[derive(Default)]
+struct Scratch {
+    /// Masks whose recognizer is busy.
+    masks: Vec<MaskId>,
+    /// Touchpad regions under a finger.
+    regions: Vec<TouchRegion>,
+    /// Keys and mouse buttons that went down during the tick.
+    downs: HashSet<Control>,
+}
+
 /// The remapping engine for one profile.
 pub struct Engine {
     profile: Profile,
@@ -160,6 +172,8 @@ pub struct Engine {
     outs: Outputs,
     /// Pad buttons pressed and released within one tick, shown until when.
     pad_pulses: Vec<(PadButton, u64)>,
+    /// Buffers a tick fills and empties again, kept so ticks do not allocate.
+    scratch: Scratch,
     route_state: Vec<RouteState>,
     layer_changed: bool,
 }
@@ -227,6 +241,7 @@ impl Engine {
             segment_cursor: HashMap::new(),
             outs: Outputs::default(),
             pad_pulses: Vec::new(),
+            scratch: Scratch::default(),
             route_state,
             layer_changed: false,
         }
@@ -366,20 +381,23 @@ impl Engine {
     }
 
     fn poll_recognizers(&mut self, now: u64) {
-        let mut ids: Vec<MaskId> = self
-            .recs
-            .iter()
-            .filter(|(_, r)| !r.is_idle())
-            .map(|(m, _)| *m)
-            .collect();
-        ids.sort();
-        for m in ids {
+        let mut ids = std::mem::take(&mut self.scratch.masks);
+        ids.clear();
+        ids.extend(
+            self.recs
+                .iter()
+                .filter(|(_, r)| !r.is_idle())
+                .map(|(m, _)| *m),
+        );
+        ids.sort_unstable();
+        for &m in &ids {
             let Some(cfg) = self.table().rec.get(&m).copied() else {
                 self.reset_rec(m);
                 continue;
             };
             self.feed_rec(m, |r, ev| r.poll(now, &cfg, ev));
         }
+        self.scratch.masks = ids;
     }
 
     fn handle_events(&mut self, m: MaskId, mut events: Vec<RecEvent>) {

@@ -322,7 +322,7 @@ impl Engine {
         }
         // Jitter: an offset that steps through its pattern after random delays.
         for s in Stick::ALL {
-            let j = self.virtual_stick(s).jitter.clone();
+            let j = self.virtual_stick(s).jitter;
             let st = &mut self.jitter[s as usize];
             if !j.enabled {
                 *st = JitterState::default();

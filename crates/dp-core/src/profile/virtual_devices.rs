@@ -87,7 +87,7 @@ impl Default for VirtualMotion {
 }
 
 /// A small offset that keeps moving around the virtual stick's output.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Jitter {
     pub enabled: bool,
