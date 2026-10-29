@@ -351,31 +351,75 @@ impl Control {
     }
 }
 
+/// Other names of gamepad buttons in control names (PlayStation, Nintendo and Xbox
+/// labels), matched ignoring case.
+pub const PAD_BUTTON_ALIASES: &[(&str, PadButton)] = &[
+    ("Cross", PadButton::A),
+    ("Circle", PadButton::B),
+    ("Square", PadButton::X),
+    ("Triangle", PadButton::Y),
+    ("L1", PadButton::LB),
+    ("R1", PadButton::RB),
+    ("L3", PadButton::LS),
+    ("R3", PadButton::RS),
+    ("View", PadButton::Back),
+    ("Select", PadButton::Back),
+    ("Share", PadButton::Back),
+    ("Create", PadButton::Back),
+    ("Minus", PadButton::Back),
+    ("Menu", PadButton::Start),
+    ("Options", PadButton::Start),
+    ("Plus", PadButton::Start),
+    ("Home", PadButton::Guide),
+    ("PS", PadButton::Guide),
+    ("Xbox", PadButton::Guide),
+    ("Up", PadButton::DpadUp),
+    ("Down", PadButton::DpadDown),
+    ("Left", PadButton::DpadLeft),
+    ("Right", PadButton::DpadRight),
+    ("Mute", PadButton::Misc),
+    ("Capture", PadButton::Misc),
+    ("C", PadButton::Misc2),
+    ("Chat", PadButton::Misc2),
+    ("GL", PadButton::PaddleUL),
+    ("GR", PadButton::PaddleUR),
+];
+
+/// The names of the triggers in control names (`trigger_name` writes `LT` and `RT`),
+/// matched ignoring case.
+pub const TRIGGER_NAMES: &[(&str, Trigger)] = &[
+    ("LT", Trigger::Left),
+    ("L2", Trigger::Left),
+    ("ZL", Trigger::Left),
+    ("LeftTrigger", Trigger::Left),
+    ("RT", Trigger::Right),
+    ("R2", Trigger::Right),
+    ("ZR", Trigger::Right),
+    ("RightTrigger", Trigger::Right),
+];
+
+/// Other names of mouse buttons in control names, matched ignoring case.
+pub const MOUSE_BUTTON_ALIASES: &[(&str, MouseButton)] = &[
+    ("Back", MouseButton::X1),
+    ("4", MouseButton::X1),
+    ("Forward", MouseButton::X2),
+    ("5", MouseButton::X2),
+    ("1", MouseButton::Left),
+    ("2", MouseButton::Right),
+    ("3", MouseButton::Middle),
+];
+
+/// The value an alias table gives `s`, ignoring case.
+fn alias<T: Copy>(table: &[(&str, T)], s: &str) -> Option<T> {
+    table
+        .iter()
+        .find(|(name, _)| name.eq_ignore_ascii_case(s))
+        .map(|&(_, v)| v)
+}
+
 /// Parse a gamepad button name, accepting common PlayStation/Nintendo aliases.
 fn parse_pad_button(s: &str) -> Option<PadButton> {
-    let alias = match s.to_ascii_lowercase().as_str() {
-        "cross" => Some(PadButton::A),
-        "circle" => Some(PadButton::B),
-        "square" => Some(PadButton::X),
-        "triangle" => Some(PadButton::Y),
-        "l1" => Some(PadButton::LB),
-        "r1" => Some(PadButton::RB),
-        "l3" => Some(PadButton::LS),
-        "r3" => Some(PadButton::RS),
-        "view" | "select" | "share" | "create" | "minus" => Some(PadButton::Back),
-        "menu" | "options" | "plus" => Some(PadButton::Start),
-        "home" | "ps" | "xbox" => Some(PadButton::Guide),
-        "up" => Some(PadButton::DpadUp),
-        "down" => Some(PadButton::DpadDown),
-        "left" => Some(PadButton::DpadLeft),
-        "right" => Some(PadButton::DpadRight),
-        "mute" | "capture" => Some(PadButton::Misc),
-        "c" | "chat" => Some(PadButton::Misc2),
-        "gl" => Some(PadButton::PaddleUL),
-        "gr" => Some(PadButton::PaddleUR),
-        _ => None,
-    };
-    alias.or_else(|| PadButton::from_name(s))
+    alias(PAD_BUTTON_ALIASES, s).or_else(|| PadButton::from_name(s))
 }
 
 /// A direction alone (`Up`) or a zone in any or one direction (`Low`, `UpHigh`).
@@ -404,14 +448,7 @@ fn trigger_name(t: Trigger) -> &'static str {
 }
 
 fn parse_mouse_button(s: &str) -> Option<MouseButton> {
-    MouseButton::from_name(s).or(match s.to_ascii_lowercase().as_str() {
-        "back" | "4" => Some(MouseButton::X1),
-        "forward" | "5" => Some(MouseButton::X2),
-        "1" => Some(MouseButton::Left),
-        "2" => Some(MouseButton::Right),
-        "3" => Some(MouseButton::Middle),
-        _ => None,
-    })
+    MouseButton::from_name(s).or_else(|| alias(MOUSE_BUTTON_ALIASES, s))
 }
 
 impl fmt::Display for Control {
@@ -471,11 +508,7 @@ impl FromStr for Control {
             };
         }
         let lower = s.to_ascii_lowercase();
-        let trigger = |name: &str| match name {
-            "lt" | "l2" | "zl" | "lefttrigger" => Some(Trigger::Left),
-            "rt" | "r2" | "zr" | "righttrigger" => Some(Trigger::Right),
-            _ => None,
-        };
+        let trigger = |name: &str| alias(TRIGGER_NAMES, name);
         if let Some(t) = trigger(&lower) {
             return Ok(Control::TriggerPress(t));
         }
