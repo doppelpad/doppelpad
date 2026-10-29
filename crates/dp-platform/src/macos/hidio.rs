@@ -25,7 +25,7 @@ use objc2_io_kit::{
 };
 
 use super::props::Props;
-use crate::hidhost::{HidHandle, Wait, Wake, read_via_wait};
+use crate::hidhost::{HidHandle, Wait, Wake, lock, read_via_wait};
 use crate::padio::ReportIo;
 
 /// Reports kept while nobody reads; older ones are dropped beyond this.
@@ -63,7 +63,7 @@ pub struct Waker {
 impl Wake for Waker {
     fn wake(&self) {
         self.woken.store(true, Ordering::Release);
-        if let Some(l) = &*self.target.lock().unwrap() {
+        if let Some(l) = &*lock(&self.target) {
             l.source.signal();
             l.run_loop.wake_up();
         }
@@ -72,7 +72,10 @@ impl Wake for Waker {
 
 pub struct HidIo {
     device: CFRetained<IOHIDDevice>,
-    inbox: Box<Inbox>,
+    /// Owned through this pointer alone, and freed in `Drop` once the device is closed: IOKit
+    /// holds it as the callbacks' context and writes through it while the run loop runs, so no
+    /// `Box` or `&mut` may stand for it across a run (see [`HidIo::inbox`]).
+    inbox: NonNull<Inbox>,
     /// The report the last [`Wait::Report`] delivered, report ID first.
     report: Vec<u8>,
     /// The device numbers its reports (its descriptor has report IDs).
@@ -85,30 +88,40 @@ pub struct HidIo {
 }
 
 // SAFETY: the device is opened on the scanner thread and then moves to its own thread once,
-// where it is scheduled and used alone. IOHIDDevice calls may come from any thread.
+// where it is scheduled and used alone, and so is the inbox its callbacks fill there.
+// IOHIDDevice calls may come from any thread.
 unsafe impl Send for HidIo {}
 
 impl HidIo {
+    /// The inbox, between two runs of the run loop.
+    fn inbox(&mut self) -> &mut Inbox {
+        // SAFETY: the callbacks reach the inbox only while the run loop runs, on this thread,
+        // and the borrow ends before `wait` runs it again (`&mut self` keeps it to one).
+        unsafe { &mut *self.inbox.as_ptr() }
+    }
+
     /// Open `device` for sharing with other programs.
     pub fn open(device: CFRetained<IOHIDDevice>, props: &Props) -> io::Result<HidIo> {
         check(device.open(kIOHIDOptionsTypeNone), "open")?;
         let input_len = props.max_input.max(64);
-        let mut inbox = Box::new(Inbox {
+        let inbox = NonNull::from(Box::leak(Box::new(Inbox {
             buf: vec![0; input_len],
             queue: VecDeque::new(),
             removed: false,
-        });
-        let context: *mut Inbox = &mut *inbox;
+        })));
+        // SAFETY: the inbox was just made and nothing else reaches it yet.
+        let buf = unsafe { &mut (*inbox.as_ptr()).buf };
+        let (report_buf, report_len) = (NonNull::from(&mut buf[..]).cast::<u8>(), buf.len());
         // SAFETY: the buffer and the inbox stay at their heap addresses until `Drop` closes
-        // the device, after which IOKit calls back no more.
+        // the device, after which IOKit calls back no more, and frees them only then.
         unsafe {
             device.register_input_report_callback(
-                NonNull::new(inbox.buf.as_mut_ptr()).unwrap(),
-                inbox.buf.len() as CFIndex,
+                report_buf,
+                report_len as CFIndex,
                 Some(on_report),
-                context.cast(),
+                inbox.as_ptr().cast(),
             );
-            device.register_removal_callback(Some(on_removed), context.cast());
+            device.register_removal_callback(Some(on_removed), inbox.as_ptr().cast());
         }
         Ok(HidIo {
             device,
@@ -149,7 +162,7 @@ impl HidIo {
         run_loop.add_source(Some(&source), mode);
         // SAFETY: the run loop is this thread's, which drives the device from now on.
         unsafe { self.device.schedule_with_run_loop(&run_loop, mode.unwrap()) };
-        *self.waker.target.lock().unwrap() = Some(Loop { run_loop, source });
+        *lock(&self.waker.target) = Some(Loop { run_loop, source });
         self.scheduled = true;
         Ok(())
     }
@@ -228,10 +241,14 @@ impl HidHandle for HidIo {
         self.schedule()?;
         let deadline = Instant::now() + timeout;
         loop {
-            if self.inbox.removed {
+            let (removed, next) = {
+                let inbox = self.inbox();
+                (inbox.removed, inbox.queue.pop_front())
+            };
+            if removed {
                 return Err(io::ErrorKind::NotConnected.into());
             }
-            if let Some(r) = self.inbox.queue.pop_front() {
+            if let Some(r) = next {
                 self.report.clear();
                 if !self.numbered {
                     self.report.push(0);
@@ -289,7 +306,8 @@ impl HidHandle for HidIo {
 
 impl Drop for HidIo {
     fn drop(&mut self) {
-        if let Some(l) = self.waker.target.lock().unwrap().take() {
+        let scheduled = lock(&self.waker.target).take();
+        if let Some(l) = scheduled {
             // SAFETY: the device was scheduled on this run loop, on this thread.
             unsafe {
                 self.device
@@ -298,6 +316,9 @@ impl Drop for HidIo {
             l.source.invalidate();
         }
         self.device.close(kIOHIDOptionsTypeNone);
+        // SAFETY: made from a `Box` in `open`; the device is closed and unscheduled, so IOKit
+        // calls back no more.
+        drop(unsafe { Box::from_raw(self.inbox.as_ptr()) });
     }
 }
 

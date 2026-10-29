@@ -48,7 +48,7 @@ const RETRY_EXCLUSIVE: Duration = Duration::from_secs(5);
 
 /// Lock a mutex of the backend even after a device thread panicked while holding it: a driver
 /// that fails must not take the engine loop down with it.
-fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
+pub(crate) fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
     m.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
