@@ -39,10 +39,11 @@ use super::padmap::{
     joycon_side, stable_id,
 };
 use super::sysfs::{LedWrite, bluez_device_path, lightbar_writes, player_writes};
+use crate::generic::GenericLayout;
 use crate::scan::{Pass, RESCAN, Rescanner};
 use crate::{
     Battery, DeviceHider, DeviceId, DeviceInfo, GamepadBackend, Leds, PadFamily, PadSnapshot,
-    PlatformError, Result,
+    PlatformError, Result, TriggerEffects, VirtualIgnoreList,
 };
 
 /// The latest state of one controller, written by its node readers.
@@ -763,6 +764,14 @@ impl GamepadBackend for EvdevBackend {
         out.sort();
         out
     }
+
+    // evdev plays no trigger effects, Doppelpad's virtual pads carry its `phys` (see
+    // `is_own`), and the kernel maps generic pads.
+    fn set_trigger_effects(&mut self, _id: &DeviceId, _effects: TriggerEffects) {}
+
+    fn ignore_virtual(&mut self, _ignored: &VirtualIgnoreList) {}
+
+    fn set_layouts(&mut self, _layouts: Arc<Vec<GenericLayout>>) {}
 
     fn rescan(&mut self) {
         self.scanner.wake();

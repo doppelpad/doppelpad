@@ -33,9 +33,8 @@ pub struct World {
     pub powered_off: Vec<DeviceId>,
     /// Instance paths hidden from games right now.
     pub hidden: Vec<String>,
-    /// The hider hides controllers without a virtual one (as on macOS).
-    pub hide_without_pad: bool,
-    /// The platform has no virtual controllers (as macOS).
+    /// The platform has no virtual controllers (as macOS), so a config hides its controller
+    /// without one.
     pub no_virtual_pads: bool,
 }
 
@@ -92,6 +91,16 @@ impl GamepadBackend for FakeBackend {
         self.0.lock().unwrap().powered_off.push(id.clone());
         true
     }
+
+    fn ignore_virtual(&mut self, _ignored: &dp_platform::VirtualIgnoreList) {}
+
+    fn set_layouts(&mut self, _layouts: Arc<Vec<dp_platform::generic::GenericLayout>>) {}
+
+    fn problems(&self) -> Vec<String> {
+        Vec::new()
+    }
+
+    fn rescan(&mut self) {}
 }
 
 struct FakeFactory(Shared);
@@ -169,9 +178,6 @@ impl dp_platform::DeviceHider for FakeHider {
     fn restore(&mut self) -> dp_platform::Result<()> {
         self.0.lock().unwrap().hidden.clear();
         Ok(())
-    }
-    fn hides_without_virtual_pad(&self) -> bool {
-        self.0.lock().unwrap().hide_without_pad
     }
 }
 

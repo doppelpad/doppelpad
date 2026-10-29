@@ -9,7 +9,7 @@ use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 use std::time::Duration;
 
-use dp_core::pad::Rumble;
+use dp_core::pad::{Rgb, Rumble};
 use nusb::descriptors::TransferType;
 use nusb::transfer::{
     Buffer, ControlOut, ControlType, In, Interrupt, Out, Recipient, TransferError,
@@ -20,6 +20,7 @@ use windows_sys::Win32::Devices::HumanInterfaceDevice::GUID_DEVINTERFACE_HID;
 use super::devnode::{enumerate_interfaces, usb_device_of};
 use super::hidio::HidIo;
 use super::process;
+use crate::generic::GenericLayout;
 use crate::holders::busy_message;
 use crate::nintendo::NINTENDO_VID;
 use crate::nintendo::gcadapter::{
@@ -28,7 +29,10 @@ use crate::nintendo::gcadapter::{
 use crate::padio::ReportIo;
 use crate::scan::{RESCAN, Rescanner};
 use crate::usb::{endpoint_addrs, is_busy, transfer_error};
-use crate::{DeviceId, DeviceInfo, GamepadBackend, PadFamily, PadSnapshot, Transport};
+use crate::{
+    DeviceId, DeviceInfo, GamepadBackend, Leds, PadFamily, PadSnapshot, Transport, TriggerEffects,
+    VirtualIgnoreList,
+};
 
 const READ_WAIT: Duration = Duration::from_millis(50);
 /// The stronger motor at this level or more turns the plain GameCube motor on.
@@ -347,6 +351,22 @@ impl GamepadBackend for GcAdapterBackend {
             }
         }
     }
+
+    // GameCube controllers have no lights, trigger effects or off command.
+    fn set_lightbar(&mut self, _id: &DeviceId, _color: Option<Rgb>) {}
+
+    fn set_leds(&mut self, _id: &DeviceId, _leds: Leds) {}
+
+    fn set_trigger_effects(&mut self, _id: &DeviceId, _effects: TriggerEffects) {}
+
+    fn power_off(&mut self, _id: &DeviceId) -> bool {
+        false
+    }
+
+    // No virtual controller is an adapter, and no GameCube controller a generic pad.
+    fn ignore_virtual(&mut self, _ignored: &VirtualIgnoreList) {}
+
+    fn set_layouts(&mut self, _layouts: Arc<Vec<GenericLayout>>) {}
 
     fn problems(&self) -> Vec<String> {
         self.problems.lock().unwrap().clone()

@@ -248,37 +248,37 @@ impl Battery {
 }
 
 /// Source of physical gamepads.
+///
+/// No method has a default: backends that wrap others (groups, Joy-Con pairs) pass every
+/// setting on, and one that forgot a method would otherwise still compile. A backend without
+/// a feature says so with an empty method.
 pub trait GamepadBackend: Send {
     fn name(&self) -> &'static str;
     /// Enumerate connected devices and return their latest state. Must not block for long;
     /// backends with blocking reads run their own threads and return cached state here.
     fn poll(&mut self, out: &mut Vec<PadSnapshot>);
     /// Forward rumble to a physical device (if it supports it).
-    fn set_rumble(&mut self, _id: &DeviceId, _rumble: Rumble) {}
+    fn set_rumble(&mut self, id: &DeviceId, rumble: Rumble);
     /// Show a light bar colour on a physical device (if it has one); `None` stops setting
     /// it and leaves the light bar as it is.
-    fn set_lightbar(&mut self, _id: &DeviceId, _color: Option<Rgb>) {}
+    fn set_lightbar(&mut self, id: &DeviceId, color: Option<Rgb>);
     /// Show player lights and the microphone LED (if the device has them).
-    fn set_leds(&mut self, _id: &DeviceId, _leds: Leds) {}
+    fn set_leds(&mut self, id: &DeviceId, leds: Leds);
     /// Play trigger effects, left then right (DualSense); `None` leaves a trigger as it is.
-    fn set_trigger_effects(&mut self, _id: &DeviceId, _effects: TriggerEffects) {}
+    fn set_trigger_effects(&mut self, id: &DeviceId, effects: TriggerEffects);
     /// Turn a wireless controller off. `false` when this backend cannot (wired, unknown).
-    fn power_off(&mut self, _id: &DeviceId) -> bool {
-        false
-    }
+    fn power_off(&mut self, id: &DeviceId) -> bool;
     /// Tell the backend which XInput slots / device paths belong to our own virtual pads
     /// so it does not read them back as physical input.
-    fn ignore_virtual(&mut self, _ignored: &VirtualIgnoreList) {}
+    fn ignore_virtual(&mut self, ignored: &VirtualIgnoreList);
     /// How generic pads' inputs map to pad controls, by model.
-    fn set_layouts(&mut self, _layouts: Arc<Vec<generic::GenericLayout>>) {}
+    fn set_layouts(&mut self, layouts: Arc<Vec<generic::GenericLayout>>);
     /// Devices the backend found but cannot use, as user-facing explanations
     /// (e.g. "another program is using the controller").
-    fn problems(&self) -> Vec<String> {
-        Vec::new()
-    }
+    fn problems(&self) -> Vec<String>;
     /// Look for devices now rather than at the next scheduled scan, and retry the ones
     /// that could not be opened (e.g. because another program has just released them).
-    fn rescan(&mut self) {}
+    fn rescan(&mut self);
 }
 
 /// Devices created by Doppelpad itself, which input backends must skip.
@@ -327,6 +327,11 @@ pub trait VirtualPadFactory: Send {
     /// Whether the platform has virtual controllers at all, installed or not. Where it has none
     /// (macOS, for now), every config runs with keyboard and mouse only, whichever virtual
     /// controller it names for Windows and Linux.
+    ///
+    /// It also decides when a config's controller is hidden: where virtual controllers exist,
+    /// hiding waits for one, so a game keeps the controller under a config that has none; where
+    /// none exist, a config that asks hides it all the same, so the game does not see input a
+    /// mapping turned into keys.
     fn exist(&self) -> bool {
         true
     }
@@ -497,13 +502,6 @@ pub trait DeviceHider: Send {
     fn hide(&mut self, instance_paths: &[String]) -> Result<()>;
     /// Undo everything this hider changed.
     fn restore(&mut self) -> Result<()>;
-    /// Whether a config's controller is hidden even without a virtual controller standing in
-    /// for it. Where virtual controllers exist (Windows, Linux) hiding waits for one, so a game
-    /// keeps the controller under a config that has none; macOS has none yet and hides whenever
-    /// a config asks, so the game does not see input that a mapping turned into keys.
-    fn hides_without_virtual_pad(&self) -> bool {
-        false
-    }
     /// Connected devices the hiding driver hides from Doppelpad itself (set up for another
     /// tool, or left by an older install), as user-facing explanations. Asks the driver,
     /// so call it now and then rather than every tick.

@@ -4,7 +4,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use dp_core::pad::{
-    Axis, PadButton, PadState, Rumble, axis_from_i16, unit_from_u8, unit_to_u16_trunc,
+    Axis, PadButton, PadState, Rgb, Rumble, axis_from_i16, unit_from_u8, unit_to_u16_trunc,
 };
 use windows_sys::Win32::Foundation::ERROR_SUCCESS;
 use windows_sys::Win32::System::LibraryLoader::{
@@ -12,9 +12,10 @@ use windows_sys::Win32::System::LibraryLoader::{
 };
 
 use super::wide;
+use crate::generic::GenericLayout;
 use crate::{
-    Battery, DeviceId, DeviceInfo, GamepadBackend, PadFamily, PadSnapshot, Transport,
-    VirtualIgnoreList,
+    Battery, DeviceId, DeviceInfo, GamepadBackend, Leds, PadFamily, PadSnapshot, Transport,
+    TriggerEffects, VirtualIgnoreList,
 };
 
 #[repr(C)]
@@ -303,6 +304,22 @@ impl GamepadBackend for XInputBackend {
     fn ignore_virtual(&mut self, ignored: &VirtualIgnoreList) {
         self.ignored = ignored.xinput_slots.clone();
     }
+
+    // XInput has no lights or trigger effects, and every pad it reads is mapped.
+    fn set_lightbar(&mut self, _id: &DeviceId, _color: Option<Rgb>) {}
+
+    fn set_leds(&mut self, _id: &DeviceId, _leds: Leds) {}
+
+    fn set_trigger_effects(&mut self, _id: &DeviceId, _effects: TriggerEffects) {}
+
+    fn set_layouts(&mut self, _layouts: Arc<Vec<GenericLayout>>) {}
+
+    // Slots are asked on every poll: nothing to look for and nothing that fails.
+    fn problems(&self) -> Vec<String> {
+        Vec::new()
+    }
+
+    fn rescan(&mut self) {}
 }
 
 /// The XInput slot behind an `xinput:<n>` id.

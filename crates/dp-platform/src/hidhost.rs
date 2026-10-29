@@ -33,7 +33,7 @@ use crate::switch2gatt::Poll;
 use crate::switch2usb::{self, Locate};
 use crate::{
     Battery, DeviceId, DeviceInfo, GamepadBackend, JoyConSide, Leds, PadSnapshot, Transport,
-    TriggerEffects,
+    TriggerEffects, VirtualIgnoreList,
 };
 
 /// Interfaces that are not controllers we handle are not reopened for this long.
@@ -999,6 +999,9 @@ impl GamepadBackend for HidBackend {
     fn rescan(&mut self) {
         self.scanner.wake();
     }
+
+    // Each scanner leaves virtual controllers out itself (on Windows by their device node).
+    fn ignore_virtual(&mut self, _ignored: &VirtualIgnoreList) {}
 }
 
 #[cfg(all(test, any(windows, target_os = "linux", target_os = "macos")))]
