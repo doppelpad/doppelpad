@@ -18,7 +18,7 @@
 
 <div class="analog">
   <div class="head">
-    <h2>{t('analog.title')}</h2>
+    <h2 class="view-title">{t('analog.title')}</h2>
     <Segmented
       label={t('analog.title')}
       options={ANALOG_TABS.map((tab) => ({ value: tab, label: t(`analog.tabs.${tab}`), badge: tab === 'routes' ? routeCount : undefined }))}
@@ -62,11 +62,7 @@
     flex-wrap: wrap;
     gap: 10px 16px;
   }
-  h2 {
-    margin: 0;
-    font-size: 17px;
-    font-weight: 600;
-  }
+
   .scope {
     margin: -6px 0 4px;
     color: var(--text-faint);

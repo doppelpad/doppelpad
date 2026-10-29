@@ -54,7 +54,7 @@
     {#if 'separator' in item}
       <div class="sep"></div>
     {:else if 'heading' in item}
-      <div class="heading" role="presentation">{item.heading}</div>
+      <div class="heading section-title" role="presentation">{item.heading}</div>
     {:else}
       <button
         type="button"
@@ -158,11 +158,6 @@
   }
   .heading {
     padding: 8px 10px 3px;
-    font-size: var(--fs-xs);
-    font-weight: 600;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--text-faint);
   }
   .sep + .heading,
   .heading:first-child {

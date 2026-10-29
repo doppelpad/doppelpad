@@ -87,7 +87,7 @@
     position: absolute;
     top: 48px;
     right: 12px;
-    z-index: 5;
+    z-index: var(--z-float);
     width: 260px;
     display: flex;
     flex-direction: column;

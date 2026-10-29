@@ -119,7 +119,7 @@
 
 <div class="radial">
   <header class="top">
-    <h2>{t('radial.title')}</h2>
+    <h2 class="view-title">{t('radial.title')}</h2>
     <p class="hint">{t('radial.hint')}</p>
   </header>
 
@@ -323,9 +323,7 @@
     gap: 16px;
   }
   .top h2 {
-    margin: 0 0 4px;
-    font-size: 18px;
-    font-weight: 600;
+    margin-bottom: 4px;
   }
   .empty {
     display: flex;

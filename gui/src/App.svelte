@@ -201,7 +201,7 @@
     position: absolute;
     top: 10px;
     right: 12px;
-    z-index: 5;
+    z-index: var(--z-float);
     display: flex;
     gap: 4px;
   }

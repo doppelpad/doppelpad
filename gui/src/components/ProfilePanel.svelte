@@ -72,7 +72,7 @@
 <aside class="panel">
   <!-- Part of the title bar, beside the header; holds the macOS traffic lights. -->
   <div class="head" class:traffic-lights={platform === 'macos' && !win.fullscreen} data-tauri-drag-region="deep">
-    <span class="title">{t('profiles.title')}</span>
+    <span class="title section-title">{t('profiles.title')}</span>
     <button class="icon-btn" use:tip={t('stores.menu')} onclick={() => (libraryOpen = true)}><Library size={17} /></button>
     <button class="icon-btn" use:tip={t('profiles.import')} onclick={importGame}><Download size={17} /></button>
     <button class="icon-btn" use:tip={t('profiles.add')} onclick={addGame}><Plus size={18} /></button>
@@ -122,7 +122,7 @@
     {/each}
 
     {#if app.library.unsorted.length}
-      <div class="section">{t('profiles.unsorted')}</div>
+      <div class="section section-title">{t('profiles.unsorted')}</div>
       {#each app.library.unsorted as c (c.path)}
         <button
           class="loose"
@@ -169,11 +169,6 @@
   /* Pushes the buttons to the right edge as one group. */
   .title {
     margin-right: auto;
-    font-size: var(--fs-xs);
-    font-weight: 600;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--text-dim);
   }
   .list {
     flex: 1;
@@ -259,10 +254,6 @@
   }
   .section {
     margin: 14px 8px 6px;
-    font-size: var(--fs-xs);
-    color: var(--text-faint);
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
   }
   .loose {
     display: flex;

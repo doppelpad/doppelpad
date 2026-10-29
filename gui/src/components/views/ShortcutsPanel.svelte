@@ -71,7 +71,7 @@
 
 <div class="shortcuts">
   <div class="head">
-    <h2>{t('shortcuts.title', { layer: app.layerLabel(app.layer) })}</h2>
+    <h2 class="view-title">{t('shortcuts.title', { layer: app.layerLabel(app.layer) })}</h2>
     {#if !picking && !app.readOnly}
       <button class="btn primary" onclick={start}><Plus size={14} /> {t('shortcuts.add')}</button>
     {/if}
@@ -147,11 +147,7 @@
     align-items: center;
     justify-content: space-between;
   }
-  h2 {
-    margin: 0;
-    font-size: 17px;
-    font-weight: 600;
-  }
+
   .picker {
     border: 1px solid var(--accent);
     border-radius: var(--radius-m);

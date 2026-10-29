@@ -28,7 +28,7 @@
 </script>
 
 <div class="output">
-  <h2>{t('views.output')}</h2>
+  <h2 class="view-title">{t('views.output')}</h2>
   <PageTabs {pages} current={page} onchange={(p) => (app.outputPage = p)} label={t('views.output')}>
     {#if page === 'controller'}
       <VirtualPadSettings />
@@ -54,8 +54,6 @@
     padding: 28px 28px 40px;
   }
   h2 {
-    margin: 0 0 18px;
-    font-size: 18px;
-    font-weight: 600;
+    margin-bottom: 18px;
   }
 </style>

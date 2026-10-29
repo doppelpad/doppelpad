@@ -82,6 +82,13 @@
   background: var(--text-dim);
 }
 
+/* The title of a view (the radial menus, the config settings, the shortcuts …). */
+.view-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
 /* The small uppercase caption above a group of settings. */
 .section-title {
   font-size: var(--fs-xs);

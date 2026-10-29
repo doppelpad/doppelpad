@@ -133,7 +133,7 @@
   <div class="macro">
     <div class="head">
       <button class="btn" onclick={() => (app.view = 'front')}><ArrowLeft size={14} /> {t('macro.back')}</button>
-      <h2>
+      <h2 class="view-title">
         {t('macro.title', {
           control: comboLabel(target.trigger, app.family),
         })}
@@ -268,11 +268,7 @@
     align-items: center;
     gap: 12px;
   }
-  h2 {
-    margin: 0;
-    font-size: 17px;
-    font-weight: 600;
-  }
+
   .params {
     display: flex;
     align-items: center;

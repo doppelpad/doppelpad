@@ -138,7 +138,7 @@
     </div>
     <div class="scroll">
       {#each groups as g (g.id)}
-        <div class="group">{t(`picker.groups.${g.id}`)}</div>
+        <div class="group section-title">{t(`picker.groups.${g.id}`)}</div>
         <div class="grid">
           {#each g.keys as k (k)}
             <button class="chip" onclick={() => onpick({ key: k })}>{keyLabel(k)}</button>
@@ -148,25 +148,25 @@
     </div>
   {:else if tab === 'mouse'}
     <div class="scroll">
-      <div class="group">{t('picker.mouse_buttons')}</div>
+      <div class="group section-title">{t('picker.mouse_buttons')}</div>
       <div class="grid">
         {#each MOUSE_BUTTONS as b (b)}
           <button class="chip" onclick={() => onpick({ mouse: b })}>{t(`controls.mouse.${b}`)}</button>
         {/each}
       </div>
-      <div class="group">{t('picker.mouse_wheel')}</div>
+      <div class="group section-title">{t('picker.mouse_wheel')}</div>
       <div class="grid">
         {#each DIRS as d (d)}
           <button class="chip" onclick={() => onpick({ wheel: d })}>{t(`dirs.${d}`)}</button>
         {/each}
       </div>
-      <div class="group">{t('picker.mouse_move')}</div>
+      <div class="group section-title">{t('picker.mouse_move')}</div>
       <div class="grid">
         {#each DIRS as d (d)}
           <button class="chip" onclick={() => onpick({ mouse_move: d })}>{t(`dirs.${d}`)}</button>
         {/each}
       </div>
-      <div class="group">{t('picker.cursor')}</div>
+      <div class="group section-title">{t('picker.cursor')}</div>
       <div class="grid">
         <button class="chip" use:tip={t('picker.cursor_hint')} onclick={() => onpick({ mouse_to: [0.5, 0.5] })}>
           {t('picker.cursor_centre')}
@@ -175,7 +175,7 @@
           {t('picker.cursor_clip')}
         </button>
       </div>
-      <div class="group">{t('picker.turn')}</div>
+      <div class="group section-title">{t('picker.turn')}</div>
       <div class="grid">
         {#each TURNS as deg (deg)}
           <button class="chip" use:tip={t('picker.turn_hint')} onclick={() => onpick({ turn: deg })}
@@ -186,13 +186,13 @@
     </div>
   {:else if tab === 'gamepad'}
     <div class="scroll">
-      <div class="group">{t('picker.pad_buttons')}</div>
+      <div class="group section-title">{t('picker.pad_buttons')}</div>
       <div class="grid">
         {#each PAD_BUTTONS as b (b)}
           <button class="chip" onclick={() => onpick({ pad: b })}>{controlLabel(b, outFamily)}</button>
         {/each}
       </div>
-      <div class="group">{t('picker.pad_sticks')}</div>
+      <div class="group section-title">{t('picker.pad_sticks')}</div>
       {#each ['left', 'right'] as const as s (s)}
         <div class="grid">
           {#each CARDINALS as d (d)}
@@ -207,7 +207,7 @@
           {t('picker.anti_recoil')}
         </button>
       </div>
-      <div class="group">{t('picker.pad_triggers')}</div>
+      <div class="group section-title">{t('picker.pad_triggers')}</div>
       <div class="grid">
         {#each ['left', 'right'] as const as tr (tr)}
           <button class="chip" onclick={() => onpick({ trigger: tr as TriggerName })}>
@@ -215,7 +215,7 @@
           </button>
         {/each}
       </div>
-      <div class="group">{t('picker.pad_touch')}</div>
+      <div class="group section-title">{t('picker.pad_touch')}</div>
       <div class="grid">
         {#each TOUCH_OUTPUTS as g (g)}
           <button class="chip" use:tip={t('picker.pad_touch_hint')} onclick={() => onpick({ touch: g })}>
@@ -223,7 +223,7 @@
           </button>
         {/each}
       </div>
-      <div class="group">{t('picker.pad_shake')}</div>
+      <div class="group section-title">{t('picker.pad_shake')}</div>
       <div class="grid">
         {#each SHAKES as s (s)}
           <button class="chip" use:tip={t('picker.pad_shake_hint')} onclick={() => onpick({ shake: s })}>
@@ -334,10 +334,6 @@
     padding: 4px 8px 10px;
   }
   .group {
-    font-size: 10.5px;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--text-faint);
     margin: 8px 0 4px;
   }
   .grid {
