@@ -26,6 +26,9 @@ impl Service {
         for job in jobs {
             let Job::Ipc(req, reply) = job;
             let answer = self.handle_ipc(req);
+            // As for IPC calls: a script reading the live state right after a command sees
+            // its effect.
+            self.publish_live();
             let _ = reply.send(answer);
         }
     }

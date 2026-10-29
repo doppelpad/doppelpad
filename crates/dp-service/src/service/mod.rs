@@ -139,7 +139,7 @@ struct DriverWatch {
     /// A report has arrived.
     known: bool,
     reports: Receiver<DriverReport>,
-    _probe: Rescanner,
+    probe: Rescanner,
 }
 
 impl DriverWatch {
@@ -154,7 +154,7 @@ impl DriverWatch {
             system_problems: Vec::new(),
             known: false,
             reports,
-            _probe: probe,
+            probe,
         }
     }
 }
@@ -571,10 +571,11 @@ impl Service {
         }
     }
 
-    /// Probe the drivers now, on this thread (an explicit refresh).
-    fn check_drivers(&mut self) {
-        let report = (self.rt.driver_probe())();
-        self.take_driver_report(report);
+    /// Probe the drivers now (an explicit refresh), on their own thread: the probe asks the
+    /// Bluetooth stack and system services, which can take seconds, and this thread runs the
+    /// controllers. The report arrives like the periodic ones.
+    fn check_drivers(&self) {
+        self.drivers.probe.wake();
     }
 
     fn take_driver_report(&mut self, report: DriverReport) {

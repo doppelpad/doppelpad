@@ -22,6 +22,8 @@ const MSG_INFO: u32 = 0x10_0001;
 const MSG_DATA: u32 = 0x10_0002;
 /// A subscription ends when the client stops renewing it (clients renew about once a second).
 const SUBSCRIPTION: Duration = Duration::from_secs(5);
+/// Subscribers served at once.
+const MAX_CLIENTS: usize = 8;
 /// Data goes out at most this often (the DualShock 4's own rate).
 const SEND_EVERY: Duration = Duration::from_millis(4);
 /// The port the DSU protocol uses by default (cemuhook's).
@@ -444,6 +446,11 @@ fn serve(socket: UdpSocket, frame: &Mutex<Frame>, count: &AtomicUsize, stop: &At
                     }
                 }
                 Some(Request::Data { slot, mac }) => {
+                    // A request's source address is easy to forge, and each subscriber gets
+                    // a stream of packets: past the limit, new ones are turned away.
+                    if !clients.contains_key(&from) && clients.len() >= MAX_CLIENTS {
+                        continue;
+                    }
                     let c = clients.entry(from).or_insert(Client {
                         all_until: None,
                         slot_until: [None; DSU_SLOTS],

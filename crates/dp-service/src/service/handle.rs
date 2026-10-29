@@ -151,7 +151,7 @@ impl Service {
             ServiceCmd::SetLights { player, mic } => self.set_lights(player, mic),
             ServiceCmd::RefreshDrivers => {
                 self.check_drivers();
-                ServiceReply::Ok("drivers checked".into())
+                ServiceReply::Ok("checking drivers".into())
             }
             ServiceCmd::RescanDevices => {
                 self.rt.rescan_devices();

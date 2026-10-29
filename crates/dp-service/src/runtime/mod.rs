@@ -591,9 +591,12 @@ impl Runtime {
             match self.platform.kbm_capture.start(self.kbm.filter.clone()) {
                 Ok(rx) => self.kbm.rx = Some(rx),
                 Err(e) => {
-                    if let Some(s) = self.sessions.iter_mut().find(|s| s.needs_capture) {
-                        s.warnings
-                            .push(format!("keyboard/mouse capture unavailable: {e}"));
+                    // Retried on every change of sessions: warn once per session.
+                    let warning = format!("keyboard/mouse capture unavailable: {e}");
+                    if let Some(s) = self.sessions.iter_mut().find(|s| s.needs_capture)
+                        && !s.warnings.contains(&warning)
+                    {
+                        s.warnings.push(warning);
                     }
                 }
             }
