@@ -220,7 +220,7 @@ pub fn config_load(app: AppHandle, path: PathBuf) -> CmdResult<LoadedConfig> {
     Ok(LoadedConfig {
         profile,
         diagnostics: diags.into_vec(),
-        read_only: format == dp_config::Format::Json,
+        read_only: format == dp_config::ProfileSyntax::Json,
     })
 }
 

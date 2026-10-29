@@ -13,9 +13,9 @@ use serde::{Deserialize, Serialize};
 use crate::launches::{self, Launch};
 use crate::library::{self, Game, GameMeta, LibraryError, Result, io};
 use crate::picture::{MAX_IMAGE, base64, unbase64};
-use crate::{FileFormat, Format};
+use crate::{FileFormat, ProfileSyntax};
 
-/// Format version of game bundles.
+/// ProfileSyntax version of game bundles.
 const BUNDLE_VERSION: u32 = 1;
 /// Folder of the layer presets inside the profiles directory.
 pub(crate) const PRESETS_DIR: &str = "presets";
@@ -108,7 +108,7 @@ fn read_bundle(bundle: &Path) -> Result<Bundle> {
 impl BundledFile {
     /// The config as the library will read it once unpacked, or why it cannot be read (it then
     /// runs nothing in this version, but may in a newer one).
-    fn profile(&self) -> std::result::Result<(Profile, Format), String> {
+    fn profile(&self) -> std::result::Result<(Profile, ProfileSyntax), String> {
         let (profile, _, format) = crate::parse_with_format(Path::new(&self.file), &self.data)
             .map_err(|e| e.to_string())?;
         Ok((profile, format))
@@ -227,7 +227,7 @@ fn drop_launches(b: &mut Bundle) -> Result<()> {
         }
         let text = crate::to_toml(&profile)
             .map_err(|e| LibraryError::Serialize(PathBuf::from(&file), e))?;
-        if format == Format::Json {
+        if format == ProfileSyntax::Json {
             let stem = Path::new(&file)
                 .file_stem()
                 .and_then(|s| s.to_str())

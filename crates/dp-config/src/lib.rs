@@ -41,9 +41,10 @@ pub enum LoadError {
     Import(PathBuf, #[source] ImportError),
 }
 
-/// Profile file formats.
+/// How a profile file is written: native TOML, or a JSON profile to import (not to be
+/// confused with [`FileFormat`], the version of a file kind).
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum Format {
+pub enum ProfileSyntax {
     /// Native Doppelpad TOML.
     Toml,
     /// JSON profile (schema 3.0), imported.
@@ -56,14 +57,14 @@ fn is_toml_path(path: &Path) -> bool {
         .is_some_and(|e| e.eq_ignore_ascii_case("toml"))
 }
 
-impl Format {
+impl ProfileSyntax {
     /// `.toml` files are native profiles; any other file whose content is a JSON
     /// object is imported, whatever its extension.
-    pub fn detect(path: &Path, content: &str) -> Format {
+    pub fn detect(path: &Path, content: &str) -> ProfileSyntax {
         if looks_like_json(content) && !is_toml_path(path) {
-            Format::Json
+            ProfileSyntax::Json
         } else {
-            Format::Toml
+            ProfileSyntax::Toml
         }
     }
 }
@@ -106,7 +107,7 @@ pub fn load(path: &Path) -> Result<(Profile, Diagnostics), LoadError> {
 }
 
 /// [`load`], also telling which format the file is in.
-pub fn load_with_format(path: &Path) -> Result<(Profile, Diagnostics, Format), LoadError> {
+pub fn load_with_format(path: &Path) -> Result<(Profile, Diagnostics, ProfileSyntax), LoadError> {
     let src = std::fs::read_to_string(path).map_err(|e| LoadError::Io(path.into(), e))?;
     parse_with_format(path, &src)
 }
@@ -115,18 +116,20 @@ pub fn load_with_format(path: &Path) -> Result<(Profile, Diagnostics, Format), L
 pub(crate) fn parse_with_format(
     path: &Path,
     src: &str,
-) -> Result<(Profile, Diagnostics, Format), LoadError> {
-    let format = Format::detect(path, src);
+) -> Result<(Profile, Diagnostics, ProfileSyntax), LoadError> {
+    let format = ProfileSyntax::detect(path, src);
     let (mut profile, mut diags) = match format {
-        Format::Toml => (
+        ProfileSyntax::Toml => (
             parse_toml(src).map_err(|e| LoadError::Toml(path.into(), e))?,
             Diagnostics::default(),
         ),
-        Format::Json => compat::import(src).map_err(|e| LoadError::Import(path.into(), e))?,
+        ProfileSyntax::Json => {
+            compat::import(src).map_err(|e| LoadError::Import(path.into(), e))?
+        }
     };
     // An import without a name of its own (the importer says "Game") is named after its file,
     // as the library names it.
-    let unnamed = format == Format::Json && profile.name == compat::DEFAULT_IMPORT_NAME;
+    let unnamed = format == ProfileSyntax::Json && profile.name == compat::DEFAULT_IMPORT_NAME;
     if profile.name.is_empty() || unnamed {
         profile.name = path
             .file_stem()
@@ -227,15 +230,21 @@ while_held = ["LT", "Mouse:Right"]
     #[test]
     fn format_detection() {
         let json = "\u{feff}  {\"schemaVersion\": 3.0}";
-        assert_eq!(Format::detect(Path::new("game.cfg"), json), Format::Json);
-        assert_eq!(Format::detect(Path::new("game.json"), json), Format::Json);
         assert_eq!(
-            Format::detect(Path::new("a.TOML"), "name = \"x\""),
-            Format::Toml
+            ProfileSyntax::detect(Path::new("game.cfg"), json),
+            ProfileSyntax::Json
         );
         assert_eq!(
-            Format::detect(Path::new("noext"), "name = \"x\""),
-            Format::Toml
+            ProfileSyntax::detect(Path::new("game.json"), json),
+            ProfileSyntax::Json
+        );
+        assert_eq!(
+            ProfileSyntax::detect(Path::new("a.TOML"), "name = \"x\""),
+            ProfileSyntax::Toml
+        );
+        assert_eq!(
+            ProfileSyntax::detect(Path::new("noext"), "name = \"x\""),
+            ProfileSyntax::Toml
         );
     }
 }

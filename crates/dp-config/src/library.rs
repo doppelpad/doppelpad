@@ -13,8 +13,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::launches::{self, Launch};
 use crate::{
-    Diagnostics, FileFormat, Format, LoadError, SaveError, compat, is_profile_file, load, picture,
-    to_toml,
+    Diagnostics, FileFormat, LoadError, ProfileSyntax, SaveError, compat, is_profile_file, load,
+    picture, to_toml,
 };
 
 /// File holding a game's metadata inside its folder.
@@ -540,7 +540,7 @@ pub fn delete_config(path: &Path) -> Result<()> {
 pub fn save_profile_atomic(path: &Path, profile: &Profile) -> Result<()> {
     let text = to_toml(profile).map_err(|e| LibraryError::Serialize(path.to_path_buf(), e))?;
     if let Ok(existing) = std::fs::read_to_string(path) {
-        if Format::detect(path, &existing) == Format::Json {
+        if ProfileSyntax::detect(path, &existing) == ProfileSyntax::Json {
             return Err(LibraryError::ReadOnly(path.to_path_buf()));
         }
         if !existing.starts_with(crate::PROFILE_HEADER) {
