@@ -26,7 +26,7 @@ pub enum MoveError {
     #[error("{0}: the copy differs from the original")]
     Verify(PathBuf),
     #[error("{0}: {1}")]
-    Io(PathBuf, #[source] io::Error),
+    Io(PathBuf, io::Error),
 }
 
 fn io_err(path: &Path) -> impl FnOnce(io::Error) -> MoveError + '_ {

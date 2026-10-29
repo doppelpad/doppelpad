@@ -27,14 +27,16 @@ use dp_core::profile::{
 pub use format::{FileFormat, Migration};
 pub use store::{Loaded, load_toml_or_default, save_toml, set_aside, write_atomic};
 
+/// The messages of these errors (and of the library's) carry their cause, so the cause is not
+/// also their `source`: `{:#}` would print it twice.
 #[derive(Debug, thiserror::Error)]
 pub enum LoadError {
     #[error("cannot read {0}: {1}")]
-    Io(PathBuf, #[source] std::io::Error),
+    Io(PathBuf, std::io::Error),
     #[error("{0}: {1}")]
-    Toml(PathBuf, #[source] toml::de::Error),
+    Toml(PathBuf, toml::de::Error),
     #[error("{0}: {1}")]
-    Import(PathBuf, #[source] ImportError),
+    Import(PathBuf, ImportError),
 }
 
 /// Profile file formats.
@@ -1165,6 +1167,22 @@ jump = { layer = 3, mode = "toggle" }
                 "layers[0]: nothing changes to layer 2, so its mappings never apply",
             ]
         );
+    }
+
+    #[test]
+    fn load_errors_say_their_cause_once() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("broken.toml");
+        std::fs::write(&path, "[[mappings]]\ntrigger = \"Bogus\"\n").unwrap();
+        let err = load(&path).unwrap_err();
+        // What `{:#}` prints: the message, then each source after it.
+        let mut text = err.to_string();
+        let mut source = std::error::Error::source(&err);
+        while let Some(e) = source {
+            text = format!("{text}: {e}");
+            source = e.source();
+        }
+        assert_eq!(text.matches("unknown control `Bogus`").count(), 1, "{text}");
     }
 
     #[test]
