@@ -661,7 +661,7 @@ mod tests {
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-            std::fs::set_permissions(&sniper, std::fs::Permissions::from_mode(0)).unwrap();
+            std::fs::set_permissions(&sniper, std::fs::Permissions::from_mode(0o000)).unwrap();
             if std::fs::read(&sniper).is_ok() {
                 return; // root reads it anyway
             }
