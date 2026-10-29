@@ -29,7 +29,7 @@
     }
     const loaded = await api.configLoad(path).catch(() => null);
     if (!loaded || !app.profile) return;
-    open = { path, profile: loaded.profile, changes: profileChanges($state.snapshot(app.profile) as Profile, loaded.profile) };
+    open = { path, profile: loaded.profile, changes: profileChanges(app.snapshot()!, loaded.profile) };
   }
 
   function restore(v: { path: string; time_ms: number }) {

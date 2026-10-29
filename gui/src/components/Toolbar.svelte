@@ -7,7 +7,7 @@
   import { addLayer, clearLayer, copyLayer, layerIds, pasteLayer, removeLayer, renameLayer } from '../lib/model/profile';
   import { TOOLBAR_VIEWS, VIEWS, type ToolbarView } from '../lib/model/views';
   import { app } from '../lib/state/app.svelte';
-  import type { PresetEntry, Profile } from '../lib/types';
+  import type { PresetEntry } from '../lib/types';
   import LayerDialog from './LayerDialog.svelte';
   import LayerTip from './LayerTip.svelte';
   import TransformDialog from './TransformDialog.svelte';
@@ -120,7 +120,7 @@
 
   function onCopy() {
     if (!app.profile) return;
-    app.copiedLayer = copyLayer($state.snapshot(app.profile) as Profile, app.layer);
+    app.copiedLayer = copyLayer(app.snapshot()!, app.layer);
   }
 
   function onPaste() {
@@ -140,7 +140,7 @@
     if (!app.profile) return;
     const name = await app.ask(t('layers.preset_name'), app.layerLabel(app.layer));
     if (!name) return;
-    const preset = makePreset($state.snapshot(app.profile) as Profile, app.layer, name);
+    const preset = makePreset(app.snapshot()!, app.layer, name);
     await app.attempt(api.presetSave(preset).then(loadPresets), t('layers.preset_saved', { name }));
   }
 

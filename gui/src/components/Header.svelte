@@ -8,7 +8,7 @@
   import { app } from '../lib/state/app.svelte';
   import { platform } from '../lib/state/window.svelte';
   import { shortcutLabel, withShortcut } from '../lib/state/shortcuts';
-  import type { Profile, Template } from '../lib/types';
+  import type { Template } from '../lib/types';
   import type { MenuItem } from '../lib/menu';
   import Menu from './ui/Menu.svelte';
   import WindowControls from './WindowControls.svelte';
@@ -54,7 +54,7 @@
       filters: [{ name: t('sheet.filter'), extensions: ['html'] }],
     });
     if (!path) return;
-    await app.attempt(api.sheetSave(path, bindingsSheet($state.snapshot(app.profile) as Profile, app.family)), t('sheet.saved'));
+    await app.attempt(api.sheetSave(path, bindingsSheet(app.snapshot()!, app.family)), t('sheet.saved'));
   }
 
   async function remove() {

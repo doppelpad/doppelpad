@@ -2,7 +2,7 @@
 // opening and saving configs. Each test starts from a new state.
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Game, GuiSettings, Hotkeys, LoadedConfig, Profile } from '../types';
+import type { Game, GuiSettings, Hotkeys, LiveState, LoadedConfig, Profile } from '../types';
 
 /** What the bridge stored, write by write; each write takes a moment, like the real one. */
 const stored: GuiSettings[] = [];
@@ -10,17 +10,33 @@ const stored: GuiSettings[] = [];
 const storedHotkeys: Hotkeys[] = [];
 /** Commands that fail. */
 const failing = new Set<string>();
+/** Sends a live state to the app, once it has subscribed. */
+let sendLive: (s: LiveState) => void = () => {};
 vi.mock('@tauri-apps/api/core', () => ({
   Channel: class {},
   invoke: async (cmd: string, args?: { settings?: GuiSettings; path?: string; hotkeys?: Hotkeys }) => {
     if (failing.has(cmd)) throw new Error(`${cmd} failed`);
+    if (cmd === 'live_subscribe') {
+      const channel = (args as unknown as { onEvent: { onmessage: (s: LiveState) => void } }).onEvent;
+      sendLive = (s) => channel.onmessage(s);
+      return null;
+    }
     if (cmd === 'hotkeys_get') return hotkeys;
     if (cmd === 'hotkeys_set') {
       await new Promise((r) => setTimeout(r, 5));
       storedHotkeys.push(args!.hotkeys!);
       return null;
     }
-    if (cmd === 'config_load') return loaded(args?.path ?? '');
+    if (cmd === 'config_load') {
+      // A slow disk for paths that say so.
+      if (args?.path?.includes('slow')) await new Promise((r) => setTimeout(r, 20));
+      return loaded(args?.path ?? '');
+    }
+    if (cmd === 'config_check') {
+      // The check of a config named "slow" takes longer than the ones after it.
+      if ((args as { profile?: Profile } | undefined)?.profile?.name === 'slow') await new Promise((r) => setTimeout(r, 500));
+      return [{ severity: 'warning', path: '', message: (args as { profile: Profile }).profile.name }];
+    }
     if (cmd === 'library_scan') return { games: [game], unsorted: [], errors: [] };
     if (cmd === 'settings_get') return { ...SETTINGS_PLACEHOLDER, check_updates: false };
     if (cmd === 'take_notices' || cmd === 'take_open_files') return [];
@@ -95,6 +111,18 @@ describe('settings', () => {
     expect(app.settings.stay_live).toBe(!before.stay_live);
     expect(app.settings.hook_buttons).toBe(!before.hook_buttons);
     expect(stored.at(-1)).toMatchObject({ stay_live: !before.stay_live, hook_buttons: !before.hook_buttons });
+  });
+
+  it('the controller navigation hotkey twice within one round trip turns it on and off again', async () => {
+    await app.init();
+    const live = (presses: number) =>
+      ({ devices: [], device_slots: [], sessions: [], active_slot: 0, app_navigation: presses }) as unknown as LiveState;
+    sendLive(live(0));
+    sendLive(live(1));
+    sendLive(live(2));
+    // Waits for the writes before it.
+    await app.setSettings({});
+    expect(app.settings.pad_navigation).toBe(false);
   });
 
   it('a change of one part of a nested setting builds on the change before it', async () => {
@@ -227,6 +255,28 @@ describe('opening and saving', () => {
     expect(app.profile?.name).toBe('changed');
     expect(app.dirty).toBe(true);
     expect(app.canUndo).toBe(true);
+  });
+
+  it('a config opened later wins over a slower one opened before it', async () => {
+    const slow = app.openConfig('slow.toml', true);
+    await app.openConfig('fast.toml', true);
+    await slow;
+    expect([app.configPath, app.profile?.name]).toEqual(['fast.toml', 'fast.toml']);
+  });
+
+  it('the findings of the latest check stay, also when an older check answers later', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      await app.openConfig('one.toml', true);
+      rename('slow');
+      await vi.advanceTimersByTimeAsync(300);
+      rename('quick');
+      await vi.advanceTimersByTimeAsync(300);
+      await vi.advanceTimersByTimeAsync(500);
+      expect(app.diagnostics.map((d) => d.message)).toEqual(['quick']);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('a change made while saving stays unsaved', async () => {

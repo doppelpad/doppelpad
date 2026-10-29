@@ -234,17 +234,23 @@ export class AppState {
     const firstSnapshot = before === null;
     this.live = s;
     // The navigation hotkey fired (it counts; the app keeps the mode).
-    if (before && s.app_navigation !== before.app_navigation) this.setPadNavigation(!this.settings.pad_navigation);
+    if (before && s.app_navigation !== before.app_navigation) this.setPadNavigation();
     if (firstSnapshot) this.applySlot = s.active_slot;
     const dev = this.primary;
     this.pad.update(dev && this.catalog ? controlsFromPad(dev.state, this.catalog.pad_buttons) : new Set<ControlName>());
   }
 
   /** Controller navigation on or off (bottom bar, hotkey); it replaces press-to-select while on. */
-  setPadNavigation(on: boolean) {
-    if (on === this.settings.pad_navigation) return;
-    this.setSettings({ pad_navigation: on });
-    this.toast(t(on ? 'padnav.on' : 'padnav.off'), 'info');
+  async setPadNavigation(on?: boolean) {
+    // Without `on` it turns round what the writes before this one leave (two hotkey presses
+    // within one round trip turn it on and off again).
+    const turned = { to: null as boolean | null };
+    await this.setSettings((s) => {
+      const next = on ?? !s.pad_navigation;
+      if (next !== s.pad_navigation) turned.to = next;
+      return { pad_navigation: next };
+    });
+    if (turned.to !== null && this.settings.pad_navigation === turned.to) this.toast(t(turned.to ? 'padnav.on' : 'padnav.off'), 'info');
   }
 
   /** A control pressed on the controller selects it on the controller views, on the side that shows it. */
@@ -477,7 +483,14 @@ export class AppState {
     else this.closeConfig();
   }
 
+  /** The draft as a plain object (not the reactive one), for the bridge or to keep a copy. */
+  snapshot(): Profile | null {
+    return this.profile && ($state.snapshot(this.profile) as Profile);
+  }
+
   closeConfig() {
+    // A config still loading does not open any more.
+    this.openRequest++;
     this.configPath = null;
     this.profile = null;
     this.savedJson = '';
@@ -489,8 +502,11 @@ export class AppState {
 
   async openConfig(path: string, force = false) {
     if (!force && path !== this.configPath && !(await this.confirmDiscard())) return;
+    // A config opened later wins over one that is still loading.
+    const request = ++this.openRequest;
     try {
       const loaded = await api.configLoad(path);
+      if (request !== this.openRequest) return;
       this.configPath = path;
       this.profile = loaded.profile;
       this.savedJson = this.draftJson = JSON.stringify(loaded.profile);
@@ -505,7 +521,7 @@ export class AppState {
       this.radialSector = null;
       if (this.view === 'macro') this.view = 'front';
     } catch (e) {
-      this.toast(errorText(e), 'error');
+      if (request === this.openRequest) this.toast(errorText(e), 'error');
     }
   }
 
@@ -539,17 +555,21 @@ export class AppState {
     this.draftJson = json;
   }
 
+  /** Counts the configs asked to open and the findings asked for, so a slower, older reply does not win. */
+  private openRequest = 0;
+  private findingsRequest = 0;
   private checkTimer: ReturnType<typeof setTimeout> | undefined;
 
   /** Validate the draft again shortly after the last change (the diagnostics bar and the marks follow). */
   private checkSoon() {
     clearTimeout(this.checkTimer);
     this.checkTimer = setTimeout(async () => {
-      const path = this.configPath;
-      if (!this.profile) return;
+      const draft = this.snapshot();
+      if (!draft) return;
+      const request = ++this.findingsRequest;
       try {
-        const found = await api.configCheck($state.snapshot(this.profile) as Profile);
-        if (this.configPath === path) this.diagnostics = found ?? [];
+        const found = await api.configCheck(draft);
+        if (request === this.findingsRequest) this.diagnostics = found;
       } catch {
         // The last findings stay; saving validates again anyway.
       }
@@ -628,10 +648,12 @@ export class AppState {
     if (!this.profile || !this.configPath || this.readOnly) return false;
     // What is saved is the draft now; changes made while the save is under way stay unsaved.
     const json = this.draftJson;
-    const sent = $state.snapshot(this.profile) as Profile;
+    const sent = this.snapshot()!;
+    const request = ++this.findingsRequest;
     try {
       const diags = await api.configSave(this.configPath, sent);
-      this.diagnostics = diags;
+      // A check of a change made meanwhile is newer.
+      if (request === this.findingsRequest) this.diagnostics = diags;
       if (diags.some((d) => d.severity === 'error')) {
         this.toast(t('notices.save_errors'), 'error');
         return false;
