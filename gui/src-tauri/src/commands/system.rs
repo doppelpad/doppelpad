@@ -2,7 +2,6 @@
 //! manager, driver pages), reWASD, and what the app was started with.
 
 use std::path::{Path, PathBuf};
-use std::sync::atomic::Ordering;
 
 use dp_core::control::Control;
 use dp_core::keys::{Key, MouseButton};
@@ -317,10 +316,9 @@ pub fn take_notices(state: State<AppState>) -> Vec<Notice> {
     std::mem::take(&mut *lock(&state.notices))
 }
 
-/// The game bundles the app was started with; each is handed out once.
+/// The game bundles opened before the window's page asked (it listens for `open-files` first);
+/// each is handed out once, and later ones arrive as events.
 #[tauri::command]
 pub fn take_open_files(state: State<AppState>) -> Vec<PathBuf> {
-    let mut files = lock(&state.open_files);
-    state.open_files_taken.store(true, Ordering::Relaxed);
-    std::mem::take(&mut *files)
+    lock(&state.open_files).take()
 }

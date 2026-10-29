@@ -9,6 +9,7 @@ use tauri::{AppHandle, Manager};
 
 use crate::commands::CmdResult;
 use crate::commands::system::Notice;
+use crate::open_file::OpenFiles;
 use crate::settings::GuiSettings;
 
 /// Lock `m`, also after a thread panicked while it held it. What these locks guard stays
@@ -36,10 +37,8 @@ pub struct AppState {
     pub profiles_dir: Mutex<PathBuf>,
     /// Messages for the UI collected before it was ready (e.g. a service takeover).
     pub notices: Mutex<Vec<Notice>>,
-    /// Game bundles the app was started with (opened from Explorer), for the UI to import.
-    pub open_files: Mutex<Vec<PathBuf>>,
-    /// The UI has taken [`open_files`](Self::open_files): later bundles go to it as events.
-    pub open_files_taken: AtomicBool,
+    /// Game bundles opened from Explorer or the Finder, for the UI to import.
+    pub open_files: Mutex<OpenFiles>,
     /// Incremented per live subscription; older streaming threads stop.
     pub live_generation: Arc<AtomicU64>,
     /// The main window has the focus (window events; the webview inside holds the keyboard
@@ -67,8 +66,7 @@ impl AppState {
             suspending: Mutex::default(),
             profiles_dir: Mutex::new(profiles_dir),
             notices: Mutex::new(notices),
-            open_files: Mutex::new(open_files),
-            open_files_taken: AtomicBool::new(false),
+            open_files: Mutex::new(OpenFiles::new(open_files)),
             live_generation: Arc::new(AtomicU64::new(0)),
             main_focused: AtomicBool::new(false),
             min_size_held: AtomicBool::new(false),

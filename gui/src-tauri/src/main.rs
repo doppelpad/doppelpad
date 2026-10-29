@@ -24,7 +24,7 @@ mod updates;
 use std::time::{Duration, Instant};
 
 use dp_service::{HostOptions, Ipc, ServiceOptions};
-use tauri::{Emitter, Manager, WindowEvent};
+use tauri::{Manager, WindowEvent};
 
 use crate::commands::system::Notice;
 use crate::main_window::MAIN_WINDOW;
@@ -59,11 +59,11 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
             main_window::show_main(app);
-            // A game bundle opened from Explorer while the app runs.
-            let files = open_file::bundles_in(&args, std::path::Path::new(&cwd));
-            if !files.is_empty() {
-                let _ = app.emit_to(MAIN_WINDOW, open_file::OPEN_EVENT, files);
-            }
+            // A game bundle opened from Explorer while the app runs (or still starts).
+            open_file::opened(
+                app,
+                open_file::bundles_in(&args, std::path::Path::new(&cwd)),
+            );
         }))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())

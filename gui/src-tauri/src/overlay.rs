@@ -127,19 +127,15 @@ pub fn show_content(
     placement: Placement,
     content: &impl Serialize,
 ) -> Option<WebviewWindow> {
-    let (w, created) = ensure(app, kind, placement)?;
-    present(app, &w, created, kind, content);
+    let w = ensure(app, kind, placement)?;
+    present(app, &w, kind, content);
     Some(w)
 }
 
-/// The overlay window of `kind` at `placement`, created hidden on first use; also whether it
-/// was created now (its page is still loading). Failures are logged.
-pub fn ensure(
-    app: &AppHandle,
-    kind: OverlayKind,
-    placement: Placement,
-) -> Option<(WebviewWindow, bool)> {
-    let (w, created) = match window(app, kind) {
+/// The overlay window of `kind` at `placement`, created hidden on first use. Failures are
+/// logged.
+pub fn ensure(app: &AppHandle, kind: OverlayKind, placement: Placement) -> Option<WebviewWindow> {
+    let w = match window(app, kind) {
         Ok(w) => w,
         Err(e) => {
             tracing::warn!("cannot create the {kind} overlay: {e}");
@@ -149,18 +145,12 @@ pub fn ensure(
     if let Err(e) = place(app, &w, placement) {
         tracing::warn!("cannot place the {kind} overlay: {e}");
     }
-    Some((w, created))
+    Some(w)
 }
 
-/// Show `content` in `w`, the overlay window of `kind`. A page that is still loading
-/// (`created`) asks for it with `overlay_ready` and then shows.
-fn present(
-    app: &AppHandle,
-    w: &WebviewWindow,
-    created: bool,
-    kind: OverlayKind,
-    content: &impl Serialize,
-) {
+/// Show `content` in `w`, the overlay window of `kind`. A page that is still loading asks for
+/// it with `overlay_ready` and then shows.
+fn present(app: &AppHandle, w: &WebviewWindow, kind: OverlayKind, content: &impl Serialize) {
     let Ok(value) = serde_json::to_value(content) else {
         return;
     };
@@ -168,9 +158,6 @@ fn present(
         let state = app.state::<Overlays>();
         let mut pages = lock(&state.pages);
         let page = pages.entry(kind).or_default();
-        if created {
-            page.ready = false;
-        }
         page.content = Some(value.clone());
         page.ready
     };
@@ -216,13 +203,18 @@ pub fn overlay_ready(window: WebviewWindow, state: State<Overlays>) -> Option<Va
     content
 }
 
-/// The overlay window of `kind`, created hidden on first use. Returns whether it was created
-/// now (its page is still loading).
-fn window(app: &AppHandle, kind: OverlayKind) -> tauri::Result<(WebviewWindow, bool)> {
+/// The overlay window of `kind`, created hidden on first use.
+fn window(app: &AppHandle, kind: OverlayKind) -> tauri::Result<WebviewWindow> {
     let label = label(kind);
     if let Some(w) = app.get_webview_window(&label) {
-        return Ok((w, false));
+        return Ok(w);
     }
+    // The new page asks for its content once it has loaded, which can be before `build`
+    // returns: it must find itself not ready yet now, not after it said it is.
+    lock(&app.state::<Overlays>().pages)
+        .entry(kind)
+        .or_default()
+        .ready = false;
     let w = WebviewWindowBuilder::new(app, &label, WebviewUrl::App("overlay.html".into()))
         .title("Doppelpad overlay")
         .transparent(true)
@@ -257,7 +249,7 @@ fn window(app: &AppHandle, kind: OverlayKind) -> tauri::Result<(WebviewWindow, b
         // SAFETY: the window's own NSWindow, on the main thread.
         unsafe { dp_platform::macos::overlay::prepare(ns) }
     });
-    Ok((w, true))
+    Ok(w)
 }
 
 /// Monitors with the primary one first.

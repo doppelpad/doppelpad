@@ -8,7 +8,9 @@ import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 /** Call `apply` with the current content, then with every change; returns the unsubscribe. */
 export function overlayContent<T>(apply: (content: T | null) => void): () => void {
   const off = listen<T>(getCurrentWebviewWindow().label, (e) => apply(e.payload));
-  invoke<T | null>('overlay_ready')
+  // Ready only once the page listens: the app sends changes as events from then on.
+  off
+    .then(() => invoke<T | null>('overlay_ready'))
     .then(apply)
     .catch((e) => console.error('overlay_ready failed', e));
   return () => {
