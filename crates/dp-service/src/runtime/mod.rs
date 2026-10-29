@@ -28,7 +28,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
-use crossbeam_channel::Receiver;
+use crossbeam_channel::{Receiver, Sender};
 use dp_core::control::Control;
 use dp_core::engine::{Engine, Input};
 use dp_core::hotkeys::{HotkeyAction, HotkeyDetector, Hotkeys};
@@ -132,6 +132,8 @@ pub struct Runtime {
     /// Gyro bias per controller, taken off before anything reads the rates.
     calibration: Calibrator,
     overlays: Overlays,
+    /// Screenshots taken on their own threads report here.
+    screenshots: (Sender<Shot>, Receiver<Shot>),
     /// Player lights and microphone LED last sent, per controller.
     sent_leds: HashMap<DeviceId, Leds>,
     power: PowerState,
@@ -167,6 +169,9 @@ struct HotkeyState {
     /// Fired hotkeys the service carries out.
     actions: Vec<(DeviceId, HotkeyAction)>,
 }
+
+/// A screenshot's file, or why there is none.
+type Shot = Result<PathBuf, String>;
 
 /// What the app shows for the runtime: the live controller and mappings overlays, the
 /// controller navigation and the last screenshot.
@@ -248,6 +253,7 @@ impl Runtime {
             test_turn: None,
             calibration: Calibrator::default(),
             overlays: Overlays::default(),
+            screenshots: crossbeam_channel::unbounded(),
             sent_leds: HashMap::new(),
             power: PowerState {
                 prevent_sleep: true,
@@ -655,6 +661,7 @@ impl Runtime {
     /// Run one engine step for every session. Call about once per millisecond.
     pub fn tick(&mut self) {
         let now = self.now_ms();
+        self.collect_screenshots();
         self.send_test_turn(now);
         self.poll_devices(now);
         self.watch_idle(now);

@@ -341,6 +341,17 @@ fn system_commands_reach_the_platform() {
         world.lock().unwrap().system,
         ["Screenshot", "CloseWindow", "Sleep"]
     );
+    // The screenshot is taken on a thread of its own and told of on a later tick.
+    let deadline = std::time::Instant::now() + Duration::from_secs(5);
+    while rt.screenshot().count == 0 {
+        assert!(
+            std::time::Instant::now() < deadline,
+            "no screenshot told of"
+        );
+        std::thread::sleep(Duration::from_millis(5));
+        rt.tick();
+    }
+    assert_eq!(rt.screenshot().file.as_deref(), Some("shot.png"));
 }
 
 #[test]

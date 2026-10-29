@@ -101,8 +101,8 @@ impl dp_platform::SystemControl for Desktop {
     fn power(&mut self, _: dp_platform::PowerAction) -> dp_platform::Result<()> {
         Ok(())
     }
-    fn screenshot(&mut self) -> dp_platform::Result<PathBuf> {
-        Ok(PathBuf::new())
+    fn screenshot(&mut self) -> dp_platform::Screenshot {
+        Box::new(|| Ok(PathBuf::new()))
     }
     fn close_foreground_window(&mut self) -> dp_platform::Result<()> {
         Ok(())

@@ -112,32 +112,34 @@ impl SystemControl for MacSystem {
         }
     }
 
-    fn screenshot(&mut self) -> Result<PathBuf> {
-        let front = windows::front();
-        let app = front.as_ref().and_then(|w| process::process_name(w.pid));
-        let path = screenshot_file(&screenshot_dir()?, app.as_deref(), &stamp());
-        let centre = front.map_or(CGPoint { x: 0.0, y: 0.0 }, |w| CGPoint {
-            x: w.bounds.origin.x + w.bounds.size.width / 2.0,
-            y: w.bounds.origin.y + w.bounds.size.height / 2.0,
-        });
-        let r = CGDisplayBounds(display_at(centre));
-        let rect = format!(
-            "{},{},{},{}",
-            r.origin.x, r.origin.y, r.size.width, r.size.height
-        );
-        // Without the permission screencapture fails, or saves the desktop without windows.
-        let taken = run(
-            "/usr/sbin/screencapture",
-            &["-x", "-t", "png", "-R", &rect, &path.display().to_string()],
-        );
-        match taken {
-            Ok(()) if path.exists() => Ok(path),
-            _ => Err(PlatformError::Other(
-                "no screenshot was taken: Doppelpad needs the Screen Recording permission \
+    fn screenshot(&mut self) -> crate::Screenshot {
+        Box::new(|| {
+            let front = windows::front();
+            let app = front.as_ref().and_then(|w| process::process_name(w.pid));
+            let path = screenshot_file(&screenshot_dir()?, app.as_deref(), &stamp());
+            let centre = front.map_or(CGPoint { x: 0.0, y: 0.0 }, |w| CGPoint {
+                x: w.bounds.origin.x + w.bounds.size.width / 2.0,
+                y: w.bounds.origin.y + w.bounds.size.height / 2.0,
+            });
+            let r = CGDisplayBounds(display_at(centre));
+            let rect = format!(
+                "{},{},{},{}",
+                r.origin.x, r.origin.y, r.size.width, r.size.height
+            );
+            // Without the permission screencapture fails, or saves the desktop without windows.
+            let taken = run(
+                "/usr/sbin/screencapture",
+                &["-x", "-t", "png", "-R", &rect, &path.display().to_string()],
+            );
+            match taken {
+                Ok(()) if path.exists() => Ok(path),
+                _ => Err(PlatformError::Other(
+                    "no screenshot was taken: Doppelpad needs the Screen Recording permission \
                  (System Settings › Privacy & Security › Screen & System Audio Recording)"
-                    .into(),
-            )),
-        }
+                        .into(),
+                )),
+            }
+        })
     }
 
     fn close_foreground_window(&mut self) -> Result<()> {

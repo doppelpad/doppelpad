@@ -532,11 +532,15 @@ pub enum PowerAction {
 }
 
 /// Desktop actions that mappings can trigger.
+/// A screenshot to take; see [`SystemControl::screenshot`].
+pub type Screenshot = Box<dyn FnOnce() -> Result<std::path::PathBuf> + Send>;
+
 pub trait SystemControl: Send {
     /// Applications are asked to close as usual; nothing is forced.
     fn power(&mut self, action: PowerAction) -> Result<()>;
-    /// Save a picture of the monitor showing the focused window; returns the file.
-    fn screenshot(&mut self) -> Result<std::path::PathBuf>;
+    /// The work of saving a picture of the monitor showing the focused window, which returns
+    /// the file. It runs on a thread of its own: capturing, encoding and writing take a while.
+    fn screenshot(&mut self) -> Screenshot;
     /// Ask the focused window to close, as its close button does.
     fn close_foreground_window(&mut self) -> Result<()>;
     /// Keep the computer from going to sleep while `on` (played-back input is not user

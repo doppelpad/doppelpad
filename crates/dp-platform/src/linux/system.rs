@@ -4,7 +4,6 @@
 //! systemd-logind on the system bus ([`super::logind`]).
 
 use std::os::fd::OwnedFd;
-use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, OnceLock};
 use std::time::Duration;
@@ -66,8 +65,8 @@ impl SystemControl for LinuxSystem {
         }
     }
 
-    fn screenshot(&mut self) -> Result<PathBuf> {
-        Err(PlatformError::Unsupported("screenshots on Linux"))
+    fn screenshot(&mut self) -> crate::Screenshot {
+        Box::new(|| Err(PlatformError::Unsupported("screenshots on Linux")))
     }
 
     fn close_foreground_window(&mut self) -> Result<()> {

@@ -152,9 +152,9 @@ impl dp_platform::SystemControl for FakeSystem {
         self.0.lock().unwrap().system.push(format!("{action:?}"));
         Ok(())
     }
-    fn screenshot(&mut self) -> dp_platform::Result<std::path::PathBuf> {
+    fn screenshot(&mut self) -> dp_platform::Screenshot {
         self.0.lock().unwrap().system.push("Screenshot".into());
-        Ok("shot.png".into())
+        Box::new(|| Ok("shot.png".into()))
     }
     fn close_foreground_window(&mut self) -> dp_platform::Result<()> {
         self.0.lock().unwrap().system.push("CloseWindow".into());

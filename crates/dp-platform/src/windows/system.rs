@@ -78,6 +78,14 @@ fn enable_shutdown_privilege() -> Result<()> {
     Ok(())
 }
 
+/// Save the monitor of the focused window in `Pictures\Doppelpad`; returns the file.
+fn take_screenshot() -> Result<PathBuf> {
+    let app = foreground::Foreground.foreground_process();
+    let path = screenshot_file(&screenshot_dir()?, app.as_deref(), &stamp());
+    capture(&path)?;
+    Ok(path)
+}
+
 /// `Pictures\Doppelpad`, created if needed.
 fn screenshot_dir() -> Result<PathBuf> {
     let mut p: *mut u16 = null_mut();
@@ -306,11 +314,8 @@ impl SystemControl for WinSystem {
         }
     }
 
-    fn screenshot(&mut self) -> Result<PathBuf> {
-        let app = foreground::Foreground.foreground_process();
-        let path = screenshot_file(&screenshot_dir()?, app.as_deref(), &stamp());
-        capture(&path)?;
-        Ok(path)
+    fn screenshot(&mut self) -> crate::Screenshot {
+        Box::new(take_screenshot)
     }
 
     fn close_foreground_window(&mut self) -> Result<()> {
