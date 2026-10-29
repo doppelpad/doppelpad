@@ -16,7 +16,7 @@ use dp_service::ServiceCmd;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, State};
 
-use super::{CmdError, CmdResult, ErrorCode, err};
+use super::{CmdResult, err};
 use crate::settings::{PAD_COLORS, ZOOM, color_hex};
 use crate::state::{AppState, lock};
 
@@ -214,11 +214,11 @@ pub fn open_driver_page(driver: Driver) -> CmdResult<()> {
         Driver::Bluetooth => "ms-settings:bluetooth",
         #[cfg(not(target_os = "macos"))]
         Driver::InputAccess => {
-            return Err(CmdError::new(ErrorCode::NothingToAllow));
+            return Err(super::CmdError::new(super::ErrorCode::NothingToAllow));
         }
         #[cfg(not(any(windows, target_os = "macos")))]
         Driver::Bluetooth => {
-            return Err(CmdError::new(ErrorCode::NothingToAllow));
+            return Err(super::CmdError::new(super::ErrorCode::NothingToAllow));
         }
     };
     #[cfg(windows)]
