@@ -118,8 +118,13 @@ Ctrl+/ (or F1, or *Keyboard shortcuts* in the config's options menu) lists them 
 | Ctrl + plus, Ctrl + minus, Ctrl+0 | Make the window's contents larger, smaller, normal (80–150 %; also *Settings → Display → Size*) |
 
 In the keyboard view, plain keys select themselves, so Delete, Escape, F1 and F2 do that there;
-clearing is Ctrl+Delete. In text fields the keys act on the text, and while a dialog or menu is
-open it gets them (Ctrl+S still saves). On macOS, Cmd takes the place of Ctrl.
+clearing is Ctrl+Delete. In text fields the keys act on the text, and while a dialog, a menu or
+Find is open it gets them (Ctrl+S still saves). On macOS, Cmd takes the place of Ctrl.
+
+Tab moves through the window's buttons and fields; in a dialog it stays inside the dialog. In a
+choice of a few (the activators, a row of options, a radial menu's place) and in a row of tabs,
+the arrow keys move to the previous or next one and choose it, Home and End to the first and
+last.
 
 ## Editing a control
 
@@ -402,8 +407,8 @@ Deleting a menu also deletes its layer and its button, unless something else use
 The pulse button at the top right of the controller, keyboard and mouse views opens a small
 panel with what the running config sends right now: the virtual controller's pressed
 buttons and stick caps, drawn on the controller in use (so they show where your buttons are;
-below it, which controller games see), a bar per trigger, the keys and mouse buttons it
-holds, and the layer. A config can be tried out this way without a game. Remapping pauses while the
+below it, which controller games see), a bar per trigger (named as on that controller), the
+keys and mouse buttons it holds, and the layer. A config can be tried out this way without a game. Remapping pauses while the
 window has the focus (see below); the panel then offers *Keep remapping active while this
 window is focused*. `doppelpad monitor` shows the controller's input in a terminal.
 
