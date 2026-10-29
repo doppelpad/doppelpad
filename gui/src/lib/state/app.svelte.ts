@@ -106,7 +106,7 @@ export interface ContextMenuRequest {
   from: HTMLElement | null;
 }
 
-class AppState {
+export class AppState {
   catalog = $state<Catalog | null>(null);
   library = $state<Library>({ games: [], unsorted: [], errors: [] });
   live = $state<LiveState | null>(null);

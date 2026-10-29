@@ -1,6 +1,7 @@
-// The app state against a fake bridge: settings writes that overlap, undo and redo.
+// The app state against a fake bridge: settings writes that overlap, undo and redo. Each test
+// starts from a new state.
 
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { GuiSettings, LoadedConfig, Profile } from '../types';
 
 /** What the bridge stored, write by write; each write takes a moment, like the real one. */
@@ -9,6 +10,11 @@ vi.mock('@tauri-apps/api/core', () => ({
   Channel: class {},
   invoke: async (cmd: string, args?: { settings?: GuiSettings; path?: string }) => {
     if (cmd === 'config_load') return loaded(args?.path ?? '');
+    if (cmd === 'library_scan') return { games: [], unsorted: [], errors: [] };
+    if (cmd === 'config_save') {
+      await new Promise((r) => setTimeout(r, 5));
+      return [];
+    }
     if (cmd !== 'settings_set' || !args?.settings) return null;
     await new Promise((r) => setTimeout(r, 5));
     stored.push(args.settings);
@@ -21,8 +27,15 @@ function loaded(path: string): LoadedConfig {
   return { profile, diagnostics: [], read_only: path.includes('ro') };
 }
 
-const { app } = await import('./app.svelte');
+const { AppState } = await import('./app.svelte');
 const { addLayer } = await import('../model/profile');
+
+let app: InstanceType<typeof AppState>;
+beforeEach(() => {
+  app = new AppState();
+});
+
+const rename = (name: string) => app.edit((p) => ({ ...p, name }));
 
 describe('settings', () => {
   it('two changes within one round trip both stay', async () => {
@@ -44,8 +57,6 @@ describe('settings', () => {
 });
 
 describe('undo and redo', () => {
-  const rename = (name: string) => app.edit((p) => ({ ...p, name }));
-
   it('undo brings back the loaded config and redo the change', async () => {
     await app.openConfig('one.toml', true);
     expect(app.canUndo).toBe(false);
@@ -132,8 +143,6 @@ describe('questions', () => {
     expect(app.settings.silenced).not.toContain('clear_mappings');
     app.confirmAsk('Clear?', { id: 'clear_mappings' });
     expect(app.question?.message).toBe('Clear?');
-    app.question?.resolve(null);
-    app.question = null;
   });
 
   it('every question that can be silenced has a name in the settings', async () => {
