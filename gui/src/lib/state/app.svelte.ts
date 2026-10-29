@@ -22,7 +22,7 @@ import type { Copied } from '../model/clipboard';
 import type { MenuItem } from '../../components/ui/Menu.svelte';
 import type { OutputPage } from '../../components/OutputPanel.svelte';
 import { SETTINGS_PLACEHOLDER } from './settings';
-import { platform } from './window.svelte';
+import { Updater } from './updater.svelte';
 import type {
   Action,
   Activator,
@@ -41,7 +41,6 @@ import type {
   PadFamily,
   Profile,
   RewasdStatus,
-  UpdateInfo,
 } from '../types';
 
 /** Pages of the analog view. */
@@ -73,10 +72,6 @@ export class AppState {
   /** The start-up question whether to quit reWASD is open. */
   rewasdAsk = $state(false);
   rewasdQuitting = $state(false);
-  /** The update check runs. */
-  updateChecking = $state(false);
-  /** While an update downloads: its progress in percent. */
-  updateProgress = $state<number | null>(null);
 
   gameDir = $state<string | null>(null);
   configPath = $state<string | null>(null);
@@ -106,6 +101,12 @@ export class AppState {
   /** The controller whose own slots the bottom bar shows; `null` for the shared slots. */
   slotDevice = $state<string | null>(null);
   toasts = $state<Toast[]>([]);
+  /** Looking for, offering and installing updates. */
+  readonly updater = new Updater({
+    toast: (text, kind) => this.toast(text, kind),
+    confirmAsk: (message, options) => this.confirmAsk(message, options),
+    confirmDiscard: () => this.confirmDiscard(),
+  });
   /** The questions, hints and prompts waiting to be answered, one shown at a time. */
   readonly dialogs = new Dialogs({ silenced: () => this.settings.silenced, silence: (id) => this.silence(id) });
   copiedLayer = $state.raw<LayerCopy | null>(null);
@@ -207,7 +208,7 @@ export class AppState {
     if (game) await this.selectGame(game.dir);
     if (opened.length) await this.openFiles(opened);
     // The question waits in the window, also when the app started hidden with Windows.
-    if (settingsRead && this.settings.check_updates) this.checkForUpdate();
+    if (settingsRead && this.settings.check_updates) this.updater.check();
   }
 
   private onLive(s: LiveState) {
@@ -396,52 +397,6 @@ export class AppState {
     return this.setSettings((s) => ({
       silenced: on ? [...s.silenced.filter((x) => x !== id), id] : s.silenced.filter((x) => x !== id),
     }));
-  }
-
-  /**
-   * Ask the update endpoints (GitHub) for a newer version and offer to install it. `manual`
-   * (*Check now*) also says when there is none or the check failed; the check at start-up
-   * leaves that to the log.
-   */
-  async checkForUpdate(manual = false) {
-    if (this.updateChecking || this.updateProgress !== null) return;
-    this.updateChecking = true;
-    let update: UpdateInfo | null;
-    try {
-      update = await api.updateCheck();
-    } catch (e) {
-      if (manual) this.toast(t('updates.check_failed', { error: errorText(e) }), 'error');
-      return;
-    } finally {
-      this.updateChecking = false;
-    }
-    if (!update) {
-      if (manual) this.toast(t('updates.up_to_date'), 'ok');
-      return;
-    }
-    const available = { linux: 'updates.available_linux', macos: 'updates.available_macos', windows: 'updates.available' }[platform];
-    const install = await this.confirmAsk(t(available, { version: update.version, current: update.current }), {
-      title: t('updates.title'),
-      details: update.notes,
-      ok: t('updates.install'),
-      cancel: t('updates.later'),
-      kind: 'update',
-    });
-    if (install) await this.installUpdate();
-  }
-
-  /** Download and install the update the last check found; the app starts again when it worked. */
-  private async installUpdate() {
-    if (!(await this.confirmDiscard())) return;
-    this.updateProgress = 0;
-    this.toast(t('updates.downloading'));
-    try {
-      await api.updateInstall((percent) => (this.updateProgress = percent));
-    } catch (e) {
-      this.toast(t('updates.install_failed', { error: errorText(e) }), 'error');
-    } finally {
-      this.updateProgress = null;
-    }
   }
 
   /**

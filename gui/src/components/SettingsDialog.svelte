@@ -169,10 +169,10 @@
             />
             <div class="running">
               <span>{t('updates.version', { version })}</span>
-              <button class="btn" disabled={app.updateChecking || app.updateProgress !== null} onclick={() => app.checkForUpdate(true)}>
-                {#if app.updateProgress !== null}
-                  {t('updates.downloading_percent', { percent: app.updateProgress })}
-                {:else if app.updateChecking}
+              <button class="btn" disabled={app.updater.busy} onclick={() => app.updater.check(true)}>
+                {#if app.updater.progress !== null}
+                  {t('updates.downloading_percent', { percent: app.updater.progress })}
+                {:else if app.updater.checking}
                   {t('updates.checking')}
                 {:else}
                   {t('updates.check_now')}
