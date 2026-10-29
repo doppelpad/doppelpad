@@ -14,6 +14,7 @@ import { clone } from '../model/util';
 import { isStreamingField, pointer } from '../dom';
 import { movedPath } from '../paths';
 import { padMode, PressRepeat } from '../padnav';
+import { Dialogs, type Answer, type QuestionId, type QuestionOptions } from './dialogs.svelte';
 import { History, type EditKey } from './history';
 import { flagsOf, hotkeyClashes, waitsForSave, type Flags } from '../model/lints';
 import type { Copied } from '../model/clipboard';
@@ -50,52 +51,6 @@ export interface Toast {
   text: string;
   kind: 'info' | 'ok' | 'error';
 }
-
-interface PromptRequest {
-  title: string;
-  value: string;
-  multiline: boolean;
-  resolve: (v: string | null) => void;
-}
-
-/**
- * What a question (ConfirmDialog) can show and offer besides its message; without options it
- * asks with a warning sign, OK and Cancel.
- */
-export interface QuestionOptions {
-  title?: string;
-  /** Longer text below the message, kept as written (line breaks too), e.g. release notes. */
-  details?: string | null;
-  /** Rows under the message: a line of code (a command line, say) and notes under it. */
-  items?: { code: string; notes: string[] }[];
-  /** The label of the OK button. */
-  ok?: string;
-  /** The label of the Cancel button. */
-  cancel?: string;
-  /** A second answer, between Cancel and OK. */
-  alt?: string;
-  /** The sign before the title. */
-  kind?: 'warning' | 'update';
-  /** A question that can be silenced ("Don't ask again"); a silenced one answers OK at once. */
-  id?: QuestionId;
-}
-
-/** The button a question was answered with; `null` for Cancel (and Escape). */
-export type Answer = 'ok' | 'alt' | null;
-
-interface QuestionRequest extends QuestionOptions {
-  message: string;
-  /** Something to read, not to answer: only OK, and "Don't show again" with an id. */
-  info?: boolean;
-  resolve: (answer: Answer) => void;
-}
-
-/**
- * Questions that may be silenced: only ones whose change can be undone. Deleting games or
- * configs and discarding unsaved changes always ask.
- */
-export const QUESTION_IDS = ['power_command', 'clear_mappings', 'whole_stick_replace', 'steam_input'] as const;
-export type QuestionId = (typeof QUESTION_IDS)[number];
 
 export interface ContextMenuRequest {
   items: MenuItem[];
@@ -150,8 +105,8 @@ export class AppState {
   /** The controller whose own slots the bottom bar shows; `null` for the shared slots. */
   slotDevice = $state<string | null>(null);
   toasts = $state<Toast[]>([]);
-  prompt = $state<PromptRequest | null>(null);
-  question = $state<QuestionRequest | null>(null);
+  /** The questions, hints and prompts waiting to be answered, one shown at a time. */
+  readonly dialogs = new Dialogs({ silenced: () => this.settings.silenced, silence: (id) => this.silence(id) });
   copiedLayer = $state.raw<LayerCopy | null>(null);
   /** A copied control or direction group (see `lib/model/clipboard.ts`); kept across configs. */
   clipboard = $state.raw<Copied | null>(null);
@@ -449,33 +404,27 @@ export class AppState {
     setTimeout(() => (this.toasts = this.toasts.filter((x) => x.id !== id)), kind === 'error' ? 7000 : 3500);
   }
 
+  /** Ask for a text in the app's dialog (PromptDialog); `null` when cancelled or left empty. */
   ask(title: string, value = '', multiline = false): Promise<string | null> {
-    return new Promise((resolve) => (this.prompt = { title, value, multiline, resolve }));
+    return this.dialogs.ask(title, value, multiline);
   }
 
   /**
-   * Ask an OK/Cancel question in the app's own dialog (ConfirmDialog); `true` for OK. Not
-   * `window.confirm`: in the webview it returns a promise without asking. With `options.id` it
-   * offers "Don't ask again", and a silenced id answers OK at once.
+   * Ask an OK/Cancel question in the app's own dialog (ConfirmDialog); `true` for OK. With
+   * `options.id` it offers "Don't ask again", and a silenced id answers OK at once.
    */
-  async confirmAsk(message: string, options: QuestionOptions = {}): Promise<boolean> {
-    return (await this.choose(message, options)) === 'ok';
+  confirmAsk(message: string, options: QuestionOptions = {}): Promise<boolean> {
+    return this.dialogs.confirmAsk(message, options);
   }
 
   /** `confirmAsk` that tells which answer, for a question with a second one (`options.alt`). */
   choose(message: string, options: QuestionOptions = {}): Promise<Answer> {
-    if (options.id && this.settings.silenced.includes(options.id)) return Promise.resolve('ok');
-    this.question?.resolve(null);
-    return new Promise((resolve) => (this.question = { ...options, message, resolve }));
+    return this.dialogs.choose(message, options);
   }
 
   /** Tell something in the app's dialog; with an `id` it offers "Don't show again", and a silenced id shows nothing. */
   inform(message: string, id?: QuestionId): Promise<void> {
-    if (id && this.settings.silenced.includes(id)) return Promise.resolve();
-    // A question waiting for an answer keeps its place; the hint waits behind it.
-    const waiting = this.question;
-    if (waiting) return new Promise((r) => setTimeout(() => r(this.inform(message, id)), 500));
-    return new Promise((resolve) => (this.question = { message, id, info: true, resolve: () => resolve() }));
+    return this.dialogs.inform(message, id);
   }
 
   /** Stop asking a question (its answer is OK from now on), or (`false`) ask it again. */

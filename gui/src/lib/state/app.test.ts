@@ -186,21 +186,22 @@ describe('questions', () => {
     await app.silence('clear_mappings');
     expect(app.settings.silenced).toContain('clear_mappings');
     await expect(app.confirmAsk('Clear?', { id: 'clear_mappings' })).resolves.toBe(true);
-    expect(app.question).toBeNull();
+    expect(app.dialogs.question).toBeNull();
     const pending = app.confirmAsk('Replace?', { id: 'whole_stick_replace' });
-    expect(app.question?.id).toBe('whole_stick_replace');
-    app.question?.resolve(null);
+    expect(app.dialogs.question?.id).toBe('whole_stick_replace');
+    app.dialogs.answerQuestion(null);
     await expect(pending).resolves.toBe(false);
     await app.silence('clear_mappings', false);
     expect(app.settings.silenced).not.toContain('clear_mappings');
     app.confirmAsk('Clear?', { id: 'clear_mappings' });
-    expect(app.question?.message).toBe('Clear?');
+    expect(app.dialogs.question?.message).toBe('Clear?');
   });
 
-  it('every question that can be silenced has a name in the settings', async () => {
-    const { QUESTION_IDS } = await import('./app.svelte');
-    const { has } = await import('../i18n/index.svelte');
-    expect(QUESTION_IDS.filter((id) => !has(`questions.ids.${id}`))).toEqual([]);
+  it('OK with "Don\'t ask again" silences the question in the settings', async () => {
+    const pending = app.confirmAsk('Replace?', { id: 'whole_stick_replace' });
+    app.dialogs.answerQuestion('ok', true);
+    await expect(pending).resolves.toBe(true);
+    await vi.waitFor(() => expect(app.settings.silenced).toContain('whole_stick_replace'));
   });
 });
 
