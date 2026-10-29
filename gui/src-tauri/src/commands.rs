@@ -471,7 +471,7 @@ pub fn config_load(path: PathBuf) -> CmdResult<LoadedConfig> {
     let (profile, diags, format) = dp_config::load_with_format(&path).map_err(err)?;
     Ok(LoadedConfig {
         profile,
-        diagnostics: diags.0,
+        diagnostics: diags.into_vec(),
         read_only: format == dp_config::Format::Json,
     })
 }
@@ -479,7 +479,7 @@ pub fn config_load(path: PathBuf) -> CmdResult<LoadedConfig> {
 /// The validation diagnostics of a profile being edited; nothing is written.
 #[tauri::command(async)]
 pub fn config_check(profile: Profile) -> Vec<Diagnostic> {
-    dp_config::validate(&profile).0
+    dp_config::validate(&profile).into_vec()
 }
 
 /// Validate and save; returns the validation diagnostics (errors block saving).
@@ -487,7 +487,7 @@ pub fn config_check(profile: Profile) -> Vec<Diagnostic> {
 pub fn config_save(app: AppHandle, path: PathBuf, profile: Profile) -> CmdResult<Vec<Diagnostic>> {
     let diags = dp_config::validate(&profile);
     if diags.has_errors() {
-        return Ok(diags.0);
+        return Ok(diags.into_vec());
     }
     library_change(&app, || {
         // The file as it was becomes an earlier version; a failure there does not stop saving.
@@ -501,7 +501,7 @@ pub fn config_save(app: AppHandle, path: PathBuf, profile: Profile) -> CmdResult
         }
         library::save_profile_atomic(&path, &profile).map_err(err)
     })?;
-    Ok(diags.0)
+    Ok(diags.into_vec())
 }
 
 /// The earlier versions kept of a config, the newest first.
@@ -552,7 +552,7 @@ pub fn config_import(
     })?;
     Ok(Imported {
         path,
-        diagnostics: diags.0,
+        diagnostics: diags.into_vec(),
     })
 }
 
