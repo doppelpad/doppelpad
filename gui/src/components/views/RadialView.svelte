@@ -6,8 +6,7 @@
   import { ChartPie, Plus, Trash2, TriangleAlert } from '@lucide/svelte';
   import { onDestroy } from 'svelte';
   import { t } from '../../lib/i18n/index.svelte';
-  import { controlLabel, controlLabelMixed } from '../../lib/model/controls';
-  import { keyFromEvent } from '../../lib/model/keymap';
+  import { controlLabelMixed } from '../../lib/model/controls';
   import { comboLabel, mappingSummary } from '../../lib/model/labels';
   import { layerIds, mappingAt } from '../../lib/model/profile';
   import {
@@ -23,12 +22,13 @@
     updateMenu,
   } from '../../lib/model/radial';
   import { app } from '../../lib/state/app.svelte';
+  import { controlChoiceItems, createControlCapture } from '../../lib/state/controlCapture.svelte';
   import { layerColor } from '../../lib/theme/layers';
   import type { ControlName, RadialApply, RadialMenu, RadialSelect } from '../../lib/types';
   import PositionPicker from '../radial/PositionPicker.svelte';
   import RingEditor from '../radial/RingEditor.svelte';
   import Chip from '../ui/Chip.svelte';
-  import Menu, { type MenuItem } from '../ui/Menu.svelte';
+  import Menu from '../ui/Menu.svelte';
   import Select from '../ui/Select.svelte';
   import Slider from '../ui/Slider.svelte';
 
@@ -104,53 +104,17 @@
     app.edit((q) => setOpener(q, layer, c));
   }
 
-  let capturing = $state(false);
-  let releasePresses = () => {};
+  const capture = createControlCapture(chooseOpener);
+  onDestroy(capture.stop);
 
-  function startCapture() {
-    capturing = true;
-    releasePresses = app.capturePresses((c) => {
-      stopCapture();
-      chooseOpener(c);
-    });
-  }
-
-  function stopCapture() {
-    if (!capturing) return;
-    capturing = false;
-    releasePresses();
-  }
-
-  function onKeydown(e: KeyboardEvent) {
-    if (!capturing) return;
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.key === 'Escape') return stopCapture();
-    const key = keyFromEvent(e);
-    if (key) {
-      stopCapture();
-      chooseOpener(`Key:${key}`);
-    }
-  }
-
-  onDestroy(stopCapture);
-
-  const openerItems = $derived<MenuItem[]>([
-    { label: t('radial.press_opener'), onclick: startCapture },
-    { heading: true, label: t('picker.gamepad') },
-    ...[...((app.catalog?.pad_buttons ?? []) as string[]), 'LT', 'RT'].map((c) => ({
-      label: controlLabel(c, app.family),
-      onclick: () => chooseOpener(c),
-    })),
-    { heading: true, label: t('picker.mouse') },
-    ...(app.catalog?.mouse_buttons ?? []).map((b) => ({
-      label: controlLabel(`Mouse:${b}`, app.family),
-      onclick: () => chooseOpener(`Mouse:${b}`),
-    })),
-  ]);
+  const openerItems = $derived(
+    controlChoiceItems(app.catalog, app.family, chooseOpener, {
+      press: t('radial.press_opener'),
+      onpress: capture.start,
+      extra: ['LT', 'RT'],
+    }),
+  );
 </script>
-
-<svelte:window onkeydowncapture={onKeydown} />
 
 <div class="radial">
   <header class="top">
@@ -223,16 +187,16 @@
                 <Chip size="s">{comboLabel(m.trigger, app.family)}</Chip>
                 {#if m.layer && m.layer !== 0}<span class="dim">{t('radial.on_layer', { layer: app.layerLabel(m.layer) })}</span>{/if}
               {/each}
-              {#if capturing}
+              {#if capture.active}
                 <span class="capturing">{t('radial.pressing')}</span>
-                <button class="btn" onclick={stopCapture}>{t('common.cancel')}</button>
+                <button class="btn" onclick={capture.stop}>{t('common.cancel')}</button>
               {:else if !disabled}
                 <Menu items={openerItems} class="btn">
                   {#snippet trigger()}{opened.length ? t('radial.change_opener') : t('radial.choose_opener')}{/snippet}
                 </Menu>
               {/if}
             </div>
-            {#if opened.length === 0 && !capturing}
+            {#if opened.length === 0 && !capture.active}
               <p class="warn"><TriangleAlert size={14} /> {t('radial.no_opener')}</p>
             {:else if opened.length}
               <p class="hint">{t('radial.opener_hint')}</p>
