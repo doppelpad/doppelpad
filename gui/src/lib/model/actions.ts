@@ -62,7 +62,12 @@ export const RECORD_MIN_PAUSE_MS = 10;
  * Steps for a recorded change of held controls: releases first, then presses, preceded
  * by the pause since the previous change when it is long enough to matter.
  */
-export function recordedSteps(before: Set<ControlName>, after: Set<ControlName>, gapMs: number | null, keyDelay: number): Action[] {
+export function recordedSteps(
+  before: ReadonlySet<ControlName>,
+  after: ReadonlySet<ControlName>,
+  gapMs: number | null,
+  keyDelay: number,
+): Action[] {
   const out: Action[] = [];
   const ups = [...before].filter((c) => !after.has(c)).sort();
   const downs = [...after].filter((c) => !before.has(c)).sort();

@@ -51,7 +51,7 @@
   const drawing = $derived(app.view === 'back' ? drawings.back : drawings.front);
 
   onMount(() => {
-    app.padHandler = runPadControls;
+    app.pad.navigate = runPadControls;
     app.init();
     win.init();
   });

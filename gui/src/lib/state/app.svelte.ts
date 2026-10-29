@@ -13,9 +13,10 @@ import { launchRows } from '../model/launches';
 import { clone } from '../model/util';
 import { isStreamingField, pointer } from '../dom';
 import { movedPath } from '../paths';
-import { padMode, PressRepeat } from '../padnav';
+import { padMode } from '../padnav';
 import { Dialogs, type Answer, type QuestionId, type QuestionOptions } from './dialogs.svelte';
 import { History, type EditKey } from './history';
+import { PadInput } from './padInput.svelte';
 import { flagsOf, hotkeyClashes, waitsForSave, type Flags } from '../model/lints';
 import type { Copied } from '../model/clipboard';
 import type { MenuItem } from '../../components/ui/Menu.svelte';
@@ -125,15 +126,8 @@ export class AppState {
   private history = new History();
   /** While set, every change belongs to one undo step (e.g. a recording); see `editGroup`. */
   private group: unknown = null;
-  /** Who gets the controller's presses instead of the editor (see `capturePresses`). */
-  private pressListener: ((c: ControlName) => void) | null = null;
-  /** Controls held on the primary controller; the drawing highlights exactly these. */
-  pressed = $state.raw(new Set<ControlName>());
-  /** Runs what the controller does while it drives the app (set by App.svelte). */
-  padHandler: ((controls: ControlName[]) => void) | null = null;
-  private padRepeat = new PressRepeat();
-  /** Repeats held directions while no new live state comes (a held D-pad does not change it). */
-  private padTimer: ReturnType<typeof setInterval> | null = null;
+  /** The primary controller's presses: held controls, captures, controller navigation. */
+  readonly pad = new PadInput({ mode: () => padMode(this.settings), select: (c) => this.selectPressed(c) });
   private toastId = 0;
   /** The settings write in flight: the next one waits for it, so it builds on its result. */
   private settingsWrite: Promise<void> = Promise.resolve();
@@ -224,13 +218,7 @@ export class AppState {
     if (before && s.app_navigation !== before.app_navigation) this.setPadNavigation(!this.settings.pad_navigation);
     if (firstSnapshot) this.applySlot = s.active_slot;
     const dev = this.primary;
-    const now = dev && this.catalog ? controlsFromPad(dev, this.catalog.pad_buttons) : new Set<ControlName>();
-    for (const c of now) {
-      if (!this.pressed.has(c)) this.onPhysicalPress(c);
-    }
-    // Live state comes many times a second; only a change of the held controls is news.
-    if (now.size !== this.pressed.size || [...now].some((c) => !this.pressed.has(c))) this.pressed = now;
-    this.drivePad();
+    this.pad.update(dev && this.catalog ? controlsFromPad(dev, this.catalog.pad_buttons) : new Set<ControlName>());
   }
 
   /** Controller navigation on or off (bottom bar, hotkey); it replaces press-to-select while on. */
@@ -240,45 +228,21 @@ export class AppState {
     this.toast(t(on ? 'padnav.on' : 'padnav.off'), 'info');
   }
 
-  /** While the controller drives the app: act on new presses and on held directions, again and again. */
-  private drivePad() {
-    const now = performance.now();
-    const driving = padMode(this.settings) === 'navigate' && !this.pressListener && document.hasFocus();
-    if (!driving) {
-      // What is held when the mode comes on does not act.
-      this.padRepeat.reset(this.pressed, now);
-    } else {
-      const acting = this.padRepeat.update(this.pressed, now);
-      if (acting.length) this.padHandler?.(acting);
-    }
-    if (driving && this.padRepeat.repeating) this.padTimer ??= setInterval(() => this.drivePad(), 40);
-    else if (this.padTimer) {
-      clearInterval(this.padTimer);
-      this.padTimer = null;
-    }
-  }
-
-  private onPhysicalPress(c: ControlName) {
-    if (this.pressListener) {
-      this.pressListener(c);
-      return;
-    }
-    if (padMode(this.settings) !== 'select' || !this.profile || !document.hasFocus()) return;
-    if (this.view !== 'front' && this.view !== 'back') return;
+  /** A control pressed on the controller selects it on the controller views, on the side that shows it. */
+  private selectPressed(c: ControlName) {
+    if (!this.profile || (this.view !== 'front' && this.view !== 'back')) return;
     this.select(c);
     this.view = sideShowing(drawingsFor(this.primary), this.view, c);
   }
 
-  /**
-   * Send the controller's presses to `fn` instead of selecting controls (without `fn` they just
-   * stay away from the editor) until the returned function is called. That call does nothing
-   * once another caller has taken the presses over.
-   */
-  capturePresses(fn: (c: ControlName) => void = () => {}): () => void {
-    this.pressListener = fn;
-    return () => {
-      if (this.pressListener === fn) this.pressListener = null;
-    };
+  /** Controls held on the primary controller; the drawing highlights exactly these. */
+  get pressed(): ReadonlySet<ControlName> {
+    return this.pad.pressed;
+  }
+
+  /** The controller's presses go to `fn` instead of the editor until the returned function is called (see `PadInput.capture`). */
+  capturePresses(fn?: (c: ControlName) => void): () => void {
+    return this.pad.capture(fn);
   }
 
   /** Await `p`; when it fails, show why, else show `ok` if given. Returns whether it worked. */
