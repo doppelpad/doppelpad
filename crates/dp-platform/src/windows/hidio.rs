@@ -1,9 +1,9 @@
 //! Overlapped HID device handle.
 //!
 //! One read is always pending; [`HidHandle::wait`] waits for it, for a timeout, or for the
-//! [`Waker`] that another thread can signal. Writes and feature reports use their own
-//! `OVERLAPPED`, so they never queue behind the pending read the way they would on a
-//! synchronous handle.
+//! [`Waker`] that another thread can signal. Writes and feature reports (read and sent) use
+//! their own `OVERLAPPED` and give up after [`WRITE_TIMEOUT`], so they never queue behind the
+//! pending read the way they would on a synchronous handle, and never block for good.
 
 use std::ffi::c_void;
 use std::io;
@@ -13,7 +13,6 @@ use std::time::Duration;
 
 use windows_sys::Win32::Devices::HumanInterfaceDevice::{
     HIDD_ATTRIBUTES, HidD_GetAttributes, HidD_GetProductString, HidD_GetSerialNumberString,
-    HidD_SetFeature,
 };
 use windows_sys::Win32::Foundation::{
     ERROR_IO_PENDING, GENERIC_READ, GENERIC_WRITE, GetLastError, HANDLE, WAIT_OBJECT_0,
@@ -36,6 +35,8 @@ use crate::padio::ReportIo;
 
 /// `CTL_CODE(FILE_DEVICE_KEYBOARD, 100, METHOD_OUT_DIRECT, FILE_ANY_ACCESS)`.
 const IOCTL_HID_GET_FEATURE: u32 = 0x000B_0192;
+/// `CTL_CODE(FILE_DEVICE_KEYBOARD, 100, METHOD_IN_DIRECT, FILE_ANY_ACCESS)`.
+const IOCTL_HID_SET_FEATURE: u32 = 0x000B_0191;
 /// Bluetooth writes can take a while; give up after this.
 const WRITE_TIMEOUT: Duration = Duration::from_secs(1);
 
@@ -260,20 +261,32 @@ impl HidIo {
         let n = unsafe { run_overlapped(handle, &self.io_event, Some(WRITE_TIMEOUT), start) }?;
         Ok(n as usize)
     }
-}
 
-impl HidIo {
-    /// Send a feature report, padded to the device's feature length.
+    /// Send a feature report (`report[0]` = report ID), padded to the device's feature
+    /// length. Overlapped, as a write: `HidD_SetFeature` would block on this handle without a
+    /// time limit.
     pub fn set_feature(&self, report: &[u8]) -> io::Result<()> {
         let mut buf = report.to_vec();
-        buf.resize(buf.len().max(self.caps().feature_len), 0);
-        // SAFETY: `buf` is valid for its length during the call.
-        if unsafe { HidD_SetFeature(self.handle.raw(), buf.as_mut_ptr().cast(), buf.len() as u32) }
-        {
-            Ok(())
-        } else {
-            Err(io::Error::last_os_error())
-        }
+        buf.resize(buf.len().max(self.caps.feature_len), 0);
+        let handle = self.handle.raw();
+        let (ptr, len) = (buf.as_ptr(), buf.len() as u32);
+        let start = |ov| {
+            // SAFETY: valid handle, the report as input buffer, and OVERLAPPED.
+            unsafe {
+                DeviceIoControl(
+                    handle,
+                    IOCTL_HID_SET_FEATURE,
+                    ptr.cast(),
+                    len,
+                    null_mut(),
+                    0,
+                    null_mut(),
+                    ov,
+                )
+            }
+        };
+        // SAFETY: `buf` lives until the request has finished.
+        unsafe { run_overlapped(handle, &self.io_event, Some(WRITE_TIMEOUT), start) }.map(drop)
     }
 }
 
