@@ -151,8 +151,8 @@
         class:mapped={ch.mapped}
         class:inherited={ch.inherited}
         class:selected={ch.selected}
-        class:noted={ch.hiddenNote}
-        class:flagged={ch.flagged}
+        class:note-mark={ch.hiddenNote}
+        class:flag-mark={ch.flagged}
         class:pressed={pressed.has(ch.lc.control)}
         style={chipStyle(ch.lc)}
         use:tip={ch.summary ? `${ch.label}: ${ch.summary}` : ch.label}
@@ -331,27 +331,9 @@
   .chip.pressed {
     box-shadow: 0 0 0 2px var(--accent);
   }
-  /* A warning about a mapping behind the chip (the diagnostics bar says which). */
-  .chip.flagged::before {
-    content: '';
-    position: absolute;
-    top: -3px;
-    left: -3px;
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    background: var(--warning);
-  }
-  /* A note the chip does not show: a small corner mark (Show notes shows it). */
-  .chip.noted::after {
-    content: '';
-    position: absolute;
-    top: -3px;
-    right: -3px;
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--text-dim);
+  /* The warning and note marks sit on the chip's corners. */
+  .chip {
+    --mark-inset: -3px;
   }
   .chip.gyro {
     left: 0;

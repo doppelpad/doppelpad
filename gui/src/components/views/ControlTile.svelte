@@ -31,8 +31,8 @@
   class:selected
   class:pressed
   class:mapped={!!summary}
-  class:noted={!!summary?.hiddenNote}
-  class:flagged
+  class:note-mark={!!summary?.hiddenNote}
+  class:flag-mark={flagged}
   {onclick}
   use:controlMenu={control}
 >
@@ -79,27 +79,5 @@
   .sum.inh {
     color: var(--text-faint);
     font-style: italic;
-  }
-  /* A warning about a mapping behind the tile (the diagnostics bar says which). */
-  .tile.flagged::before {
-    content: '';
-    position: absolute;
-    top: 4px;
-    left: 4px;
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    background: var(--warning);
-  }
-  /* A note the summary does not show: a small corner mark (Show notes shows it). */
-  .tile.noted::after {
-    content: '';
-    position: absolute;
-    top: 4px;
-    right: 4px;
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--text-dim);
   }
 </style>

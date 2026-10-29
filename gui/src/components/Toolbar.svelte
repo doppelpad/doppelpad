@@ -205,7 +205,6 @@
       <button
         class="layer"
         class:active={app.layer === id}
-        class:flagged={app.flags.layers.has(id)}
         style:--c={layerColor(id)}
         aria-describedby={tip?.layer === id ? tipId : undefined}
         onmouseenter={(e) => showTip(id, e.currentTarget, 400)}
@@ -217,6 +216,7 @@
         }}
       >
         <span class="dot"></span><span class="name">{app.layerLabel(id)}</span>
+        {#if app.flags.layers.has(id)}<span class="flag-dot"></span>{/if}
       </button>
     {/each}
     {#if overflow.length}
@@ -235,8 +235,9 @@
 
     <div class="measure" aria-hidden="true">
       {#each layers as id (id)}
-        <span class="layer" class:flagged={app.flags.layers.has(id)} bind:offsetWidth={chipWidths[id]}>
+        <span class="layer" bind:offsetWidth={chipWidths[id]}>
           <span class="dot"></span><span class="name">{app.layerLabel(id)}</span>
+          {#if app.flags.layers.has(id)}<span class="flag-dot"></span>{/if}
         </span>
       {/each}
       <span class="layer more" bind:offsetWidth={moreWidth}>+{layers.length}<ChevronDown size={14} /></span>
@@ -376,14 +377,5 @@
     border-color: var(--c);
     color: var(--text);
     background: color-mix(in srgb, var(--c) 14%, transparent);
-  }
-  /* A warning about the layer (nothing changes to it; the diagnostics bar says so). */
-  .layer.flagged::after {
-    content: '';
-    flex: none;
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--warning);
   }
 </style>
