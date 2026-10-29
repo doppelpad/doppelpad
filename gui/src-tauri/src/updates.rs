@@ -31,7 +31,8 @@ pub struct UpdateInfo {
 
 /// Ask the update endpoints whether a newer version is out; `None` when this one is the newest.
 /// On Linux only the AppImage updates itself (it replaces its own file), on macOS only the app
-/// bundle (it replaces the bundle); a build from source asks for nothing.
+/// bundle (it replaces the bundle), on Windows only an installed copy (the setup installs into
+/// Program Files, not beside a portable one); a build from source asks for nothing.
 #[tauri::command]
 pub async fn update_check(
     app: AppHandle,
@@ -43,6 +44,10 @@ pub async fn update_check(
     }
     if cfg!(target_os = "macos") && !in_app_bundle() {
         tracing::debug!("not in an app bundle: no update check");
+        return Ok(None);
+    }
+    if dp_config::portable_dir().is_some() {
+        tracing::debug!("a portable copy: no update check");
         return Ok(None);
     }
     let handle = app.clone();

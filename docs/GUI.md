@@ -722,8 +722,9 @@ An empty file named `portable` next to `doppelpad-gui.exe` (and `doppelpad.exe`)
 everything beside the app in a `data` folder: the settings, slots and hotkeys, the games and
 configs (`data\profiles`), the logs, the earlier versions of configs and the window's browser
 data. Copy the two programs and the `portable` file to a folder or a stick to use them
-there. A portable copy does not offer *Start with Windows*; *Settings → Files* says that it
-runs portable, and `doppelpad doctor` names the folder. The drivers (ViGEmBus, HidHide) still
+there. A portable copy does not offer *Start with Windows*, and it does not look for updates
+(the setup installs into Program Files): replace its programs with those of a new release.
+*Settings → Files* says that it runs portable, and `doppelpad doctor` names the folder. The drivers (ViGEmBus, HidHide) still
 have to be installed on each PC.
 
 ### Log file
