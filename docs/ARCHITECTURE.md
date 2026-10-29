@@ -34,7 +34,7 @@ deterministic.
 | Crate | Responsibility | OS code |
 |---|---|---|
 | `dp-core` | `PadState`, `Key`, `Control` names, `Profile` model, and the engine | none |
-| `dp-config` | TOML (de)serialization, validation, JSON profile import, profile directories | none |
+| `dp-config` | TOML (de)serialization, validation, JSON profile import, profile directories, and the library on disk the app works on (games, bundles, presets, earlier versions, moving it) | none |
 | `dp-platform` | Backend traits; Windows, Linux and macOS implementations; null backends elsewhere | yes |
 | `dp-ipc` | `Request`/`Response` protocol and a tiny blocking client/server | local sockets |
 | `dp-service` | The runtime loop, slots, auto-switching, IPC handling, live snapshots, HTTP API and DSU server; shared by the daemon and the GUI | none |
@@ -148,6 +148,23 @@ On macOS:
 - **HID scanner:** device discovery every 2 s through an IOHIDManager.
 - **event tap thread:** the keyboard/mouse event tap on a run loop of its own, connected to
   the loop by the same lock-free filter and channel as the Windows hooks.
+
+## The desktop app (`gui/src-tauri`)
+
+The app runs the service in its own process and shows the editor. Its Rust side (`dp-gui`):
+
+- `commands/`: what the window invokes, by what it touches: `library` (games, configs,
+  presets, bundles, where the library is; paths outside the library are refused), `service`,
+  `settings` and `system` (names, defaults and limits, the OS around the app). A failed command
+  answers with an error code the window words in its language, and a detail (`error.rs`). The
+  work on the library itself (moving it, saving with history, unpacking bundles) is dp-config's.
+- `state.rs`: what the commands, the tray and the watchers share. The main thread runs the
+  windows and the tray and never waits for the service: the tray's commands run on a thread of
+  their own, focus changes and slow commands on Tauri's thread pool.
+- Watcher threads follow the service's live snapshot: the tray, the notifications (their rules
+  in `osd.rs`'s `Osd::step`), the Steam Input hint, the crosshair, the radial menu and the
+  controller and mappings overlays (`overlay.rs` keeps their windows).
+- `tests.rs`: the fixtures that the frontend's tests check their types against.
 
 ## Windows drivers
 
