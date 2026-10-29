@@ -1,10 +1,13 @@
 //! Checks for mistakes in a profile that the engine would silently tolerate.
 
+use std::fmt::Display;
+use std::ops::RangeInclusive;
+
 use dp_core::pad::Rgb;
 use dp_core::profile::{
-    Action, AnalogTarget, Command, Crosshair, JumpMode, Light, Magnifier, Mapping, Mode, Profile,
-    RadialMenu, StickConfig, Sticks, TriggerEffect, Triggers, Vibration, VirtualMotion,
-    VirtualPadType, VirtualSticks,
+    Action, AnalogTarget, Command, Crosshair, Jitter, JumpMode, Light, Magnifier, Mapping, Mode,
+    Profile, RadialMenu, StickConfig, Sticks, TriggerEffect, Triggers, Vibration, VirtualMotion,
+    VirtualPadType, VirtualStick, VirtualSticks,
 };
 
 use crate::Diagnostics;
@@ -24,6 +27,11 @@ pub fn validate(p: &Profile) -> Diagnostics {
     check_reach(&mut d, p);
     check_outputs(&mut d, p);
     d
+}
+
+/// A range as messages write it: `10–200`.
+fn span<T: Display>(r: &RangeInclusive<T>) -> String {
+    format!("{}–{}", r.start(), r.end())
 }
 
 /// The diagnostic path of a mapping: its index and trigger.
@@ -171,8 +179,11 @@ fn check_mappings(d: &mut Diagnostics, p: &Profile, declared: &[u8]) {
                 "combos with more than four inputs are hard to press reliably",
             );
         }
-        if m.random_ms.is_some_and(|r| r > 10_000) {
-            d.error(&path, "random_ms must be at most 10000");
+        if m.random_ms.is_some_and(|r| r > Mapping::MAX_RANDOM_MS) {
+            d.error(
+                &path,
+                format!("random_ms must be at most {}", Mapping::MAX_RANDOM_MS),
+            );
         } else if m.random_ms.is_some()
             && !matches!(
                 m.mode,
@@ -220,8 +231,11 @@ fn check_mappings(d: &mut Diagnostics, p: &Profile, declared: &[u8]) {
         for a in &m.actions {
             check_action(d, &path, a, p);
         }
-        if m.actions.len() > 4096 {
-            d.error(&path, "macro has more than 4096 steps");
+        if m.actions.len() > Mapping::MAX_STEPS {
+            d.error(
+                &path,
+                format!("macro has more than {} steps", Mapping::MAX_STEPS),
+            );
         }
         match m.effective_mode() {
             played if played == m.mode => {}
@@ -290,11 +304,17 @@ fn check_devices(d: &mut Diagnostics, p: &Profile) {
     check_analog(d, "", &p.sticks, &p.triggers, [true; 4]);
     check_virtual(d, "", &p.virtual_devices.sticks, [true; 2]);
     let motion = &p.virtual_devices.motion;
-    if !(motion.shake_g > 0.0 && motion.shake_g <= 8.0) {
-        d.error("virtual.motion.shake_g", "must be in (0, 8]");
+    if !(motion.shake_g > 0.0 && motion.shake_g <= VirtualMotion::MAX_SHAKE_G) {
+        d.error(
+            "virtual.motion.shake_g",
+            format!("must be in (0, {}]", VirtualMotion::MAX_SHAKE_G),
+        );
     }
     if !VirtualMotion::SHAKE_MS.contains(&motion.shake_ms) {
-        d.error("virtual.motion.shake_ms", "must be 10–2000 ms");
+        d.error(
+            "virtual.motion.shake_ms",
+            format!("must be {} ms", span(&VirtualMotion::SHAKE_MS)),
+        );
     }
     for (field, zones) in [
         ("gyro.motion_zones", p.gyro.motion_zones),
@@ -356,7 +376,10 @@ fn check_feedback(d: &mut Diagnostics, p: &Profile) {
     {
         d.error(
             "vibration",
-            "motor strengths must be 0–1 and min_delay_ms 10–200",
+            format!(
+                "motor strengths must be 0–1 and min_delay_ms {}",
+                span(&Vibration::MIN_DELAY_MS)
+            ),
         );
     }
     for (name, t) in [
@@ -440,26 +463,42 @@ fn check_light(d: &mut Diagnostics, path: &str, l: &Light) {
         || l.colors.len() > Light::MAX_COLORS
         || !l.colors.iter().all(|c| is_hex_color(c))
     {
-        d.error(path, "a light bar has 1–10 colours written #rrggbb");
+        d.error(
+            path,
+            format!(
+                "a light bar has 1–{} colours written #rrggbb",
+                Light::MAX_COLORS
+            ),
+        );
     }
     if !Light::PERIOD_MS.contains(&l.period_ms) {
-        d.error(path, "period_ms must be 100–10000");
+        d.error(
+            path,
+            format!("period_ms must be {}", span(&Light::PERIOD_MS)),
+        );
     }
 }
 
 fn check_radial(d: &mut Diagnostics, p: &Profile) {
     for (i, m) in p.radial_menus.iter().enumerate() {
         let path = format!("radial_menus[{i}]");
-        if m.sectors.is_empty() || m.sectors.len() > 12 {
-            d.error(&path, "a radial menu has 1–12 sectors");
+        if m.sectors.is_empty() || m.sectors.len() > RadialMenu::MAX_SECTORS {
+            d.error(
+                &path,
+                format!("a radial menu has 1–{} sectors", RadialMenu::MAX_SECTORS),
+            );
         }
         if !(0.0..=1.0).contains(&m.tint)
             || !RadialMenu::SCALE.contains(&m.scale)
-            || m.delay_ms > 5000
+            || m.delay_ms > RadialMenu::MAX_DELAY_MS
         {
             d.error(
                 &path,
-                "tint must be 0–1, scale 0.5–2 and delay_ms at most 5000",
+                format!(
+                    "tint must be 0–1, scale {} and delay_ms at most {}",
+                    span(&RadialMenu::SCALE),
+                    RadialMenu::MAX_DELAY_MS
+                ),
             );
         }
         if m.layer == 0 {
@@ -510,8 +549,11 @@ fn check_radial(d: &mut Diagnostics, p: &Profile) {
 }
 
 fn check_crosshairs(d: &mut Diagnostics, p: &Profile) {
-    if p.crosshairs.len() > 10 {
-        d.error("crosshairs", "at most ten crosshairs");
+    if p.crosshairs.len() > Crosshair::MAX_PER_PROFILE {
+        d.error(
+            "crosshairs",
+            format!("at most {} crosshairs", Crosshair::MAX_PER_PROFILE),
+        );
     }
     for (i, c) in p.crosshairs.iter().enumerate() {
         let path = format!("crosshairs[{i}]");
@@ -521,7 +563,12 @@ fn check_crosshairs(d: &mut Diagnostics, p: &Profile) {
         {
             d.error(
                 &path,
-                "size must be 10–200, thickness 10–100 and outline 0–10",
+                format!(
+                    "size must be {}, thickness {} and outline 0–{}",
+                    span(&Crosshair::SIZE),
+                    span(&Crosshair::THICKNESS),
+                    Crosshair::MAX_OUTLINE
+                ),
             );
         }
         if !(0.0..=1.0).contains(&c.opacity) {
@@ -535,7 +582,11 @@ fn check_crosshairs(d: &mut Diagnostics, p: &Profile) {
         {
             d.error(
                 &path,
-                "the magnifier zooms 1–16 times and takes 0.1–1 of the screen",
+                format!(
+                    "the magnifier zooms {} times and takes {} of the screen",
+                    span(&Magnifier::ZOOM),
+                    span(&Magnifier::SIZE)
+                ),
             );
         }
         if !c.visible && c.magnifier.is_none() {
@@ -567,7 +618,11 @@ fn check_analog(
         if !StickConfig::DIRECTION_WIDTH.contains(&s.direction_width) {
             d.error(
                 format!("{prefix}sticks.{name}.direction_width"),
-                "must be between 1 and 44 degrees",
+                format!(
+                    "must be between {} and {} degrees",
+                    StickConfig::DIRECTION_WIDTH.start(),
+                    StickConfig::DIRECTION_WIDTH.end()
+                ),
             );
         }
         if !curve_in_range(&s.curve) {
@@ -599,38 +654,51 @@ fn check_virtual(d: &mut Diagnostics, prefix: &str, sticks: &VirtualSticks, whic
             }
         }
         for (field, v) in [("speed", s.speed), ("acceleration", s.acceleration)] {
-            if !(0.0..=100.0).contains(&v) {
-                d.error(path(field), "must be between 0 and 100");
+            if !VirtualStick::RATE.contains(&v) {
+                d.error(path(field), between(&VirtualStick::RATE));
             }
         }
         for (field, v) in [
             ("multiplier_x", s.multiplier_x),
             ("multiplier_y", s.multiplier_y),
         ] {
-            if !(0.1..=5.0).contains(&v) {
-                d.error(path(field), "must be between 0.1 and 5");
+            if !VirtualStick::MULTIPLIER.contains(&v) {
+                d.error(path(field), between(&VirtualStick::MULTIPLIER));
             }
         }
         if !curve_in_range(&s.curve) {
             d.error(path("curve"), "points must be in [0, 1]");
         }
         let j = &s.jitter;
-        if !(0.0..=0.5).contains(&j.min) || !(0.0..=0.5).contains(&j.max) || j.min > j.max {
+        let offset = Jitter::OFFSET;
+        if !offset.contains(&j.min) || !offset.contains(&j.max) || j.min > j.max {
             d.error(
                 path("jitter"),
-                "min and max must be in [0, 0.5], min not above max",
+                format!(
+                    "min and max must be in [{}, {}], min not above max",
+                    offset.start(),
+                    offset.end()
+                ),
             );
         }
-        if !(1..=1000).contains(&j.delay_min_ms)
-            || !(1..=1000).contains(&j.delay_max_ms)
+        if !Jitter::DELAY_MS.contains(&j.delay_min_ms)
+            || !Jitter::DELAY_MS.contains(&j.delay_max_ms)
             || j.delay_min_ms > j.delay_max_ms
         {
             d.error(
                 path("jitter"),
-                "delays must be 1–1000 ms, the shortest not above the longest",
+                format!(
+                    "delays must be {} ms, the shortest not above the longest",
+                    span(&Jitter::DELAY_MS)
+                ),
             );
         }
     }
+}
+
+/// `must be between a and b`.
+fn between<T: Display>(r: &RangeInclusive<T>) -> String {
+    format!("must be between {} and {}", r.start(), r.end())
 }
 
 /// Every curve point is in [0, 1].

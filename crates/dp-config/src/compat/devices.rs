@@ -542,7 +542,11 @@ impl<'a> Importer<'a> {
             );
         }
         if let Some(gap) = int(d, "vibrationRumbleDelay") {
-            v.min_delay_ms = gap.clamp(10, 200) as u32;
+            let (lo, hi) = (
+                Vibration::MIN_DELAY_MS.start(),
+                Vibration::MIN_DELAY_MS.end(),
+            );
+            v.min_delay_ms = gap.clamp(i64::from(*lo), i64::from(*hi)) as u32;
         }
         if get(d, "vibrationRumbleMode").is_some() {
             self.diags.info(

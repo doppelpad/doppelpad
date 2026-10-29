@@ -73,6 +73,8 @@ pub struct VirtualMotion {
 
 impl VirtualMotion {
     pub const SHAKE_MS: RangeInclusive<u32> = 10..=2000;
+    /// Strongest shake, in g (a shake is above 0).
+    pub const MAX_SHAKE_G: f32 = 8.0;
 }
 
 impl Default for VirtualMotion {
@@ -96,6 +98,13 @@ pub struct Jitter {
     /// Shortest and longest time before the offset moves on.
     pub delay_min_ms: u32,
     pub delay_max_ms: u32,
+}
+
+impl Jitter {
+    /// Offsets, as a fraction of full deflection.
+    pub const OFFSET: RangeInclusive<f32> = 0.0..=0.5;
+    /// Times before the offset moves on.
+    pub const DELAY_MS: RangeInclusive<u32> = 1..=1000;
 }
 
 impl Default for Jitter {
@@ -185,6 +194,11 @@ impl Default for VirtualStick {
 }
 
 impl VirtualStick {
+    /// Speed (full deflections per second) and acceleration (per second squared).
+    pub const RATE: RangeInclusive<f32> = 0.0..=100.0;
+    /// The per-axis multipliers.
+    pub const MULTIPLIER: RangeInclusive<f32> = 0.1..=5.0;
+
     /// Deflection a button pushing along one axis has reached after `held_s` seconds.
     pub fn ramp(&self, held_s: f32, multiplier: f32) -> f32 {
         let grown = (self.speed + 0.5 * self.acceleration * held_s) * held_s * multiplier;

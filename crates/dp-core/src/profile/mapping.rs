@@ -400,6 +400,11 @@ pub struct Mapping {
 }
 
 impl Mapping {
+    /// Longest random spread of turbo and repeat cycles.
+    pub const MAX_RANDOM_MS: u32 = 10_000;
+    /// Most steps in one sequence.
+    pub const MAX_STEPS: usize = 4096;
+
     pub fn new(trigger: impl Into<Combo>, actions: Vec<Action>) -> Self {
         Mapping {
             trigger: trigger.into(),
