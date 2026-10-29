@@ -41,17 +41,14 @@
   /** The layer map is open. */
   let mapOpen = $state(false);
 
-  /** The layer chip whose tooltip shows, and where (below the chip). */
-  let tip = $state<{ layer: number; x: number; y: number } | null>(null);
+  /** The layer chip whose tooltip shows, and the chip's box. */
+  let tip = $state<{ layer: number; anchor: DOMRect } | null>(null);
   let tipTimer: ReturnType<typeof setTimeout> | undefined;
   const tipId = $props.id();
 
   function showTip(layer: number, chip: HTMLElement, delay: number) {
     clearTimeout(tipTimer);
-    tipTimer = setTimeout(() => {
-      const r = chip.getBoundingClientRect();
-      tip = { layer, x: Math.max(4, Math.min(r.left, window.innerWidth - 344)), y: r.bottom + 6 };
-    }, delay);
+    tipTimer = setTimeout(() => (tip = { layer, anchor: chip.getBoundingClientRect() }), delay);
   }
 
   function hideTip() {
@@ -260,7 +257,7 @@
   </div>
 </div>
 
-{#if tip}<LayerTip layer={tip.layer} x={tip.x} y={tip.y} id={tipId} />{/if}
+{#if tip}<LayerTip layer={tip.layer} anchor={tip.anchor} id={tipId} />{/if}
 
 {#if transformOpen}<TransformDialog onclose={() => (transformOpen = false)} />{/if}
 {#if mapOpen}<LayerMapDialog onclose={() => (mapOpen = false)} />{/if}

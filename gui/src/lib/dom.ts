@@ -36,6 +36,12 @@ export function popoverOpen(): boolean {
   return document.querySelector('[data-popover]') !== null;
 }
 
+/** Listen to `type` events on `target` (in the capture phase with `capture`) until the returned function is called. */
+export function listen<E extends Event>(target: EventTarget, type: string, fn: (e: E) => void, capture = false): () => void {
+  target.addEventListener(type, fn as EventListener, capture);
+  return () => target.removeEventListener(type, fn as EventListener, capture);
+}
+
 /**
  * The pointer gesture in progress: `down` while a button is held, `id` counts the gestures.
  * Changes made while it is down (a drag) belong together.

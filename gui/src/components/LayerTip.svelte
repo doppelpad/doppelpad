@@ -6,9 +6,19 @@
   import { comboLabel } from '../lib/model/labels';
   import { layerEntrances, layerRadialMenus } from '../lib/model/layers';
   import { layerInheritance, layerUnlock } from '../lib/model/profile';
+  import { placePopup, windowBox } from '../lib/place';
   import { app } from '../lib/state/app.svelte';
 
-  let { layer, x, y, id }: { layer: number; x: number; y: number; id: string } = $props();
+  /** `anchor`: the box of the chip it belongs to; it shows below it. */
+  let { layer, anchor, id }: { layer: number; anchor: DOMRect; id: string } = $props();
+
+  let box: HTMLDivElement | undefined = $state();
+  let pos = $state<{ left: number; top: number } | null>(null);
+  $effect(() => {
+    if (!box) return;
+    const place = placePopup(anchor, { width: box.offsetWidth, height: box.offsetHeight }, windowBox(), { gap: 6, edge: 4 });
+    pos = { left: place.left, top: place.top };
+  });
 
   const p = $derived(app.profile);
   const entrances = $derived(p ? layerEntrances(p, layer) : []);
@@ -17,7 +27,15 @@
   const unlock = $derived(p && layer !== 0 ? layerUnlock(p, layer) : undefined);
 </script>
 
-<div class="tip" role="tooltip" {id} style="left: {x}px; top: {y}px">
+<div
+  class="tip"
+  role="tooltip"
+  {id}
+  bind:this={box}
+  style:left="{pos?.left ?? 0}px"
+  style:top="{pos?.top ?? 0}px"
+  style:visibility={pos ? 'visible' : 'hidden'}
+>
   <div class="name">{app.layerLabel(layer)}</div>
   {#if entrances.length}
     <ul>

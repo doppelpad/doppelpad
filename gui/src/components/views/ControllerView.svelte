@@ -7,6 +7,7 @@
   import { t } from '../../lib/i18n/index.svelte';
   import { hasMotion, moveStickCaps } from '../../lib/model/devices';
   import { buildChips, clickSide, gyroChipOf, pressedChips, type ChipView } from '../../lib/model/chips';
+  import { placePopup, pointBox } from '../../lib/place';
   import { polylinePoints } from '../../lib/svg';
   import { app } from '../../lib/state/app.svelte';
   import type { ControlName } from '../../lib/types';
@@ -34,11 +35,10 @@
   let menuUp = $state(false);
   $effect(() => {
     if (!menu || !menuEl || !deviceEl || !stageEl) return;
-    const h = menuEl.offsetHeight;
     const d = deviceEl.getBoundingClientRect();
-    const s = stageEl.getBoundingClientRect();
     const y = d.top + ((menu.y - vy) / vh) * d.height;
-    menuUp = y + 12 + h > s.bottom && y - 12 - h >= s.top;
+    const size = { width: menuEl.offsetWidth, height: menuEl.offsetHeight };
+    menuUp = placePopup(pointBox(0, y), size, stageEl.getBoundingClientRect(), { gap: 12, edge: 0 }).up;
   });
   const chipView = $derived<ChipView>({
     profile: app.profile,

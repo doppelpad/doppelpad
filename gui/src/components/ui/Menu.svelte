@@ -4,8 +4,10 @@
   // longer than the room it has. It closes on a choice, a click elsewhere, Escape or Tab,
   // scrolling, resizing or when the window loses the focus.
   import type { Snippet } from 'svelte';
+  import { listen } from '../../lib/dom';
   import type { MenuItem } from '../../lib/menu';
   import { stepper } from '../../lib/padnav';
+  import { placePopup, windowBox } from '../../lib/place';
   import { tip } from '../../lib/tooltip.svelte';
   import MenuList from './MenuList.svelte';
 
@@ -48,21 +50,12 @@
   let list: HTMLElement | undefined = $state();
   let pos = $state<{ left: number; top: number; minWidth: number; maxHeight: number } | null>(null);
 
-  /** Room kept free between the list and the window's edges. */
-  const EDGE = 8;
-
   $effect(() => {
     if (!open || !popup || !list) return;
     const r = root.getBoundingClientRect();
-    const below = window.innerHeight - r.bottom - EDGE;
-    const above = r.top - EDGE;
-    const h = popup.offsetHeight;
-    const up = h + 4 > below && above > below;
-    const maxHeight = Math.max(120, (up ? above : below) - 4);
-    const w = Math.max(popup.offsetWidth, r.width);
-    const left = Math.max(EDGE, Math.min(align === 'right' ? r.right - w : r.left, window.innerWidth - w - EDGE));
-    const top = up ? r.top - 4 - Math.min(h, maxHeight) : r.bottom + 4;
-    pos = { left, top, minWidth: r.width, maxHeight };
+    const size = { width: Math.max(popup.offsetWidth, r.width), height: popup.offsetHeight };
+    const place = placePopup(r, size, windowBox(), { align: align === 'right' ? 'end' : 'start', minHeight: 120 });
+    pos = { left: place.left, top: place.top, minWidth: r.width, maxHeight: place.maxHeight };
     // The checked item, else the first one, gets the focus (and is scrolled into view).
     const start =
       list.querySelector<HTMLElement>('.item.checked:not(:disabled)') ?? list.querySelector<HTMLElement>('.item:not(:disabled)');
@@ -108,10 +101,20 @@
   }
 
   const dismiss = () => open && close(false);
-</script>
 
-<svelte:window onpointerdowncapture={onpointerdown} onkeydowncapture={onkeydown} onblur={dismiss} onresize={dismiss} />
-<svelte:document onscrollcapture={onscroll} />
+  // Listening only while open: a list of games has a menu per row.
+  $effect(() => {
+    if (!open) return;
+    const off = [
+      listen(window, 'pointerdown', onpointerdown, true),
+      listen(window, 'keydown', onkeydown, true),
+      listen(window, 'blur', dismiss),
+      listen(window, 'resize', dismiss),
+      listen(document, 'scroll', onscroll, true),
+    ];
+    return () => off.forEach((stop) => stop());
+  });
+</script>
 
 <div class="menu" class:wide bind:this={root}>
   <button

@@ -2,13 +2,11 @@
   // The one tooltip bubble of the window (see lib/tooltip.svelte.ts): below the element it
   // belongs to, or above when there is no room, and always inside the window. Scrolling,
   // a key, a click or the window losing the focus hide it.
+  import { placePopup, windowBox } from '../../lib/place';
   import { hideTooltip, tooltip } from '../../lib/tooltip.svelte';
 
   let box: HTMLDivElement | undefined = $state();
   let pos = $state<{ left: number; top: number } | null>(null);
-
-  const GAP = 6;
-  const EDGE = 6;
 
   $effect(() => {
     const t = tooltip.current;
@@ -16,13 +14,9 @@
       pos = null;
       return;
     }
-    const w = box.offsetWidth;
-    const h = box.offsetHeight;
-    const a = t.anchor;
-    const left = Math.max(EDGE, Math.min(a.left + a.width / 2 - w / 2, window.innerWidth - w - EDGE));
-    const below = a.bottom + GAP;
-    const top = below + h + EDGE > window.innerHeight && a.top - GAP - h >= EDGE ? a.top - GAP - h : below;
-    pos = { left, top };
+    const size = { width: box.offsetWidth, height: box.offsetHeight };
+    const place = placePopup(t.anchor, size, windowBox(), { gap: 6, edge: 6, align: 'center' });
+    pos = { left: place.left, top: place.top };
   });
 
   const hide = () => hideTooltip();
