@@ -37,9 +37,10 @@ const TAKEOVER_POLL: Duration = Duration::from_millis(50);
 const TAKEOVER_WAIT: Duration = Duration::from_secs(3);
 
 /// If a `doppelpad daemon` (or another instance) already serves remapping, ask it to stop
-/// and wait until it no longer answers, so this app can take over the devices.
+/// and wait until it no longer answers, so this app can take over the devices. Any answer
+/// counts, also one from another version that this app cannot read.
 fn take_over_running_service(notices: &mut Vec<Notice>) {
-    let answers = || dp_ipc::call(&dp_ipc::Request::Status).is_ok();
+    let answers = dp_ipc::is_running;
     if answers() {
         let _ = dp_ipc::call(&dp_ipc::Request::Shutdown);
         let deadline = Instant::now() + TAKEOVER_WAIT;
