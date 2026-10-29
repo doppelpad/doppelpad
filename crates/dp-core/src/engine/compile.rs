@@ -3,7 +3,7 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use super::recognizer::RecConfig;
-use crate::control::{Control, Dir, TouchGesture};
+use crate::control::{Control, Dir, Half, TouchGesture, TrackpadPart};
 use crate::keys::{Key, MouseButton, WheelDir};
 use crate::pad::{PadButton, Stick, Trigger};
 use crate::profile::{
@@ -238,6 +238,51 @@ pub(super) struct LayerTable {
     pub(super) muted: HashSet<Control>,
     /// Effective analog routes (indices into the profile's).
     pub(super) routes: Vec<usize>,
+    /// What this layer's mappings and routes take from the physical pad for good, worked out
+    /// once: passthrough asks every tick.
+    pub(super) taken: Taken,
+}
+
+/// Physical inputs a layer keeps from the virtual pad whatever happens (see
+/// `Engine::passthrough`, which adds what pending and consumed presses hide).
+#[derive(Clone, Copy, Debug, Default)]
+pub(super) struct Taken {
+    /// Mapped buttons, a bitset over `PadButton::bit`.
+    pub(super) buttons: u32,
+    /// A trackpad click is mapped (it comes from the touchpad button).
+    pub(super) clicks: bool,
+    /// By `Stick as usize`: a stick control is mapped or a route consumes the stick.
+    pub(super) sticks: [bool; 2],
+    /// By `Trigger as usize`: a trigger control is mapped.
+    pub(super) triggers: [bool; 2],
+    pub(super) touchpad: bool,
+    pub(super) gyro: bool,
+}
+
+impl Taken {
+    fn of(table: &LayerTable, p: &Profile) -> Taken {
+        let mapped = |c: Control| table.mapped.contains(&c);
+        let consumes = |src: AnalogSource| {
+            table
+                .routes
+                .iter()
+                .any(|&i| p.analog[i].source == src && p.analog[i].consume)
+        };
+        Taken {
+            buttons: PadButton::ALL
+                .into_iter()
+                .filter(|b| mapped(Control::Button(*b)))
+                .fold(0, |bits, b| bits | b.bit()),
+            clicks: Half::ALL
+                .into_iter()
+                .any(|h| mapped(Control::Trackpad(h, TrackpadPart::Click))),
+            sticks: Stick::ALL
+                .map(|s| Control::of_stick(s).any(mapped) || consumes(AnalogSource::from(s))),
+            triggers: Trigger::ALL.map(|t| Control::of_trigger(t).any(mapped)),
+            touchpad: Control::of_touchpad().any(mapped) || consumes(AnalogSource::Touchpad),
+            gyro: Control::of_gyro().any(mapped) || consumes(AnalogSource::Gyro),
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -671,6 +716,7 @@ pub(super) fn compile(p: &Profile) -> Compiled {
                 }
             }
         }
+        table.taken = Taken::of(&table, p);
         layers.insert(lid, table);
     }
 
