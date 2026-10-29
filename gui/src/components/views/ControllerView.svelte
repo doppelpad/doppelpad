@@ -5,7 +5,7 @@
   import { Rotate3d } from '@lucide/svelte';
   import { DEVICE_LAYOUTS, type DeviceId, type LayoutControl } from '../../assets/devices/layouts';
   import { t } from '../../lib/i18n/index.svelte';
-  import { hasMotion, moveStickCaps } from '../../lib/model/devices';
+  import { hasMotion } from '../../lib/model/devices';
   import { buildChips, clickSide, gyroChipOf, pressedChips, type ChipView } from '../../lib/model/chips';
   import { placePopup, pointBox } from '../../lib/place';
   import { polylinePoints } from '../../lib/svg';
@@ -15,6 +15,7 @@
   import { controlMenu, groupItems, menuItems } from '../binding/controlMenu';
   import { isFlagged } from '../../lib/model/lints';
   import { tip } from '../../lib/tooltip.svelte';
+  import DeviceDrawing from '../DeviceDrawing.svelte';
 
   let { device }: { device: DeviceId } = $props();
 
@@ -120,37 +121,22 @@
     choose(c, [x, y]);
   }
 
-  // Reflect state on the drawing's parts: mapped and selected ...
-  $effect(() => {
-    if (!drawing) return;
-    const byControl = new Map(chips.map((ch) => [ch.lc.control, ch]));
-    for (const g of drawing.querySelectorAll<SVGGElement>('[data-control]')) {
-      const ch = byControl.get(g.getAttribute('data-control') ?? '');
-      g.classList.toggle('mapped', !!ch?.mapped);
-      g.classList.toggle('selected', !!ch?.selected);
-    }
-  });
-  // ... held ...
-  $effect(() => {
-    if (!drawing) return;
-    for (const g of drawing.querySelectorAll<SVGGElement>('[data-control]')) {
-      g.classList.toggle('pressed', pressed.has(g.getAttribute('data-control') ?? ''));
-    }
-  });
-  // ... and the sticks' deflection (again when another drawing comes in).
-  $effect(() => {
-    void layout;
-    if (drawing) moveStickCaps(drawing, app.primary?.state.axes ?? [0, 0, 0, 0]);
-  });
+  /** The drawing's parts show what their chips say: mapped and selected. */
+  const marks = $derived(new Map(chips.map((ch) => [ch.lc.control, { mapped: ch.mapped, selected: ch.selected }])));
+  const NO_AXES = [0, 0, 0, 0];
 </script>
 
 <div class="stage" bind:this={stageEl}>
   <div class="device" style="aspect-ratio: {vw} / {vh}" bind:this={deviceEl}>
-    <!-- svelte-ignore a11y_click_events_have_key_events -->
-    <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div class="drawing" bind:this={drawing} onclick={onDrawingClick} oncontextmenu={onDrawingMenu}>
-      {@html layout.svg}
-    </div>
+    <DeviceDrawing
+      {layout}
+      {pressed}
+      {marks}
+      axes={app.primary?.state.axes ?? NO_AXES}
+      bind:el={drawing}
+      onclick={onDrawingClick}
+      oncontextmenu={onDrawingMenu}
+    />
 
     <svg class="leaders" viewBox="{vx} {vy} {vw} {vh}" aria-hidden="true">
       {#each chips as ch (ch.lc.control)}
@@ -236,47 +222,36 @@
     width: min(100cqw - 8px, (100cqh - 8px) * 1000 / 700);
     color: var(--text-faint);
   }
-  .drawing,
+  .device > :global(.drawing),
   .leaders {
     position: absolute;
     inset: 0;
   }
-  .drawing :global(svg) {
-    width: 100%;
-    height: 100%;
-    display: block;
+  /* Parts can be clicked; the held ones (DeviceDrawing) win over hover, mapped and selected. */
+  .device {
+    --drawing-body: var(--line-strong);
   }
-  .drawing :global([data-control]) {
+  .device :global([data-control]) {
     cursor: pointer;
-    color: var(--line-strong);
     transition: color 0.12s;
   }
-  .drawing :global([data-control] .hit) {
+  .device :global([data-control] .hit) {
     transition: fill-opacity 0.12s;
   }
-  .drawing :global([data-control]:hover) {
+  .device :global([data-control]:hover:not(.pressed)) {
     color: var(--text-dim);
   }
-  .drawing :global([data-control]:hover .hit) {
+  .device :global([data-control]:hover:not(.pressed) .hit) {
     fill-opacity: 0.08;
   }
-  .drawing :global([data-control].mapped) {
+  .device :global([data-control].mapped:not(.pressed)) {
     color: color-mix(in srgb, var(--accent) 70%, var(--line-strong));
   }
-  .drawing :global([data-control].selected) {
+  .device :global([data-control].selected:not(.pressed)) {
     color: var(--accent);
   }
-  .drawing :global([data-control].selected .hit) {
+  .device :global([data-control].selected:not(.pressed) .hit) {
     fill-opacity: 0.16;
-  }
-  .drawing :global([data-control].pressed) {
-    color: var(--accent-hover);
-  }
-  .drawing :global([data-control].pressed .hit) {
-    fill-opacity: 0.35;
-  }
-  .drawing :global(.body) {
-    color: var(--line-strong);
   }
   .leaders {
     pointer-events: none;

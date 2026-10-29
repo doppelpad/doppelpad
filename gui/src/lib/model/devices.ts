@@ -75,7 +75,7 @@ export const AXES = {
   right: { x: 2, y: 3, trigger: 5 },
 } as const satisfies Record<Side, { x: number; y: number; trigger: number }>;
 
-const stickIn = (axes: number[], side: Side): [number, number] => [axes[AXES[side].x], axes[AXES[side].y]];
+const stickIn = (axes: readonly number[], side: Side): [number, number] => [axes[AXES[side].x], axes[AXES[side].y]];
 
 /** A stick's deflection `[x, y]` (−1..1, up positive). */
 export const stickAxes = (pad: PadState, side: Side) => stickIn(pad.axes, side);
@@ -88,12 +88,10 @@ export function padButtonsDown<T extends string>(pad: PadState, names: T[]): T[]
   return names.filter((_, i) => (pad.buttons >>> i) & 1);
 }
 
-/** Move a drawing's stick caps by the sticks' deflection in `axes` (as in `PadState`). */
-export function moveStickCaps(svg: Element, axes: number[]) {
-  for (const g of svg.querySelectorAll<SVGGElement>('[data-stick]')) {
-    const [x, y] = stickIn(axes, g.getAttribute('data-stick') === 'Left' ? 'left' : 'right');
-    g.querySelector('.stick-cap')?.setAttribute('transform', `translate(${(x * 14).toFixed(1)} ${(-y * 14).toFixed(1)})`);
-  }
+/** How far a drawing moves a stick's cap for the deflection in `axes` (as in `PadState`), as an SVG transform. */
+export function stickCapTransform(axes: readonly number[], side: Side): string {
+  const [x, y] = stickIn(axes, side);
+  return `translate(${(x * 14).toFixed(1)} ${(-y * 14).toFixed(1)})`;
 }
 
 /** The controls a controller's live state presses (`buttons`: the catalog's pad buttons). */

@@ -5,10 +5,13 @@
   import { onMount } from 'svelte';
   import { DEVICE_LAYOUTS } from '../../assets/devices/layouts';
   import type { Side } from '../../lib/model/analog';
+  import { pressedChips } from '../../lib/model/chips';
   import { SIDES, SIDE_NAMES } from '../../lib/model/controls';
-  import { controlsFromPad, drawingsFor, moveStickCaps, triggerAxis } from '../../lib/model/devices';
+  import { controlsFromPad, drawingsFor, triggerAxis } from '../../lib/model/devices';
+  import { clamp } from '../../lib/model/util';
   import { overlayContent } from '../../lib/overlay';
   import type { PadOverlayContent } from '../../lib/types';
+  import DeviceDrawing from '../DeviceDrawing.svelte';
   import CornerFrame from './CornerFrame.svelte';
 
   let content = $state<PadOverlayContent | null>(null);
@@ -21,20 +24,9 @@
   });
 
   const layout = $derived(content ? DEVICE_LAYOUTS[drawingsFor(content.device).front] : null);
-  const pressed = $derived(content ? controlsFromPad(content.device.state, buttons) : new Set<string>());
-  const STICKS: Record<string, string> = { LS: SIDES.left.stick, RS: SIDES.right.stick };
-
-  // Light up the pressed parts and move the stick caps.
-  $effect(() => {
-    if (!drawing || !content || !layout) return;
-    const held = [...pressed];
-    for (const g of drawing.querySelectorAll<SVGGElement>('[data-control]')) {
-      const c = g.getAttribute('data-control') ?? '';
-      const stick = STICKS[c];
-      g.classList.toggle('pressed', pressed.has(c) || (!!stick && held.some((p) => p.startsWith(stick))));
-    }
-    moveStickCaps(drawing, content.device.state.axes);
-  });
+  /** The controls held, and the drawn ones they light. */
+  const held = $derived(content ? controlsFromPad(content.device.state, buttons) : new Set<string>());
+  const pressed = $derived(layout ? pressedChips(layout.controls, held) : new Set<string>());
 
   // The front drawing hides the triggers behind the bumpers, so a bar above each bumper
   // shows how far its trigger is pulled.
@@ -55,19 +47,19 @@
       return [{ name: SIDES[side].trigger, side, x: b.x, y: b.y - BAR.gap - BAR.h, w: b.width, left: !i }];
     });
   });
-  const pull = (side: Side) => Math.min(1, Math.max(0, content ? triggerAxis(content.device.state, side) : 0));
+  const pull = (side: Side) => clamp(content ? triggerAxis(content.device.state, side) : 0, 0, 1);
 </script>
 
 {#if content && layout}
   {@const [, , vw, vh] = layout.viewBox}
   <CornerFrame corner={content.corner} opacity={content.opacity}>
     <div class="card" style="aspect-ratio: {vw} / {vh}">
-      <div class="drawing" bind:this={drawing}>{@html layout.svg}</div>
+      <DeviceDrawing {layout} {pressed} axes={content.device.state.axes} bind:el={drawing} />
       {#if bars.length}
         <svg class="triggers" viewBox={layout.viewBox.join(' ')} aria-hidden="true">
           {#each bars as bar (bar.name)}
             {@const w = bar.w * pull(bar.side)}
-            <g class:pressed={pressed.has(bar.name)}>
+            <g class:pressed={held.has(bar.name)}>
               <rect class="track" x={bar.x} y={bar.y} width={bar.w} height={BAR.h} rx={BAR.h / 2} />
               {#if w > 0}
                 <!-- fills from the outer end inwards -->
@@ -99,23 +91,9 @@
     background: color-mix(in srgb, var(--bg-0) 82%, transparent);
     border: 1px solid var(--line-strong);
   }
-  .drawing,
-  .drawing :global(svg) {
+  .card :global(.drawing) {
     width: 100%;
     height: 100%;
-    display: block;
-  }
-  .drawing :global([data-control]) {
-    color: var(--line-strong);
-  }
-  .drawing :global([data-control].pressed) {
-    color: var(--accent-hover);
-  }
-  .drawing :global([data-control].pressed .hit) {
-    fill-opacity: 0.45;
-  }
-  .drawing :global(.body) {
-    color: var(--text-faint);
   }
   .triggers {
     position: absolute;
