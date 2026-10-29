@@ -90,7 +90,9 @@ the runtime:
 
 When the layer changes, it updates the capture filter, which decides which keys or buttons
 are swallowed. It hides each session's physical pad (HidHide on Windows, `EVIOCGRAB` on
-Linux) while its profile has a virtual pad. Everything is undone on `stop` and on drop.
+Linux, exclusive access on macOS) while its profile has a virtual pad; macOS, which has no
+virtual pads yet, hides it whenever the profile asks, so the game does not also see input that
+a mapping turned into keys. Everything is undone on `stop` and on drop.
 
 Joy-Cons are reported one by one and combined by `dp_platform::joycon::JoyConCombiner`, which
 wraps the HID backend on Windows and the evdev backend on Linux: a left and a right Joy-Con

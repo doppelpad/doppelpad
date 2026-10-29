@@ -166,7 +166,8 @@ struct HotkeyState {
     actions: Vec<(DeviceId, HotkeyAction)>,
 }
 
-/// The live controller overlay and the mappings overlay, and the app's controller navigation.
+/// What the app shows for the runtime: the live controller and mappings overlays, the
+/// controller navigation and the last screenshot.
 #[derive(Default)]
 struct Overlays {
     pad: bool,
@@ -347,11 +348,8 @@ impl Runtime {
     /// The library moved from `from` to `to`: sessions running one of its files name the file
     /// in its new place (the profile itself is unchanged, so nothing restarts).
     pub(crate) fn library_moved(&mut self, from: &Path, to: &Path) {
-        for s in &mut self.sessions {
-            let moved = s.path.as_ref();
-            if let Some(p) = moved.and_then(|p| dp_config::relocate::moved_path(p, from, to)) {
-                s.path = Some(p);
-            }
+        for path in self.sessions.iter_mut().filter_map(|s| s.path.as_mut()) {
+            crate::slots::follow_move(path, from, to);
         }
     }
 

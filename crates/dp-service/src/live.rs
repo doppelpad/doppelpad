@@ -28,11 +28,15 @@ pub struct SharedLive(Arc<Mutex<(u64, Arc<LiveState>)>>);
 
 impl SharedLive {
     /// Store `state` if it is the first or differs from the current snapshot.
+    /// Only the service thread publishes, so the comparison runs outside the lock that every
+    /// reader takes.
     pub(crate) fn publish(&self, state: LiveState) {
-        let mut current = lock_ignore_poison(&self.0);
-        if current.0 == 0 || *current.1 != state {
-            current.0 += 1;
-            current.1 = Arc::new(state);
+        let (generation, current) = {
+            let c = lock_ignore_poison(&self.0);
+            (c.0, c.1.clone())
+        };
+        if generation == 0 || *current != state {
+            *lock_ignore_poison(&self.0) = (generation + 1, Arc::new(state));
         }
     }
 

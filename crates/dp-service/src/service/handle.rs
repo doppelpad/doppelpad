@@ -212,16 +212,12 @@ impl Service {
     /// Switch to another profiles directory; see [`ServiceCmd::UseLibrary`].
     fn use_library(&mut self, dir: PathBuf, moved_from: Option<PathBuf>) -> ServiceReply {
         if let Some(from) = &moved_from {
-            let moved = |p: &mut Option<PathBuf>| {
-                if let Some(n) = p
-                    .as_ref()
-                    .and_then(|p| dp_config::relocate::moved_path(p, from, &dir))
-                {
-                    *p = Some(n);
-                }
-            };
-            moved(&mut self.oneoff);
-            moved(&mut self.auto_active);
+            for p in [&mut self.oneoff, &mut self.auto_active]
+                .into_iter()
+                .flatten()
+            {
+                crate::slots::follow_move(p, from, &dir);
+            }
             self.rt.library_moved(from, &dir);
             self.update_state(|s| s.library_moved(from, &dir));
         }
