@@ -122,7 +122,7 @@ fn main() {
                 let state = app_handle.state::<AppState>();
                 match event {
                     // Pause remapping while editing so mapped keys don't reach the editor.
-                    WindowEvent::Focused(focused) => state.set_main_focused(*focused),
+                    WindowEvent::Focused(focused) => state.set_main_focused(&app_handle, *focused),
                     // Closing hides to the tray; remapping keeps running.
                     WindowEvent::CloseRequested { api, .. } => {
                         api.prevent_close();
@@ -131,7 +131,7 @@ fn main() {
                         }
                         main_window::show_in_dock(&app_handle, false);
                         // A hidden window has no focus, whether or not Windows reports it.
-                        state.set_main_focused(false);
+                        state.set_main_focused(&app_handle, false);
                     }
                     WindowEvent::Resized(_) => {
                         if let Some(w) = app_handle.get_webview_window(MAIN_WINDOW) {

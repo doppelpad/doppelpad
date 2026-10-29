@@ -5,6 +5,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use dp_service::{ServiceCmd, ServiceHandle, SharedLive};
+use tauri::{AppHandle, Manager};
 
 use crate::commands::CmdResult;
 use crate::commands::system::Notice;
@@ -25,6 +26,12 @@ pub struct AppState {
     pub live: SharedLive,
     /// Read with [`AppState::settings`], changed with [`AppState::save_settings`].
     settings: Mutex<GuiSettings>,
+    /// Held while the settings are saved, so that saves keep their order without holding up
+    /// the readers of [`settings`](Self::settings).
+    saving: Mutex<()>,
+    /// Held while the service is told whether the editor has the focus; see
+    /// [`AppState::sync_suspend`].
+    suspending: Mutex<()>,
     /// The library's folder (see [`crate::commands::library::library_move`]).
     pub profiles_dir: Mutex<PathBuf>,
     /// Messages for the UI collected before it was ready (e.g. a service takeover).
@@ -56,6 +63,8 @@ impl AppState {
             service,
             disk: Mutex::default(),
             settings: Mutex::new(settings),
+            saving: Mutex::default(),
+            suspending: Mutex::default(),
             profiles_dir: Mutex::new(profiles_dir),
             notices: Mutex::new(notices),
             open_files: Mutex::new(open_files),
@@ -77,11 +86,12 @@ impl AppState {
     }
 
     /// Store `settings` in `gui.toml` and use them from now on; returns the settings they
-    /// replace.
+    /// replace. Saves run one after the other, outside the lock the readers take, so the tray
+    /// on the main thread never waits for the disk.
     pub fn save_settings(&self, settings: GuiSettings) -> std::io::Result<GuiSettings> {
-        let mut current = lock(&self.settings);
+        let _in_order = lock(&self.saving);
         settings.save()?;
-        Ok(std::mem::replace(&mut *current, settings))
+        Ok(std::mem::replace(&mut *lock(&self.settings), settings))
     }
 
     /// The folder the library is in.
@@ -93,18 +103,31 @@ impl AppState {
         self.main_focused.load(Ordering::Relaxed)
     }
 
-    /// The main window got or lost the focus.
-    pub fn set_main_focused(&self, focused: bool) {
+    /// The main window got or lost the focus. Called on the main thread, which runs the
+    /// windows and the tray, so the service hears of it on another one.
+    pub fn set_main_focused(&self, app: &AppHandle, focused: bool) {
         self.main_focused.store(focused, Ordering::Relaxed);
-        let _ = self.sync_suspend();
+        in_background(app, |app| {
+            let _ = app.state::<AppState>().sync_suspend();
+        });
     }
 
     /// Remapping pauses while the editor has the focus, so mapped keys do not land in it,
-    /// unless "keep remapping active" is on.
+    /// unless "keep remapping active" is on. Calls run one at a time and each sends the focus
+    /// as it is then, so after a quick series of focus changes the last one sent is right.
     pub fn sync_suspend(&self) -> CmdResult<()> {
+        let _one_at_a_time = lock(&self.suspending);
         let stay_live = self.settings(|s| s.stay_live);
         self.call(ServiceCmd::SetSuspended(self.main_focused() && !stay_live))
     }
+}
+
+/// Run `job` on a thread of the blocking pool, for work the main thread must not wait for
+/// (it runs the windows and the tray, and a service call can take seconds while controllers
+/// connect).
+pub fn in_background(app: &AppHandle, job: impl FnOnce(&AppHandle) + Send + 'static) {
+    let app = app.clone();
+    tauri::async_runtime::spawn_blocking(move || job(&app));
 }
 
 #[cfg(test)]

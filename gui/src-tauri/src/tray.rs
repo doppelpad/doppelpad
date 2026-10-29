@@ -10,6 +10,7 @@
 
 use std::collections::{BTreeMap, HashMap};
 use std::path::Path;
+use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{LazyLock, Mutex};
 use std::time::Duration;
 
@@ -247,6 +248,8 @@ struct Tray {
     icon_off: Image<'static>,
     /// The controllers' icons shown, with what they show and in which language.
     pads: Mutex<HashMap<String, (PadView, String)>>,
+    /// The commands of clicked entries, for [`run_commands`].
+    commands: Sender<ServiceCmd>,
 }
 
 impl Tray {
@@ -528,14 +531,26 @@ pub fn quit(app: &AppHandle) {
     app.exit(0);
 }
 
-/// Send a command and show the outcome; the tray has no place for error messages, so
-/// they go to the log.
+/// Send `cmd` to the service on the tray's own thread, in the order of the clicks: the main
+/// thread runs the windows and the tray, and must not wait for the service (switching a slot
+/// or remapping can take seconds while controllers connect).
 fn command(app: &AppHandle, cmd: ServiceCmd) {
-    if let Err(e) = app.state::<AppState>().call(cmd.clone()) {
-        tracing::warn!("tray {cmd:?}: {e}");
+    if app.state::<Tray>().commands.send(cmd).is_err() {
+        tracing::warn!("the tray's command thread has stopped");
     }
-    // Clicked check items have toggled themselves; show the actual state.
-    render(app);
+}
+
+/// Run the tray's commands one after the other and show their outcome; the tray has no place
+/// for error messages, so they go to the log.
+fn run_commands(app: &AppHandle, commands: &Receiver<ServiceCmd>) {
+    for cmd in commands {
+        let what = format!("{cmd:?}");
+        if let Err(e) = app.state::<AppState>().call(cmd) {
+            tracing::warn!("tray {what}: {e}");
+        }
+        // Clicked check items have toggled themselves; show the actual state.
+        refresh(app);
+    }
 }
 
 fn toggle_remap(app: &AppHandle) {
@@ -564,6 +579,11 @@ fn on_menu(app: &AppHandle, id: &str) {
 
 pub fn create(app: &AppHandle) -> tauri::Result<()> {
     let live = app.state::<AppState>().live.clone();
+    let (commands, clicked) = mpsc::channel();
+    let handle = app.clone();
+    std::thread::Builder::new()
+        .name("dp-tray-cmd".into())
+        .spawn(move || run_commands(&handle, &clicked))?;
     let check = |id: &str| CheckMenuItem::with_id(app, id, "", true, false, None::<&str>);
     // A 32 px glyph without the app icon's tile, drawn for tray sizes (icons/source/tray-icon.svg).
     let icon_on = tauri::include_image!("icons/tray.png");
@@ -580,6 +600,7 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
         icon_on,
         live,
         pads: Mutex::default(),
+        commands,
     };
 
     let separators = [
