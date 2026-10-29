@@ -39,11 +39,11 @@ pub fn opened(app: &AppHandle, files: Vec<PathBuf>) {
     if files.is_empty() {
         return;
     }
-    crate::tray::show_main(app);
-    let state = app.state::<crate::commands::AppState>();
+    crate::main_window::show_main(app);
+    let state = app.state::<crate::state::AppState>();
     let mut waiting = state.open_files.lock().unwrap();
     if state.open_files_taken.load(Ordering::Relaxed) {
-        let _ = app.emit_to(crate::commands::MAIN_WINDOW, OPEN_EVENT, files);
+        let _ = app.emit_to(crate::main_window::MAIN_WINDOW, OPEN_EVENT, files);
     } else {
         waiting.extend(files);
     }

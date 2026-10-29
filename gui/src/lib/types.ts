@@ -576,7 +576,7 @@ export interface Battery {
   wired: boolean;
 }
 
-/** The drivers Doppelpad uses, by what they do, and what keyboard and mouse need from the OS (`Driver` in commands.rs). */
+/** The drivers Doppelpad uses, by what they do, and what keyboard and mouse need from the OS (`Driver` in commands/system.rs). */
 export type Driver = 'virtual_pads' | 'device_hiding' | 'input_access' | 'bluetooth';
 
 /** A newer version than the running one (`UpdateInfo` in updates.rs). */
@@ -588,7 +588,7 @@ export interface UpdateInfo {
   notes: string | null;
 }
 
-/** Messages from before the window was ready (`Notice` in commands.rs; `notices.<name>` keys). */
+/** Messages from before the window was ready (`Notice` in commands/system.rs; `notices.<name>` keys). */
 export type Notice = 'service-takeover';
 
 export interface DriverState {
@@ -877,7 +877,7 @@ export interface RadialContent {
   cursor: [number, number] | null;
 }
 
-/** A config made from an imported file (sent by gui/src-tauri/src/commands.rs). */
+/** A config made from an imported file (sent by gui/src-tauri/src/commands/library.rs). */
 export interface Imported {
   path: string;
   diagnostics: DiagMsg[];

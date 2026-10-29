@@ -12,7 +12,7 @@ use tauri::ipc::Channel;
 use tauri::{AppHandle, Manager, State};
 use tauri_plugin_updater::{Error as UpdaterError, Update, UpdaterExt};
 
-use crate::commands::AppState;
+use crate::state::AppState;
 
 type CmdResult<T> = Result<T, String>;
 

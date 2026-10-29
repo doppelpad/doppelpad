@@ -15,9 +15,10 @@ use dp_service::{LiveScreenshot, LiveState, SharedLive};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
 
-use crate::commands::{AppState, MAIN_WINDOW};
+use crate::main_window::MAIN_WINDOW;
 use crate::overlay::{self, OverlayKind, Placement};
 use crate::settings::{Corner, OsdSettings};
+use crate::state::AppState;
 
 const KIND: OverlayKind = OverlayKind::Osd;
 /// How often the watcher compares the live state with what it last saw.

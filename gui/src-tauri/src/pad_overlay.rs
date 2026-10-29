@@ -12,9 +12,9 @@ use dp_service::{LiveDevice, SharedLive};
 use serde::Serialize;
 use tauri::{AppHandle, Manager};
 
-use crate::commands::AppState;
 use crate::overlay::{self, OverlayKind, Placement};
 use crate::settings::Corner;
+use crate::state::AppState;
 
 const PAD: OverlayKind = OverlayKind::Pad;
 const MAPPINGS: OverlayKind = OverlayKind::Mappings;

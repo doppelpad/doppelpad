@@ -84,7 +84,7 @@ fn normalize(v: Value) -> Value {
 fn defaults_fixture_is_current() {
     assert_fixture(
         "defaults.json",
-        pretty(&crate::commands::catalog().defaults),
+        pretty(&crate::commands::system::catalog().defaults),
     );
 }
 

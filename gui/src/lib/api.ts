@@ -1,4 +1,4 @@
-// Typed wrappers around the Rust commands in gui/src-tauri/src/commands.rs.
+// Typed wrappers around the Rust commands in gui/src-tauri/src/commands/.
 
 import { Channel, invoke } from '@tauri-apps/api/core';
 import type {

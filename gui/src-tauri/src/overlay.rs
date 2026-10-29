@@ -31,7 +31,7 @@ pub fn spawn_watcher(
     name: &str,
     watch: impl FnOnce(AppHandle, SharedLive) + Send + 'static,
 ) -> tauri::Result<()> {
-    let live = app.state::<crate::commands::AppState>().live.clone();
+    let live = app.state::<crate::state::AppState>().live.clone();
     let handle = app.clone();
     std::thread::Builder::new()
         .name(name.into())
