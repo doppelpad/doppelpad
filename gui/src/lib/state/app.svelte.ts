@@ -394,6 +394,23 @@ export class AppState {
     }
   }
 
+  /**
+   * Import a profile file (JSON, a reWASD config) into the game `dir` as a new config and open
+   * it, asking first about programs it starts; a few of the converter's notes follow as toasts.
+   */
+  importConfig(dir: string, source: string): Promise<boolean> {
+    return this.attempt(
+      api.configImportLaunches(source).then(async (found) => {
+        const keep = await this.keepLaunches(found);
+        if (keep === null) return;
+        const r = await api.configImport(dir, source, keep);
+        await this.openCreated(r.path);
+        this.toast(t('notices.imported', { name: this.profile?.name ?? '' }), 'ok');
+        for (const d of r.diagnostics.filter((d) => d.severity !== 'info').slice(0, 3)) this.toast(d.message, 'info');
+      }),
+    );
+  }
+
   /** Unpack a game bundle into a new game and open it, asking first about programs it starts. */
   importGame(file: string): Promise<boolean> {
     return this.attempt(

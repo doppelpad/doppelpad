@@ -18,6 +18,7 @@
     giveOwnLayer,
     openers,
     parentsOf,
+    placePatch,
     setOpener,
     updateMenu,
   } from '../../lib/model/radial';
@@ -253,11 +254,7 @@
             position={menu.position ?? def?.position ?? 'center'}
             offset={menu.offset ?? [0, 0]}
             {disabled}
-            onchange={(patch) =>
-              setMenu({
-                ...(patch.position ? { position: patch.position === 'center' ? undefined : patch.position } : {}),
-                ...(patch.offset ? { offset: patch.offset[0] || patch.offset[1] ? patch.offset : undefined } : {}),
-              })}
+            onchange={(patch) => setMenu(placePatch(patch))}
           />
         </section>
 

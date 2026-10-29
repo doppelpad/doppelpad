@@ -33,17 +33,7 @@
       return;
     }
     const source = await open({ title: t('header.import_title'), multiple: false, directory: false });
-    if (typeof source !== 'string') return;
-    await app.attempt(
-      api.configImportLaunches(source).then(async (found) => {
-        const keep = await app.keepLaunches(found);
-        if (keep === null) return;
-        const r = await api.configImport(dir, source, keep);
-        await app.openCreated(r.path);
-        app.toast(t('notices.imported', { name: app.profile?.name ?? '' }), 'ok');
-        for (const d of r.diagnostics.filter((d) => d.severity !== 'info').slice(0, 3)) app.toast(d.message, 'info');
-      }),
-    );
+    if (typeof source === 'string') await app.importConfig(dir, source);
   }
 
   async function saveSheet() {

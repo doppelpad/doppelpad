@@ -29,7 +29,7 @@
   import type { RewasdChoice } from '../lib/types';
   import ApiSettings from './settings/ApiSettings.svelte';
   import DeviceSettings from './settings/DeviceSettings.svelte';
-  import { driverStates } from './settings/DriverList.svelte';
+  import { driverMissing as anyDriverMissing } from '../lib/model/drivers';
   import DriverSettings from './settings/DriverSettings.svelte';
   import DsuSettings from './settings/DsuSettings.svelte';
   import HotkeySettings from './settings/HotkeySettings.svelte';
@@ -53,7 +53,7 @@
 
   let page = $state<Page>(lastPage);
   /** The drivers page carries a warning dot while a driver is missing. */
-  const driverMissing = $derived(driverStates(app.live).some((d) => !d.state.available));
+  const driverMissing = $derived(anyDriverMissing(app.live, platform === 'macos'));
   const pages = $derived(
     PAGES.map((p) => ({
       ...p,

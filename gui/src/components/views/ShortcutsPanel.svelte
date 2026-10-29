@@ -5,7 +5,8 @@
   import { Plus, Trash2, Check, X } from '@lucide/svelte';
   import { onDestroy } from 'svelte';
   import { t } from '../../lib/i18n/index.svelte';
-  import { CARDINALS, SIDES, SIDE_NAMES, ZONES, controlLabel, withZone } from '../../lib/model/controls';
+  import { clearControl } from '../../lib/model/clipboard';
+  import { CARDINALS, SIDES, SIDE_NAMES, controlLabel, zoneFamily } from '../../lib/model/controls';
   import { comboLabel, mappingSummary } from '../../lib/model/labels';
   import { comboKey, comboList, sameCombo, shortcuts, toCombo } from '../../lib/model/profile';
   import { app } from '../../lib/state/app.svelte';
@@ -27,7 +28,7 @@
     return [...byKey.values()];
   });
 
-  const TRIGGERS = ['LT', 'RT'].flatMap((tr) => [tr, ...ZONES.map((z) => withZone(tr, z))]);
+  const TRIGGERS = SIDE_NAMES.flatMap((s) => zoneFamily(SIDES[s].trigger));
 
   const controls = $derived([...((app.catalog?.pad_buttons ?? []) as string[]), ...STICKS, ...TRIGGERS]);
 
@@ -57,10 +58,7 @@
   }
 
   function remove(trigger: Combo) {
-    app.edit((p) => ({
-      ...p,
-      mappings: p.mappings.filter((m) => !((m.layer ?? 0) === app.layer && sameCombo(m.trigger, trigger))),
-    }));
+    app.edit((p) => clearControl(p, app.layer, trigger));
     if (app.selected && sameCombo(app.selected, trigger)) app.select(null);
   }
 

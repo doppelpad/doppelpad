@@ -39,7 +39,8 @@ vi.mock('@tauri-apps/api/core', () => ({
     }
     if (cmd === 'library_scan') return { games: [game], unsorted: [], errors: [] };
     if (cmd === 'settings_get') return { ...SETTINGS_PLACEHOLDER, check_updates: false };
-    if (cmd === 'take_notices' || cmd === 'take_open_files') return [];
+    if (cmd === 'take_notices' || cmd === 'take_open_files' || cmd === 'config_import_launches') return [];
+    if (cmd === 'config_import') return { path: 'imported.toml', diagnostics: [{ severity: 'warning', path: '', message: 'converted' }] };
     if (cmd === 'config_save') {
       await new Promise((r) => setTimeout(r, 5));
       return [];
@@ -242,6 +243,15 @@ describe('games', () => {
     app.dialogs.answerQuestion(null);
     await deleting;
     expect([app.gameDir, app.configPath]).toEqual(['game', 'one.toml']);
+  });
+});
+
+describe('importing', () => {
+  it("a profile file without programs to start opens as a new config, with the converter's notes", async () => {
+    app.library = { games: [game], unsorted: [], errors: [] };
+    await expect(app.importConfig('game', 'C:/old.rewasd')).resolves.toBe(true);
+    expect(app.configPath).toBe('imported.toml');
+    expect(app.toasts.map((x) => x.text)).toContain('converted');
   });
 });
 

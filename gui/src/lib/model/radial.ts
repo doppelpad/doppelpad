@@ -78,6 +78,17 @@ export function ringCentre(
   return [x + offset[0], y + offset[1]];
 }
 
+/**
+ * A change of where a menu sits, as the menu stores it: the defaults (the centre of the
+ * screen, no offset) are left out.
+ */
+export function placePatch(patch: { position?: RadialPosition; offset?: [number, number] }): Partial<RadialMenu> {
+  return {
+    ...(patch.position ? { position: patch.position === 'center' ? undefined : patch.position } : {}),
+    ...(patch.offset ? { offset: patch.offset[0] || patch.offset[1] ? patch.offset : undefined } : {}),
+  };
+}
+
 export function updateMenu(p: Profile, i: number, patch: Partial<RadialMenu>): Profile {
   const all = [...(p.radial_menus ?? [])];
   all[i] = dropUndefined({ ...all[i], ...patch });
