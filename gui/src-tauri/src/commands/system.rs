@@ -18,7 +18,7 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, State};
 
 use super::{CmdResult, err};
-use crate::state::AppState;
+use crate::state::{AppState, lock};
 
 /// Messages for the window that arrive before it is ready (`notices.<name>` in the catalogs).
 #[derive(Clone, Copy, Debug, Serialize)]
@@ -314,13 +314,13 @@ pub fn log_file() -> PathBuf {
 
 #[tauri::command]
 pub fn take_notices(state: State<AppState>) -> Vec<Notice> {
-    std::mem::take(&mut *state.notices.lock().unwrap())
+    std::mem::take(&mut *lock(&state.notices))
 }
 
 /// The game bundles the app was started with; each is handed out once.
 #[tauri::command]
 pub fn take_open_files(state: State<AppState>) -> Vec<PathBuf> {
-    let mut files = state.open_files.lock().unwrap();
+    let mut files = lock(&state.open_files);
     state.open_files_taken.store(true, Ordering::Relaxed);
     std::mem::take(&mut *files)
 }

@@ -41,7 +41,7 @@ pub fn opened(app: &AppHandle, files: Vec<PathBuf>) {
     }
     crate::main_window::show_main(app);
     let state = app.state::<crate::state::AppState>();
-    let mut waiting = state.open_files.lock().unwrap();
+    let mut waiting = crate::state::lock(&state.open_files);
     if state.open_files_taken.load(Ordering::Relaxed) {
         let _ = app.emit_to(crate::main_window::MAIN_WINDOW, OPEN_EVENT, files);
     } else {

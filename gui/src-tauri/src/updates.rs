@@ -12,7 +12,7 @@ use tauri::ipc::Channel;
 use tauri::{AppHandle, Manager, State};
 use tauri_plugin_updater::{Error as UpdaterError, Update, UpdaterExt};
 
-use crate::state::AppState;
+use crate::state::{AppState, lock};
 
 type CmdResult<T> = Result<T, String>;
 
@@ -86,7 +86,7 @@ pub async fn update_check(
             notes: u.body.clone().filter(|n| !n.trim().is_empty()),
         }
     });
-    *pending.0.lock().unwrap() = update;
+    *lock(&pending.0) = update;
     Ok(info)
 }
 
@@ -115,10 +115,7 @@ pub async fn update_install(
                 .into(),
         );
     }
-    let update = pending
-        .0
-        .lock()
-        .unwrap()
+    let update = lock(&pending.0)
         .clone()
         .ok_or("no update to install: check for one first")?;
     let mut received: u64 = 0;

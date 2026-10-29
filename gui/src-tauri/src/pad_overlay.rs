@@ -72,13 +72,6 @@ struct Pad {
 }
 
 fn update_pad(app: &AppHandle, pad: &mut Pad, on: bool, device: Option<LiveDevice>) {
-    let s = app
-        .state::<AppState>()
-        .settings
-        .lock()
-        .unwrap()
-        .pad_overlay
-        .clone();
     let Some(mut d) = device.filter(|_| on) else {
         if pad.shown.take().is_some() {
             overlay::dismiss(app, PAD);
@@ -86,6 +79,7 @@ fn update_pad(app: &AppHandle, pad: &mut Pad, on: bool, device: Option<LiveDevic
         pad.last = None;
         return;
     };
+    let s = app.state::<AppState>().settings(|s| s.pad_overlay.clone());
     d.state.motion = None;
     let now = Instant::now();
     if pad.last.as_ref().is_none_or(|l| input_between(l, &d)) {
@@ -133,10 +127,9 @@ fn update_mappings(
     if shown.as_ref() == Some(&key) {
         return;
     }
-    let (lang, s) = {
-        let settings = app.state::<AppState>().settings.lock().unwrap().clone();
-        (settings.language, settings.mappings_overlay)
-    };
+    let (lang, s) = app
+        .state::<AppState>()
+        .settings(|s| (s.language.clone(), s.mappings_overlay.clone()));
     match dp_config::load(Path::new(&key.0)) {
         Ok((profile, _)) => {
             let content = MappingsContent {

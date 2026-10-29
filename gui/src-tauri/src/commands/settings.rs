@@ -9,7 +9,7 @@ use crate::state::AppState;
 
 #[tauri::command]
 pub fn settings_get(state: State<AppState>) -> GuiSettings {
-    state.settings.lock().unwrap().clone()
+    state.settings(GuiSettings::clone)
 }
 
 #[tauri::command(async)]
@@ -19,13 +19,8 @@ pub fn settings_set(
     settings: GuiSettings,
 ) -> CmdResult<()> {
     let settings = settings.clamped();
-    let zoom_changed = {
-        let mut current = state.settings.lock().unwrap();
-        settings.save().map_err(err)?;
-        let changed = current.zoom != settings.zoom;
-        *current = settings;
-        changed
-    };
+    let zoom = settings.zoom;
+    let zoom_changed = state.save_settings(settings).map_err(err)?.zoom != zoom;
     // "Keep remapping active" may have changed.
     state.sync_suspend()?;
     crate::tray::refresh(&app);

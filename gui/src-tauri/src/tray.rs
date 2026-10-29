@@ -23,7 +23,7 @@ use tauri::{AppHandle, Manager, Wry};
 
 use crate::main_window::show_main;
 use crate::settings::parse_color;
-use crate::state::AppState;
+use crate::state::{AppState, lock};
 
 const TRAY_ID: &str = "main";
 /// How often the watcher compares the live state with what the tray shows.
@@ -304,16 +304,18 @@ fn render(app: &AppHandle) {
     let Some(tray) = app.try_state::<Tray>() else {
         return;
     };
-    let state = app.state::<AppState>();
-    let view = tray.view();
-    let settings = state.settings.lock().unwrap().clone();
-    let t = texts(&settings.language);
-    let pads = if settings.tray_per_controller {
-        pad_views(&tray.live.get(), &settings.controller_colors)
-    } else {
-        Vec::new()
-    };
-    render_pads(app, &tray, pads, &settings.language, t);
+    let live = tray.live.get();
+    let view = View::of(&live);
+    let (lang, pads) = app.state::<AppState>().settings(|s| {
+        let pads = if s.tray_per_controller {
+            pad_views(&live, &s.controller_colors)
+        } else {
+            Vec::new()
+        };
+        (s.language.clone(), pads)
+    });
+    let t = texts(&lang);
+    render_pads(app, &tray, pads, &lang, t);
 
     let active = view.profile_path.as_deref().map(config_label);
     let _ = tray.open.set_text(&t.open);
@@ -365,7 +367,7 @@ fn render(app: &AppHandle) {
 /// Show an icon for each controller in `pads` and none for the others; only icons whose
 /// content changed are touched.
 fn render_pads(app: &AppHandle, tray: &Tray, pads: Vec<PadView>, lang: &str, t: &Texts) {
-    let mut shown = tray.pads.lock().unwrap();
+    let mut shown = lock(&tray.pads);
     shown.retain(|id, _| {
         let keep = pads.iter().any(|p| &p.id == id);
         if !keep {

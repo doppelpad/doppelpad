@@ -15,7 +15,7 @@ use serde::Serialize;
 use tauri::{AppHandle, Manager, State};
 
 use super::{CmdResult, err};
-use crate::state::AppState;
+use crate::state::{AppState, lock};
 
 /// Games or configs changed on disk: the service re-reads them (process lists may have
 /// changed) and the tray relabels its slots.
@@ -28,7 +28,7 @@ fn library_changed(app: &AppHandle) {
 fn library_change<T>(app: &AppHandle, change: impl FnOnce() -> CmdResult<T>) -> CmdResult<T> {
     let out = {
         let state = app.state::<AppState>();
-        let _disk = state.disk.lock().unwrap();
+        let _disk = lock(&state.disk);
         change()?
     };
     library_changed(app);
@@ -161,7 +161,7 @@ pub fn preset_list(state: State<AppState>) -> Vec<PresetEntry> {
 
 #[tauri::command(async)]
 pub fn preset_save(state: State<AppState>, preset: LayerPreset) -> CmdResult<PathBuf> {
-    let _disk = state.disk.lock().unwrap();
+    let _disk = lock(&state.disk);
     bundle::save_preset(&state.library_dir(), &preset).map_err(err)
 }
 
@@ -324,7 +324,7 @@ pub fn library_move(
 ) -> CmdResult<relocate::Moved> {
     let default = dp_config::default_profiles_dir();
     let to = dir.unwrap_or_else(|| default.clone());
-    let disk = state.disk.lock().unwrap();
+    let disk = lock(&state.disk);
     let from = state.library_dir();
     let switch = |dir: &Path, moved_from: Option<&Path>| {
         let told = state.call(ServiceCmd::UseLibrary {
@@ -338,7 +338,7 @@ pub fn library_move(
     };
     let moved = relocate::move_library(&from, &to, &default, &dp_config::config_dir(), switch)
         .map_err(err)?;
-    *state.profiles_dir.lock().unwrap() = to.clone();
+    *lock(&state.profiles_dir) = to.clone();
     drop(disk);
     tracing::info!(from = %from.display(), to = %to.display(), "library moved");
     crate::tray::refresh(&app);

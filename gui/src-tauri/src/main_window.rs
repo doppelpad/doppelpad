@@ -77,7 +77,7 @@ pub fn show_in_dock(app: &AppHandle, show: bool) {
 }
 
 fn settings_zoom(state: &AppState) -> u16 {
-    state.settings.lock().unwrap().zoom
+    state.settings(|s| s.zoom)
 }
 
 /// Show the window's contents at the zoom of the settings.

@@ -21,8 +21,6 @@ mod tests;
 mod tray;
 mod updates;
 
-use std::sync::atomic::{AtomicBool, AtomicU64};
-use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use dp_service::{HostOptions, Ipc, ServiceOptions};
@@ -87,22 +85,17 @@ fn main() {
                 ipc: Ipc::NoShutdown,
             })?;
 
-            app.manage(AppState {
-                live: handle.live_shared(),
-                service: handle,
-                disk: Mutex::default(),
-                settings: Mutex::new(GuiSettings::load()),
-                profiles_dir: Mutex::new(profiles_dir),
-                notices: Mutex::new(notices),
-                open_files: Mutex::new(open_file::bundles_in(
-                    &std::env::args().collect::<Vec<_>>(),
-                    &std::env::current_dir().unwrap_or_default(),
-                )),
-                open_files_taken: AtomicBool::new(false),
-                live_generation: Arc::new(AtomicU64::new(0)),
-                main_focused: AtomicBool::new(false),
-                min_size_held: AtomicBool::new(false),
-            });
+            let open_files = open_file::bundles_in(
+                &std::env::args().collect::<Vec<_>>(),
+                &std::env::current_dir().unwrap_or_default(),
+            );
+            app.manage(AppState::new(
+                handle,
+                GuiSettings::load(),
+                profiles_dir,
+                notices,
+                open_files,
+            ));
             #[cfg(target_os = "linux")]
             overlay::layer::detect();
             app.manage(overlay::Overlays::default());

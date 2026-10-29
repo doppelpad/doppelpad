@@ -21,6 +21,7 @@ use tauri::{
 };
 
 use crate::settings::Corner;
+use crate::state::lock;
 
 /// Gap between an overlay and the edge of the monitor's work area, in logical pixels.
 const MARGIN: f64 = 24.0;
@@ -165,7 +166,7 @@ fn present(
     };
     let ready = {
         let state = app.state::<Overlays>();
-        let mut pages = state.pages.lock().unwrap();
+        let mut pages = lock(&state.pages);
         let page = pages.entry(kind).or_default();
         if created {
             page.ready = false;
@@ -184,7 +185,7 @@ fn present(
 /// shows again before the next content reaches the page, and would show the old one meanwhile
 /// (the last radial menu with its last sector lit).
 pub fn dismiss(app: &AppHandle, kind: OverlayKind) {
-    let ready = match app.state::<Overlays>().pages.lock().unwrap().get_mut(&kind) {
+    let ready = match lock(&app.state::<Overlays>().pages).get_mut(&kind) {
         Some(page) => {
             page.content = None;
             page.ready
@@ -204,7 +205,7 @@ pub fn dismiss(app: &AppHandle, kind: OverlayKind) {
 pub fn overlay_ready(window: WebviewWindow, state: State<Overlays>) -> Option<Value> {
     let kind = OverlayKind::from_label(window.label())?;
     let content = {
-        let mut pages = state.pages.lock().unwrap();
+        let mut pages = lock(&state.pages);
         let page = pages.entry(kind).or_default();
         page.ready = true;
         page.content.clone()

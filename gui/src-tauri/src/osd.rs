@@ -18,7 +18,7 @@ use tauri::{AppHandle, Emitter, Manager};
 use crate::main_window::MAIN_WINDOW;
 use crate::overlay::{self, OverlayKind, Placement};
 use crate::settings::{Corner, OsdSettings};
-use crate::state::AppState;
+use crate::state::{AppState, lock};
 
 const KIND: OverlayKind = OverlayKind::Osd;
 /// How often the watcher compares the live state with what it last saw.
@@ -262,12 +262,11 @@ fn battery_events(devices: &[PadInfo], warned: &mut HashMap<String, Warned>) -> 
 
 /// Show `event` now, for `keep` or, with `None`, until the next message.
 pub fn notify(app: &AppHandle, event: Event, keep: Option<Duration>) {
-    let (lang, s) = {
-        let settings = app.state::<AppState>().settings.lock().unwrap().clone();
-        (settings.language, settings.osd)
-    };
+    let (lang, s) = app
+        .state::<AppState>()
+        .settings(|s| (s.language.clone(), s.osd.clone()));
     let state = app.state::<OsdState>();
-    let mut inner = state.inner.lock().unwrap();
+    let mut inner = lock(&state.inner);
     inner.next_id += 1;
     let msg = Message {
         event,
@@ -338,7 +337,7 @@ fn game_name(live: &LiveState, exe: &str) -> String {
 /// Hide the message whose time is up. Returns whether one went away.
 fn expire(app: &AppHandle) -> bool {
     let state = app.state::<OsdState>();
-    let mut inner = state.inner.lock().unwrap();
+    let mut inner = lock(&state.inner);
     if inner.until.is_none_or(|u| Instant::now() < u) {
         return false;
     }
@@ -363,13 +362,10 @@ pub(crate) fn watch(app: AppHandle, live: SharedLive) {
         let state = live.get();
         let view = View::of(&state);
         let app_state = app.state::<AppState>();
-        let (s, steam_silenced) = {
-            let settings = app_state.settings.lock().unwrap();
-            (
-                settings.osd.clone(),
-                settings.silenced.iter().any(|id| id == STEAM_HINT),
-            )
-        };
+        let (s, steam_silenced) = app_state.settings(|s| {
+            let silenced = s.silenced.iter().any(|id| id == STEAM_HINT);
+            (s.osd.clone(), silenced)
+        });
         let starting = started.elapsed() < STARTUP_QUIET;
         let quiet = !s.enabled || starting || app_state.main_focused();
         // The window may not listen yet while the app starts: look again afterwards.
@@ -444,13 +440,7 @@ pub(crate) fn watch(app: AppHandle, live: SharedLive) {
 /// run on the main thread, where plain commands run.
 #[tauri::command(async)]
 pub fn osd_test(app: AppHandle) {
-    let shown = app
-        .state::<AppState>()
-        .settings
-        .lock()
-        .unwrap()
-        .osd
-        .duration();
+    let shown = app.state::<AppState>().settings(|s| s.osd.duration());
     notify(&app, Event::Test, Some(shown));
 }
 
