@@ -72,6 +72,62 @@ fn hotkeys_confirm_with_a_rumble_pattern_when_asked() {
 }
 
 #[test]
+fn the_emergency_stop_pattern_survives_the_game_rumble_going_quiet() {
+    use dp_core::pad::PadButton::*;
+    let (mut rt, world) = testing::runtime_with(&[("pad1", PadFamily::Xbox)]);
+    rt.set_hotkeys(Hotkeys {
+        hold_ms: 50,
+        rumble: true,
+        ..Default::default()
+    });
+    rt.apply(ds4_profile(), None).unwrap();
+    // The game rumbles, so remapping off has motors to quiet.
+    world.lock().unwrap().game_rumble = Some(Rumble {
+        low: 0.3,
+        high: 0.3,
+    });
+    rt.tick();
+    world.lock().unwrap().pads[0].state.buttons = Back.bit() | Start.bit() | LB.bit() | RB.bit();
+    rt.tick();
+    rt.advance_ms(60);
+    let before = world.lock().unwrap().rumble.len();
+    rt.tick(); // the emergency stop fires
+    let sent: Vec<Rumble> = world.lock().unwrap().rumble[before..]
+        .iter()
+        .map(|(_, r)| *r)
+        .collect();
+    assert_eq!(
+        sent.last().map(|r| r.low > 0.0),
+        Some(true),
+        "the first long pulse is on after the stop: {sent:?}"
+    );
+}
+
+#[test]
+fn a_mirror_does_not_fire_the_hotkeys_of_the_controller_it_repeats() {
+    use dp_core::pad::PadButton::*;
+    let (mut rt, world) =
+        testing::runtime_with(&[("pad1", PadFamily::Xbox), ("mirror", PadFamily::Xbox)]);
+    std::sync::Arc::make_mut(&mut world.lock().unwrap().pads[1].info).mirror = true;
+    rt.set_hotkeys(Hotkeys {
+        hold_ms: 50,
+        app_navigation: vec![Back, Guide],
+        ..Default::default()
+    });
+    rt.apply(Profile::default(), None).unwrap();
+    {
+        let mut w = world.lock().unwrap();
+        for p in &mut w.pads {
+            p.state.buttons = Back.bit() | Guide.bit();
+        }
+    }
+    rt.tick();
+    rt.advance_ms(60);
+    rt.tick();
+    assert_eq!(rt.navigation_presses(), 1, "once, not once per pad");
+}
+
+#[test]
 fn the_navigation_hotkey_counts_while_the_app_has_focus() {
     use dp_core::pad::PadButton::*;
     let (mut rt, world) = testing::runtime_with(&[("pad1", PadFamily::Xbox)]);

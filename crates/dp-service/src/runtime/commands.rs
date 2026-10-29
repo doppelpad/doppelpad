@@ -146,6 +146,11 @@ impl Runtime {
         let mut fired = Vec::new();
         for (s, pad) in self.snapshots.iter().zip(&mut self.pad_buf) {
             let id = &s.info.id;
+            // A mirror repeats another controller's buttons, so its hotkeys would fire twice;
+            // it counts only when a session reads it (the user picked it).
+            if s.info.mirror && !self.sessions.iter().any(|x| x.device.as_ref() == Some(id)) {
+                continue;
+            }
             if !self.hotkeys.detectors.contains_key(id) {
                 self.hotkeys
                     .detectors

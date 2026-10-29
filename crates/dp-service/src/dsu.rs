@@ -326,15 +326,19 @@ impl DsuServer {
     /// Hand over the controllers' current state; the first four keep their slots while
     /// connected.
     pub fn publish(&mut self, pads: &[PadSnapshot]) {
+        // A mirror repeats another controller, so it gets a slot only when no other
+        // controller is listed (a Steam Deck's own controls reach programs only that way).
+        let real = pads.iter().any(|p| !p.info.mirror);
+        let listed = |id: &str| {
+            pads.iter()
+                .any(|p| p.info.id.as_str() == id && !(real && p.info.mirror))
+        };
         for slot in self.slots.iter_mut() {
-            if slot
-                .as_ref()
-                .is_some_and(|id| !pads.iter().any(|p| p.info.id.as_str() == id))
-            {
+            if slot.as_deref().is_some_and(|id| !listed(id)) {
                 *slot = None;
             }
         }
-        for p in pads {
+        for p in pads.iter().filter(|p| !(real && p.info.mirror)) {
             if self
                 .slots
                 .iter()
@@ -655,5 +659,29 @@ mod tests {
             ["a", "b", "", ""],
             "a takes the free slot again"
         );
+    }
+
+    #[test]
+    fn mirrors_get_a_slot_only_on_their_own() {
+        let mut server = DsuServer::start(DsuSettings {
+            enabled: true,
+            lan: false,
+            port: 0,
+        })
+        .unwrap();
+        let mut mirror = testing::pad("steam", PadFamily::Xbox);
+        std::sync::Arc::make_mut(&mut mirror.info).mirror = true;
+        let real = testing::pad("ds", PadFamily::DualSense);
+        let slots = |s: &DsuServer| s.slots.clone().map(|id| id.unwrap_or_default());
+        server.publish(&[mirror.clone(), real.clone()]);
+        assert_eq!(
+            slots(&server),
+            ["ds", "", "", ""],
+            "not the mirror listed first"
+        );
+        server.publish(std::slice::from_ref(&mirror));
+        assert_eq!(slots(&server), ["steam", "", "", ""], "the only way in");
+        server.publish(&[mirror, real]);
+        assert_eq!(slots(&server), ["ds", "", "", ""], "gives way again");
     }
 }

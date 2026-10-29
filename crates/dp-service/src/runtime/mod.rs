@@ -23,6 +23,7 @@ mod tests;
 pub use self::drivers::{DriverState, DriverStatus};
 
 use std::collections::HashMap;
+use std::ops::ControlFlow;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -651,46 +652,62 @@ impl Runtime {
         self.pad_buf.clear();
         self.pad_buf.extend(self.snapshots.iter().map(|s| s.state));
         for (id, action) in self.detect_hotkeys(now) {
-            tracing::info!(device = %id, ?action, "hotkey");
-            if let Some(echo) = &mut self.echo {
-                echo.events.push(format!("hotkey      {action:?}"));
-            }
-            match action {
-                HotkeyAction::StopMacros => {
-                    self.confirm_hotkey(&id, Confirm::Long(1));
-                    for s in self
-                        .sessions
-                        .iter_mut()
-                        .filter(|s| s.device.as_ref() == Some(&id))
-                    {
-                        s.engine.stop_all();
-                    }
-                }
-                HotkeyAction::EmergencyStop => {
-                    self.confirm_hotkey(&id, Confirm::Long(2));
-                    self.drive_pulses(now);
-                    self.remap_off();
-                    return;
-                }
-                HotkeyAction::PadOverlay => {
-                    self.confirm_hotkey(&id, Confirm::Short(1));
-                    self.overlays.toggle_pad();
-                }
-                HotkeyAction::MappingsOverlay => {
-                    self.confirm_hotkey(&id, Confirm::Short(1));
-                    self.overlays.toggle_mappings();
-                }
-                HotkeyAction::AppNavigation => {
-                    self.confirm_hotkey(&id, Confirm::Short(1));
-                    self.overlays.navigation = self.overlays.navigation.wrapping_add(1);
-                }
-                other => self.hotkeys.actions.push((id, other)),
+            if self.run_hotkey(id, action, now).is_break() {
+                return;
             }
         }
         self.drive_pulses(now);
-        if self.suspended {
-            return;
+        if !self.suspended {
+            self.tick_sessions(now);
         }
+    }
+
+    /// Carry out a hotkey the runtime handles itself, or hand it to the service (slots and
+    /// the remap switch change the service's state). Breaks when remapping went off.
+    fn run_hotkey(&mut self, id: DeviceId, action: HotkeyAction, now: u64) -> ControlFlow<()> {
+        tracing::info!(device = %id, ?action, "hotkey");
+        if let Some(echo) = &mut self.echo {
+            echo.events.push(format!("hotkey      {action:?}"));
+        }
+        match action {
+            HotkeyAction::Slot1
+            | HotkeyAction::Slot2
+            | HotkeyAction::Slot3
+            | HotkeyAction::Slot4
+            | HotkeyAction::ToggleRemap => {
+                self.hotkeys.actions.push((id, action));
+                return ControlFlow::Continue(());
+            }
+            HotkeyAction::StopMacros => {
+                for s in self
+                    .sessions
+                    .iter_mut()
+                    .filter(|s| s.device.as_ref() == Some(&id))
+                {
+                    s.engine.stop_all();
+                }
+            }
+            HotkeyAction::EmergencyStop => {
+                // Off first: ending the sessions quiets the motors, which would cut the
+                // pattern's first pulse.
+                self.remap_off();
+                self.confirm_hotkey(&id, Confirm::for_action(action, false));
+                self.drive_pulses(now);
+                return ControlFlow::Break(());
+            }
+            HotkeyAction::PadOverlay => self.overlays.toggle_pad(),
+            HotkeyAction::MappingsOverlay => self.overlays.toggle_mappings(),
+            HotkeyAction::AppNavigation => {
+                self.overlays.navigation = self.overlays.navigation.wrapping_add(1);
+            }
+        }
+        self.confirm_hotkey(&id, Confirm::for_action(action, true));
+        ControlFlow::Continue(())
+    }
+
+    /// Run every session's engine, send its output and feedback, and carry out the commands
+    /// its mappings issued.
+    fn tick_sessions(&mut self, now: u64) {
         let mut commands = Vec::new();
         for i in 0..self.sessions.len() {
             let s = &mut self.sessions[i];

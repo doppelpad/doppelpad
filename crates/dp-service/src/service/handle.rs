@@ -493,33 +493,33 @@ impl Service {
     pub(super) fn run_hotkeys(&mut self) {
         for (id, action) in self.rt.take_hotkey_actions() {
             match action {
-                HotkeyAction::Slot(n) => {
+                HotkeyAction::Slot1
+                | HotkeyAction::Slot2
+                | HotkeyAction::Slot3
+                | HotkeyAction::Slot4 => {
+                    let n = usize::from(action.slot().unwrap_or_default());
                     let device = self.has_own_slots(Some(id.as_str()));
                     let slots = &self.slot_set(device.as_deref()).slots;
-                    if slots.get(n as usize).is_none_or(Option::is_none) {
+                    if slots.get(n).is_none_or(Option::is_none) {
                         tracing::info!("slot {} is empty", n + 1);
                         continue;
                     }
-                    let cmd = ServiceCmd::SelectSlot {
-                        device,
-                        slot: n as usize,
-                    };
+                    let cmd = ServiceCmd::SelectSlot { device, slot: n };
                     match self.handle(cmd) {
                         ServiceReply::Err(e) => tracing::warn!("slot hotkey: {e}"),
-                        _ => self.rt.confirm_hotkey(&id, Confirm::Short(n + 1)),
+                        _ => self
+                            .rt
+                            .confirm_hotkey(&id, Confirm::for_action(action, true)),
                     }
                 }
                 HotkeyAction::ToggleRemap => {
                     let on = !self.state.remap_on;
                     match self.handle(ServiceCmd::SetRemap(on)) {
                         ServiceReply::Err(e) => tracing::warn!("remap hotkey: {e}"),
-                        // One long pulse for on, two for off.
-                        _ => self
-                            .rt
-                            .confirm_hotkey(&id, Confirm::Long(if on { 1 } else { 2 })),
+                        _ => self.rt.confirm_hotkey(&id, Confirm::for_action(action, on)),
                     }
                 }
-                // The runtime handles these itself.
+                // The runtime carries these out itself and never hands them over.
                 HotkeyAction::StopMacros
                 | HotkeyAction::EmergencyStop
                 | HotkeyAction::PadOverlay
