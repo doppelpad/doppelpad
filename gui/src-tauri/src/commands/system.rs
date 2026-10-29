@@ -223,11 +223,7 @@ fn reveal_path(path: &Path) -> std::io::Result<()> {
     }
     #[cfg(target_os = "macos")]
     {
-        std::process::Command::new("open")
-            .arg("-R")
-            .arg(path)
-            .spawn()
-            .map(drop)
+        dp_platform::spawn_detached(std::process::Command::new("open").arg("-R").arg(path))
     }
     #[cfg(not(any(windows, target_os = "macos")))]
     {
