@@ -12,7 +12,9 @@ use dp_core::profile::Profile;
 use serde::{Deserialize, Serialize};
 
 use crate::launches::{self, Launch};
-use crate::{Diagnostics, FileFormat, Format, LoadError, compat, is_profile_file, load, to_toml};
+use crate::{
+    Diagnostics, FileFormat, Format, LoadError, compat, is_profile_file, load, picture, to_toml,
+};
 
 /// File holding a game's metadata inside its folder.
 pub(crate) const GAME_FILE: &str = "game.toml";
@@ -384,14 +386,9 @@ pub fn set_game_picture(dir: &Path, source: Option<&Path>) -> Result<GameMeta> {
         let _ = std::fs::remove_file(dir.join(old));
     }
     if let Some(src) = source {
-        let ext = src
-            .extension()
-            .and_then(|e| e.to_str())
-            .map(str::to_ascii_lowercase)
-            .filter(|e| IMAGE_TYPES.iter().any(|(x, _)| x == e))
-            .ok_or_else(|| {
-                LibraryError::Io(src.to_path_buf(), std::io::ErrorKind::InvalidInput.into())
-            })?;
+        let ext = picture::extension(src).ok_or_else(|| {
+            LibraryError::Io(src.to_path_buf(), std::io::ErrorKind::InvalidInput.into())
+        })?;
         let name = format!("cover.{ext}");
         std::fs::copy(src, dir.join(&name)).map_err(io(src))?;
         meta.image = Some(name);
@@ -400,29 +397,10 @@ pub fn set_game_picture(dir: &Path, source: Option<&Path>) -> Result<GameMeta> {
     Ok(meta)
 }
 
-/// Picture file extensions and their media types.
-const IMAGE_TYPES: [(&str, &str); 5] = [
-    ("png", "image/png"),
-    ("jpg", "image/jpeg"),
-    ("jpeg", "image/jpeg"),
-    ("webp", "image/webp"),
-    ("gif", "image/gif"),
-];
-
 /// A game's picture as a `data:` URL for the window, if it has one that is not too large.
 pub fn game_picture(dir: &Path) -> Option<String> {
     let meta = read_game(dir).ok()?.meta;
-    let path = dir.join(meta.image?);
-    let ext = path.extension()?.to_str()?.to_ascii_lowercase();
-    let mime = IMAGE_TYPES.iter().find(|(x, _)| *x == ext)?.1;
-    if std::fs::metadata(&path).ok()?.len() > crate::bundle::MAX_IMAGE {
-        return None;
-    }
-    let bytes = std::fs::read(&path).ok()?;
-    Some(format!(
-        "data:{mime};base64,{}",
-        crate::bundle::base64(&bytes)
-    ))
+    picture::data_url(&dir.join(meta.image?), picture::MAX_IMAGE)
 }
 
 /// Copy a game folder with its configs and picture under a new name ("<name> copy"). The copy

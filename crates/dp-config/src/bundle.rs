@@ -12,14 +12,13 @@ use serde::{Deserialize, Serialize};
 
 use crate::launches::{self, Launch};
 use crate::library::{self, Game, GameMeta, LibraryError, Result, io};
+use crate::picture::{MAX_IMAGE, base64, unbase64};
 use crate::{FileFormat, Format};
 
 /// Format version of game bundles.
 const BUNDLE_VERSION: u32 = 1;
 /// Folder of the layer presets inside the profiles directory.
 pub(crate) const PRESETS_DIR: &str = "presets";
-/// Pictures larger than this stay out of a bundle.
-pub(crate) const MAX_IMAGE: u64 = 8 << 20;
 
 #[derive(Serialize, Deserialize)]
 struct Bundle {
@@ -35,44 +34,6 @@ struct BundledFile {
     file: String,
     /// Text files as they are; the picture as base64.
     data: String,
-}
-
-const B64: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-
-pub(crate) fn base64(bytes: &[u8]) -> String {
-    let mut out = String::with_capacity(bytes.len().div_ceil(3) * 4);
-    for chunk in bytes.chunks(3) {
-        let n = chunk
-            .iter()
-            .enumerate()
-            .fold(0u32, |n, (i, &b)| n | u32::from(b) << (16 - 8 * i));
-        for i in 0..4 {
-            if i <= chunk.len() {
-                out.push(B64[(n >> (18 - 6 * i)) as usize & 63] as char);
-            } else {
-                out.push('=');
-            }
-        }
-    }
-    out
-}
-
-fn unbase64(text: &str) -> Option<Vec<u8>> {
-    let mut out = Vec::with_capacity(text.len() / 4 * 3);
-    let (mut n, mut bits) = (0u32, 0);
-    for c in text
-        .bytes()
-        .filter(|c| !c.is_ascii_whitespace() && *c != b'=')
-    {
-        let v = B64.iter().position(|&b| b == c)? as u32;
-        n = n << 6 | v;
-        bits += 6;
-        if bits >= 8 {
-            bits -= 8;
-            out.push((n >> bits) as u8);
-        }
-    }
-    Some(out)
 }
 
 fn invalid(path: &Path, why: impl Into<String>) -> LibraryError {
@@ -328,17 +289,6 @@ mod tests {
     use dp_core::profile::{Action, Press};
 
     use super::*;
-
-    #[test]
-    fn base64_round_trips() {
-        assert_eq!(base64(b"Man"), "TWFu");
-        assert_eq!(base64(b"Ma"), "TWE=");
-        assert_eq!(base64(b"M"), "TQ==");
-        let bytes: Vec<u8> = (0..=255).collect();
-        assert_eq!(unbase64(&base64(&bytes)).unwrap(), bytes);
-        assert_eq!(unbase64("TWE="), Some(b"Ma".to_vec()));
-        assert_eq!(unbase64("T*"), None);
-    }
 
     #[test]
     fn games_travel_as_one_file() {

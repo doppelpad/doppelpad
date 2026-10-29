@@ -8,6 +8,7 @@ mod format;
 pub mod history;
 pub mod launches;
 pub mod library;
+pub mod picture;
 pub mod relocate;
 pub mod store;
 pub mod templates;
