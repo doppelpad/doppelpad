@@ -14,6 +14,7 @@ use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{LazyLock, Mutex};
 use std::time::Duration;
 
+use dp_config::library;
 use dp_platform::Battery;
 use dp_service::{LiveState, SLOTS, ServiceCmd, SharedLive};
 use serde::Deserialize;
@@ -188,20 +189,44 @@ fn pad_views(live: &LiveState, colors: &BTreeMap<String, String>) -> Vec<PadView
         .collect()
 }
 
-/// The tooltip of a controller's icon: the controller, what it runs, its battery.
-fn pad_tooltip(v: &PadView, t: &Texts) -> String {
-    let line = match (&v.config, &v.slots) {
+/// "Game › Config", like the slot names in the window.
+fn config_label(path: &str) -> String {
+    library::config_label(Path::new(path))
+}
+
+/// A slot's menu entry: "Slot 2: Game › Config", or "Slot 2 (empty)". `i` counts from 0.
+fn slot_label(t: &Texts, i: usize, path: Option<&str>) -> String {
+    match path {
+        Some(p) => format!("{} {}: {}", t.slot, i + 1, config_label(p)),
+        None => format!("{} {} ({})", t.slot, i + 1, t.empty),
+    }
+}
+
+/// "60 %", or "60 % (charging)".
+fn battery_text(t: &Texts, b: Battery) -> String {
+    if b.charging {
+        format!("{} % ({})", b.level, t.charging)
+    } else {
+        format!("{} %", b.level)
+    }
+}
+
+/// What a controller's icon says it runs: its config, no config, nothing (not remapped), or
+/// that remapping is off.
+fn pad_status(v: &PadView, t: &Texts) -> String {
+    match (&v.config, &v.slots) {
         _ if !v.remap_on => t.remap_off.clone(),
         (Some(path), _) => config_label(path),
         (None, Some(_)) => t.no_config.clone(),
         (None, None) => t.not_remapped.clone(),
-    };
-    let mut tip = format!("{}\n{line}", v.name);
+    }
+}
+
+/// The tooltip of a controller's icon: the controller, what it runs, its battery.
+fn pad_tooltip(v: &PadView, t: &Texts) -> String {
+    let mut tip = format!("{}\n{}", v.name, pad_status(v, t));
     if let Some(b) = v.battery {
-        tip = format!("{tip}\n{} %", b.level);
-        if b.charging {
-            tip = format!("{tip} ({})", t.charging);
-        }
+        tip = format!("{tip}\n{}", battery_text(t, b));
     }
     truncate_utf16(&tip, TOOLTIP_MAX)
 }
@@ -213,26 +238,90 @@ fn pad_tray_id(id: &str) -> String {
     format!("pad|{}", id.replace('%', "%25").replace('/', "%2F"))
 }
 
-/// The start of a controller's menu entries, which [`pad_command`] reads the device from.
-fn pad_menu_id(id: &str) -> String {
-    format!("pad|{id}")
+/// What a menu entry does, the controllers' icons' entries too. Its menu id is
+/// [`MenuCmd::to_id`], which [`MenuCmd::parse`] reads back.
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum MenuCmd {
+    Open,
+    Quit,
+    Remap,
+    Autodetect,
+    /// A shared slot, counted from 0.
+    Slot(usize),
+    /// A slot of a controller's own (or a shared one, while it is the controller in use).
+    PadSlot {
+        device: String,
+        slot: usize,
+    },
+    /// Give a controller slots of its own.
+    OwnSlots {
+        device: String,
+    },
 }
 
-/// The glyph in one colour, shaded by its own brightness, for a controller's icon.
-fn tinted(icon: &Image<'_>, [r, g, b]: [u8; 3]) -> Image<'static> {
+impl MenuCmd {
+    fn to_id(&self) -> String {
+        match self {
+            MenuCmd::Open => "open".into(),
+            MenuCmd::Quit => "quit".into(),
+            MenuCmd::Remap => "remap".into(),
+            MenuCmd::Autodetect => "autodetect".into(),
+            MenuCmd::Slot(slot) => format!("slot-{slot}"),
+            MenuCmd::PadSlot { device, slot } => format!("pad|{device}|slot|{slot}"),
+            MenuCmd::OwnSlots { device } => format!("pad|{device}|own"),
+        }
+    }
+
+    /// The command of the menu entry `id`; `None` for entries that do nothing (the status
+    /// line). Device ids may hold `|` and `/`: the parts are taken from the ends.
+    fn parse(id: &str) -> Option<MenuCmd> {
+        Some(match id {
+            "open" => MenuCmd::Open,
+            "quit" => MenuCmd::Quit,
+            "remap" => MenuCmd::Remap,
+            "autodetect" => MenuCmd::Autodetect,
+            _ => {
+                if let Some(slot) = id.strip_prefix("slot-") {
+                    return slot.parse().ok().map(MenuCmd::Slot);
+                }
+                let rest = id.strip_prefix("pad|")?;
+                if let Some(device) = rest.strip_suffix("|own") {
+                    return Some(MenuCmd::OwnSlots {
+                        device: device.to_owned(),
+                    });
+                }
+                let (device, slot) = rest.rsplit_once("|slot|")?;
+                MenuCmd::PadSlot {
+                    device: device.to_owned(),
+                    slot: slot.parse().ok()?,
+                }
+            }
+        })
+    }
+}
+
+/// `icon` with each pixel made by `f` from its colour, its brightness (0–255) and alpha.
+fn shaded(icon: &Image<'_>, f: impl Fn([u8; 3], u32, u8) -> [u8; 4]) -> Image<'static> {
     let rgba = icon
         .rgba()
         .as_chunks::<4>()
         .0
         .iter()
-        .flat_map(|&[pr, pg, pb, a]| {
-            let lum = (u32::from(pr) * 30 + u32::from(pg) * 59 + u32::from(pb) * 11) / 100;
-            let k = 140 + lum * 115 / 255;
-            let ch = |c: u8| (u32::from(c) * k / 255) as u8;
-            [ch(r), ch(g), ch(b), a]
+        .flat_map(|&[r, g, b, a]| {
+            let luma = (u32::from(r) * 30 + u32::from(g) * 59 + u32::from(b) * 11) / 100;
+            f([r, g, b], luma, a)
         })
         .collect();
     Image::new_owned(rgba, icon.width(), icon.height())
+}
+
+/// The glyph in one colour, shaded by its own brightness, for a controller's icon.
+fn tinted(icon: &Image<'_>, [r, g, b]: [u8; 3]) -> Image<'static> {
+    shaded(icon, |_, luma, a| {
+        let k = 140 + luma * 115 / 255;
+        let ch = |c: u8| (u32::from(c) * k / 255) as u8;
+        [ch(r), ch(g), ch(b), a]
+    })
 }
 
 /// The tray's menu entries and icons, updated in place.
@@ -260,22 +349,10 @@ impl Tray {
 
 /// The tray glyph in grey and fainter, shown while remapping is off.
 fn dimmed(icon: &Image<'_>) -> Image<'static> {
-    let rgba = icon
-        .rgba()
-        .as_chunks::<4>()
-        .0
-        .iter()
-        .flat_map(|&[r, g, b, a]| {
-            let grey = ((u32::from(r) * 30 + u32::from(g) * 59 + u32::from(b) * 11) / 100) as u8;
-            [grey, grey, grey, (u32::from(a) * 3 / 5) as u8]
-        })
-        .collect();
-    Image::new_owned(rgba, icon.width(), icon.height())
-}
-
-/// "Game › Config", like the slot names in the window.
-fn config_label(path: &str) -> String {
-    dp_config::library::config_label(Path::new(path))
+    shaded(icon, |_, luma, a| {
+        let grey = luma as u8;
+        [grey, grey, grey, (u32::from(a) * 3 / 5) as u8]
+    })
 }
 
 /// Menus take `&` as the mnemonic marker; a doubled one shows as itself.
@@ -330,11 +407,7 @@ fn render(app: &AppHandle) {
     let _ = tray.autodetect.set_checked(view.auto_switch);
     for (i, item) in tray.slots.iter().enumerate() {
         let path = view.slots.get(i).cloned().flatten();
-        let text = match &path {
-            Some(p) => format!("{} {}: {}", t.slot, i + 1, config_label(p)),
-            None => format!("{} {} ({})", t.slot, i + 1, t.empty),
-        };
-        let _ = item.set_text(menu_text(&text));
+        let _ = item.set_text(menu_text(&slot_label(t, i, path.as_deref())));
         let _ = item.set_enabled(path.is_some());
         let _ = item.set_checked(path.is_some() && view.remap_on && view.active_slot == i);
     }
@@ -358,10 +431,7 @@ fn render(app: &AppHandle) {
             tip = format!("{tip}\n{}", t.no_controller);
         }
         for (name, b) in &view.batteries {
-            tip = format!("{tip}\n{name}: {} %", b.level);
-            if b.charging {
-                tip = format!("{tip} ({})", t.charging);
-            }
+            tip = format!("{tip}\n{name}: {}", battery_text(t, *b));
         }
         let _ = icon.set_tooltip(Some(truncate_utf16(&tip, TOOLTIP_MAX)));
     }
@@ -422,29 +492,22 @@ fn render_pads(app: &AppHandle, tray: &Tray, pads: Vec<PadView>, lang: &str, t: 
 /// A controller's menu: its name and config, its slots (or a way to give it some), Open.
 fn pad_menu(app: &AppHandle, v: &PadView, t: &Texts) -> tauri::Result<Menu<Wry>> {
     let menu = Menu::new(app)?;
-    let id = &v.id;
-    menu.append(&MenuItem::new(
-        app,
-        menu_text(&v.name),
-        false,
-        None::<&str>,
-    )?)?;
-    let status = pad_tooltip(v, t);
-    let line = status.lines().nth(1).unwrap_or_default();
-    menu.append(&MenuItem::new(app, menu_text(line), false, None::<&str>)?)?;
+    let label = |text: &str| MenuItem::new(app, menu_text(text), false, None::<&str>);
+    menu.append(&label(&v.name)?)?;
+    menu.append(&label(&pad_status(v, t))?)?;
     menu.append(&PredefinedMenuItem::separator(app)?)?;
     match &v.slots {
         Some(slots) => {
             for (i, path) in slots.iter().enumerate() {
-                let text = match path {
-                    Some(p) => format!("{} {}: {}", t.slot, i + 1, config_label(p)),
-                    None => format!("{} {} ({})", t.slot, i + 1, t.empty),
+                let cmd = MenuCmd::PadSlot {
+                    device: v.id.clone(),
+                    slot: i,
                 };
                 let checked = path.is_some() && v.remap_on && v.active_slot == i;
                 let item = CheckMenuItem::with_id(
                     app,
-                    format!("{}|slot|{i}", pad_menu_id(id)),
-                    menu_text(&text),
+                    cmd.to_id(),
+                    menu_text(&slot_label(t, i, path.as_deref())),
                     path.is_some(),
                     checked,
                     None::<&str>,
@@ -453,10 +516,12 @@ fn pad_menu(app: &AppHandle, v: &PadView, t: &Texts) -> tauri::Result<Menu<Wry>>
             }
         }
         None => {
-            let own = format!("{}|own", pad_menu_id(id));
+            let own = MenuCmd::OwnSlots {
+                device: v.id.clone(),
+            };
             menu.append(&MenuItem::with_id(
                 app,
-                own,
+                own.to_id(),
                 &t.own_slots,
                 true,
                 None::<&str>,
@@ -466,28 +531,12 @@ fn pad_menu(app: &AppHandle, v: &PadView, t: &Texts) -> tauri::Result<Menu<Wry>>
     menu.append(&PredefinedMenuItem::separator(app)?)?;
     menu.append(&MenuItem::with_id(
         app,
-        "open",
+        MenuCmd::Open.to_id(),
         &t.open,
         true,
         None::<&str>,
     )?)?;
     Ok(menu)
-}
-
-/// A controller's menu entry: `pad|<device>|slot|<n>` or `pad|<device>|own`.
-fn pad_command(menu_id: &str) -> Option<ServiceCmd> {
-    let rest = menu_id.strip_prefix("pad|")?;
-    if let Some(device) = rest.strip_suffix("|own") {
-        return Some(ServiceCmd::OwnSlots {
-            device: device.to_owned(),
-            on: true,
-        });
-    }
-    let (device, slot) = rest.rsplit_once("|slot|")?;
-    Some(ServiceCmd::SelectSlot {
-        device: Some(device.to_owned()),
-        slot: slot.parse().ok()?,
-    })
 }
 
 /// Clicks on an icon: left opens the window, middle switches remapping.
@@ -515,9 +564,14 @@ pub fn refresh(app: &AppHandle) {
 
 /// Refresh the tray whenever the part of the live state it shows changes.
 fn watch(app: AppHandle, live: SharedLive, mut shown: View) {
+    let mut generation = 0;
     loop {
         std::thread::sleep(WATCH_INTERVAL);
-        let view = View::of(&live.get());
+        let Some((g, state)) = live.since(generation) else {
+            continue;
+        };
+        generation = g;
+        let view = View::of(&state);
         if view != shown {
             shown = view;
             refresh(&app);
@@ -559,21 +613,26 @@ fn toggle_remap(app: &AppHandle) {
 }
 
 fn on_menu(app: &AppHandle, id: &str) {
-    match id {
-        "open" => show_main(app),
-        "quit" => quit(app),
-        "remap" => toggle_remap(app),
-        "autodetect" => {
+    let Some(cmd) = MenuCmd::parse(id) else {
+        return;
+    };
+    match cmd {
+        MenuCmd::Open => show_main(app),
+        MenuCmd::Quit => quit(app),
+        MenuCmd::Remap => toggle_remap(app),
+        MenuCmd::Autodetect => {
             let on = !app.state::<Tray>().view().auto_switch;
             command(app, ServiceCmd::SetAutoSwitch(on));
         }
-        _ => {
-            if let Some(slot) = id.strip_prefix("slot-").and_then(|n| n.parse().ok()) {
-                command(app, ServiceCmd::SelectSlot { device: None, slot });
-            } else if let Some(cmd) = pad_command(id) {
-                command(app, cmd);
-            }
-        }
+        MenuCmd::Slot(slot) => command(app, ServiceCmd::SelectSlot { device: None, slot }),
+        MenuCmd::PadSlot { device, slot } => command(
+            app,
+            ServiceCmd::SelectSlot {
+                device: Some(device),
+                slot,
+            },
+        ),
+        MenuCmd::OwnSlots { device } => command(app, ServiceCmd::OwnSlots { device, on: true }),
     }
 }
 
@@ -584,18 +643,19 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
     std::thread::Builder::new()
         .name("dp-tray-cmd".into())
         .spawn(move || run_commands(&handle, &clicked))?;
-    let check = |id: &str| CheckMenuItem::with_id(app, id, "", true, false, None::<&str>);
+    let check =
+        |cmd: MenuCmd| CheckMenuItem::with_id(app, cmd.to_id(), "", true, false, None::<&str>);
     // A 32 px glyph without the app icon's tile, drawn for tray sizes (icons/source/tray-icon.svg).
     let icon_on = tauri::include_image!("icons/tray.png");
     let tray = Tray {
-        open: MenuItem::with_id(app, "open", "", true, None::<&str>)?,
+        open: MenuItem::with_id(app, MenuCmd::Open.to_id(), "", true, None::<&str>)?,
         status: MenuItem::with_id(app, "status", "", false, None::<&str>)?,
-        remap: check("remap")?,
-        autodetect: check("autodetect")?,
+        remap: check(MenuCmd::Remap)?,
+        autodetect: check(MenuCmd::Autodetect)?,
         slots: (0..SLOTS)
-            .map(|i| check(&format!("slot-{i}")))
+            .map(|i| check(MenuCmd::Slot(i)))
             .collect::<tauri::Result<_>>()?,
-        quit: MenuItem::with_id(app, "quit", "", true, None::<&str>)?,
+        quit: MenuItem::with_id(app, MenuCmd::Quit.to_id(), "", true, None::<&str>)?,
         icon_off: dimmed(&icon_on),
         icon_on,
         live,
@@ -760,31 +820,48 @@ mod tests {
 
     #[test]
     fn controller_menus_reach_their_slots() {
-        assert_eq!(
-            pad_command("pad|hid:b|slot|2"),
-            Some(ServiceCmd::SelectSlot {
-                device: Some("hid:b".into()),
-                slot: 2
-            })
-        );
-        assert_eq!(
-            pad_command("pad|xinput:0|own"),
-            Some(ServiceCmd::OwnSlots {
-                device: "xinput:0".into(),
-                on: true
-            })
-        );
-        assert_eq!(pad_command("slot-1"), None);
-        assert_eq!(pad_command("pad|x|slot|nine"), None);
-        // evdev ids carry slashes; the menu gives them back whole.
-        let id = "evdev:045e:028e:usb-0000:04:00.3-1/input0";
-        assert_eq!(
-            pad_command(&format!("{}|slot|0", pad_menu_id(id))),
-            Some(ServiceCmd::SelectSlot {
-                device: Some(id.into()),
-                slot: 0
-            })
-        );
+        let pad = |device: &str| MenuCmd::PadSlot {
+            device: device.into(),
+            slot: 2,
+        };
+        let own = |device: &str| MenuCmd::OwnSlots {
+            device: device.into(),
+        };
+        let every = [
+            MenuCmd::Open,
+            MenuCmd::Quit,
+            MenuCmd::Remap,
+            MenuCmd::Autodetect,
+            MenuCmd::Slot(3),
+            pad("hid:b"),
+            own("xinput:0"),
+            // evdev ids carry slashes, and any id may hold the separators.
+            pad("evdev:045e:028e:usb-0000:04:00.3-1/input0"),
+            pad("odd|own"),
+            own("odd|slot|1"),
+        ];
+        for cmd in every {
+            assert_eq!(MenuCmd::parse(&cmd.to_id()), Some(cmd.clone()), "{cmd:?}");
+        }
+        assert_eq!(pad("hid:b").to_id(), "pad|hid:b|slot|2");
+        assert_eq!(MenuCmd::parse("status"), None);
+        assert_eq!(MenuCmd::parse("slot-x"), None);
+        assert_eq!(MenuCmd::parse("pad|x|slot|nine"), None);
+    }
+
+    #[test]
+    fn controller_menus_say_what_runs() {
+        let t = texts("en");
+        let live = live_with_two_pads();
+        let pads = pad_views(&live, &BTreeMap::new());
+        assert_eq!(pad_status(&pads[2], t), t.not_remapped);
+        assert_eq!(slot_label(t, 1, None), "Slot 2 (empty)");
+        let charging = Battery {
+            level: 40,
+            charging: true,
+            wired: false,
+        };
+        assert_eq!(battery_text(t, charging), "40 % (charging)");
     }
 
     #[test]
