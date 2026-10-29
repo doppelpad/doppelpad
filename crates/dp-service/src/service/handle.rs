@@ -60,13 +60,7 @@ impl Service {
                 None => return no_slot(n),
             },
             Request::ClearSlot { slot: None, device } => {
-                for slot in 0..SLOTS {
-                    self.run(ServiceCmd::ClearSlot {
-                        device: device.clone(),
-                        slot,
-                    });
-                }
-                return Response::ok("all slots cleared");
+                return self.clear_slots(device, 0..SLOTS).into();
             }
             Request::Remap { on } => ServiceCmd::SetRemap(on),
             Request::AutoSwitch { enabled } => ServiceCmd::SetAutoSwitch(enabled),
@@ -287,19 +281,34 @@ impl Service {
     }
 
     fn clear_slot(&mut self, device: Option<String>, slot: usize) -> ServiceReply {
-        if let Some(e) = Self::bad_slot(slot) {
-            return e;
+        match Self::bad_slot(slot) {
+            Some(e) => e,
+            None => self.clear_slots(device, slot..slot + 1),
         }
+    }
+
+    /// Empty `slots` (in range) together: one save and at most one profile change.
+    fn clear_slots(
+        &mut self,
+        device: Option<String>,
+        slots: std::ops::Range<usize>,
+    ) -> ServiceReply {
+        let what = match slots.len() {
+            1 => format!("slot {} cleared", slots.start + 1),
+            _ => "all slots cleared".into(),
+        };
         let device = self.has_own_slots(device.as_deref());
-        self.slot_set_mut(device.as_deref()).slots[slot] = None;
+        for slot in slots.clone() {
+            self.slot_set_mut(device.as_deref()).slots[slot] = None;
+        }
         if let Some(device) = device {
-            return self.device_reply(&device, format!("slot {} cleared", slot + 1));
+            return self.device_reply(&device, what);
         }
         self.save_state();
-        if slot == self.state.shared.active && self.auto_active.is_none() {
+        if slots.contains(&self.state.shared.active) && self.auto_active.is_none() {
             self.apply_base();
         }
-        ServiceReply::Ok(format!("slot {} cleared", slot + 1))
+        ServiceReply::Ok(what)
     }
 
     fn own_slots(&mut self, device: String, on: bool) -> ServiceReply {

@@ -284,7 +284,9 @@ impl Service {
         svc.apply_power_off();
         svc.apply_switch2_bluetooth();
         svc.apply_dsu();
-        svc.apply_http();
+        if svc.apply_http() {
+            svc.save_state();
+        }
         svc.rt.set_prevent_sleep(svc.state.runtime.prevent_sleep);
         svc.reload();
         if let Some(p) = svc.oneoff.clone() {
