@@ -42,7 +42,7 @@
 
 <Dialog title={t('stores.title')} {onclose} width={600} gap={12}>
   <p class="hint">{t('stores.hint')}</p>
-  <input bind:value={filter} placeholder={t('game.filter')} />
+  <input bind:value={filter} placeholder={t('game.filter')} aria-label={t('game.filter')} />
   <div class="list">
     {#if games === null}
       <p class="hint">{t('stores.loading')}</p>

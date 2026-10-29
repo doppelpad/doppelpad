@@ -3,6 +3,7 @@
   // or a built-in command.
   import { Keyboard, Mouse, Gamepad2, Terminal, X } from '@lucide/svelte';
   import { open } from '@tauri-apps/plugin-dialog';
+  import { arrowKeys } from '../../lib/dom';
   import { t } from '../../lib/i18n/index.svelte';
   import { keyFromEvent, keyGroups, keyLabel } from '../../lib/model/keymap';
   import { parseNonNegInt } from '../../lib/model/numbers';
@@ -95,22 +96,31 @@
 
 <div class="picker">
   <div class="tabs">
-    {#each TABS as tb (tb.id)}
-      <button class="tab" class:active={tab === tb.id} onclick={() => (tab = tb.id)}>
-        <tb.icon size={16} />
-        <span>{t(`picker.${tb.id}`)}</span>
-      </button>
-    {/each}
+    <div class="tab-list" role="tablist" aria-label={t('binding.add_action')} use:arrowKeys>
+      {#each TABS as tb (tb.id)}
+        <button
+          class="tab"
+          role="tab"
+          class:active={tab === tb.id}
+          aria-selected={tab === tb.id}
+          tabindex={tab === tb.id ? 0 : -1}
+          onclick={() => (tab = tb.id)}
+        >
+          <tb.icon size={16} />
+          <span>{t(`picker.${tb.id}`)}</span>
+        </button>
+      {/each}
+    </div>
     <button class="icon-btn close" use:tip={t('common.close')} onclick={onclose}><X size={15} /></button>
   </div>
 
   {#if tab === 'keyboard'}
     <div class="row">
-      <button class="btn capture" class:on={capturing} onclick={() => (capturing = !capturing)}>
+      <button class="btn capture" class:on={capturing} aria-pressed={capturing} onclick={() => (capturing = !capturing)}>
         <Keyboard size={14} />
         {capturing ? t('picker.press_now') : t('picker.press_key')}
       </button>
-      <input class="search" placeholder={t('picker.search')} bind:value={search} />
+      <input class="search" placeholder={t('picker.search')} aria-label={t('picker.search')} bind:value={search} />
     </div>
     <div class="scroll">
       {#each groups as g (g.id)}
@@ -254,6 +264,11 @@
     gap: 2px;
     padding: 4px;
     border-bottom: 1px solid var(--line);
+  }
+  .tab-list {
+    flex: 1;
+    display: flex;
+    gap: 2px;
   }
   .tab {
     flex: 1;

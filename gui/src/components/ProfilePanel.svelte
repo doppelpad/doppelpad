@@ -267,6 +267,7 @@
     opacity: 0;
   }
   .game:hover .more,
+  .game:focus-within .more,
   .game.selected .more {
     opacity: 1;
   }

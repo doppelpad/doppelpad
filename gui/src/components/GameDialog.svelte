@@ -134,6 +134,7 @@
       <input
         bind:value={typed}
         placeholder={t('game.program_placeholder')}
+        aria-label={t('game.program_placeholder')}
         onkeydown={(e) => {
           if (e.key === 'Enter') {
             add(typed);
@@ -150,7 +151,9 @@
       >
     </div>
     <div class="sources">
-      <button class="btn" class:on={running !== null} onclick={showRunning}><AppWindow size={14} /> {t('game.running')}</button>
+      <button class="btn" class:on={running !== null} aria-expanded={running !== null} onclick={showRunning}
+        ><AppWindow size={14} /> {t('game.running')}</button
+      >
       <button class="btn" onclick={browse}><FolderOpen size={14} /> {t('game.browse')}</button>
       <button class="btn" onclick={inFront} disabled={countdown > 0}>
         <Timer size={14} />
@@ -159,7 +162,7 @@
     </div>
     {#if running}
       <div class="running">
-        <input bind:value={filter} placeholder={t('game.filter')} />
+        <input bind:value={filter} placeholder={t('game.filter')} aria-label={t('game.filter')} />
         {#each shown as r (r.exe)}
           <button class="pick" onclick={() => add(r.exe)} disabled={hasProgram(programs, r.exe)}>
             <span class="exe">{r.exe}</span>

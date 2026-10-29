@@ -85,6 +85,7 @@
           <button
             class="ctl"
             class:on={picking.includes(c)}
+            aria-pressed={picking.includes(c)}
             disabled={!picking.includes(c) && picking.length >= MAX}
             onclick={() => toggle(c)}
           >

@@ -21,6 +21,7 @@
     setOpener,
     updateMenu,
   } from '../../lib/model/radial';
+  import { arrowKeys } from '../../lib/dom';
   import { app } from '../../lib/state/app.svelte';
   import { controlChoiceItems, createControlCapture } from '../../lib/state/controlCapture.svelte';
   import { layerColor } from '../../lib/theme/layers';
@@ -132,13 +133,22 @@
       {/if}
     </div>
   {:else}
-    <div class="tabs" role="tablist" aria-label={t('radial.title')}>
-      {#each menus as m, i (i)}
-        <button role="tab" class="tab" class:on={i === index} aria-selected={i === index} onclick={() => showMenu(i)}>
-          {m.name || t('radial.default_name', { n: i + 1 })}
-          {#if m.layer === 0}<span class="sub">{t('radial.sub')}</span>{/if}
-        </button>
-      {/each}
+    <div class="tabs">
+      <div class="tab-list" role="tablist" aria-label={t('radial.title')} use:arrowKeys>
+        {#each menus as m, i (i)}
+          <button
+            role="tab"
+            class="tab"
+            class:on={i === index}
+            aria-selected={i === index}
+            tabindex={i === index ? 0 : -1}
+            onclick={() => showMenu(i)}
+          >
+            {m.name || t('radial.default_name', { n: i + 1 })}
+            {#if m.layer === 0}<span class="sub">{t('radial.sub')}</span>{/if}
+          </button>
+        {/each}
+      </div>
       {#if !disabled}
         <button class="tab add" onclick={newMenu}><Plus size={14} /> {t('radial.new')}</button>
       {/if}
@@ -204,7 +214,7 @@
           {/if}
           <div class="row">
             <span class="label">{t('radial.layer')}</span>
-            <Select value={String(layer)} {disabled} size="s" options={layerOptions} onchange={setLayer} />
+            <Select value={String(layer)} {disabled} size="s" label={t('radial.layer')} options={layerOptions} onchange={setLayer} />
           </div>
         </section>
 
@@ -214,6 +224,7 @@
             <span class="label">{t('radial.select')}</span>
             <Select
               value={menu.select ?? def?.select ?? 'right_stick'}
+              label={t('radial.select')}
               {disabled}
               class="wide-select"
               options={SELECTS.map((s) => ({ value: s, label: t(`radial.selects.${s}`) }))}
@@ -224,6 +235,7 @@
             <span class="label">{t('radial.apply')}</span>
             <Select
               value={menu.apply ?? def?.apply ?? 'release'}
+              label={t('radial.apply')}
               {disabled}
               class="wide-select"
               options={APPLIES.map((a) => ({ value: a, label: t(`radial.applies.${a}`) }))}
@@ -334,7 +346,8 @@
   .empty .btn {
     margin-top: 6px;
   }
-  .tabs {
+  .tabs,
+  .tab-list {
     display: flex;
     flex-wrap: wrap;
     gap: 4px;

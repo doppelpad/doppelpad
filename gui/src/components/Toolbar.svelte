@@ -187,6 +187,7 @@
   <button
     class="tile"
     class:active={app.view === v.id}
+    aria-current={app.view === v.id ? 'page' : undefined}
     use:tooltip={iconOnly ? (v.title ?? v.label) : v.title}
     onclick={() => setView(v.id)}
   >
@@ -205,6 +206,7 @@
       <button
         class="layer"
         class:active={app.layer === id}
+        aria-current={app.layer === id ? 'true' : undefined}
         style:--c={layerColor(id)}
         aria-describedby={tip?.layer === id ? tipId : undefined}
         onmouseenter={(e) => showTip(id, e.currentTarget, 400)}
@@ -302,10 +304,12 @@
     background: var(--bg-2);
     color: var(--text);
   }
+  /* The shown view: also a bar under it, for those who do not tell the colours apart. */
   .tile.active {
     color: var(--accent);
     background: var(--accent-soft);
     border-color: color-mix(in srgb, var(--accent) 30%, transparent);
+    box-shadow: inset 0 -2px 0 var(--accent);
   }
   .layers {
     position: relative;
@@ -373,9 +377,11 @@
     border-color: var(--line-strong);
     color: var(--text);
   }
+  /* The current layer: also a thicker frame, for those who do not tell the colours apart. */
   .layer.active {
     border-color: var(--c);
     color: var(--text);
     background: color-mix(in srgb, var(--c) 14%, transparent);
+    box-shadow: inset 0 0 0 1px var(--c);
   }
 </style>

@@ -50,6 +50,32 @@ export function tabbables(root: Element): HTMLElement[] {
   );
 }
 
+/**
+ * Action for a radio group or a tab list: the arrow keys (and Home, End) move to the previous
+ * or next of its `[role=radio]` / `[role=tab]` items and choose it, as the system's own groups
+ * do. In a grid of `columns`, up and down move by a row. The items themselves keep only the
+ * chosen one in the Tab order (`tabindex`).
+ */
+export function arrowKeys(node: HTMLElement, columns = 0) {
+  function onkeydown(e: KeyboardEvent) {
+    const items = [...node.querySelectorAll<HTMLElement>('[role=radio], [role=tab]')].filter((el) => !(el as HTMLButtonElement).disabled);
+    const i = items.indexOf(document.activeElement as HTMLElement);
+    if (i < 0) return;
+    const row = columns || 1;
+    const step = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -row, ArrowDown: row, Home: -i, End: items.length - 1 - i }[e.key];
+    if (step === undefined) return;
+    e.preventDefault();
+    const next = items[(i + step + items.length) % items.length]!;
+    next.focus();
+    next.click();
+  }
+  node.addEventListener('keydown', onkeydown);
+  return {
+    update: (c = 0) => (columns = c),
+    destroy: () => node.removeEventListener('keydown', onkeydown),
+  };
+}
+
 /** Open dialogs (ui/Dialog), the topmost last: Escape closes only that one. */
 export const dialogStack: symbol[] = [];
 

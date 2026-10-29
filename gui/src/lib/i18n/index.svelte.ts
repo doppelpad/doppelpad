@@ -15,6 +15,8 @@ let current = $state<Language>('en');
 
 export function setLanguage(lang: string) {
   current = (lang in catalogs ? lang : 'en') as Language;
+  // Screen readers read the page in its language.
+  if (typeof document !== 'undefined') document.documentElement.lang = current;
 }
 
 export function language(): Language {
