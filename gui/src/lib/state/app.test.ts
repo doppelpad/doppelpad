@@ -1,16 +1,21 @@
-// The app state against a fake bridge: settings writes that overlap, undo and redo, opening
-// and saving configs. Each test starts from a new state.
+// The app state against a fake bridge: start-up, settings writes that overlap, undo and redo,
+// opening and saving configs. Each test starts from a new state.
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Game, GuiSettings, LoadedConfig, Profile } from '../types';
 
 /** What the bridge stored, write by write; each write takes a moment, like the real one. */
 const stored: GuiSettings[] = [];
+/** Commands that fail. */
+const failing = new Set<string>();
 vi.mock('@tauri-apps/api/core', () => ({
   Channel: class {},
   invoke: async (cmd: string, args?: { settings?: GuiSettings; path?: string }) => {
+    if (failing.has(cmd)) throw new Error(`${cmd} failed`);
     if (cmd === 'config_load') return loaded(args?.path ?? '');
-    if (cmd === 'library_scan') return { games: [], unsorted: [], errors: [] };
+    if (cmd === 'library_scan') return { games: [game], unsorted: [], errors: [] };
+    if (cmd === 'settings_get') return { ...SETTINGS_PLACEHOLDER, check_updates: false };
+    if (cmd === 'take_notices' || cmd === 'take_open_files') return [];
     if (cmd === 'config_save') {
       await new Promise((r) => setTimeout(r, 5));
       return [];
@@ -20,6 +25,7 @@ vi.mock('@tauri-apps/api/core', () => ({
     stored.push(args.settings);
   },
 }));
+vi.mock('@tauri-apps/api/event', () => ({ listen: async () => () => {} }));
 
 /** A config as the bridge loads it; paths with "ro" in them are read-only. */
 function loaded(path: string): LoadedConfig {
@@ -28,11 +34,13 @@ function loaded(path: string): LoadedConfig {
 }
 
 const { AppState } = await import('./app.svelte');
+const { SETTINGS_PLACEHOLDER } = await import('./settings');
 const { addLayer } = await import('../model/profile');
 
 let app: InstanceType<typeof AppState>;
 beforeEach(() => {
   app = new AppState();
+  failing.clear();
 });
 
 /** A game with two configs. */
@@ -46,6 +54,16 @@ const game: Game = {
 };
 
 const rename = (name: string) => app.edit((p) => ({ ...p, name }));
+
+describe('start-up', () => {
+  it('a step that fails says so, and the others still run', async () => {
+    failing.add('hotkeys_get').add('catalog');
+    await app.init();
+    expect(app.toasts.map((x) => x.text)).toEqual(['catalog failed', 'hotkeys_get failed']);
+    expect(app.library.games).toEqual([game]);
+    expect(app.configPath).toBe('one.toml');
+  });
+});
 
 describe('settings', () => {
   it('two changes within one round trip both stay', async () => {

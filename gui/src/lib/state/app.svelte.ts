@@ -218,42 +218,47 @@ export class AppState {
 
   layerLabel = (id: number) => (this.profile ? layerLabel(this.profile, id) : String(id));
 
+  /** Start-up: each step on its own, so one that fails says why and the others still run. */
   async init() {
-    try {
-      this.settings = await api.settingsGet();
-      setLanguage(this.settings.language);
-      this.catalog = await api.catalog();
-      this.hotkeys = await api.hotkeysGet();
-      await this.refreshLibrary();
-      await api.liveSubscribe((s) => this.onLive(s));
-      for (const n of await api.takeNotices()) this.toast(t(`notices.${n}`), 'info');
-      // Bundles opened from Explorer: the one the app started with now, later ones as they come.
-      await listen<string[]>('open-files', (e) => this.openFiles(e.payload));
-      // Hints the app sends while something happens elsewhere (a game in front).
-      await listen<{ id: QuestionId; game: string }>('hint', (e) =>
+    const settingsRead = await this.attempt(
+      api.settingsGet().then((s) => {
+        this.settings = s;
+        setLanguage(s.language);
+      }),
+    );
+    await this.attempt(api.catalog().then((c) => (this.catalog = c)));
+    // Only for the clash marks: the rest does not wait for the service's answer.
+    this.attempt(api.hotkeysGet().then((h) => (this.hotkeys = h)));
+    await this.attempt(this.refreshLibrary());
+    await this.attempt(api.liveSubscribe((s) => this.onLive(s)));
+    await this.attempt(api.takeNotices().then((notices) => notices.forEach((n) => this.toast(t(`notices.${n}`), 'info'))));
+    // Bundles opened from Explorer: the one the app started with now, later ones as they come.
+    await this.attempt(listen<string[]>('open-files', (e) => this.openFiles(e.payload)));
+    // Hints the app sends while something happens elsewhere (a game in front).
+    await this.attempt(
+      listen<{ id: QuestionId; game: string }>('hint', (e) =>
         this.inform(t(`hints.${e.payload.id}`, { game: e.payload.game }), e.payload.id),
-      );
-      const opened = await api.takeOpenFiles();
-      this.rewasd = await api.rewasdStatus();
-      if (this.rewasdRunning) {
-        if (this.settings.rewasd_at_start === 'quit') this.quitRewasd();
-        else if (this.settings.rewasd_at_start === 'ask') {
-          this.rewasdAsk = true;
-          // The app may have started hidden with Windows.
-          await api.showWindow();
-        }
+      ),
+    );
+    let opened: string[] = [];
+    await this.attempt(api.takeOpenFiles().then((files) => (opened = files)));
+    await this.attempt(api.rewasdStatus().then((r) => (this.rewasd = r)));
+    if (this.rewasdRunning) {
+      if (this.settings.rewasd_at_start === 'quit') this.quitRewasd();
+      else if (this.settings.rewasd_at_start === 'ask') {
+        this.rewasdAsk = true;
+        // The app may have started hidden with Windows.
+        await this.attempt(api.showWindow());
       }
-      // Open the game of the config that is currently applied (when the first live state is
-      // already here), else the first game.
-      const applied = this.live?.profile_path;
-      const game = this.library.games.find((g) => g.configs.some((c) => c.path === applied)) ?? this.library.games[0];
-      if (game) await this.selectGame(game.dir);
-      if (opened.length) await this.openFiles(opened);
-      // The question waits in the window, also when the app started hidden with Windows.
-      if (this.settings.check_updates) this.checkForUpdate();
-    } catch (e) {
-      this.toast(errorText(e), 'error');
     }
+    // Open the game of the config that is currently applied (when the first live state is
+    // already here), else the first game.
+    const applied = this.live?.profile_path;
+    const game = this.library.games.find((g) => g.configs.some((c) => c.path === applied)) ?? this.library.games[0];
+    if (game) await this.selectGame(game.dir);
+    if (opened.length) await this.openFiles(opened);
+    // The question waits in the window, also when the app started hidden with Windows.
+    if (settingsRead && this.settings.check_updates) this.checkForUpdate();
   }
 
   private onLive(s: LiveState) {
