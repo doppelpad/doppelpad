@@ -26,7 +26,10 @@ use dp_core::profile::{
     VirtualPadType, VirtualSticks,
 };
 pub use format::{FileFormat, Migration};
-pub use store::{Loaded, load_toml_or_default, save_toml, set_aside, write_atomic};
+pub use store::{
+    Loaded, SaveError, load_toml_or_default, save_toml, save_toml_with_header, set_aside,
+    write_atomic,
+};
 
 #[derive(Debug, thiserror::Error)]
 pub enum LoadError {

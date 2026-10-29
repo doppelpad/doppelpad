@@ -274,10 +274,13 @@ pub fn save_preset(profiles: &Path, preset: &LayerPreset) -> Result<PathBuf> {
         Some(same) => same.path,
         None => library::unique_path(&dir, &library::slugify(&preset.name), Some("toml")),
     };
-    let text =
-        toml::to_string_pretty(preset).map_err(|e| LibraryError::Serialize(path.clone(), e))?;
-    let text = format!("# Doppelpad layer preset\n{}", PRESET_FORMAT.stamp(&text));
-    crate::store::write_atomic(&path, text).map_err(io(&path))?;
+    crate::store::save_toml_with_header(
+        &path,
+        preset,
+        &PRESET_FORMAT,
+        Some("# Doppelpad layer preset"),
+    )
+    .map_err(library::unsaved(&path))?;
     Ok(path)
 }
 

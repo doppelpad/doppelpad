@@ -40,10 +40,36 @@ fn write_synced(path: &Path, contents: &[u8]) -> io::Result<()> {
     file.sync_all()
 }
 
+/// Why a TOML file could not be saved.
+#[derive(Debug, thiserror::Error)]
+pub enum SaveError {
+    #[error(transparent)]
+    Serialize(#[from] toml::ser::Error),
+    #[error(transparent)]
+    Io(#[from] io::Error),
+}
+
 /// Write `value` to `path` as TOML in `format`, atomically.
 pub fn save_toml<T: Serialize>(path: &Path, value: &T, format: &FileFormat) -> io::Result<()> {
-    let text = toml::to_string_pretty(value).map_err(io::Error::other)?;
-    write_atomic(path, format.stamp(&text))
+    save_toml_with_header(path, value, format, None).map_err(|e| match e {
+        SaveError::Io(e) => e,
+        SaveError::Serialize(e) => io::Error::other(e),
+    })
+}
+
+/// [`save_toml`] with the comment line `header` (`# …`, without a line break) first.
+pub fn save_toml_with_header<T: Serialize>(
+    path: &Path,
+    value: &T,
+    format: &FileFormat,
+    header: Option<&str>,
+) -> Result<(), SaveError> {
+    let text = format.stamp(&toml::to_string_pretty(value)?);
+    let text = match header {
+        Some(header) => format!("{header}\n{text}"),
+        None => text,
+    };
+    Ok(write_atomic(path, text)?)
 }
 
 /// A settings file as read.
@@ -129,6 +155,12 @@ mod tests {
         );
         assert_eq!(load(&path).value, Settings { n: 3 });
         assert!(load(&path).problem.is_none());
+        save_toml_with_header(&path, &Settings { n: 4 }, &FORMAT, Some("# notes")).unwrap();
+        assert_eq!(
+            std::fs::read_to_string(&path).unwrap(),
+            "# notes\nformat = 1\nn = 4\n"
+        );
+        assert_eq!(load(&path).value, Settings { n: 4 });
         assert!(
             !with_suffix(&path, "tmp").exists(),
             "the temporary file is gone"

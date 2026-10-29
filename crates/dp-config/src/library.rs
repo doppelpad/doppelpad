@@ -13,7 +13,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::launches::{self, Launch};
 use crate::{
-    Diagnostics, FileFormat, Format, LoadError, compat, is_profile_file, load, picture, to_toml,
+    Diagnostics, FileFormat, Format, LoadError, SaveError, compat, is_profile_file, load, picture,
+    to_toml,
 };
 
 /// File holding a game's metadata inside its folder.
@@ -51,6 +52,14 @@ pub type Result<T, E = LibraryError> = std::result::Result<T, E>;
 
 pub(crate) fn io(path: &Path) -> impl FnOnce(std::io::Error) -> LibraryError + '_ {
     move |e| LibraryError::Io(path.to_path_buf(), e)
+}
+
+/// The error for a TOML file `path` that could not be saved.
+pub(crate) fn unsaved(path: &Path) -> impl FnOnce(SaveError) -> LibraryError + '_ {
+    move |e| match e {
+        SaveError::Serialize(e) => LibraryError::Serialize(path.to_path_buf(), e),
+        SaveError::Io(e) => LibraryError::Io(path.to_path_buf(), e),
+    }
 }
 
 /// Metadata of one game.
@@ -304,9 +313,7 @@ pub(crate) fn unique_path(dir: &Path, base: &str, ext: Option<&str>) -> PathBuf 
 
 fn write_meta(dir: &Path, meta: &GameMeta) -> Result<()> {
     let path = dir.join(GAME_FILE);
-    let text =
-        toml::to_string_pretty(meta).map_err(|e| LibraryError::Serialize(path.clone(), e))?;
-    write_atomic(&path, &GAME_FORMAT.stamp(&text))
+    crate::store::save_toml_with_header(&path, meta, &GAME_FORMAT, None).map_err(unsaved(&path))
 }
 
 /// Create a new game folder with one empty config named "Default".
@@ -484,10 +491,6 @@ pub fn delete_config(path: &Path) -> Result<()> {
     trash(path)
 }
 
-fn write_atomic(path: &Path, text: &str) -> Result<()> {
-    crate::store::write_atomic(path, text).map_err(io(path))
-}
-
 /// Save a profile as TOML: written to a temporary file and renamed over the target.
 /// A file that was not written by Doppelpad (e.g. hand-written with comments, which
 /// would be lost) is copied to `<file>.bak` once before its first overwrite. A JSON
@@ -505,7 +508,7 @@ pub fn save_profile_atomic(path: &Path, profile: &Profile) -> Result<()> {
             }
         }
     }
-    write_atomic(path, &text)
+    crate::store::write_atomic(path, &text).map_err(io(path))
 }
 
 /// A JSON profile (schema 3.0) as [`import_into`] brings it in.
