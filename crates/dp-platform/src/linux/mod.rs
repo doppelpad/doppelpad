@@ -8,7 +8,7 @@
 //! devices (the Linux counterpart of the `VirtualIgnoreList` on Windows).
 //!
 //! The pure translation code (`codes`, `padmap`, `x360`, `kbmmap`, `procname`, `sysfs`,
-//! `logind`, `appimage`, `att`, `gatt`) also compiles in tests on other OSes, so it is
+//! `appimage`, `att`, `gatt`) also compiles in tests on other OSes, so it is
 //! unit-tested everywhere.
 
 #![cfg_attr(not(target_os = "linux"), allow(dead_code))]
@@ -18,7 +18,6 @@ mod att;
 mod codes;
 mod gatt;
 mod kbmmap;
-mod logind;
 mod padmap;
 mod procname;
 mod sysfs;
@@ -42,6 +41,8 @@ mod hid;
 mod hidraw;
 #[cfg(target_os = "linux")]
 mod l2cap;
+#[cfg(target_os = "linux")]
+mod logind;
 #[cfg(target_os = "linux")]
 mod sysbus;
 #[cfg(target_os = "linux")]

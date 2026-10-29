@@ -1,26 +1,24 @@
 //! Power and window commands: systemd (`systemctl`, `loginctl`) for power, the EWMH
 //! `_NET_CLOSE_WINDOW` request for closing the focused X11 window. Screenshots are not
 //! available yet. Keeping the computer awake and noticing the lock screen go through
-//! systemd-logind (`systemd-inhibit`, `busctl`).
+//! systemd-logind on the system bus ([`super::logind`]).
 
+use std::os::fd::OwnedFd;
 use std::path::PathBuf;
-use std::process::{Child, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
 use x11rb::protocol::xproto::{ClientMessageEvent, ConnectionExt, EventMask};
 
-use super::logind::{LOCKED_HINT_QUERY, locked_hint};
 use super::x11::X11;
 use crate::{PlatformError, PowerAction, Result, SystemControl};
 
 #[derive(Default)]
 pub struct LinuxSystem {
-    /// `systemd-inhibit` holding logind's idle lock while it runs. The command it runs reads
-    /// our pipe, so it ends when the pipe closes: when remapping no longer needs the lock,
-    /// or when Doppelpad ends in any way.
-    inhibitor: Option<Child>,
+    /// logind's idle lock, held while this descriptor is open: until remapping no longer needs
+    /// it, or Doppelpad ends in any way.
+    inhibitor: Option<OwnedFd>,
     /// Whether the user's session is locked, followed from the first question on.
     lock: OnceLock<LockWatch>,
 }
@@ -101,26 +99,13 @@ impl SystemControl for LinuxSystem {
             return;
         }
         if on {
-            let spawned = super::host_command("systemd-inhibit")
-                .args([
-                    "--what=idle",
-                    "--who=Doppelpad",
-                    "--why=Remapping plays input back",
-                    "--mode=block",
-                    "cat",
-                ])
-                .stdin(Stdio::piped())
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .spawn();
-            match spawned {
-                Ok(child) => self.inhibitor = Some(child),
-                Err(e) => tracing::debug!("cannot keep the computer awake (systemd-inhibit): {e}"),
+            match super::logind::inhibit_idle("Remapping plays input back") {
+                Ok(fd) => self.inhibitor = Some(fd),
+                Err(e) => tracing::debug!("cannot keep the computer awake: {e}"),
             }
-        } else if let Some(mut child) = self.inhibitor.take() {
-            // Closing its input ends `cat`, and with it the lock.
-            drop(child.stdin.take());
-            std::thread::spawn(move || child.wait());
+        } else {
+            // Closing the descriptor gives the lock back.
+            self.inhibitor = None;
         }
     }
 
@@ -184,12 +169,7 @@ impl Drop for LockWatch {
 }
 
 fn locked_now() -> Option<bool> {
-    let out = super::host_command("busctl")
-        .args(LOCKED_HINT_QUERY)
-        .output()
-        .ok()?;
-    if !out.status.success() {
-        return None;
-    }
-    locked_hint(&String::from_utf8_lossy(&out.stdout))
+    super::logind::locked()
+        .inspect_err(|e| tracing::trace!("logind does not say whether the session is locked: {e}"))
+        .ok()
 }
