@@ -33,7 +33,7 @@
   import Slider from '../ui/Slider.svelte';
 
   const menus = $derived(app.profile?.radial_menus ?? []);
-  const index = $derived(Math.min(app.radialMenu, Math.max(0, menus.length - 1)));
+  const index = $derived(app.radialIndex);
   const menu = $derived<RadialMenu | undefined>(menus[index]);
   const def = $derived(app.catalog?.defaults.radial_menu);
   const disabled = $derived(app.readOnly);

@@ -7,7 +7,7 @@ import type { Side } from '../model/analog';
 import { controlsFromPad, drawingsFor, sideShowing } from '../model/devices';
 import { setStickGroup, stickGroupConflicts, stickGroupOf, type StickGroup } from '../model/stickgroups';
 import { comboKey, comboList, editMappingIn, layerIds, mappingAt, type LayerCopy } from '../model/profile';
-import { VIEWS, viewFor, type Place, type View } from '../model/views';
+import { VIEWS, viewFor, type AnalogTab, type OutputPage, type Place, type View } from '../model/views';
 import { layerLabel } from '../model/labels';
 import { launchRows } from '../model/launches';
 import { clone } from '../model/util';
@@ -19,8 +19,7 @@ import { History, type EditKey } from './history';
 import { PadInput } from './padInput.svelte';
 import { flagsOf, hotkeyClashes, waitsForSave, type Flags } from '../model/lints';
 import type { Copied } from '../model/clipboard';
-import type { MenuItem } from '../../components/ui/Menu.svelte';
-import type { OutputPage } from '../../components/OutputPanel.svelte';
+import type { MenuItem } from '../menu';
 import { SETTINGS_PLACEHOLDER } from './settings';
 import { Updater } from './updater.svelte';
 import type {
@@ -42,9 +41,6 @@ import type {
   Profile,
   RewasdStatus,
 } from '../types';
-
-/** Pages of the analog view. */
-export type AnalogTab = 'left' | 'right' | 'triggers' | 'gyro' | 'touchpad' | 'routes';
 
 export interface Toast {
   id: number;
@@ -179,6 +175,9 @@ export class AppState {
     };
   });
   rewasdRunning = $derived(!!this.rewasd && (this.rewasd.service !== null || this.rewasd.programs.length > 0));
+
+  /** The radial menu shown: the last one when the chosen one is gone (undo). */
+  radialIndex = $derived(Math.min(this.radialMenu, Math.max(0, (this.profile?.radial_menus?.length ?? 0) - 1)));
 
   layerLabel = (id: number) => (this.profile ? layerLabel(this.profile, id) : String(id));
 

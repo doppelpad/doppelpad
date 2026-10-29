@@ -1,22 +1,10 @@
-<script module lang="ts">
-  import { Crosshair, Gamepad2, Keyboard, Lightbulb, Timer } from '@lucide/svelte';
-
-  /** The pages of the config settings, in the order of the list on the left. */
-  export const OUTPUT_PAGES = [
-    { id: 'controller', icon: Gamepad2 },
-    { id: 'input', icon: Keyboard },
-    { id: 'timing', icon: Timer },
-    { id: 'feedback', icon: Lightbulb },
-    { id: 'crosshairs', icon: Crosshair },
-  ] as const;
-  export type OutputPage = (typeof OUTPUT_PAGES)[number]['id'];
-</script>
-
 <script lang="ts">
   // The config's settings, a page at a time: the virtual controller and how input passes,
   // keyboard and mouse, timing, light bar and rumble, crosshairs. The list on the left picks
   // the page, as in the app's settings.
+  import { Crosshair, Gamepad2, Keyboard, Lightbulb, Timer } from '@lucide/svelte';
   import { t } from '../lib/i18n/index.svelte';
+  import { OUTPUT_PAGES as PAGE_IDS, type OutputPage } from '../lib/model/views';
   import { app } from '../lib/state/app.svelte';
   import CrosshairSettings from './crosshair/CrosshairSettings.svelte';
   import InputSettings from './output/InputSettings.svelte';
@@ -26,6 +14,15 @@
   import TimingSettings from './output/TimingSettings.svelte';
   import VibrationSettings from './output/VibrationSettings.svelte';
   import VirtualPadSettings from './output/VirtualPadSettings.svelte';
+
+  const ICONS: Record<OutputPage, typeof Gamepad2> = {
+    controller: Gamepad2,
+    input: Keyboard,
+    timing: Timer,
+    feedback: Lightbulb,
+    crosshairs: Crosshair,
+  };
+  const OUTPUT_PAGES = PAGE_IDS.map((id) => ({ id, icon: ICONS[id] }));
 
   const id = $props.id();
   const page = $derived(app.outputPage);

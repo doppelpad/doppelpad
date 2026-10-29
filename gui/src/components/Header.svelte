@@ -9,7 +9,8 @@
   import { platform } from '../lib/state/window.svelte';
   import { shortcutLabel, withShortcut } from '../lib/state/shortcuts';
   import type { Profile, Template } from '../lib/types';
-  import Menu, { type MenuItem } from './ui/Menu.svelte';
+  import type { MenuItem } from '../lib/menu';
+  import Menu from './ui/Menu.svelte';
   import WindowControls from './WindowControls.svelte';
   import HistoryDialog from './HistoryDialog.svelte';
   import { tip } from '../lib/tooltip.svelte';

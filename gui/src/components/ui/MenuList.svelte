@@ -4,7 +4,7 @@
   // End) move between the rows that can be chosen, typing jumps to the next row starting with
   // what was typed; choosing one calls `onpick` (which closes the menu) before the item. A list
   // longer than `--menu-max-height` scrolls.
-  import type { MenuItem } from './Menu.svelte';
+  import type { MenuItem } from '../../lib/menu';
 
   let { items, onpick, el = $bindable() }: { items: MenuItem[]; onpick: () => void; el?: HTMLElement } = $props();
 

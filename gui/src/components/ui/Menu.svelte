@@ -1,32 +1,10 @@
-<script lang="ts" module>
-  import type { Component } from 'svelte';
-
-  export interface MenuItem {
-    label: string;
-    onclick?: () => void;
-    danger?: boolean;
-    disabled?: boolean;
-    checked?: boolean;
-    separator?: boolean;
-    /** A caption over the items after it (the label), not an item. */
-    heading?: boolean;
-    /** CSS color for a dot in front of the label. */
-    color?: string;
-    /** An icon in front of the label. */
-    icon?: Component<{ size?: number }>;
-    /** Dim text at the end of the row, e.g. a battery level. */
-    detail?: string;
-    /** Colors the detail: low or critical. */
-    tone?: 'warning' | 'danger';
-  }
-</script>
-
 <script lang="ts">
   // A button that opens a list of items below it (above when there is no room). The list is
   // fixed to the window, so a scrolling panel does not cut it off, and scrolls when it is
   // longer than the room it has. It closes on a choice, a click elsewhere, Escape or Tab,
   // scrolling, resizing or when the window loses the focus.
   import type { Snippet } from 'svelte';
+  import type { MenuItem } from '../../lib/menu';
   import { stepper } from '../../lib/padnav';
   import { tip } from '../../lib/tooltip.svelte';
   import MenuList from './MenuList.svelte';

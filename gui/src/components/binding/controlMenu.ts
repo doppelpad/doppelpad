@@ -20,7 +20,7 @@ import { comboLabel } from '../../lib/model/labels';
 import { comboList } from '../../lib/model/profile';
 import { app } from '../../lib/state/app.svelte';
 import type { Combo, ControlName } from '../../lib/types';
-import type { MenuItem } from '../ui/Menu.svelte';
+import type { MenuItem } from '../../lib/menu';
 
 const nameOf = (c: Combo) => comboLabel(c, app.family);
 const groupName = (g: GroupId) => t(`clipboard.groups.${g}`);

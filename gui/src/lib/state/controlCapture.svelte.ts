@@ -5,7 +5,7 @@ import { t } from '../i18n/index.svelte';
 import { controlLabel } from '../model/controls';
 import { keyFromEvent } from '../model/keymap';
 import type { Catalog, ControlName, PadFamily } from '../types';
-import type { MenuItem } from '../../components/ui/Menu.svelte';
+import type { MenuItem } from '../menu';
 import { app } from './app.svelte';
 
 /**

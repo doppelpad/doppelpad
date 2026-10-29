@@ -19,8 +19,7 @@
   import { RADIAL_ICONS, isImageIcon } from './icons';
 
   const menus = $derived(app.profile?.radial_menus ?? []);
-  /** As in the view: the last menu when the chosen one is gone (undo). */
-  const i = $derived(Math.min(app.radialMenu, Math.max(0, menus.length - 1)));
+  const i = $derived(app.radialIndex);
   const menu = $derived(menus[i]);
   const k = $derived(app.radialSector !== null && menu && app.radialSector < menu.sectors.length ? app.radialSector : null);
   const s = $derived<RadialSector | undefined>(k !== null ? menu?.sectors[k] : undefined);
