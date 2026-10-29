@@ -36,8 +36,8 @@ fn io_err(path: &Path) -> impl FnOnce(io::Error) -> MoveError + '_ {
 /// The chosen profiles folder written in `config_dir`, if any. A relative or empty entry is
 /// ignored, so a broken file falls back to the default.
 pub fn chosen_dir(config_dir: &Path) -> Option<PathBuf> {
-    let text = fs::read_to_string(config_dir.join(LOCATION_FILE)).ok()?;
-    let dir = PathBuf::from(text.trim());
+    let text = fs::read(config_dir.join(LOCATION_FILE)).ok()?;
+    let dir = path_of(text.trim_ascii())?;
     dir.is_absolute().then_some(dir)
 }
 
@@ -45,15 +45,42 @@ pub fn chosen_dir(config_dir: &Path) -> Option<PathBuf> {
 pub fn save_choice(config_dir: &Path, dir: Option<&Path>) -> Result<(), MoveError> {
     let file = config_dir.join(LOCATION_FILE);
     match dir {
-        Some(dir) => {
-            fs::create_dir_all(config_dir).map_err(io_err(config_dir))?;
-            fs::write(&file, format!("{}\n", dir.display())).map_err(io_err(&file))
-        }
+        Some(dir) => location_text(dir)
+            .and_then(|text| crate::store::write_atomic(&file, text))
+            .map_err(io_err(&file)),
         None => match fs::remove_file(&file) {
             Err(e) if e.kind() != io::ErrorKind::NotFound => Err(MoveError::Io(file, e)),
             _ => Ok(()),
         },
     }
+}
+
+/// The location file's content for `dir`: the folder's name as the system has it (on Unix any
+/// bytes, so that a name that is not valid UTF-8 survives), and a line break.
+fn location_text(dir: &Path) -> io::Result<Vec<u8>> {
+    #[cfg(unix)]
+    let name = std::os::unix::ffi::OsStrExt::as_bytes(dir.as_os_str()).to_vec();
+    #[cfg(not(unix))]
+    let name = dir
+        .to_str()
+        .ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                "the folder's name is not valid Unicode",
+            )
+        })?
+        .as_bytes()
+        .to_vec();
+    Ok([name, b"\n".to_vec()].concat())
+}
+
+/// The folder a location file names (see [`location_text`]).
+fn path_of(text: &[u8]) -> Option<PathBuf> {
+    #[cfg(unix)]
+    let path = PathBuf::from(<std::ffi::OsStr as std::os::unix::ffi::OsStrExt>::from_bytes(text));
+    #[cfg(not(unix))]
+    let path = PathBuf::from(std::str::from_utf8(text).ok()?);
+    Some(path)
 }
 
 /// What a folder offered as the new library holds.
@@ -249,13 +276,29 @@ mod tests {
         assert_eq!(chosen_dir(cfg.path()), None);
         let dir = cfg.path().join("sync").join("pads");
         save_choice(cfg.path(), Some(&dir)).unwrap();
-        assert_eq!(chosen_dir(cfg.path()), Some(dir));
+        assert_eq!(chosen_dir(cfg.path()), Some(dir.clone()));
         save_choice(cfg.path(), None).unwrap();
         assert_eq!(chosen_dir(cfg.path()), None);
         save_choice(cfg.path(), None).unwrap();
         // A relative entry is ignored.
         fs::write(cfg.path().join(LOCATION_FILE), "pads\n").unwrap();
         assert_eq!(chosen_dir(cfg.path()), None);
+        // Written atomically, into a settings folder that does not exist yet.
+        let fresh = cfg.path().join("fresh");
+        save_choice(&fresh, Some(&dir)).unwrap();
+        assert_eq!(chosen_dir(&fresh), Some(dir));
+        let left: Vec<_> = fs::read_dir(&fresh).unwrap().flatten().collect();
+        assert_eq!(left.len(), 1, "no temporary file: {left:?}");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn folders_whose_names_are_not_utf8_are_kept_as_they_are() {
+        use std::os::unix::ffi::OsStrExt;
+        let cfg = tempfile::tempdir().unwrap();
+        let dir = cfg.path().join(std::ffi::OsStr::from_bytes(b"pads-\xff"));
+        save_choice(cfg.path(), Some(&dir)).unwrap();
+        assert_eq!(chosen_dir(cfg.path()), Some(dir));
     }
 
     #[test]
