@@ -7,6 +7,7 @@
   import { onDestroy } from 'svelte';
   import { api } from '../lib/api';
   import { t } from '../lib/i18n/index.svelte';
+  import { addProgram, hasProgram } from '../lib/model/games';
   import { app } from '../lib/state/app.svelte';
   import type { Game } from '../lib/types';
   import Dialog from './ui/Dialog.svelte';
@@ -41,8 +42,7 @@
   );
 
   function add(exe: string) {
-    const e = exe.trim();
-    if (e && !programs.some((p) => p.toLowerCase() === e.toLowerCase())) programs = [...programs, e];
+    programs = addProgram(programs, exe);
   }
 
   async function showRunning() {
@@ -161,7 +161,7 @@
       <div class="running">
         <input bind:value={filter} placeholder={t('game.filter')} />
         {#each shown as r (r.exe)}
-          <button class="pick" onclick={() => add(r.exe)} disabled={programs.includes(r.exe)}>
+          <button class="pick" onclick={() => add(r.exe)} disabled={hasProgram(programs, r.exe)}>
             <span class="exe">{r.exe}</span>
             <span class="title">{r.title}</span>
           </button>
