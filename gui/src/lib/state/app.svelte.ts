@@ -544,8 +544,10 @@ export class AppState {
     return !this.dirty || (await this.confirmAsk(t('header.discard_confirm')));
   }
 
+  /** Open a game with the config it starts with; the open game's config stays as it is. */
   async selectGame(dir: string) {
-    if (dir !== this.gameDir && !(await this.confirmDiscard())) return;
+    if (dir === this.gameDir && this.configPath) return;
+    if (!(await this.confirmDiscard())) return;
     this.gameDir = dir;
     const g = this.library.games.find((x) => x.dir === dir);
     const target =
@@ -701,14 +703,16 @@ export class AppState {
 
   async save(): Promise<boolean> {
     if (!this.profile || !this.configPath || this.readOnly) return false;
+    // What is saved is the draft now; changes made while the save is under way stay unsaved.
+    const sent = $state.snapshot(this.profile) as Profile;
     try {
-      const diags = await api.configSave(this.configPath, $state.snapshot(this.profile) as Profile);
+      const diags = await api.configSave(this.configPath, sent);
       this.diagnostics = diags;
       if (diags.some((d) => d.severity === 'error')) {
         this.toast(t('notices.save_errors'), 'error');
         return false;
       }
-      this.savedJson = JSON.stringify(this.profile);
+      this.savedJson = JSON.stringify(sent);
       await this.refreshLibrary();
       this.toast(t('notices.saved'), 'ok');
       return true;

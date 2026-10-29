@@ -1,8 +1,8 @@
-// The app state against a fake bridge: settings writes that overlap, undo and redo. Each test
-// starts from a new state.
+// The app state against a fake bridge: settings writes that overlap, undo and redo, opening
+// and saving configs. Each test starts from a new state.
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { GuiSettings, LoadedConfig, Profile } from '../types';
+import type { Game, GuiSettings, LoadedConfig, Profile } from '../types';
 
 /** What the bridge stored, write by write; each write takes a moment, like the real one. */
 const stored: GuiSettings[] = [];
@@ -34,6 +34,16 @@ let app: InstanceType<typeof AppState>;
 beforeEach(() => {
   app = new AppState();
 });
+
+/** A game with two configs. */
+const game: Game = {
+  dir: 'game',
+  meta: { name: 'Game', processes: [] },
+  configs: [
+    { path: 'one.toml', name: 'one', error: null },
+    { path: 'two.toml', name: 'two', error: null },
+  ],
+};
 
 const rename = (name: string) => app.edit((p) => ({ ...p, name }));
 
@@ -126,6 +136,30 @@ describe('undo and redo', () => {
     app.layer = id;
     app.undo();
     expect(app.layer).toBe(0);
+  });
+});
+
+describe('opening and saving', () => {
+  it('choosing the open game again keeps its unsaved changes', async () => {
+    app.library = { games: [game], unsorted: [], errors: [] };
+    await app.selectGame('game');
+    expect(app.configPath).toBe('one.toml');
+    rename('changed');
+    await app.selectGame('game');
+    expect(app.profile?.name).toBe('changed');
+    expect(app.dirty).toBe(true);
+    expect(app.canUndo).toBe(true);
+  });
+
+  it('a change made while saving stays unsaved', async () => {
+    await app.openConfig('one.toml', true);
+    rename('saved');
+    const saving = app.save();
+    rename('typed meanwhile');
+    await expect(saving).resolves.toBe(true);
+    expect(app.dirty).toBe(true);
+    app.undo();
+    expect(app.dirty).toBe(false);
   });
 });
 
