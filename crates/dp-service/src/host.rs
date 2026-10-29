@@ -265,7 +265,7 @@ mod tests {
             path: profile,
         });
         assert!(r.into_result().is_ok());
-        std::thread::sleep(Duration::from_millis(50));
+        // No waiting: the call publishes before it answers.
         let live = h.live();
         assert_eq!(live.profile.as_deref(), Some("P"));
         assert_eq!(live.active_slot, 1);
@@ -289,7 +289,11 @@ mod tests {
         let h = spawn_with(opts, NullPlatform::platform).unwrap();
         let refused = ipc_answer(&h.tx, Request::Shutdown, Ipc::NoShutdown);
         assert_eq!(refused, Response::error(SHUTDOWN_REFUSED));
-        std::thread::sleep(Duration::from_millis(20));
+        // A later call still gets an answer: the service thread went on.
+        assert!(matches!(
+            h.call(ServiceCmd::GetStatus),
+            ServiceReply::Status(_)
+        ));
         assert!(h.is_running(), "the app's service keeps running");
         let stopped = ipc_answer(&h.tx, Request::Shutdown, Ipc::On);
         assert!(!matches!(stopped, Response::Error { .. }), "{stopped:?}");
