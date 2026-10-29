@@ -6,8 +6,9 @@
 //! state, app settings, hotkeys, a notification and the launch commands of an import as the
 //! frontend receives them, `bridge.json` every other answer of the commands, the event names,
 //! the overlays' contents, the errors and the catalog's limits, `controls.json` the names of
-//! the pad controls and `shaping.json` what the stick and trigger shaping makes of sample
-//! inputs. Regenerate them with `DOPPELPAD_UPDATE_FIXTURES=1 cargo test -p dp-gui`.
+//! the pad controls, `shaping.json` what the stick and trigger shaping makes of sample
+//! inputs and `diagnostics.json` what the validator says about a profile with problems.
+//! Regenerate them with `DOPPELPAD_UPDATE_FIXTURES=1 cargo test -p dp-gui`.
 //!
 //! Also checked: every command main.rs registers has a permission (build.rs) that the editor
 //! window holds (permissions/editor.toml).
@@ -534,6 +535,70 @@ fn the_catalog_limits_are_the_validators() {
 }
 
 /// The names of every pad control (buttons, stick and trigger controls, touchpad, gyro).
+/// A profile with problems of every kind of place, and what the validator says about it:
+/// the window reads the diagnostics' paths to point at mappings, layers and radial menus.
+#[test]
+fn diagnostics_fixture_is_current() {
+    let src = r##"
+name = "Problems"
+
+[[layers]]
+id = 1
+
+[[layers]]
+id = 2
+lightbar = { colors = ["red"] }
+
+[[layers]]
+id = 0
+
+[[mappings]]
+trigger = ["LB", "LB"]
+actions = [{ key = "A" }]
+
+[[mappings]]
+trigger = "RB"
+jump = { layer = 3, mode = "switch" }
+
+[[mappings]]
+layer = 3
+trigger = "A"
+actions = [{ key = "B" }]
+
+[[mappings]]
+layer = 4
+trigger = "B"
+actions = [{ key = "C" }]
+
+[[radial_menus]]
+layer = 1
+[[radial_menus.sectors]]
+color = "teal"
+actions = [{ key = "D" }]
+"##;
+    let profile = dp_config::parse_toml(src).unwrap();
+    let diagnostics = dp_config::validate(&profile).into_vec();
+    let paths: BTreeSet<&str> = diagnostics.iter().map(|d| d.path.as_str()).collect();
+    for kind in ["mappings[", "layers[", "radial_menus[0]", ".sectors["] {
+        assert!(
+            paths.iter().any(|p| p.contains(kind)),
+            "no {kind}: {paths:?}"
+        );
+    }
+    #[derive(Serialize)]
+    struct Fixture {
+        profile: Profile,
+        diagnostics: Vec<dp_config::Diagnostic>,
+    }
+    assert_fixture(
+        "diagnostics.json",
+        pretty(&Fixture {
+            profile,
+            diagnostics,
+        }),
+    );
+}
+
 #[test]
 fn controls_fixture_is_current() {
     let controls = PadButton::ALL

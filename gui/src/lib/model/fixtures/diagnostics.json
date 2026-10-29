@@ -1,0 +1,148 @@
+{
+  "profile": {
+    "name": "Problems",
+    "layers": [
+      {
+        "id": 1,
+        "inherit": true
+      },
+      {
+        "id": 2,
+        "inherit": true,
+        "lightbar": {
+          "mode": "solid",
+          "colors": [
+            "red"
+          ],
+          "cycle": false,
+          "period_ms": 2000
+        }
+      },
+      {
+        "id": 0,
+        "inherit": true
+      }
+    ],
+    "mappings": [
+      {
+        "trigger": [
+          "LB",
+          "LB"
+        ],
+        "actions": [
+          {
+            "key": "A"
+          }
+        ]
+      },
+      {
+        "trigger": "RB",
+        "jump": {
+          "layer": 3,
+          "mode": "switch"
+        }
+      },
+      {
+        "layer": 3,
+        "trigger": "A",
+        "actions": [
+          {
+            "key": "B"
+          }
+        ]
+      },
+      {
+        "layer": 4,
+        "trigger": "B",
+        "actions": [
+          {
+            "key": "C"
+          }
+        ]
+      }
+    ],
+    "radial_menus": [
+      {
+        "layer": 1,
+        "select": "right_stick",
+        "apply": "release",
+        "delay_ms": 0,
+        "tint": 0.0,
+        "scale": 1.0,
+        "position": "center",
+        "offset": [
+          0,
+          0
+        ],
+        "sectors": [
+          {
+            "color": "teal",
+            "actions": [
+              {
+                "key": "D"
+              }
+            ],
+            "close": true
+          }
+        ]
+      }
+    ]
+  },
+  "diagnostics": [
+    {
+      "severity": "error",
+      "path": "layers[2]",
+      "message": "layer 0 is the base layer and must not be declared"
+    },
+    {
+      "severity": "info",
+      "path": "mappings[0] (LB+LB)",
+      "message": "a control is listed twice; it counts once"
+    },
+    {
+      "severity": "info",
+      "path": "mappings[2] (A)",
+      "message": "layer 3 is not declared; it inherits the base layer"
+    },
+    {
+      "severity": "info",
+      "path": "mappings[3] (B)",
+      "message": "layer 4 is not declared; it inherits the base layer"
+    },
+    {
+      "severity": "warning",
+      "path": "radial_menus[0]",
+      "message": "nothing activates layer 1, so the menu never opens"
+    },
+    {
+      "severity": "error",
+      "path": "radial_menus[0].sectors[0]",
+      "message": "colours are written #rrggbb"
+    },
+    {
+      "severity": "error",
+      "path": "layers[1].lightbar",
+      "message": "a light bar has 1–10 colours written #rrggbb"
+    },
+    {
+      "severity": "warning",
+      "path": "layers[0]",
+      "message": "nothing changes to layer 1, so its mappings never apply"
+    },
+    {
+      "severity": "warning",
+      "path": "layers[1]",
+      "message": "nothing changes to layer 2, so its mappings never apply"
+    },
+    {
+      "severity": "warning",
+      "path": "mappings[3] (B)",
+      "message": "nothing changes to layer 4, so its mappings never apply"
+    },
+    {
+      "severity": "warning",
+      "path": "mappings[1] (RB)",
+      "message": "after this switch to layer 3, no mapping there leaves it again"
+    }
+  ]
+}
