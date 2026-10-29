@@ -53,7 +53,7 @@ impl ReportIo for WinUsb {
     }
 
     fn read(&mut self, buf: &mut [u8], timeout: Duration) -> io::Result<Option<usize>> {
-        let packet = self.input.max_packet_size().max(37);
+        let packet = self.input.max_packet_size().max(gcadapter::REPORT_LEN);
         let done = self.input.transfer_blocking(Buffer::new(packet), timeout);
         match done.status {
             Ok(()) => {

@@ -55,6 +55,7 @@ pub fn windowed_programs() -> Vec<crate::WindowedProgram> {
 
 use std::io;
 use std::ptr::null;
+use std::time::Duration;
 
 use windows_sys::Win32::Foundation::{
     CloseHandle, HANDLE, HWND, INVALID_HANDLE_VALUE, LPARAM, LRESULT, WPARAM,
@@ -91,6 +92,12 @@ pub fn platform() -> Platform {
         system: Box::new(system::WinSystem),
         switch2_search,
     }
+}
+
+/// A wait as the Win32 wait functions take it: whole milliseconds, rounded down, and short of
+/// `INFINITE` (`u32::MAX`), which would never end.
+pub(crate) fn win_ms(wait: Duration) -> u32 {
+    u32::try_from(wait.as_millis()).map_or(u32::MAX - 1, |ms| ms.min(u32::MAX - 1))
 }
 
 /// UTF-16, NUL-terminated.

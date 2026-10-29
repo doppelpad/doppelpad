@@ -6,7 +6,7 @@ use std::ptr::{null, null_mut};
 use windows_sys::Win32::Foundation::{HANDLE, HWND, LUID, POINT, RECT, SYSTEMTIME};
 use windows_sys::Win32::Graphics::Gdi::{
     BitBlt, CAPTUREBLT, CreateCompatibleBitmap, CreateCompatibleDC, DeleteDC, DeleteObject, GetDC,
-    GetMonitorInfoW, HBITMAP, MONITOR_DEFAULTTOPRIMARY, MONITORINFO, MonitorFromPoint,
+    GetMonitorInfoW, HBITMAP, HDC, MONITOR_DEFAULTTOPRIMARY, MONITORINFO, MonitorFromPoint,
     MonitorFromWindow, ReleaseDC, SRCCOPY, SelectObject,
 };
 use windows_sys::Win32::Graphics::GdiPlus::{
@@ -160,25 +160,67 @@ impl Drop for Bitmap {
     }
 }
 
+/// The screen's device context, released on drop.
+struct ScreenDc(HDC);
+
+impl Drop for ScreenDc {
+    fn drop(&mut self) {
+        // SAFETY: the screen's device context, which `grab` got.
+        unsafe { ReleaseDC(null_mut(), self.0) };
+    }
+}
+
+/// A memory device context, deleted on drop.
+struct MemoryDc(HDC);
+
+impl Drop for MemoryDc {
+    fn drop(&mut self) {
+        // SAFETY: our device context, with its own bitmap selected back in.
+        unsafe { DeleteDC(self.0) };
+    }
+}
+
 /// The screen inside `r`, copied into a bitmap.
 fn grab(r: RECT) -> Result<Bitmap> {
     let (w, h) = (r.right - r.left, r.bottom - r.top);
-    // SAFETY: the screen and a memory device context, both released here; the bitmap is
-    // selected into the memory one only for the copy.
-    unsafe {
-        let screen = GetDC(null_mut());
-        let mem = CreateCompatibleDC(screen);
-        let bitmap = Bitmap(CreateCompatibleBitmap(screen, w, h));
-        let old = SelectObject(mem, bitmap.0);
-        let copied = BitBlt(mem, 0, 0, w, h, screen, r.left, r.top, SRCCOPY | CAPTUREBLT);
-        SelectObject(mem, old);
-        DeleteDC(mem);
-        ReleaseDC(null_mut(), screen);
-        if copied == 0 {
-            return Err(PlatformError::last_os("BitBlt"));
-        }
-        Ok(bitmap)
+    // SAFETY: plain call; released on drop.
+    let screen = ScreenDc(unsafe { GetDC(null_mut()) });
+    if screen.0.is_null() {
+        return Err(PlatformError::last_os("GetDC"));
     }
+    // SAFETY: the screen's device context; deleted on drop.
+    let mem = MemoryDc(unsafe { CreateCompatibleDC(screen.0) });
+    if mem.0.is_null() {
+        return Err(PlatformError::last_os("CreateCompatibleDC"));
+    }
+    // SAFETY: as above.
+    let bitmap = unsafe { CreateCompatibleBitmap(screen.0, w, h) };
+    if bitmap.is_null() {
+        return Err(PlatformError::last_os("CreateCompatibleBitmap"));
+    }
+    let bitmap = Bitmap(bitmap);
+    // SAFETY: our bitmap is selected into our memory context only for the copy, and the
+    // context's own object goes back before either is dropped.
+    let copied = unsafe {
+        let old = SelectObject(mem.0, bitmap.0);
+        let copied = BitBlt(
+            mem.0,
+            0,
+            0,
+            w,
+            h,
+            screen.0,
+            r.left,
+            r.top,
+            SRCCOPY | CAPTUREBLT,
+        );
+        SelectObject(mem.0, old);
+        copied
+    };
+    if copied == 0 {
+        return Err(PlatformError::last_os("BitBlt"));
+    }
+    Ok(bitmap)
 }
 
 /// Save `bitmap` as a PNG file with GDI+.

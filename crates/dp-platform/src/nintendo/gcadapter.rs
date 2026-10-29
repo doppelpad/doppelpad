@@ -10,7 +10,8 @@ pub const PORTS: usize = 4;
 /// Starts the input stream.
 pub const START: [u8; 1] = [0x13];
 const REPORT_ID: u8 = 0x21;
-const REPORT_LEN: usize = 37;
+/// The length of an input report.
+pub const REPORT_LEN: usize = 37;
 const RUMBLE: u8 = 0x11;
 
 pub fn is_adapter(vid: u16, pid: u16) -> bool {

@@ -202,7 +202,7 @@ impl HidIo {
     fn wait_report(&mut self, timeout: Duration) -> io::Result<Wait> {
         self.start_read()?;
         let handles: [HANDLE; 2] = [self.read.event.raw(), self.waker.0.raw()];
-        let ms = timeout.as_millis().min(u128::from(u32::MAX) - 1) as u32;
+        let ms = super::win_ms(timeout);
         // SAFETY: two valid event handles.
         let rc = unsafe { WaitForMultipleObjects(2, handles.as_ptr(), 0, ms) };
         match rc {

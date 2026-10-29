@@ -46,7 +46,7 @@ pub(crate) unsafe fn run_overlapped(
         return Err(io::Error::last_os_error());
     }
     if let Some(t) = timeout {
-        let ms = t.as_millis().min(u128::from(u32::MAX) - 1) as u32;
+        let ms = super::win_ms(t);
         // SAFETY: the operation signals this event.
         if unsafe { WaitForSingleObject(event.raw(), ms) } == WAIT_TIMEOUT {
             // SAFETY: cancels the operation `ov` describes; it is waited for below.

@@ -40,6 +40,15 @@ pub struct MagnifierView {
     pub below: Option<isize>,
 }
 
+impl MagnifierView {
+    /// The zoom, within the range a config may ask for: the picture and the screen square it
+    /// shows must agree on it.
+    fn zoom(&self) -> f32 {
+        let range = dp_core::profile::Magnifier::ZOOM;
+        self.zoom.clamp(*range.start(), *range.end())
+    }
+}
+
 enum Msg {
     Show(MagnifierView),
     Hide,
@@ -188,7 +197,7 @@ unsafe fn serve(rx: &Receiver<Msg>, host: HWND, mag: HWND) {
 
 /// The screen square the magnifier enlarges.
 fn source(v: &MagnifierView) -> RECT {
-    let side = ((v.size as f32 / v.zoom.max(1.0)).round() as i32).max(1);
+    let side = ((v.size as f32 / v.zoom()).round() as i32).max(1);
     let (left, top) = (v.centre.0 - side / 2, v.centre.1 - side / 2);
     RECT {
         left,
@@ -206,7 +215,7 @@ unsafe fn place(host: HWND, mag: HWND, v: &MagnifierView) {
     let side = v.size.max(2);
     let (x, y) = (v.centre.0 - side / 2, v.centre.1 - side / 2);
     let after = v.below.map_or(HWND_TOPMOST, |h| h as HWND);
-    let z = v.zoom.clamp(1.0, 16.0);
+    let z = v.zoom();
     let mut t = MAGTRANSFORM {
         v: [z, 0.0, 0.0, 0.0, z, 0.0, 0.0, 0.0, 1.0],
     };
