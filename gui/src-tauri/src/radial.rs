@@ -2,7 +2,8 @@
 //! it in the `radial` overlay window, which covers the primary monitor while the menu is
 //! open (for the tint); the page draws the ring at the menu's position plus its offset, for
 //! `cursor` where the mouse pointer was as the menu opened. Image icons travel inside the
-//! content, so the page needs no file access.
+//! content, so the page needs no file access; they travel once per menu, and only the sector
+//! pointed at follows the pointer.
 
 use std::collections::HashMap;
 use std::time::Duration;
@@ -76,38 +77,123 @@ fn content(
     }
 }
 
+/// The sector pointed at: all that changes while a menu is open, sent on its own (the
+/// menu's pictures can take hundreds of kilobytes).
+#[derive(Serialize)]
+struct Pointed {
+    pointed: Option<usize>,
+}
+
+/// What the overlay shows.
+struct Shown {
+    menu: RadialMenu,
+    pointed: Option<usize>,
+}
+
+/// What the overlay needs for the menu the live state names (`want`), with `shown` on screen.
+#[derive(Debug, PartialEq, Eq)]
+enum Update {
+    Nothing,
+    /// Another menu, or the first one: the whole content.
+    Menu,
+    /// The same menu, another sector pointed at.
+    Pointed,
+    Hide,
+}
+
+fn update(shown: Option<&Shown>, want: Option<&LiveRadial>) -> Update {
+    match (shown, want) {
+        (None, None) => Update::Nothing,
+        (Some(_), None) => Update::Hide,
+        (Some(s), Some(w)) if s.menu == w.menu => {
+            if s.pointed == w.pointed {
+                Update::Nothing
+            } else {
+                Update::Pointed
+            }
+        }
+        (_, Some(_)) => Update::Menu,
+    }
+}
+
 pub(crate) fn watch(app: AppHandle, live: SharedLive) {
-    let mut shown: Option<(RadialMenu, Option<usize>)> = None;
+    let mut shown: Option<Shown> = None;
     // Taken as a menu opens; its sub-menus open in the same place.
     let mut opened_at: Option<[f64; 2]> = None;
     let mut cache = HashMap::new();
+    let mut generation = 0;
     loop {
         std::thread::sleep(WATCH_INTERVAL);
-        let (want, has_radial) = {
-            let l = live.get();
-            (l.radial.clone(), l.has_radial)
+        let Some((g, l)) = live.since(generation) else {
+            continue;
         };
+        generation = g;
         // Made ready early: a new webview takes a moment to load.
-        if has_radial && app.get_webview_window(&overlay::label(KIND)).is_none() {
+        if l.has_radial && app.get_webview_window(&overlay::label(KIND)).is_none() {
             overlay::ensure(&app, KIND, Placement::PrimaryMonitor);
         }
-        let key = want.as_ref().map(|r| (r.menu.clone(), r.pointed));
-        if key == shown {
-            continue;
-        }
-        match &want {
-            Some(r) => {
+        match (update(shown.as_ref(), l.radial.as_ref()), &l.radial) {
+            (Update::Pointed, Some(r)) => {
+                overlay::patch_content(&app, KIND, &Pointed { pointed: r.pointed });
+                shown = Some(Shown {
+                    menu: r.menu.clone(),
+                    pointed: r.pointed,
+                });
+            }
+            (Update::Menu, Some(r)) => {
                 if shown.is_none() {
                     opened_at = cursor(&app);
                 }
                 let c = content(r, opened_at, &mut cache);
                 overlay::show_content(&app, KIND, Placement::PrimaryMonitor, &c);
+                shown = Some(Shown {
+                    menu: r.menu.clone(),
+                    pointed: r.pointed,
+                });
             }
-            None => {
+            (Update::Hide, _) => {
                 overlay::dismiss(&app, KIND);
                 cache.clear();
+                shown = None;
             }
+            _ => {}
         }
-        shown = key;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_menu_travels_once_and_then_only_the_sector_pointed_at() {
+        let menu = |name: &str| RadialMenu {
+            name: name.into(),
+            ..RadialMenu::default()
+        };
+        let live = |name: &str, pointed| LiveRadial {
+            menu: menu(name),
+            pointed,
+        };
+        let shown = Shown {
+            menu: menu("Tools"),
+            pointed: None,
+        };
+        assert_eq!(update(None, None), Update::Nothing);
+        assert_eq!(update(None, Some(&live("Tools", None))), Update::Menu);
+        assert_eq!(
+            update(Some(&shown), Some(&live("Tools", None))),
+            Update::Nothing
+        );
+        assert_eq!(
+            update(Some(&shown), Some(&live("Tools", Some(3)))),
+            Update::Pointed
+        );
+        assert_eq!(
+            update(Some(&shown), Some(&live("Weapons", None))),
+            Update::Menu,
+            "a sub-menu"
+        );
+        assert_eq!(update(Some(&shown), None), Update::Hide);
     }
 }

@@ -168,6 +168,35 @@ fn present(app: &AppHandle, w: &WebviewWindow, kind: OverlayKind, content: &impl
     }
 }
 
+/// The event that changes some fields of what the overlay of `kind` shows: small changes
+/// (the sector pointed at) travel without the rest (the menu with its pictures).
+pub fn patch_event(kind: OverlayKind) -> String {
+    format!("{}:patch", label(kind))
+}
+
+/// Change the fields of `patch` (an object) in what the overlay of `kind` shows; nothing
+/// while it shows nothing.
+pub fn patch_content(app: &AppHandle, kind: OverlayKind, patch: &impl Serialize) {
+    let Ok(Value::Object(fields)) = serde_json::to_value(patch) else {
+        return;
+    };
+    let ready = {
+        let state = app.state::<Overlays>();
+        let mut pages = lock(&state.pages);
+        let Some(page) = pages.get_mut(&kind) else {
+            return;
+        };
+        let Some(Value::Object(content)) = &mut page.content else {
+            return;
+        };
+        content.extend(fields.clone());
+        page.ready
+    };
+    if ready {
+        let _ = app.emit_to(label(kind), &patch_event(kind), Value::Object(fields));
+    }
+}
+
 /// Hide the overlay of `kind` and forget what it showed. The page forgets it too: the window
 /// shows again before the next content reaches the page, and would show the old one meanwhile
 /// (the last radial menu with its last sector lit).
