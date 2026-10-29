@@ -2,30 +2,19 @@
 // layers that get a warning mark, and the mapping a diagnostic leads to.
 
 import { t } from '../i18n/index.svelte';
+import { HOTKEY_FIELDS, hotkeyLabel } from './hotkeys';
 import { comboKey, comboList, effectiveMappings, layerOf } from './profile';
-import type { Combo, DiagMsg, Hotkeys, Profile } from '../types';
-
-/** The controller hotkeys a mapping can clash with, by their name in `hotkeys.*`. */
-const HOTKEY_FIELDS = [
-  'slot1',
-  'slot2',
-  'slot3',
-  'slot4',
-  'remap',
-  'stop_macros',
-  'emergency_stop',
-  'pad_overlay',
-  'mappings_overlay',
-] as const satisfies readonly (keyof Hotkeys)[];
+import type { Combo, DiagMsg, Hotkeys, PadFamily, Profile } from '../types';
 
 /** A mapping's diagnostic path, as the validator writes it: `mappings[3] (LB+RB)`. */
 export const mappingPath = (i: number, trigger: Combo) => `mappings[${i}] (${comboList(trigger).join('+')})`;
 
 /**
  * Mappings whose trigger holds every button of a controller hotkey: once those are down, the
- * hotkey takes them, so the mapping never fires while hotkeys are on.
+ * hotkey takes them, so the mapping never fires while hotkeys are on. The buttons are named as
+ * `family` names them, like the hotkey settings do.
  */
-export function hotkeyClashes(p: Profile, hk: Hotkeys | null): DiagMsg[] {
+export function hotkeyClashes(p: Profile, hk: Hotkeys | null, family: PadFamily | null): DiagMsg[] {
   if (!hk) return [];
   const out: DiagMsg[] = [];
   p.mappings.forEach((m, i) => {
@@ -36,7 +25,7 @@ export function hotkeyClashes(p: Profile, hk: Hotkeys | null): DiagMsg[] {
         out.push({
           severity: 'warning',
           path: mappingPath(i, m.trigger),
-          message: t('lints.hotkey', { hotkey: t(`hotkeys.${field}`), keys: buttons.join(' + ') }),
+          message: t('lints.hotkey', { hotkey: t(`hotkeys.${field}`), keys: hotkeyLabel(buttons, family) }),
         });
       }
     }

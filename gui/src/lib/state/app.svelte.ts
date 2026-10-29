@@ -183,6 +183,8 @@ export class AppState {
   /** The settings write in flight: the next one waits for it, so it builds on its result. */
   private settingsWrite: Promise<void> = Promise.resolve();
 
+  primary = $derived<LiveDevice | null>(this.live?.devices.find((d) => d.id === this.live?.primary) ?? this.live?.devices[0] ?? null);
+  family = $derived<PadFamily | null>(this.primary?.family ?? null);
   dirty = $derived(this.profile !== null && JSON.stringify(this.profile) !== this.savedJson);
   /** The layers of the config as saved; one added since is still being set up (see `waitsForSave`). */
   savedLayers = $derived<ReadonlySet<number>>(new Set(this.savedJson ? layerIds(JSON.parse(this.savedJson) as Profile) : []));
@@ -192,14 +194,15 @@ export class AppState {
    */
   problems = $derived<DiagMsg[]>(
     this.profile
-      ? [...this.diagnostics.filter((d) => !waitsForSave(this.profile!, d, this.savedLayers)), ...hotkeyClashes(this.profile, this.hotkeys)]
+      ? [
+          ...this.diagnostics.filter((d) => !waitsForSave(this.profile!, d, this.savedLayers)),
+          ...hotkeyClashes(this.profile, this.hotkeys, this.family),
+        ]
       : [],
   );
   /** The controls and layers with a warning mark. */
   flags = $derived<Flags>(flagsOf(this.profile, this.problems));
   game = $derived<Game | null>(this.library.games.find((g) => g.dir === this.gameDir) ?? null);
-  primary = $derived<LiveDevice | null>(this.live?.devices.find((d) => d.id === this.live?.primary) ?? this.live?.devices[0] ?? null);
-  family = $derived<PadFamily | null>(this.primary?.family ?? null);
   /** The slot set the bottom bar shows and "Apply to slot" fills: a controller's own or the shared one. */
   slotSet = $derived.by(() => {
     const own = this.live?.device_slots.find((d) => d.id === this.slotDevice);

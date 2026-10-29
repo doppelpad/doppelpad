@@ -32,10 +32,16 @@ const warn = (path: string): DiagMsg => ({ severity: 'warning', path, message: '
 
 describe('lints', () => {
   it('a mapping holding every button of a hotkey clashes; a part of one does not', () => {
-    const found = hotkeyClashes(p, hotkeys);
+    const found = hotkeyClashes(p, hotkeys, 'xbox');
     expect(found.map((d) => d.path)).toEqual(['mappings[0] (LB+RB+X)']);
-    expect(found[0]!.message).toContain('LB + RB + X');
-    expect(hotkeyClashes(p, null)).toEqual([]);
+    expect(found[0]!.message).toContain('Left bumper + Right bumper + X');
+    expect(hotkeyClashes(p, null, 'xbox')).toEqual([]);
+  });
+
+  it('every hotkey can clash, named as the controller names its buttons', () => {
+    const found = hotkeyClashes(p, { ...hotkeys, app_navigation: ['Back', 'Start'] }, 'dual_sense');
+    expect(found.map((d) => d.path)).toEqual(['mappings[0] (LB+RB+X)', 'mappings[3] (Back+Start)']);
+    expect(found[1]!.message).toContain('Create + Options');
   });
 
   it('paths lead to mappings and layers', () => {

@@ -5,8 +5,8 @@
   import { onDestroy, untrack } from 'svelte';
   import { api } from '../../lib/api';
   import { t } from '../../lib/i18n/index.svelte';
-  import { controlLabel } from '../../lib/model/controls';
   import { padButtonsDown } from '../../lib/model/devices';
+  import { HOTKEY_FIELDS, hotkeyLabel } from '../../lib/model/hotkeys';
   import { clamp } from '../../lib/model/util';
   import { app } from '../../lib/state/app.svelte';
   import type { HotkeyField, Hotkeys, PadButtonName } from '../../lib/types';
@@ -15,18 +15,6 @@
   import Toggle from '../ui/Toggle.svelte';
   import { tip } from '../../lib/tooltip.svelte';
 
-  const FIELDS: HotkeyField[] = [
-    'slot1',
-    'slot2',
-    'slot3',
-    'slot4',
-    'remap',
-    'stop_macros',
-    'emergency_stop',
-    'pad_overlay',
-    'mappings_overlay',
-    'app_navigation',
-  ];
   const MAX_BUTTONS = 4;
   /** How long a hotkey must be held, in ms (dp-core's HOLD_MS_RANGE). */
   const HOLD_MS = { min: 50, max: 2500, step: 50 };
@@ -54,8 +42,7 @@
     });
   });
 
-  const label = (buttons: PadButtonName[]) =>
-    buttons.length ? buttons.map((b) => controlLabel(b, app.family)).join(' + ') : t('hotkeys.none');
+  const label = (buttons: PadButtonName[]) => (buttons.length ? hotkeyLabel(buttons, app.family) : t('hotkeys.none'));
 
   async function save(next: Hotkeys) {
     if (await app.attempt(api.hotkeysSet(next))) {
@@ -124,7 +111,7 @@
     </SettingRow>
     <Toggle checked={hotkeys.rumble} label={t('hotkeys.rumble')} onchange={(v) => hotkeys && save({ ...hotkeys, rumble: v })} />
     <p class="hint">{t('hotkeys.rumble_hint')}</p>
-    {#each FIELDS as f (f)}
+    {#each HOTKEY_FIELDS as f (f)}
       {@const rec = recording === f}
       <div class="hk">
         <span class="what">{t(`hotkeys.${f}`)}</span>
