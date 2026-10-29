@@ -481,7 +481,7 @@ fn expand_jumps(mappings: &[Mapping]) -> Vec<(Mapping, Option<JumpTarget>)> {
 const MOUSE_MOTION: Control = Control::MouseMove(Dir::Up);
 
 /// Pulse length of decided-after-the-fact activations.
-const PULSE_PAD_MS: u64 = 20;
+pub(super) const PULSE_PAD_MS: u64 = 20;
 const PULSE_KEY_MS: u64 = 10;
 /// Shortest turbo period.
 const MIN_TURBO_MS: u32 = 10;

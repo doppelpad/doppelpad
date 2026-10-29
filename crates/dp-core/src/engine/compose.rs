@@ -3,7 +3,7 @@
 use super::analog::{
     apply_curve, orient, secs_since, shape_stick, shape_trigger, take_toward_zero,
 };
-use super::compile::{AnalogOut, Out};
+use super::compile::{AnalogOut, Out, PULSE_PAD_MS};
 use super::routes::{RouteInput, RouteOutput, RouteState};
 use super::{Engine, Output, gyro, routes, touch};
 use crate::control::{Control, Half, TrackpadPart};
@@ -56,6 +56,17 @@ impl Engine {
             layer_changed: self.layer_changed,
             ..Default::default()
         };
+        // A pad button pressed and released within this tick (a key tap that arrived in one
+        // batch) is shown for a pulse, or the game would never see it.
+        for &(o, down) in &self.outs.events {
+            if let Out::Pad(b) = o
+                && down
+                && !self.outs.counts.contains_key(&o)
+            {
+                self.pad_pulses.push((b, now + PULSE_PAD_MS));
+            }
+        }
+        self.pad_pulses.retain(|&(_, until)| until > now);
         self.drain_digital(&mut out);
         self.repeat_held_wheels(now);
         out.wheel = std::mem::take(&mut self.outs.wheel);
@@ -70,6 +81,9 @@ impl Engine {
             if let Out::Pad(b) = o {
                 pad.set(*b, true);
             }
+        }
+        for &(b, _) in &self.pad_pulses {
+            pad.set(b, true);
         }
         let absolute = self.mix_analog_actions(&mut pad, &mut out, dt, now);
         self.spread_turns(&mut out, dt);

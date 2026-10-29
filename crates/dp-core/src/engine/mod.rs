@@ -43,7 +43,7 @@ use self::vm::{ActId, Activation, Outputs};
 use crate::control::{Control, TrackpadPart};
 use crate::event::KbmEvent;
 use crate::keys::{Key, MouseButton, WheelDir};
-use crate::pad::{PadState, Rumble, Stick};
+use crate::pad::{PadButton, PadState, Rumble, Stick};
 use crate::profile::{
     Command, Profile, Sticks, TriggerEffect, Triggers, VirtualPadType, VirtualStick,
 };
@@ -158,6 +158,8 @@ pub struct Engine {
     /// Next segment to play, per binding whose sequence has break steps.
     segment_cursor: HashMap<BindingId, usize>,
     outs: Outputs,
+    /// Pad buttons pressed and released within one tick, shown until when.
+    pad_pulses: Vec<(PadButton, u64)>,
     route_state: Vec<RouteState>,
     layer_changed: bool,
 }
@@ -224,6 +226,7 @@ impl Engine {
             toggles: HashMap::new(),
             segment_cursor: HashMap::new(),
             outs: Outputs::default(),
+            pad_pulses: Vec::new(),
             route_state,
             layer_changed: false,
         }
@@ -430,6 +433,7 @@ impl Engine {
         self.outs.shakes.clear();
         self.outs.turns.clear();
         self.outs.touch = None;
+        self.pad_pulses.clear();
     }
 
     /// Release everything and return the final output (call before unloading the profile).
