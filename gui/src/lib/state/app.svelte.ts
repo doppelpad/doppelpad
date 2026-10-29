@@ -61,6 +61,19 @@ export interface ContextMenuRequest {
   from: HTMLElement | null;
 }
 
+/**
+ * Runs writes one after the other: each starts when the one before has settled, so it sees
+ * its result. One that throws does not stop those after it.
+ */
+function writeChain() {
+  let last: Promise<void> = Promise.resolve();
+  return (write: () => Promise<void>): Promise<void> => {
+    const next = last.then(write);
+    last = next.catch(() => {});
+    return next;
+  };
+}
+
 export class AppState {
   catalog = $state<Catalog | null>(null);
   library = $state<Library>({ games: [], unsorted: [], errors: [] });
@@ -130,8 +143,9 @@ export class AppState {
   /** The primary controller's presses: held controls, captures, controller navigation. */
   readonly pad = new PadInput({ mode: () => padMode(this.settings), select: (c) => this.selectPressed(c) });
   private toastId = 0;
-  /** The settings write in flight: the next one waits for it, so it builds on its result. */
-  private settingsWrite: Promise<void> = Promise.resolve();
+  /** Settings and hotkey writes, each one after the one before, so it builds on its result. */
+  private settingsWrites = writeChain();
+  private hotkeyWrites = writeChain();
 
   primary = $derived<LiveDevice | null>(this.live?.devices.find((d) => d.id === this.live?.primary) ?? this.live?.devices[0] ?? null);
   family = $derived<PadFamily | null>(this.primary?.family ?? null);
@@ -178,7 +192,7 @@ export class AppState {
     );
     await this.attempt(api.catalog().then((c) => (this.catalog = c)));
     // Only for the clash marks: the rest does not wait for the service's answer.
-    this.attempt(api.hotkeysGet().then((h) => (this.hotkeys = h)));
+    this.refreshHotkeys();
     await this.attempt(this.refreshLibrary());
     await this.attempt(api.liveSubscribe((s) => this.onLive(s)));
     await this.attempt(api.takeNotices().then((notices) => notices.forEach((n) => this.toast(t(`notices.${n}`), 'info'))));
@@ -263,16 +277,27 @@ export class AppState {
    * the writes before it left them (for a part of a nested setting).
    */
   setSettings(patch: Partial<GuiSettings> | ((s: GuiSettings) => Partial<GuiSettings>)): Promise<void> {
-    const write = this.settingsWrite.then(async () => {
+    return this.settingsWrites(async () => {
       const next = { ...this.settings, ...(typeof patch === 'function' ? patch(this.settings) : patch) };
       if (await this.attempt(api.settingsSet(next))) {
         this.settings = next;
         setLanguage(next.language);
       }
     });
-    // A write that throws must not stop the ones after it.
-    this.settingsWrite = write.catch(() => {});
-    return write;
+  }
+
+  /** Read the controller hotkeys from the service again. */
+  refreshHotkeys(): Promise<boolean> {
+    return this.attempt(api.hotkeysGet().then((h) => (this.hotkeys = h)));
+  }
+
+  /** Change some controller hotkeys; like the settings, writes go one after the other. */
+  setHotkeys(patch: Partial<Hotkeys> | ((h: Hotkeys) => Partial<Hotkeys>)): Promise<void> {
+    return this.hotkeyWrites(async () => {
+      if (!this.hotkeys) return;
+      const next = { ...this.hotkeys, ...(typeof patch === 'function' ? patch(this.hotkeys) : patch) };
+      if (await this.attempt(api.hotkeysSet(next))) this.hotkeys = next;
+    });
   }
 
   async refreshLibrary() {
@@ -311,6 +336,20 @@ export class AppState {
     if (!dir) return;
     const name = await this.ask(t('header.new_config_name'), suggested);
     if (name) await this.createConfig(api.configCreate(dir, name));
+  }
+
+  /** Delete a game after asking; its config closes when it is open. */
+  async deleteGame(g: Game) {
+    if (!(await this.confirmAsk(t('profiles.delete_confirm', { name: g.meta.name })))) return;
+    await this.attempt(
+      api.gameDelete(g.dir).then(async () => {
+        if (this.gameDir === g.dir) {
+          this.closeConfig();
+          this.gameDir = null;
+        }
+        await this.refreshLibrary();
+      }),
+    );
   }
 
   /** List the library again and open `g`, a game that was just made. */

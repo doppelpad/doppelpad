@@ -2,16 +2,24 @@
 // opening and saving configs. Each test starts from a new state.
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Game, GuiSettings, LoadedConfig, Profile } from '../types';
+import type { Game, GuiSettings, Hotkeys, LoadedConfig, Profile } from '../types';
 
 /** What the bridge stored, write by write; each write takes a moment, like the real one. */
 const stored: GuiSettings[] = [];
+/** The hotkeys the bridge stored, write by write. */
+const storedHotkeys: Hotkeys[] = [];
 /** Commands that fail. */
 const failing = new Set<string>();
 vi.mock('@tauri-apps/api/core', () => ({
   Channel: class {},
-  invoke: async (cmd: string, args?: { settings?: GuiSettings; path?: string }) => {
+  invoke: async (cmd: string, args?: { settings?: GuiSettings; path?: string; hotkeys?: Hotkeys }) => {
     if (failing.has(cmd)) throw new Error(`${cmd} failed`);
+    if (cmd === 'hotkeys_get') return hotkeys;
+    if (cmd === 'hotkeys_set') {
+      await new Promise((r) => setTimeout(r, 5));
+      storedHotkeys.push(args!.hotkeys!);
+      return null;
+    }
     if (cmd === 'config_load') return loaded(args?.path ?? '');
     if (cmd === 'library_scan') return { games: [game], unsorted: [], errors: [] };
     if (cmd === 'settings_get') return { ...SETTINGS_PLACEHOLDER, check_updates: false };
@@ -53,6 +61,21 @@ const game: Game = {
   ],
 };
 
+const hotkeys: Hotkeys = {
+  hold_ms: 500,
+  slot1: [],
+  slot2: [],
+  slot3: [],
+  slot4: [],
+  remap: [],
+  stop_macros: [],
+  emergency_stop: [],
+  pad_overlay: [],
+  mappings_overlay: [],
+  app_navigation: [],
+  rumble: false,
+};
+
 const rename = (name: string) => app.edit((p) => ({ ...p, name }));
 
 describe('start-up', () => {
@@ -81,6 +104,13 @@ describe('settings', () => {
       app.setSettings((s) => ({ osd: { ...s.osd, slot: !osd.slot } })),
     ]);
     expect(app.settings.osd).toMatchObject({ remap: !osd.remap, slot: !osd.slot });
+  });
+
+  it('two hotkey changes within one round trip both stay', async () => {
+    await app.refreshHotkeys();
+    await Promise.all([app.setHotkeys({ slot1: ['A', 'B'] }), app.setHotkeys((h) => ({ hold_ms: h.hold_ms + 100 }))]);
+    expect(app.hotkeys).toMatchObject({ slot1: ['A', 'B'], hold_ms: 600 });
+    expect(storedHotkeys.at(-1)).toMatchObject({ slot1: ['A', 'B'], hold_ms: 600 });
   });
 });
 
@@ -154,6 +184,27 @@ describe('undo and redo', () => {
     app.layer = id;
     app.undo();
     expect(app.layer).toBe(0);
+  });
+});
+
+describe('games', () => {
+  it('deleting the open game asks, then closes its config', async () => {
+    app.library = { games: [game], unsorted: [], errors: [] };
+    await app.selectGame('game');
+    const deleting = app.deleteGame(game);
+    expect(app.dialogs.question?.message).toContain('Game');
+    app.dialogs.answerQuestion('ok');
+    await deleting;
+    expect([app.gameDir, app.configPath, app.profile]).toEqual([null, null, null]);
+  });
+
+  it('a cancelled delete leaves everything as it was', async () => {
+    app.library = { games: [game], unsorted: [], errors: [] };
+    await app.selectGame('game');
+    const deleting = app.deleteGame(game);
+    app.dialogs.answerQuestion(null);
+    await deleting;
+    expect([app.gameDir, app.configPath]).toEqual(['game', 'one.toml']);
   });
 });
 

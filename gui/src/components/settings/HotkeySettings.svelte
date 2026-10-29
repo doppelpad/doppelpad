@@ -9,7 +9,7 @@
   import { HOTKEY_FIELDS, hotkeyLabel } from '../../lib/model/hotkeys';
   import { clamp } from '../../lib/model/util';
   import { app } from '../../lib/state/app.svelte';
-  import type { HotkeyField, Hotkeys, PadButtonName } from '../../lib/types';
+  import type { HotkeyField, PadButtonName } from '../../lib/types';
   import SettingRow from './SettingRow.svelte';
   import SettingsSection from './SettingsSection.svelte';
   import Toggle from '../ui/Toggle.svelte';
@@ -19,8 +19,9 @@
   /** How long a hotkey must be held, in ms (dp-core's HOLD_MS_RANGE). */
   const HOLD_MS = { min: 50, max: 2500, step: 50 };
 
-  let hotkeys = $state<Hotkeys | null>(null);
-  app.attempt(api.hotkeysGet().then((h) => (hotkeys = h)));
+  const hotkeys = $derived(app.hotkeys);
+  // The service may have changed them since start-up (or was not running then).
+  app.refreshHotkeys();
 
   let recording = $state<HotkeyField | null>(null);
   /** Buttons pressed since the recording started, in catalog order once saved. */
@@ -43,14 +44,6 @@
   });
 
   const label = (buttons: PadButtonName[]) => (buttons.length ? hotkeyLabel(buttons, app.family) : t('hotkeys.none'));
-
-  async function save(next: Hotkeys) {
-    if (await app.attempt(api.hotkeysSet(next))) {
-      hotkeys = next;
-      // The editor marks mappings that clash with a hotkey.
-      app.hotkeys = next;
-    }
-  }
 
   /** Gives the presses back to the editor. */
   let releasePresses = () => {};
@@ -75,18 +68,17 @@
     const order = app.catalog?.pad_buttons ?? [];
     const buttons = [...seen].sort((a, b) => order.indexOf(a) - order.indexOf(b));
     await stop();
-    if (!field || !hotkeys) return;
+    if (!field) return;
     if (buttons.length > MAX_BUTTONS) {
       app.toast(t('hotkeys.too_many', { n: MAX_BUTTONS }), 'error');
       return;
     }
-    await save({ ...hotkeys, [field]: buttons });
+    await app.setHotkeys({ [field]: buttons });
   }
 
   function setHold(raw: string) {
     const n = parseInt(raw, 10);
-    if (!hotkeys || !Number.isFinite(n)) return;
-    save({ ...hotkeys, hold_ms: clamp(n, HOLD_MS.min, HOLD_MS.max) });
+    if (Number.isFinite(n)) app.setHotkeys({ hold_ms: clamp(n, HOLD_MS.min, HOLD_MS.max) });
   }
 
   onDestroy(() => {
@@ -109,7 +101,7 @@
         {t('common.ms')}
       </span>
     </SettingRow>
-    <Toggle checked={hotkeys.rumble} label={t('hotkeys.rumble')} onchange={(v) => hotkeys && save({ ...hotkeys, rumble: v })} />
+    <Toggle checked={hotkeys.rumble} label={t('hotkeys.rumble')} onchange={(v) => app.setHotkeys({ rumble: v })} />
     <p class="hint">{t('hotkeys.rumble_hint')}</p>
     {#each HOTKEY_FIELDS as f (f)}
       {@const rec = recording === f}
@@ -132,7 +124,7 @@
             class="icon-btn"
             use:tip={t('common.clear')}
             disabled={!!recording || !hotkeys[f].length}
-            onclick={() => hotkeys && save({ ...hotkeys, [f]: [] })}
+            onclick={() => app.setHotkeys({ [f]: [] })}
           >
             <X size={15} />
           </button>

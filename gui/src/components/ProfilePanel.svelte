@@ -78,19 +78,6 @@
     if (typeof file === 'string') await app.importGame(file);
   }
 
-  async function deleteGame(g: Game) {
-    if (!(await app.confirmAsk(t('profiles.delete_confirm', { name: g.meta.name })))) return;
-    await app.attempt(
-      api.gameDelete(g.dir).then(async () => {
-        if (app.gameDir === g.dir) {
-          app.gameDir = null;
-          app.closeConfig();
-        }
-        await app.refreshLibrary();
-      }),
-    );
-  }
-
   function gameIsActive(g: Game): boolean {
     const p = app.live?.profile_path;
     return !!p && g.configs.some((c) => c.path === p);
@@ -140,7 +127,7 @@
             { label: t('common.reveal'), onclick: () => app.attempt(api.reveal(g.dir)) },
             { label: t('profiles.export') + '…', onclick: () => exportGame(g) },
             { separator: true, label: '' },
-            { label: t('common.delete'), danger: true, onclick: () => deleteGame(g) },
+            { label: t('common.delete'), danger: true, onclick: () => app.deleteGame(g) },
           ]}
         >
           {#snippet trigger()}<span class="icon-btn more"><Ellipsis size={16} /></span>{/snippet}
