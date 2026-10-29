@@ -969,7 +969,6 @@ name = "dp-core"
 version = "0.7.0"
 dependencies = [
  "serde",
- "thiserror 2.0.21",
  "toml 0.9.12+spec-1.1.0",
  "tracing",
 ]

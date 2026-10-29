@@ -153,12 +153,7 @@ impl Engine {
         }
         set.extend(self.kbm_down.iter().copied());
 
-        for dir in [
-            WheelDir::Up,
-            WheelDir::Down,
-            WheelDir::Left,
-            WheelDir::Right,
-        ] {
+        for dir in WheelDir::ALL {
             let w = &mut self.wheel[dir as usize];
             match w.active_until {
                 Some(t) if now < t => {

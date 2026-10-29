@@ -130,7 +130,7 @@ pub struct Engine {
     /// Keys and mouse buttons held down.
     kbm_down: HashSet<Control>,
     taps: Vec<Control>,
-    wheel: [WheelPulse; 4],
+    wheel: [WheelPulse; WheelDir::ALL.len()],
     mouse_counts: (f32, f32),
     mouse_vel: (f32, f32),
     gyro_enabled: bool,
