@@ -18,9 +18,11 @@ use super::{CmdError, CmdResult, ErrorCode, err};
 use crate::state::{AppState, lock};
 
 /// Games or configs changed on disk: the service re-reads them (process lists may have
-/// changed) and the tray relabels its slots.
+/// changed), the tray relabels its slots and the mappings overlay shows a saved config anew.
 fn library_changed(app: &AppHandle) {
-    let _ = app.state::<AppState>().call(ServiceCmd::Reload);
+    let state = app.state::<AppState>();
+    state.library_changed();
+    let _ = state.call(ServiceCmd::Reload);
     crate::tray::refresh(app);
 }
 

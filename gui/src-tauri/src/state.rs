@@ -47,6 +47,10 @@ pub struct AppState {
     /// The main window was maximized or minimized when the zoom changed, so its new minimum
     /// size waits; see [`crate::main_window::apply_zoom`].
     pub min_size_held: AtomicBool,
+    /// Counts the changes of the games and configs on disk ([`AppState::library_changed`]).
+    library_version: AtomicU64,
+    /// Counts the changes of the settings.
+    settings_version: AtomicU64,
 }
 
 impl AppState {
@@ -70,6 +74,8 @@ impl AppState {
             live_generation: Arc::new(AtomicU64::new(0)),
             main_focused: AtomicBool::new(false),
             min_size_held: AtomicBool::new(false),
+            library_version: AtomicU64::new(0),
+            settings_version: AtomicU64::new(0),
         }
     }
 
@@ -89,7 +95,25 @@ impl AppState {
     pub fn save_settings(&self, settings: GuiSettings) -> std::io::Result<GuiSettings> {
         let _in_order = lock(&self.saving);
         settings.save()?;
-        Ok(std::mem::replace(&mut *lock(&self.settings), settings))
+        let old = std::mem::replace(&mut *lock(&self.settings), settings);
+        self.settings_version.fetch_add(1, Ordering::Relaxed);
+        Ok(old)
+    }
+
+    /// Changes with every change of the settings, for watchers that show what they say.
+    pub fn settings_version(&self) -> u64 {
+        self.settings_version.load(Ordering::Relaxed)
+    }
+
+    /// Games or configs changed on disk.
+    pub fn library_changed(&self) {
+        self.library_version.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// Changes with every change of the games and configs, for watchers that show what they
+    /// hold.
+    pub fn library_version(&self) -> u64 {
+        self.library_version.load(Ordering::Relaxed)
     }
 
     /// The folder the library is in.

@@ -609,7 +609,8 @@ Two overlays show over games, switched on and off by a controller hotkey or a ma
   the trigger behind it is pulled. It hides after a few seconds without input and comes
   back with the next one;
 - the **mappings overlay**, the running config's mappings on the active layer with their
-  descriptions, in columns of up to 40 rows (120 rows at most). It follows layer changes.
+  descriptions, in columns of up to 40 rows (120 rows at most). It follows layer changes and
+  a saved config.
 
 *Settings → Display → Overlays* picks their corner, the controller's size, both opacities and
 when the controller hides. Like the notifications they let clicks through and never take the
