@@ -35,6 +35,7 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, PostMessa
 use windows_sys::core::GUID;
 
 use super::{OwnedHandle, foreground, wide};
+use crate::tools::screenshot_file;
 use crate::{ForegroundWatcher, PlatformError, PowerAction, Result, SystemControl};
 
 /// The PNG encoder of GDI+.
@@ -99,26 +100,15 @@ fn screenshot_dir() -> Result<PathBuf> {
     Ok(dir)
 }
 
-/// `<app> 2026-10-20 17-30-05.png`, numbered if that exists already.
-fn screenshot_path(dir: &std::path::Path, app: Option<&str>) -> PathBuf {
+/// The local time as `2026-10-20 17-30-05`.
+fn stamp() -> String {
     let mut t = SYSTEMTIME::default();
     // SAFETY: valid out-pointer.
     unsafe { GetLocalTime(&mut t) };
-    let stamp = format!(
+    format!(
         "{:04}-{:02}-{:02} {:02}-{:02}-{:02}",
         t.wYear, t.wMonth, t.wDay, t.wHour, t.wMinute, t.wSecond
-    );
-    let app = app
-        .map(|a| a.trim_end_matches(".exe").trim_end_matches(".EXE"))
-        .filter(|a| !a.is_empty())
-        .unwrap_or("Screenshot");
-    let mut path = dir.join(format!("{app} {stamp}.png"));
-    let mut n = 2;
-    while path.exists() {
-        path = dir.join(format!("{app} {stamp} ({n}).png"));
-        n += 1;
-    }
-    path
+    )
 }
 
 /// Capture the monitor showing the foreground window and save it as PNG.
@@ -318,7 +308,7 @@ impl SystemControl for WinSystem {
 
     fn screenshot(&mut self) -> Result<PathBuf> {
         let app = foreground::Foreground.foreground_process();
-        let path = screenshot_path(&screenshot_dir()?, app.as_deref());
+        let path = screenshot_file(&screenshot_dir()?, app.as_deref(), &stamp());
         capture(&path)?;
         Ok(path)
     }

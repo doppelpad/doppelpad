@@ -225,12 +225,12 @@ impl KbmOutput for EventOutput {
             (b, true) => (
                 CGEventType::OtherMouseDown,
                 CGMouseButton::Center,
-                other_number(b),
+                keycodes::other_number(b),
             ),
             (b, false) => (
                 CGEventType::OtherMouseUp,
                 CGMouseButton::Center,
-                other_number(b),
+                keycodes::other_number(b),
             ),
         };
         let at = Self::cursor();
@@ -303,14 +303,5 @@ impl KbmOutput for EventOutput {
             CGEvent::set_flags(Some(e), CGEventFlags(self.flags));
         }
         Self::post(event);
-    }
-}
-
-/// The button number of a button other than left and right.
-fn other_number(button: MouseButton) -> i64 {
-    match button {
-        MouseButton::X1 => 3,
-        MouseButton::X2 => 4,
-        _ => 2,
     }
 }

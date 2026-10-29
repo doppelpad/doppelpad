@@ -63,6 +63,7 @@ pub(crate) mod switch2gatt;
 #[cfg(any(windows, target_os = "linux", target_os = "macos"))]
 pub(crate) mod switch2usb;
 pub mod timer;
+pub(crate) mod tools;
 #[cfg(any(windows, target_os = "linux", target_os = "macos"))]
 pub(crate) mod usb;
 #[cfg(any(target_os = "linux", target_os = "macos", test))]

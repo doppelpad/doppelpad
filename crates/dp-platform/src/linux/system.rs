@@ -12,6 +12,7 @@ use std::time::Duration;
 use x11rb::protocol::xproto::{ClientMessageEvent, ConnectionExt, EventMask};
 
 use super::x11::X11;
+use crate::tools::run;
 use crate::{PlatformError, PowerAction, Result, SystemControl};
 
 #[derive(Default)]
@@ -21,24 +22,6 @@ pub struct LinuxSystem {
     inhibitor: Option<OwnedFd>,
     /// Whether the user's session is locked, followed from the first question on.
     lock: OnceLock<LockWatch>,
-}
-
-fn run(program: &str, args: &[&str]) -> Result<()> {
-    let status = super::host_command(program)
-        .args(args)
-        .status()
-        .map_err(|source| PlatformError::Os {
-            context: "starting systemctl/loginctl",
-            source,
-        })?;
-    if status.success() {
-        Ok(())
-    } else {
-        Err(PlatformError::Other(format!(
-            "`{program} {}` failed",
-            args.join(" ")
-        )))
-    }
 }
 
 fn close_active_x11_window() -> Result<()> {

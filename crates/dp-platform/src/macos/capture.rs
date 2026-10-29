@@ -77,16 +77,6 @@ fn mask() -> CGEventMask {
     .fold(0, |m, t| m | (1 << t.0))
 }
 
-/// The button of an "other" mouse event's button number.
-fn other_button(number: i64) -> Option<MouseButton> {
-    match number {
-        2 => Some(MouseButton::Middle),
-        3 => Some(MouseButton::X1),
-        4 => Some(MouseButton::X2),
-        _ => None,
-    }
-}
-
 /// Wheel motion as events, in lines (fractions from trackpads included); positive is up and
 /// left.
 fn wheel_events(vertical: f64, horizontal: f64) -> impl Iterator<Item = KbmEvent> {
@@ -151,7 +141,7 @@ fn events_of(kind: CGEventType, event: &CGEvent) -> Vec<KbmEvent> {
         CGEventType::RightMouseDown => button(MouseButton::Right, true),
         CGEventType::RightMouseUp => button(MouseButton::Right, false),
         CGEventType::OtherMouseDown | CGEventType::OtherMouseUp => {
-            match other_button(field(CGEventField::MouseEventButtonNumber)) {
+            match keycodes::other_button(field(CGEventField::MouseEventButtonNumber)) {
                 Some(b) => button(b, kind == CGEventType::OtherMouseDown),
                 None => Vec::new(),
             }
@@ -371,13 +361,6 @@ mod tests {
             ]
         );
         assert_eq!(wheel_events(0.0, 0.0).count(), 0);
-    }
-
-    #[test]
-    fn other_buttons() {
-        assert_eq!(other_button(2), Some(MouseButton::Middle));
-        assert_eq!(other_button(4), Some(MouseButton::X2));
-        assert_eq!(other_button(7), None);
     }
 
     #[test]
