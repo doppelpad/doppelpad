@@ -73,18 +73,28 @@ impl SonyModel {
 const GYRO_DPS_PER_LSB: f32 = 1.0 / 16.0;
 const ACCEL_G_PER_LSB: f32 = 1.0 / 8192.0;
 
+/// The buttons in the two bytes after the sticks and triggers of DualShock 4 and DualSense
+/// reports, read as one little-endian number (the hat is in its low nibble, and bits 10 and 11
+/// are L2 and R2, which the triggers carry). The virtual DualShock 4 writes them the same way.
+const BUTTONS: [(PadButton, u16); 10] = [
+    (PadButton::X, 1 << 4),      // square
+    (PadButton::A, 1 << 5),      // cross
+    (PadButton::B, 1 << 6),      // circle
+    (PadButton::Y, 1 << 7),      // triangle
+    (PadButton::LB, 1 << 8),     // L1
+    (PadButton::RB, 1 << 9),     // R1
+    (PadButton::Back, 1 << 12),  // share / create
+    (PadButton::Start, 1 << 13), // options
+    (PadButton::LS, 1 << 14),    // L3
+    (PadButton::RS, 1 << 15),    // R3
+];
+
 fn face_buttons(state: &mut PadState, b0: u8, b1: u8) {
     apply_hat(state, b0);
-    state.set(PadButton::X, b0 & 0x10 != 0); // Square
-    state.set(PadButton::A, b0 & 0x20 != 0); // Cross
-    state.set(PadButton::B, b0 & 0x40 != 0); // Circle
-    state.set(PadButton::Y, b0 & 0x80 != 0); // Triangle
-    state.set(PadButton::LB, b1 & 0x01 != 0);
-    state.set(PadButton::RB, b1 & 0x02 != 0);
-    state.set(PadButton::Back, b1 & 0x10 != 0); // Share / Create
-    state.set(PadButton::Start, b1 & 0x20 != 0); // Options
-    state.set(PadButton::LS, b1 & 0x40 != 0);
-    state.set(PadButton::RS, b1 & 0x80 != 0);
+    let bits = u16::from_le_bytes([b0, b1]);
+    for (button, bit) in BUTTONS {
+        state.set(button, bits & bit != 0);
+    }
 }
 
 fn motion(r: &[u8], gyro_at: usize, accel_at: usize) -> Motion {
@@ -256,8 +266,8 @@ impl SonyDriver {
 }
 
 /// Touchpad resolution of the DualShock 4.
-/// Touchpad resolutions.
 const DS4_TOUCH: (f32, f32) = (1920.0, 943.0);
+/// Touchpad resolution of the DualSense.
 const DUALSENSE_TOUCH: (f32, f32) = (1920.0, 1080.0);
 
 impl PadDriver for SonyDriver {

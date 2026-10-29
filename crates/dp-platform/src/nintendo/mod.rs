@@ -3,9 +3,9 @@
 //! The protocols are the publicly documented ones (dekuNukem's and ndeadly's research,
 //! SDL `SDL_hidapi_switch*.c`). Everything here is pure, so it is unit-tested on every OS:
 //! [`switch1`] covers the first-generation protocol (Pro Controller, Joy-Con, charging
-//! grip, Nintendo Switch Online pads), [`switch2`] the Switch 2 USB protocol, [`wired`]
-//! third-party pads that only send a plain input report, and [`gcadapter`] the GameCube
-//! controller adapter.
+//! grip, Nintendo Switch Online pads), [`switch2`] the Switch 2 protocol on USB and, with
+//! [`switch2ble`], over Bluetooth LE, [`wired`] third-party pads that only send a plain input
+//! report, and [`gcadapter`] the GameCube controller adapter.
 
 pub mod gcadapter;
 pub mod switch1;

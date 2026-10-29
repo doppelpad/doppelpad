@@ -1,4 +1,5 @@
-//! Gamepads without a driver of their own, read through the operating system's HID parser.
+//! Gamepads without a driver of their own, read through a HID parser: Windows' own, or on
+//! macOS Doppelpad's (`hiddesc`), both by the rules in [`usages`].
 //!
 //! They report buttons, axes and hat switches in an order only the maker knows. A
 //! [`GenericLayout`], recorded by the user with the identify wizard and kept per model
