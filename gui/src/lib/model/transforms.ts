@@ -9,13 +9,13 @@
 //   and a stick that only passed through gets a route to the virtual stick it fed (consuming the
 //   physical one), so the physical sticks really trade places.
 
-import { DIRS8, SIDES, ZONES, parseControl } from './controls';
+import { DIRS8, SIDE_NAMES, SIDES, ZONES, parseControl } from './controls';
 import { declaredLayer, patchLayer } from './layers';
 import { comboList, effectiveMappings, layerIds, layerOf, nativeAction, sameCombo, tidyMapping } from './profile';
 import { layerRoutes, routeLayer, sourceOf } from './routes';
 import { clone, nonEmpty, sameJson, setOrDrop } from './util';
-import type { AnalogMapping, AnalogSource, AnalogTarget, ControlName, Mapping, Profile, StickConfig } from '../types';
-import type { Side } from './analog';
+import type { AnalogMapping, ControlName, Mapping, Profile, StickConfig } from '../types';
+import { stickConfig, type Side } from './analog';
 
 export type TransformKind = 'face' | 'sticks' | 'bumpers_triggers' | 'mirror';
 export const TRANSFORMS: TransformKind[] = ['face', 'sticks', 'bumpers_triggers', 'mirror'];
@@ -128,22 +128,21 @@ function swapMappings(p: Profile, into: Profile, layer: number, pairs: Pair[], m
   return out;
 }
 
-const STICK_SOURCE = { left: 'left_stick', right: 'right_stick' } as const satisfies Record<Side, AnalogSource & AnalogTarget>;
-
 /**
  * A route from stick `source` to virtual stick `target` that behaves as passing the `target`
- * side through did: its deadzone, outer and anti-deadzone and sensitivity, linear.
+ * side through did on `layer`: the deadzone, outer, anti-deadzone and sensitivity it has there,
+ * linear.
  */
-function passthroughRoute(p: Profile, source: Side, target: Side): AnalogMapping {
-  const cfg: StickConfig = p.sticks?.[target] ?? {};
+function passthroughRoute(p: Profile, source: Side, target: Side, layer: number, def: Required<StickConfig>): AnalogMapping {
+  const cfg = stickConfig(p, target, def, layer);
   return {
-    source: STICK_SOURCE[source],
-    target: STICK_SOURCE[target],
-    sensitivity: cfg.sensitivity ?? 1,
+    source: SIDES[source].source,
+    target: SIDES[target].source,
+    sensitivity: cfg.sensitivity,
     curve: 1,
-    deadzone: cfg.deadzone ?? 0,
-    outer: cfg.outer ?? 1,
-    anti_deadzone: cfg.anti_deadzone ?? 0,
+    deadzone: cfg.deadzone,
+    outer: cfg.outer,
+    anti_deadzone: cfg.anti_deadzone,
     consume: true,
   };
 }
@@ -157,22 +156,22 @@ const isStickSource = (r: AnalogMapping) => sourceOf(r) === 'left_stick' || sour
  * the other, and a stick that only passed through gets a route to the virtual stick it fed,
  * shaped like the stick settings shaped it (the response curve is not carried over).
  */
-function swapStickRoutes(p: Profile, into: Profile, layer: number): Profile {
+function swapStickRoutes(p: Profile, into: Profile, layer: number, def: Required<StickConfig>): Profile {
   const effective = layerRoutes(p, layer).map((r) => r.route);
   const moved: AnalogMapping[] = [];
-  for (const s of ['left', 'right'] as const) {
+  for (const s of SIDE_NAMES) {
     const from = otherSide(s);
-    const was = effective.filter((r) => sourceOf(r) === STICK_SOURCE[from]);
+    const was = effective.filter((r) => sourceOf(r) === SIDES[from].source);
     if (was.length) {
       for (const r of was) {
-        const route = { ...clone(r), source: STICK_SOURCE[s] };
+        const route = { ...clone(r), source: SIDES[s].source };
         // A route that feeds a stick's own virtual stick as passing through would: drop it.
-        if (sameJson(stripLayer(route), passthroughRoute(p, s, s))) continue;
+        if (sameJson(stripLayer(route), passthroughRoute(p, s, s, layer, def))) continue;
         moved.push(setOrDrop(route, 'layer', layer || undefined));
       }
       continue;
     }
-    moved.push(setOrDrop(passthroughRoute(p, s, from), 'layer', layer || undefined));
+    moved.push(setOrDrop(passthroughRoute(p, s, from, layer, def), 'layer', layer || undefined));
   }
   const rest = (into.analog ?? []).filter((r) => !(routeLayer(r) === layer && isStickSource(r)));
   return setOrDrop(into, 'analog', nonEmpty([...rest, ...moved]));
@@ -185,8 +184,11 @@ function layersOf(p: Profile, scope: number | 'all'): { layer: number; materiali
   return layerIds(p).map((id) => ({ layer: id, materialize: id === 0 || declaredLayer(p, id)?.inherit === false }));
 }
 
-/** Apply a transform to one layer or (`'all'`) to the whole config. */
-export function transform(p: Profile, kind: TransformKind, scope: number | 'all'): Profile {
+/**
+ * Apply a transform to one layer or (`'all'`) to the whole config. `def`: the stick settings'
+ * defaults, for a stick that only passed through.
+ */
+export function transform(p: Profile, kind: TransformKind, scope: number | 'all', def: Required<StickConfig>): Profile {
   const { pairs, sticks } = pairsOf(kind);
   // Every layer reads what controls did before the transform, so a shift layer does not see
   // Main already swapped.
@@ -196,7 +198,7 @@ export function transform(p: Profile, kind: TransformKind, scope: number | 'all'
     const use = materialize ? pairs : pairs.filter(([x, y]) => own(x) || own(y));
     out = swapMappings(p, out, layer, use, materialize);
     const ownStickRoutes = (p.analog ?? []).some((r) => routeLayer(r) === layer && isStickSource(r));
-    if (sticks && (materialize || ownStickRoutes)) out = swapStickRoutes(p, out, layer);
+    if (sticks && (materialize || ownStickRoutes)) out = swapStickRoutes(p, out, layer, def);
   }
   return out;
 }
