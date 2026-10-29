@@ -4,6 +4,7 @@
 import { replaceLayerRoutes, routeLayer } from './routes';
 import { parseControl, type Dir8 } from './controls';
 import { declaredLayer, patchLayer } from './layers';
+import { activatorOf, layerOf, modeOf } from './mapping';
 import { clone, dropUndefined, nonEmpty, sameJson, setOrDrop } from './util';
 import type {
   Action,
@@ -46,9 +47,7 @@ export function sameCombo(a: Combo, b: Combo): boolean {
   return comboKey(a) === comboKey(b);
 }
 
-export const layerOf = (m: Mapping) => m.layer ?? 0;
-export const activatorOf = (m: Mapping): Activator => m.activator ?? 'single';
-export const modeOf = (m: Mapping): Mode => m.mode ?? 'hold';
+export { activatorOf, layerOf, modeOf };
 
 /** The control of a combo of exactly one, else null. */
 export function singleControl(c: Combo): ControlName | null {

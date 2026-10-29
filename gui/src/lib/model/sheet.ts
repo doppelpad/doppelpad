@@ -1,8 +1,9 @@
 // A bindings sheet: every layer's mappings and analog routes as one printable HTML page.
 import { t } from '../i18n/index.svelte';
 import type { PadFamily, Profile } from '../types';
-import { sourceOf, targetOf } from './routes';
+import { routeLayer, sourceOf, targetOf } from './routes';
 import { comboLabel, layerLabel, mappingSummary } from './labels';
+import { layerOf } from './mapping';
 import { comboKey, layerIds } from './profile';
 
 const escape = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -23,8 +24,8 @@ const STYLE = `
 export function bindingsSheet(p: Profile, family: PadFamily | null): string {
   const label = (id: number) => layerLabel(p, id);
   const sections = layerIds(p).flatMap((id) => {
-    const mappings = p.mappings.filter((m) => (m.layer ?? 0) === id);
-    const routes = (p.analog ?? []).filter((r) => (r.layer ?? 0) === id);
+    const mappings = p.mappings.filter((m) => layerOf(m) === id);
+    const routes = (p.analog ?? []).filter((r) => routeLayer(r) === id);
     if (mappings.length === 0 && routes.length === 0) return [];
     // One row per trigger, in the order the config lists them.
     const rows = new Map<string, { control: string; action: string[]; note: string[] }>();

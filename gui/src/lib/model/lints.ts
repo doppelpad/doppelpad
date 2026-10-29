@@ -3,7 +3,8 @@
 
 import { t } from '../i18n/index.svelte';
 import { HOTKEY_FIELDS, hotkeyLabel } from './hotkeys';
-import { activatorOf, comboKey, comboList, effectiveMappings, layerOf } from './profile';
+import { activatorOf, jumpsTo, layerOf } from './mapping';
+import { comboKey, comboList, effectiveMappings } from './profile';
 import type { Place } from './views';
 import type { Combo, DiagMsg, Hotkeys, PadFamily, Profile } from '../types';
 
@@ -53,7 +54,7 @@ export function diagTarget(p: Profile, d: DiagMsg): Place | null {
 
 /** Whether a mapping on another layer changes to layer `id` (Main is always there). */
 export function isReached(p: Profile, id: number): boolean {
-  return id === 0 || p.mappings.some((m) => m.jump?.layer === id && layerOf(m) !== id);
+  return id === 0 || p.mappings.some((m) => jumpsTo(m, id));
 }
 
 /**

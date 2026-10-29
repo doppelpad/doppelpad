@@ -3,7 +3,8 @@
 
 import { t } from '../i18n/index.svelte';
 import type { ControlName, Mapping, Profile, RadialMenu, RadialPosition, RadialSector } from '../types';
-import { addLayer, editMappingIn, layerOf, modeOf, removeLayer, renameLayer, tidyMapping } from './profile';
+import { jumpsTo, layerOf, modeOf } from './mapping';
+import { addLayer, editMappingIn, removeLayer, renameLayer, tidyMapping } from './profile';
 import { routeLayer } from './routes';
 import { dropUndefined, nonEmpty, setOrDrop } from './util';
 
@@ -126,19 +127,16 @@ export function parentsOf(p: Profile, i: number): { menu: number; sector: number
   return (p.radial_menus ?? []).flatMap((m, j) => m.sectors.flatMap((s, k) => (s.submenu === i + 1 ? [{ menu: j, sector: k }] : [])));
 }
 
-/** Whether mapping `m` changes to layer `layer` from another layer. */
-const opens = (m: Mapping, layer: number) => m.jump?.layer === layer && layerOf(m) !== layer;
-
 /** The mappings that change to `layer` (so open its menu). */
 export function openers(p: Profile, layer: number): Mapping[] {
-  return layer === 0 ? [] : p.mappings.filter((m) => opens(m, layer));
+  return layer === 0 ? [] : p.mappings.filter((m) => jumpsTo(m, layer));
 }
 
 /** `p` without what changes to `layer`: mappings that did nothing else go, the others lose their jump. */
 export function removeOpeners(p: Profile, layer: number): Profile {
   const mappings = p.mappings
-    .map((m) => (opens(m, layer) ? tidyMapping({ ...m, jump: undefined }) : m))
-    .filter((m, i) => !opens(p.mappings[i]!, layer) || (m.actions ?? []).length > 0 || !!m.description || modeOf(m) !== 'hold');
+    .map((m) => (jumpsTo(m, layer) ? tidyMapping({ ...m, jump: undefined }) : m))
+    .filter((m, i) => !jumpsTo(p.mappings[i]!, layer) || (m.actions ?? []).length > 0 || !!m.description || modeOf(m) !== 'hold');
   return { ...p, mappings };
 }
 

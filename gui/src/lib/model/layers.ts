@@ -1,21 +1,13 @@
 // Declared layers and the profile-wide virtual devices: finding and changing a layer's
 // declaration, declaring it on first change.
 
-import type { Activator, Combo, JumpMode, Layer, Profile, VirtualDevices } from '../types';
+import type { Layer, Profile, VirtualDevices } from '../types';
+import { entranceOf, type LayerEntrance } from './mapping';
 import { nonEmpty, setOrDrop } from './util';
 
 /** The declaration of layer `id`, if the profile has one. */
 export function declaredLayer(p: Profile, id: number): Layer | undefined {
   return p.layers?.find((l) => l.id === id);
-}
-
-/** A mapping that changes to a layer: on which layer it sits, its trigger and how it jumps. */
-export interface LayerEntrance {
-  from: number;
-  trigger: Combo;
-  activator: Activator;
-  mode: JumpMode;
-  delayMs: number;
 }
 
 /**
@@ -24,14 +16,12 @@ export interface LayerEntrance {
  */
 export function layerEntrances(p: Profile, id: number): LayerEntrance[] {
   return p.mappings
-    .filter((m) => m.jump?.layer === id && (m.layer ?? 0) !== id)
-    .map((m) => ({
-      from: m.layer ?? 0,
-      trigger: m.trigger,
-      activator: m.activator ?? 'single',
-      mode: m.jump!.mode ?? 'hold',
-      delayMs: m.jump!.delay_ms ?? 0,
-    }))
+    .flatMap((m) => {
+      const e = entranceOf(m);
+      if (e?.to !== id) return [];
+      const { to: _to, ...entrance } = e;
+      return [entrance];
+    })
     .sort((a, b) => a.from - b.from);
 }
 
@@ -63,18 +53,8 @@ export function layerGraph(p: Profile, ids: number[]): { nodes: MapNode[]; edges
   });
   const edges: MapEdge[] = [];
   p.mappings.forEach((m, index) => {
-    const from = m.layer ?? 0;
-    if (!m.jump || m.jump.layer === from) return;
-    edges.push({
-      from,
-      to: m.jump.layer,
-      index,
-      trigger: m.trigger,
-      activator: m.activator ?? 'single',
-      mode: m.jump.mode ?? 'hold',
-      delayMs: m.jump.delay_ms ?? 0,
-      bend: 0,
-    });
+    const entrance = entranceOf(m);
+    if (entrance) edges.push({ ...entrance, index, bend: 0 });
   });
   // Arrows between the same two layers fan out; the two directions go to opposite sides.
   const pairs = new Map<string, MapEdge[]>();
