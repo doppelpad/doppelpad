@@ -4,6 +4,7 @@
 //!
 //! The rules are those of the HID specification 1.11, section 6.2.2.
 
+use crate::generic::usages::{self, PAGE_BUTTON};
 use crate::generic::{RawInput, ReportDecoder};
 
 /// One item of a report descriptor.
@@ -62,16 +63,6 @@ const POP: u8 = 0xB;
 const USAGE: u8 = 0x0;
 const USAGE_MIN: u8 = 0x1;
 const USAGE_MAX: u8 = 0x2;
-
-// Usage pages and usages.
-const PAGE_DESKTOP: u16 = 0x01;
-const PAGE_SIMULATION: u16 = 0x02;
-const PAGE_BUTTON: u16 = 0x09;
-/// X, Y, Z, Rx, Ry, Rz, slider, dial, wheel.
-const DESKTOP_AXES: std::ops::RangeInclusive<u16> = 0x30..=0x38;
-const HAT_SWITCH: u16 = 0x39;
-/// More buttons than any pad has: the rest are ignored.
-const MAX_BUTTONS: usize = 32;
 
 /// What a pad's descriptor stays within. A descriptor beyond is not read at all: its numbers
 /// would make the parser allocate without bound (`Report Count 0xFFFFFFFF`) or overflow.
@@ -158,36 +149,23 @@ impl Field {
         if self.bits == 0 || self.bits > 32 {
             return None;
         }
-        let mut v: u64 = 0;
+        let mut v: u32 = 0;
         for i in 0..self.bits {
             let bit = self.offset + i;
             let byte = *data.get((bit / 8) as usize)?;
-            v |= u64::from((byte >> (bit % 8)) & 1) << i;
+            v |= u32::from((byte >> (bit % 8)) & 1) << i;
         }
-        let v = v as i64;
-        Some(if self.min < 0 && v & (1 << (self.bits - 1)) != 0 {
-            v - (1 << self.bits)
-        } else {
-            v
-        })
+        Some(usages::signed(v, self.bits, self.min))
     }
 
     /// The value as an axis, `-1..=1` over the logical range.
     fn axis(&self, v: i64) -> f32 {
-        if self.max <= self.min {
-            return 0.0;
-        }
-        (((v - self.min) as f32 / (self.max - self.min) as f32) * 2.0 - 1.0).clamp(-1.0, 1.0)
+        usages::axis(v, self.min, self.max)
     }
 
     /// The value as a hat direction, 0–7 clockwise from up; `None` when centred.
     fn hat(&self, v: i64) -> Option<u8> {
-        let d = v - self.min;
-        match self.max - self.min + 1 {
-            8 if (0..8).contains(&d) => Some(d as u8),
-            4 if (0..4).contains(&d) => Some(d as u8 * 2),
-            _ => None,
-        }
+        usages::hat(v, self.min, self.max)
     }
 }
 
@@ -331,14 +309,14 @@ fn layout(desc: &[u8]) -> Option<Layout> {
 
 /// Decodes a generic pad's input reports (report ID first, 0 when unnumbered) into its buttons
 /// in usage order, its axes by usage (X, Y, Z, Rx, Ry, Rz, sliders, dials, then simulation
-/// controls) and its hat switches, as Windows' parser does for the same pads.
+/// controls) and its hat switches, by the rules Windows' parser is read by too
+/// ([`usages`]).
 pub struct Decoder {
     buttons: Vec<u16>,
     button_fields: Vec<Field>,
     button_arrays: Vec<ButtonArray>,
     axes: Vec<Field>,
     hats: Vec<Field>,
-    state: RawInput,
 }
 
 impl Decoder {
@@ -355,24 +333,18 @@ impl Decoder {
         for a in &layout.button_arrays {
             buttons.extend(a.buttons());
         }
-        buttons.sort_unstable();
-        buttons.dedup();
-        buttons.truncate(MAX_BUTTONS);
+        usages::order_buttons(&mut buttons);
         let mut axes: Vec<Field> = layout
             .fields
             .iter()
-            .filter(|f| {
-                (f.page == PAGE_DESKTOP && DESKTOP_AXES.contains(&f.usage))
-                    || f.page == PAGE_SIMULATION
-            })
+            .filter(|f| usages::is_axis(f.page, f.usage))
             .copied()
             .collect();
-        axes.sort_by_key(|f| (f.page, f.usage));
-        axes.dedup_by_key(|f| (f.page, f.usage));
+        usages::order_axes(&mut axes, |f| (f.page, f.usage));
         let hats: Vec<Field> = layout
             .fields
             .iter()
-            .filter(|f| f.page == PAGE_DESKTOP && f.usage == HAT_SWITCH)
+            .filter(|f| usages::is_hat(f.page, f.usage))
             .copied()
             .collect();
         if buttons.is_empty() && axes.is_empty() {
@@ -384,11 +356,6 @@ impl Decoder {
             .filter(|f| f.page == PAGE_BUTTON)
             .collect();
         Some(Decoder {
-            state: RawInput {
-                buttons: vec![false; buttons.len()],
-                axes: vec![0.0; axes.len()],
-                hats: vec![None; hats.len()],
-            },
             buttons,
             button_fields,
             button_arrays: layout.button_arrays,
@@ -396,42 +363,47 @@ impl Decoder {
             hats,
         })
     }
+
+    fn button_index(&self, usage: u16) -> Option<usize> {
+        self.buttons.iter().position(|&u| u == usage)
+    }
 }
 
 impl ReportDecoder for Decoder {
-    fn decode(&mut self, report: &[u8]) -> Option<RawInput> {
-        let (&id, data) = report.split_first()?;
+    fn decode(&mut self, report: &[u8], out: &mut RawInput) -> bool {
+        let Some((&id, data)) = report.split_first() else {
+            return false;
+        };
+        out.resize(self.buttons.len(), self.axes.len(), self.hats.len());
         let mut any = false;
         // Buttons a report carries are set from it; the others stay as they were.
         for f in self.button_fields.iter().filter(|f| f.report == id) {
             if let (Some(v), Some(i)) = (f.read(data), self.button_index(f.usage)) {
-                self.state.buttons[i] = v != 0;
+                out.buttons[i] = v != 0;
                 any = true;
             }
         }
-        let arrays: Vec<ButtonArray> = self
-            .button_arrays
-            .iter()
-            .filter(|a| a.field.report == id)
-            .copied()
-            .collect();
-        let mut pressed = Vec::new();
-        for a in &arrays {
-            if let Some(v) = a.field.read(data) {
-                any = true;
-                pressed.extend(a.button(v));
+        // The buttons a report's arrays can name are pressed only if a slot names them.
+        let arrays = || self.button_arrays.iter().filter(|a| a.field.report == id);
+        for usage in arrays().flat_map(ButtonArray::buttons) {
+            if let Some(i) = self.button_index(usage) {
+                out.buttons[i] = false;
             }
         }
-        for (i, usage) in self.buttons.iter().enumerate() {
-            if arrays.iter().any(|a| a.buttons().contains(usage)) {
-                self.state.buttons[i] = pressed.contains(usage);
+        for a in arrays() {
+            let Some(v) = a.field.read(data) else {
+                continue;
+            };
+            any = true;
+            if let Some(i) = a.button(v).and_then(|u| self.button_index(u)) {
+                out.buttons[i] = true;
             }
         }
         for (i, f) in self.axes.iter().enumerate() {
             if f.report == id
                 && let Some(v) = f.read(data)
             {
-                self.state.axes[i] = f.axis(v);
+                out.axes[i] = f.axis(v);
                 any = true;
             }
         }
@@ -439,23 +411,37 @@ impl ReportDecoder for Decoder {
             if f.report == id
                 && let Some(v) = f.read(data)
             {
-                self.state.hats[i] = f.hat(v);
+                out.hats[i] = f.hat(v);
                 any = true;
             }
         }
-        any.then(|| self.state.clone())
-    }
-}
-
-impl Decoder {
-    fn button_index(&self, usage: u16) -> Option<usize> {
-        self.buttons.iter().position(|&u| u == usage)
+        any
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Decodes into raw input kept from report to report, as the generic driver does.
+    struct Reader {
+        decoder: Decoder,
+        raw: RawInput,
+    }
+
+    impl Reader {
+        fn new(decoder: Decoder) -> Reader {
+            Reader {
+                decoder,
+                raw: RawInput::default(),
+            }
+        }
+
+        fn decode(&mut self, report: &[u8]) -> Option<RawInput> {
+            let decoded = self.decoder.decode(report, &mut self.raw);
+            decoded.then(|| self.raw.clone())
+        }
+    }
 
     /// The start of a DualSense's USB descriptor: generic desktop, game pad, report 1.
     const DUALSENSE: &[u8] = &[0x05, 0x01, 0x09, 0x05, 0xA1, 0x01, 0x85, 0x01, 0x09, 0x30];
@@ -511,7 +497,7 @@ mod tests {
 
     #[test]
     fn decodes_a_plain_pad() {
-        let mut d = Decoder::new(PAD).unwrap();
+        let mut d = Reader::new(Decoder::new(PAD).unwrap());
         // ID 0, X 0 (left), Y 255 (down), Z 128, Rz 128, buttons 1 and 10, hat 2 (right).
         let raw = d
             .decode(&[0x00, 0x00, 0xFF, 0x80, 0x80, 0x01, 0x02, 0x02])
@@ -539,7 +525,7 @@ mod tests {
             0x15, 0x00, 0x25, 0x01, 0x75, 0x01, 0x95, 0x08, 0x81, 0x02, //
             0xC0,
         ];
-        let mut d = Decoder::new(&desc).unwrap();
+        let mut d = Reader::new(Decoder::new(&desc).unwrap());
         let a = d.decode(&[0x01, 0x00, 0x80, 0xFF, 0x7F]).unwrap();
         assert_eq!((a.axes[0], a.axes[1]), (-1.0, 1.0));
         assert!(a.buttons.iter().all(|&b| !b));
@@ -556,7 +542,7 @@ mod tests {
             0x05, 0x01, 0x09, 0x04, 0xA1, 0x01, 0x15, 0x00, 0x25, 0xFF, 0x09, 0x30, 0x75, 0x08,
             0x95, 0x01, 0x81, 0x02, 0xC0,
         ];
-        let mut d = Decoder::new(&desc).unwrap();
+        let mut d = Reader::new(Decoder::new(&desc).unwrap());
         assert_eq!(d.decode(&[0, 255]).unwrap().axes, [1.0]);
         assert_eq!(d.decode(&[0, 0]).unwrap().axes, [-1.0]);
     }
@@ -569,7 +555,7 @@ mod tests {
             0x02, 0x05, 0x02, 0x09, 0xC4, 0x09, 0xC5, 0x81, 0x02, 0x05, 0x01, 0x09, 0x30, 0x95,
             0x01, 0x81, 0x02, 0xC0,
         ];
-        let mut d = Decoder::new(&desc).unwrap();
+        let mut d = Reader::new(Decoder::new(&desc).unwrap());
         let raw = d.decode(&[0, 255, 0, 128]).unwrap();
         assert_eq!(raw.axes.len(), 3);
         assert!(raw.axes[0].abs() < 0.01, "X first");
@@ -610,7 +596,7 @@ mod tests {
             0x05, 0x01, 0x09, 0x05, 0xA1, 0x01, 0x05, 0x09, 0x19, 0x01, 0x29, 0x10, 0x15, 0x01,
             0x25, 0x10, 0x75, 0x08, 0x95, 0x02, 0x81, 0x00, 0xC0,
         ];
-        let mut d = Decoder::new(&desc).unwrap();
+        let mut d = Reader::new(Decoder::new(&desc).unwrap());
         let raw = d.decode(&[0, 3, 0]).unwrap();
         assert_eq!(raw.buttons.len(), 16);
         assert!(raw.buttons[2]);
