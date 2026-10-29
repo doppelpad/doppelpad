@@ -20,8 +20,8 @@ use crate::{
 pub(crate) const GAME_FILE: &str = "game.toml";
 /// The format of `game.toml`; see [`crate::PROFILE_FORMAT`].
 const GAME_FORMAT: FileFormat = FileFormat::new(&[]);
-/// First line of every file written by Doppelpad (see [`to_toml`]).
 
+/// Why a change to the library failed.
 #[derive(Debug, thiserror::Error)]
 pub enum LibraryError {
     #[error("{0}: {1}")]
@@ -43,6 +43,8 @@ pub enum LibraryError {
     Trash(PathBuf, #[source] trash::Error),
     #[error("{0} is not a game folder")]
     NotAGame(PathBuf),
+    #[error("{0} is not a picture (PNG, JPEG, GIF, WebP, SVG or ICO)")]
+    NotAPicture(PathBuf),
 }
 
 pub type Result<T, E = LibraryError> = std::result::Result<T, E>;
@@ -180,13 +182,17 @@ fn sorted_entries(dir: &Path) -> Vec<PathBuf> {
 }
 
 fn is_config_file(path: &Path) -> bool {
-    path.file_name().is_some_and(|n| n != GAME_FILE)
-        && !path.extension().is_some_and(|e| e == "bak" || e == "tmp")
-        && is_profile_file(path)
+    path.file_name().is_some_and(|n| n != GAME_FILE) && !is_leftover(path) && is_profile_file(path)
 }
 
-/// Read a game folder's `game.toml`; without a name the game is named after its folder.
-fn read_meta(dir: &Path) -> Result<GameMeta> {
+/// A backup (`.bak`) or a temporary file (`.tmp`) the app left beside a file it saved.
+fn is_leftover(path: &Path) -> bool {
+    path.extension().is_some_and(|e| e == "bak" || e == "tmp")
+}
+
+/// Read a game folder's `game.toml` (not its configs); without a name the game is named after
+/// its folder.
+pub fn read_game_meta(dir: &Path) -> Result<GameMeta> {
     let meta_path = game_file(dir)?;
     let src = std::fs::read_to_string(&meta_path).map_err(io(&meta_path))?;
     let mut meta: GameMeta = GAME_FORMAT
@@ -204,7 +210,7 @@ fn read_meta(dir: &Path) -> Result<GameMeta> {
 
 /// Read one game folder.
 pub fn read_game(dir: &Path) -> Result<Game> {
-    let meta = read_meta(dir)?;
+    let meta = read_game_meta(dir)?;
     let configs = sorted_entries(dir)
         .into_iter()
         .filter(|p| is_config_file(p))
@@ -222,7 +228,7 @@ pub fn read_game(dir: &Path) -> Result<Game> {
 /// in [`ConfigEntry::name`]). Reads the config and its game's `game.toml`, not the library.
 pub fn config_label(path: &Path) -> String {
     let name = config_entry(path.to_path_buf()).name;
-    match path.parent().and_then(|dir| read_meta(dir).ok()) {
+    match path.parent().and_then(|dir| read_game_meta(dir).ok()) {
         Some(meta) => format!("{} › {name}", meta.name),
         None => name,
     }
@@ -376,58 +382,91 @@ pub fn create_game_with(root: &Path, name: &str, profile: &Profile) -> Result<Ga
     read_game(&dir)
 }
 
-/// Give a game a picture (copied into its folder as `cover.<ext>`), or (`None`) remove it.
+/// Give a game a picture (copied into its folder as `cover.<ext>`), or (`None`) remove it. The
+/// picture it had stays until the new one is in place.
 pub fn set_game_picture(dir: &Path, source: Option<&Path>) -> Result<GameMeta> {
-    let mut meta = read_game(dir)?.meta;
-    // An earlier cover in the folder goes, whatever its extension.
-    if let Some(old) = meta.image.take()
-        && old.starts_with("cover.")
-    {
-        let _ = std::fs::remove_file(dir.join(old));
-    }
+    let mut meta = read_game_meta(dir)?;
+    let old = meta.image.take();
     if let Some(src) = source {
-        let ext = picture::extension(src).ok_or_else(|| {
-            LibraryError::Io(src.to_path_buf(), std::io::ErrorKind::InvalidInput.into())
-        })?;
+        let ext =
+            picture::extension(src).ok_or_else(|| LibraryError::NotAPicture(src.to_path_buf()))?;
         let name = format!("cover.{ext}");
-        std::fs::copy(src, dir.join(&name)).map_err(io(src))?;
+        copy_atomic(src, &dir.join(&name))?;
         meta.image = Some(name);
     }
-    write_meta(dir, &meta)?;
+    if let Err(e) = write_meta(dir, &meta) {
+        // game.toml still names the old picture: a new one beside it goes again.
+        if let Some(new) = meta.image.filter(|n| old.as_ref() != Some(n)) {
+            let _ = std::fs::remove_file(dir.join(new));
+        }
+        return Err(e);
+    }
+    // An earlier cover in the folder goes, whatever its extension (a picture named by its own
+    // path stays where it is).
+    if let Some(old) = old.filter(|o| own_cover(o) && meta.image.as_ref() != Some(o)) {
+        let _ = std::fs::remove_file(dir.join(old));
+    }
     Ok(meta)
+}
+
+/// Whether a game's `image` names a cover the game folder holds (`cover.<ext>`, no folders).
+fn own_cover(image: &str) -> bool {
+    image.starts_with("cover.") && !image.contains(['/', '\\'])
+}
+
+/// Copy `from` over `to` through a temporary file, so that `to` is either the old file or a whole
+/// copy.
+fn copy_atomic(from: &Path, to: &Path) -> Result<()> {
+    let tmp = crate::store::with_suffix(to, "tmp");
+    let copied = std::fs::copy(from, &tmp)
+        .map_err(io(from))
+        .and_then(|_| std::fs::rename(&tmp, to).map_err(io(to)));
+    if copied.is_err() {
+        let _ = std::fs::remove_file(&tmp);
+    }
+    copied
 }
 
 /// A game's picture as a `data:` URL for the window, if it has one that is not too large.
 pub fn game_picture(dir: &Path) -> Option<String> {
-    let meta = read_game(dir).ok()?.meta;
+    let meta = read_game_meta(dir).ok()?;
     picture::data_url(&dir.join(meta.image?), picture::MAX_IMAGE)
 }
 
-/// Copy a game folder with its configs and picture under a new name ("<name> copy"). The copy
-/// gets no programs, so automatic switching keeps choosing the original.
+/// Copy a game folder with its configs and picture under a new name ("<name> copy"), without
+/// backups and temporary files. The copy gets no programs, so automatic switching keeps
+/// choosing the original. A copy that fails halfway goes again.
 pub fn duplicate_game(dir: &Path) -> Result<Game> {
-    let game = read_game(dir)?;
-    let name = format!("{} copy", game.meta.name);
+    let meta = read_game_meta(dir)?;
+    let name = format!("{} copy", meta.name);
     let root = dir.parent().unwrap_or(Path::new("."));
     let target = unique_path(root, &slugify(&name), None);
     std::fs::create_dir(&target).map_err(io(&target))?;
-    for entry in std::fs::read_dir(dir).map_err(io(dir))? {
-        let entry = entry.map_err(io(dir))?;
-        let from = entry.path();
-        if from.is_file() && entry.file_name() != GAME_FILE {
-            let to = target.join(entry.file_name());
-            std::fs::copy(&from, &to).map_err(io(&to))?;
+    let meta = GameMeta {
+        name,
+        processes: Vec::new(),
+        ..meta
+    };
+    let copied = copy_game_files(dir, &target).and_then(|()| write_meta(&target, &meta));
+    if let Err(e) = copied {
+        let _ = std::fs::remove_dir_all(&target);
+        return Err(e);
+    }
+    read_game(&target)
+}
+
+/// Copy the files of the game folder `from` into `to`, all but `game.toml`, backups and
+/// temporary files.
+fn copy_game_files(from: &Path, to: &Path) -> Result<()> {
+    for entry in std::fs::read_dir(from).map_err(io(from))? {
+        let entry = entry.map_err(io(from))?;
+        let path = entry.path();
+        if path.is_file() && entry.file_name() != GAME_FILE && !is_leftover(&path) {
+            let target = to.join(entry.file_name());
+            std::fs::copy(&path, &target).map_err(io(&path))?;
         }
     }
-    write_meta(
-        &target,
-        &GameMeta {
-            name,
-            processes: Vec::new(),
-            ..game.meta
-        },
-    )?;
-    read_game(&target)
+    Ok(())
 }
 
 /// Copy a config next to itself under a new name ("<name> copy").
@@ -548,6 +587,46 @@ mod tests {
     }
 
     #[test]
+    fn duplicate_game_leaves_backups_and_temporary_files_behind() {
+        let root = tempfile::tempdir().unwrap();
+        let game = create_game(root.path(), "Halo").unwrap();
+        std::fs::write(game.dir.join("default.toml.bak"), "# hand-written").unwrap();
+        std::fs::write(game.dir.join("default.toml.tmp"), "half").unwrap();
+        let copy = duplicate_game(&game.dir).unwrap();
+        assert!(copy.dir.join("default.toml").is_file());
+        assert!(!copy.dir.join("default.toml.bak").exists());
+        assert!(!copy.dir.join("default.toml.tmp").exists());
+    }
+
+    #[test]
+    fn a_failed_duplicate_leaves_no_half_game() {
+        let root = tempfile::tempdir().unwrap();
+        let game = create_game(root.path(), "Halo").unwrap();
+        let sniper = create_config(&game.dir, "Sniper").unwrap();
+        // A config no one else may read while it is open: copying it fails.
+        #[cfg(windows)]
+        let _held = {
+            use std::os::windows::fs::OpenOptionsExt;
+            std::fs::OpenOptions::new()
+                .read(true)
+                .share_mode(0)
+                .open(&sniper)
+                .unwrap()
+        };
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&sniper, std::fs::Permissions::from_mode(0)).unwrap();
+            if std::fs::read(&sniper).is_ok() {
+                return; // root reads it anyway
+            }
+        }
+        assert!(duplicate_game(&game.dir).is_err());
+        let games: Vec<_> = std::fs::read_dir(root.path()).unwrap().flatten().collect();
+        assert_eq!(games.len(), 1, "{games:?}");
+    }
+
+    #[test]
     fn game_pictures_are_copied_shown_and_removed() {
         let root = tempfile::tempdir().unwrap();
         let game = create_game(root.path(), "Halo").unwrap();
@@ -571,6 +650,37 @@ mod tests {
         let txt = root.path().join("notes.txt");
         std::fs::write(&txt, b"x").unwrap();
         assert!(set_game_picture(&game.dir, Some(&txt)).is_err());
+    }
+
+    #[test]
+    fn a_picture_that_cannot_be_used_keeps_the_one_there() {
+        let root = tempfile::tempdir().unwrap();
+        let game = create_game(root.path(), "Halo").unwrap();
+        let png = root.path().join("art.png");
+        std::fs::write(&png, b"png").unwrap();
+        set_game_picture(&game.dir, Some(&png)).unwrap();
+        let txt = root.path().join("notes.txt");
+        std::fs::write(&txt, b"x").unwrap();
+        assert!(matches!(
+            set_game_picture(&game.dir, Some(&txt)),
+            Err(LibraryError::NotAPicture(p)) if p == txt
+        ));
+        assert!(
+            set_game_picture(&game.dir, Some(&root.path().join("gone.jpg"))).is_err(),
+            "a copy that fails"
+        );
+        let meta = read_game_meta(&game.dir).unwrap();
+        assert_eq!(meta.image.as_deref(), Some("cover.png"));
+        assert_eq!(std::fs::read(game.dir.join("cover.png")).unwrap(), b"png");
+        let names: Vec<_> = std::fs::read_dir(&game.dir)
+            .unwrap()
+            .map(|e| e.unwrap().file_name().into_string().unwrap())
+            .collect();
+        assert_eq!(
+            names.len(),
+            3,
+            "game.toml, default.toml, cover.png: {names:?}"
+        );
     }
 
     #[test]

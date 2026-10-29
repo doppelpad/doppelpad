@@ -330,8 +330,8 @@ fn game_name(live: &LiveState, exe: &str) -> String {
     live.profile_path
         .as_deref()
         .and_then(|p| Path::new(p).parent())
-        .and_then(|dir| library::read_game(dir).ok())
-        .map_or_else(|| exe.to_owned(), |g| g.meta.name)
+        .and_then(|dir| library::read_game_meta(dir).ok())
+        .map_or_else(|| exe.to_owned(), |meta| meta.name)
 }
 
 /// Hide the message whose time is up. Returns whether one went away.
