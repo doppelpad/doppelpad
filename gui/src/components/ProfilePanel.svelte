@@ -126,7 +126,7 @@
             { label: t('common.duplicate'), onclick: () => duplicateGame(g) },
             { label: t('common.reveal'), onclick: () => app.attempt(api.reveal(g.dir)) },
             { label: t('profiles.export') + '…', onclick: () => exportGame(g) },
-            { separator: true, label: '' },
+            { separator: true },
             { label: t('common.delete'), danger: true, onclick: () => app.deleteGame(g) },
           ]}
         >

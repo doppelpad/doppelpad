@@ -69,9 +69,9 @@ export function controlChoiceItems(
   const offered = (list: ControlName[]) => list.filter((c) => !skip.includes(c)).map(item);
   return [
     { label: press, onclick: onpress },
-    { heading: true, label: t('picker.gamepad') },
+    { heading: t('picker.gamepad') },
     ...offered([...(catalog?.pad_buttons ?? []), ...extra]),
-    { heading: true, label: t('picker.mouse') },
+    { heading: t('picker.mouse') },
     ...offered((catalog?.mouse_buttons ?? []).map((b) => `Mouse:${b}`)),
   ];
 }

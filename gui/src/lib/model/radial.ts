@@ -90,11 +90,13 @@ export function updateSector(p: Profile, i: number, k: number, patch: Partial<Ra
   return updateMenu(p, i, { sectors });
 }
 
+/** The name a new menu gets: "Menu 3" for the third. */
+const newMenuName = (p: Profile) => t('radial.default_name', { n: (p.radial_menus ?? []).length + 1 });
+
 /** A new menu with four sectors, opened by layer `layer`. */
 export function addMenu(p: Profile, layer: number): Profile {
-  const all = p.radial_menus ?? [];
   const sectors: RadialSector[] = [{ label: '1' }, { label: '2' }, { label: '3' }, { label: '4' }];
-  return { ...p, radial_menus: [...all, { name: t('radial.default_name', { n: all.length + 1 }), layer, sectors }] };
+  return { ...p, radial_menus: [...(p.radial_menus ?? []), { name: newMenuName(p), layer, sectors }] };
 }
 
 /**
@@ -104,9 +106,7 @@ export function addMenu(p: Profile, layer: number): Profile {
 export function createMenu(p: Profile): { profile: Profile; index: number; layer: number } {
   const { profile, id } = addLayer(p);
   const index = (p.radial_menus ?? []).length;
-  const withMenu = addMenu(profile, id);
-  const name = withMenu.radial_menus![index]!.name!;
-  return { profile: renameLayer(withMenu, id, name), index, layer: id };
+  return { profile: renameLayer(addMenu(profile, id), id, newMenuName(p)), index, layer: id };
 }
 
 /** A new menu that only opens from sector `k` of menu `i`. Returns the new menu's index. */

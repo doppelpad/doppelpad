@@ -176,12 +176,14 @@ export function actionLabel(a: Action): string {
   if ('break' in a) return '⦀';
   if ('command' in a) {
     const c = a.command;
-    if (typeof c === 'string' && has(`labels.commands.${c}`)) return t(`labels.commands.${c}`);
-    if (typeof c === 'object' && 'launch' in c) return t('labels.launch', { name: c.launch.path.split(/[\\/]/).pop() ?? '' });
-    if (typeof c === 'object' && 'crosshair' in c) return t('labels.crosshair', { n: c.crosshair });
-    if (typeof c === 'object' && 'unsupported' in c) return c.unsupported;
+    if (typeof c === 'string') return has(`labels.commands.${c}`) ? t(`labels.commands.${c}`) : '?';
+    if ('launch' in c) return t('labels.launch', { name: c.launch.path.split(/[\\/]/).pop() ?? '' });
+    if ('crosshair' in c) return t('labels.crosshair', { n: c.crosshair });
+    return c.unsupported;
   }
-  return '?';
+  // Every kind of action has its label above: a new one does not compile until it gets one.
+  const unknown: never = a;
+  return unknown;
 }
 
 function pressSuffix(p?: string): string {

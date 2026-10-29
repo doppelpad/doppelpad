@@ -12,6 +12,7 @@
   import LayerTip from './LayerTip.svelte';
   import TransformDialog from './TransformDialog.svelte';
   import LayerMapDialog from './LayerMapDialog.svelte';
+  import type { MenuItem } from '../lib/menu';
   import Menu from './ui/Menu.svelte';
   import { tip as tooltip } from '../lib/tooltip.svelte';
 
@@ -165,7 +166,7 @@
 
   let layerDialog = $state<number | null>(null);
 
-  const layerMenu = $derived([
+  const layerMenu = $derived<MenuItem[]>([
     { label: t('layers.settings') + '…', onclick: () => (layerDialog = app.layer), disabled: app.layer === 0 },
     { label: t('layers.rename') + '…', onclick: onRename, disabled: app.layer === 0 },
     { label: t('layers.copy'), onclick: onCopy },
@@ -173,14 +174,14 @@
     { label: t('layers.clear'), onclick: () => app.edit((p) => clearLayer(p, app.layer)) },
     { label: t('transforms.menu') + '…', onclick: () => (transformOpen = true), disabled: !app.profile || app.readOnly },
     { label: t('layer_map.title') + '…', onclick: () => (mapOpen = true), disabled: !app.profile },
-    { separator: true, label: '' },
+    { separator: true },
     { label: t('layers.save_preset') + '…', onclick: onSavePreset, disabled: !app.profile },
     ...presets.map((p) => ({
       label: t('layers.insert_preset', { name: p.name }),
       onclick: () => onInsertPreset(p),
       disabled: !app.profile || app.readOnly,
     })),
-    { separator: true, label: '' },
+    { separator: true },
     { label: t('layers.remove'), danger: true, onclick: onRemove, disabled: app.layer === 0 },
   ]);
 </script>

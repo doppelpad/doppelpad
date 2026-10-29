@@ -7,7 +7,7 @@ vi.mock('@tauri-apps/api/core', () => ({ Channel: class {}, invoke: async () => 
 const { app } = await import('../../lib/state/app.svelte');
 const { copyAt, menuItems, pasteAt } = await import('./controlMenu');
 
-const labels = (c: string) => menuItems(c).map((i) => (i.separator ? '---' : `${i.label}${i.disabled ? ' (off)' : ''}`));
+const labels = (c: string) => menuItems(c).map((i) => ('label' in i ? `${i.label}${i.disabled ? ' (off)' : ''}` : '---'));
 
 describe('control menu', () => {
   it('a button has copy, paste and clear; paste waits for a copy', () => {

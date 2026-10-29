@@ -79,7 +79,7 @@
       checked: c.path === app.configPath,
       onclick: () => app.openConfig(c.path),
     })),
-    { separator: true, label: '' },
+    { separator: true },
     { label: t('header.new_config') + '…', onclick: () => app.newConfig(), disabled: !app.gameDir },
     { label: t('header.import'), onclick: importJson, disabled: !app.gameDir },
     ...templatesFor(platform !== 'macos').map((tpl) => ({
@@ -107,7 +107,7 @@
     { label: t('header.clear_mappings'), onclick: clearMappings, disabled: !app.profile || app.readOnly },
     { label: t('history.title') + '…', onclick: () => (historyOpen = true), disabled: !app.configPath || app.readOnly },
     { label: t('shortcuts_list.title'), onclick: () => (app.shortcutsOpen = true), detail: shortcutLabel('help', mac) },
-    { separator: true, label: '' },
+    { separator: true },
     { label: t('common.delete'), danger: true, onclick: remove, disabled: !app.configPath },
   ]);
 </script>

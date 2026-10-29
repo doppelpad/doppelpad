@@ -4,12 +4,12 @@
   // End) move between the rows that can be chosen, typing jumps to the next row starting with
   // what was typed; choosing one calls `onpick` (which closes the menu) before the item. A list
   // longer than `--menu-max-height` scrolls.
-  import type { MenuItem } from '../../lib/menu';
+  import { isChoice, type MenuItem } from '../../lib/menu';
 
   let { items, onpick, el = $bindable() }: { items: MenuItem[]; onpick: () => void; el?: HTMLElement } = $props();
 
   /** One tickable item gives every item the tick column, so the labels line up. */
-  const ticks = $derived(items.some((i) => i.checked !== undefined));
+  const ticks = $derived(items.some((i) => isChoice(i) && i.checked !== undefined));
 
   /** What was typed for the type-ahead, and when the last key came. */
   let typed = '';
@@ -51,10 +51,10 @@
 
 <div class="list" role="menu" tabindex="-1" bind:this={el} {onkeydown}>
   {#each items as item, i (i)}
-    {#if item.separator}
+    {#if 'separator' in item}
       <div class="sep"></div>
-    {:else if item.heading}
-      <div class="heading" role="presentation">{item.label}</div>
+    {:else if 'heading' in item}
+      <div class="heading" role="presentation">{item.heading}</div>
     {:else}
       <button
         type="button"

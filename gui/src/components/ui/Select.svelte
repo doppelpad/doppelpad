@@ -23,6 +23,7 @@
   // A drop-down list in the app's look instead of the webview's native one: a field that shows
   // the chosen option and opens the list of options under it (see Menu).
   import { ChevronDown } from '@lucide/svelte';
+  import type { MenuItem } from '../../lib/menu';
   import { nextChoice } from '../../lib/padnav';
   import Menu from './Menu.svelte';
 
@@ -58,7 +59,7 @@
 
   const current = $derived(options.filter(isChoice).find((o) => o.value === value));
 
-  const items = $derived(
+  const items = $derived<MenuItem[]>(
     options.map((o) =>
       isChoice(o)
         ? {
@@ -70,9 +71,7 @@
             checked: o.value === value,
             onclick: () => o.value !== value && onchange(o.value),
           }
-        : 'heading' in o
-          ? { heading: true, label: o.heading }
-          : { separator: true, label: '' },
+        : o,
     ),
   );
 

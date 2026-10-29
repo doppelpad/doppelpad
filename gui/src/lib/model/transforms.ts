@@ -93,7 +93,7 @@ function isOwnOutput(ms: Mapping[], c: ControlName): boolean {
   const native = nativeAction(c);
   if (!native || ms.length !== 1) return false;
   const m = tidyMapping({ ...ms[0]!, layer: 0, trigger: c });
-  return Object.keys(m).sort().join(',') === 'actions,trigger' && JSON.stringify(m.actions) === JSON.stringify([native]);
+  return Object.keys(m).sort().join(',') === 'actions,trigger' && sameJson(m.actions, [native]);
 }
 
 const singleOf = (m: Mapping) => {

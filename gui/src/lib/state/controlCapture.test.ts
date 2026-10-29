@@ -77,10 +77,21 @@ describe('control choices', () => {
       extra: ['LT'],
       skip: ['B'],
     });
-    expect(items.map((i) => i.label)).toEqual(['Press one', 'Controller', 'A', 'Left trigger', 'Mouse', 'Left button']);
-    items[0]!.onclick?.();
-    items[2]!.onclick?.();
-    items[5]!.onclick?.();
+    expect(items.map((i) => ('heading' in i ? i.heading : 'label' in i ? i.label : '—'))).toEqual([
+      'Press one',
+      'Controller',
+      'A',
+      'Left trigger',
+      'Mouse',
+      'Left button',
+    ]);
+    const click = (i: number) => {
+      const item = items[i]!;
+      if ('onclick' in item) item.onclick?.();
+    };
+    click(0);
+    click(2);
+    click(5);
     expect(pressed).toBe(true);
     expect(picked).toEqual(['A', 'Mouse:Left']);
   });
