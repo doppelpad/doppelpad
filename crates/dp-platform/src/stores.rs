@@ -5,7 +5,8 @@
 use std::path::{Path, PathBuf};
 
 /// The store a game was installed with.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Store {
     Steam,
     Epic,
@@ -13,7 +14,7 @@ pub enum Store {
 }
 
 /// An installed game.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub struct InstalledGame {
     pub store: Store,
     pub name: String,

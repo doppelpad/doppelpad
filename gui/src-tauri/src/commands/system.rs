@@ -131,35 +131,13 @@ pub fn catalog() -> Catalog {
     }
 }
 
-/// A game a local store (Steam, Epic, GOG) has installed.
-#[derive(Serialize)]
-pub struct InstalledGame {
-    pub store: &'static str,
-    pub name: String,
-    pub dir: PathBuf,
-    /// Programs that may be the game's, the likeliest first.
-    pub programs: Vec<String>,
-    pub cover: Option<PathBuf>,
-}
+pub use dp_platform::WindowedProgram as RunningProgram;
+pub use dp_platform::stores::InstalledGame;
 
 /// The games the local stores have installed (their own files only, no network).
 #[tauri::command(async)]
 pub fn installed_games() -> Vec<InstalledGame> {
-    use dp_platform::stores::Store;
     dp_platform::installed_games()
-        .into_iter()
-        .map(|g| InstalledGame {
-            store: match g.store {
-                Store::Steam => "steam",
-                Store::Epic => "epic",
-                Store::Gog => "gog",
-            },
-            name: g.name,
-            dir: g.dir,
-            programs: g.programs,
-            cover: g.cover,
-        })
-        .collect()
 }
 
 /// The executable file name of the program in front.
@@ -168,23 +146,10 @@ pub fn foreground_program() -> Option<String> {
     dp_platform::foreground_program()
 }
 
-/// A program that shows a window now, offered as a game's program.
-#[derive(Serialize)]
-pub struct RunningProgram {
-    pub exe: String,
-    pub title: String,
-}
-
 /// The programs with a visible window, sorted by file name (empty where the OS gives none).
 #[tauri::command(async)]
 pub fn running_programs() -> Vec<RunningProgram> {
-    let mut out: Vec<RunningProgram> = dp_platform::windowed_programs()
-        .into_iter()
-        .map(|p| RunningProgram {
-            exe: p.exe,
-            title: p.title,
-        })
-        .collect();
+    let mut out = dp_platform::windowed_programs();
     out.sort_by_key(|p| p.exe.to_lowercase());
     out
 }

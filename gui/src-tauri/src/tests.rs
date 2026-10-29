@@ -428,7 +428,7 @@ fn bridge_fixture_is_current() {
             path: r"C:\p\presets\driving.toml".into(),
         }],
         installed_games: vec![InstalledGame {
-            store: "steam",
+            store: dp_platform::stores::Store::Steam,
             name: "Hades".into(),
             dir: r"C:\Steam\steamapps\common\Hades".into(),
             programs: vec!["Hades.exe".into()],

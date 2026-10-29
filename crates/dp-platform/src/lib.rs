@@ -637,7 +637,7 @@ impl Platform {
 }
 
 /// A program with a visible window, offered when choosing the programs of a game.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub struct WindowedProgram {
     /// Executable file name, e.g. `Game.exe`.
     pub exe: String,
