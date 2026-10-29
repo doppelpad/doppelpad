@@ -1,7 +1,7 @@
 //! Names and defaults for the window, the OS around the app (programs, game stores, the file
 //! manager, driver pages), reWASD, and what the app was started with.
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use dp_core::control::Control;
 use dp_core::keys::{Key, MouseButton};
@@ -186,50 +186,13 @@ pub fn open_driver_page(driver: Driver) -> CmdResult<()> {
             return Err(super::CmdError::new(super::ErrorCode::NothingToAllow));
         }
     };
-    #[cfg(windows)]
-    let opened = std::process::Command::new("explorer")
-        .arg(url)
-        .spawn()
-        .map(drop);
-    #[cfg(target_os = "macos")]
-    let opened = dp_platform::spawn_detached(std::process::Command::new("open").arg(url));
-    #[cfg(not(any(windows, target_os = "macos")))]
-    let opened = dp_platform::spawn_detached(dp_platform::host_command("xdg-open").arg(url));
-    opened.map_err(err)
+    dp_platform::open_url(url).map_err(err)
 }
 
 /// Show a file or folder in the system file manager.
 #[tauri::command]
 pub fn reveal(path: PathBuf) -> CmdResult<()> {
-    reveal_path(&path).map_err(err)
-}
-
-fn reveal_path(path: &Path) -> std::io::Result<()> {
-    #[cfg(windows)]
-    {
-        let arg = if path.is_dir() {
-            path.display().to_string()
-        } else {
-            format!("/select,{}", path.display())
-        };
-        std::process::Command::new("explorer")
-            .arg(arg)
-            .spawn()
-            .map(drop)
-    }
-    #[cfg(target_os = "macos")]
-    {
-        dp_platform::spawn_detached(std::process::Command::new("open").arg("-R").arg(path))
-    }
-    #[cfg(not(any(windows, target_os = "macos")))]
-    {
-        let dir = if path.is_dir() {
-            path
-        } else {
-            path.parent().unwrap_or(path)
-        };
-        dp_platform::spawn_detached(dp_platform::host_command("xdg-open").arg(dir))
-    }
+    dp_platform::reveal(&path).map_err(err)
 }
 
 // ----- reWASD ------------------------------------------------------------------------

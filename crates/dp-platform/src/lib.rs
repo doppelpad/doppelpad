@@ -118,6 +118,46 @@ pub fn spawn_detached(cmd: &mut std::process::Command) -> std::io::Result<()> {
     Ok(())
 }
 
+/// Open `url` (a web page, or a page of the system's settings) with the system's handler.
+pub fn open_url(url: &str) -> std::io::Result<()> {
+    #[cfg(windows)]
+    let opener = "explorer";
+    #[cfg(target_os = "macos")]
+    let opener = "open";
+    #[cfg(not(any(windows, target_os = "macos")))]
+    let opener = "xdg-open";
+    spawn_detached(host_command(opener).arg(url))
+}
+
+/// Show `path` in the file manager: a folder as it is, a file selected in its folder (on
+/// Linux, where file managers differ, its folder).
+pub fn reveal(path: &std::path::Path) -> std::io::Result<()> {
+    #[cfg(windows)]
+    {
+        let arg = if path.is_dir() {
+            path.as_os_str().to_owned()
+        } else {
+            let mut arg = std::ffi::OsString::from("/select,");
+            arg.push(path);
+            arg
+        };
+        spawn_detached(host_command("explorer").arg(arg))
+    }
+    #[cfg(target_os = "macos")]
+    {
+        spawn_detached(host_command("open").arg("-R").arg(path))
+    }
+    #[cfg(not(any(windows, target_os = "macos")))]
+    {
+        let dir = if path.is_dir() {
+            path
+        } else {
+            path.parent().unwrap_or(path)
+        };
+        spawn_detached(host_command("xdg-open").arg(dir))
+    }
+}
+
 /// Stable identifier of a physical device, unique while it is connected.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct DeviceId(pub String);
