@@ -22,13 +22,13 @@ const WATCH_INTERVAL: Duration = dp_service::LIVE_INTERVAL;
 const IMAGE_MAX: u64 = 512 * 1024;
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
-struct Content {
-    menu: RadialMenu,
-    pointed: Option<usize>,
+pub(crate) struct Content {
+    pub menu: RadialMenu,
+    pub pointed: Option<usize>,
     /// Per sector, its image file as a data URL (icons of the app's set stay names).
-    images: Vec<Option<String>>,
+    pub images: Vec<Option<String>>,
     /// Where the mouse pointer was as the menu opened, in the window's logical pixels.
-    cursor: Option<[f64; 2]>,
+    pub cursor: Option<[f64; 2]>,
 }
 
 /// The mouse pointer in the logical pixels of the window over the primary monitor.
@@ -80,8 +80,8 @@ fn content(
 /// The sector pointed at: all that changes while a menu is open, sent on its own (the
 /// menu's pictures can take hundreds of kilobytes).
 #[derive(Serialize)]
-struct Pointed {
-    pointed: Option<usize>,
+pub(crate) struct Pointed {
+    pub pointed: Option<usize>,
 }
 
 /// What the overlay shows.

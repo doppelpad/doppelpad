@@ -34,7 +34,7 @@ pub enum ErrorCode {
 
 impl ErrorCode {
     #[cfg(test)]
-    const ALL: [ErrorCode; 9] = [
+    pub(crate) const ALL: [ErrorCode; 9] = [
         ErrorCode::Failed,
         ErrorCode::NothingToAllow,
         ErrorCode::SheetNotHtml,

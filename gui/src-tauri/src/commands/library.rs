@@ -204,10 +204,10 @@ pub fn sheet_save(path: PathBuf, html: String) -> CmdResult<()> {
 
 #[derive(Serialize)]
 pub struct LoadedConfig {
-    profile: Profile,
-    diagnostics: Vec<Diagnostic>,
+    pub profile: Profile,
+    pub diagnostics: Vec<Diagnostic>,
     /// Imported JSON files are never written; edits must be saved as a new config.
-    read_only: bool,
+    pub read_only: bool,
 }
 
 /// A config of the library, or an earlier version of one.
@@ -279,8 +279,8 @@ pub fn config_delete(app: AppHandle, path: PathBuf) -> CmdResult<()> {
 
 #[derive(Serialize)]
 pub struct Imported {
-    path: PathBuf,
-    diagnostics: Vec<Diagnostic>,
+    pub path: PathBuf,
+    pub diagnostics: Vec<Diagnostic>,
 }
 
 /// The launch commands in a JSON profile, to ask about before importing it.
@@ -310,11 +310,11 @@ pub fn config_import(
 /// Where the library is, and whether that is the default folder.
 #[derive(Serialize)]
 pub struct LibraryPlace {
-    dir: PathBuf,
-    default: PathBuf,
-    is_default: bool,
+    pub dir: PathBuf,
+    pub default: PathBuf,
+    pub is_default: bool,
     /// In portable mode, the folder beside the app that holds everything.
-    portable: Option<PathBuf>,
+    pub portable: Option<PathBuf>,
 }
 
 #[tauri::command]

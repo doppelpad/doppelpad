@@ -68,6 +68,37 @@ pub fn parse_color(s: &str) -> Option<[u8; 3]> {
     Some([byte(0)?, byte(2)?, byte(4)?])
 }
 
+/// `[red, green, blue]` as `#rrggbb`.
+pub fn color_hex([r, g, b]: [u8; 3]) -> String {
+    format!("#{r:02x}{g:02x}{b:02x}")
+}
+
+/// Colours for controllers' tray icons that have none chosen, picked by device id (the window
+/// gets them through the catalog).
+pub const PAD_COLORS: [[u8; 3]; 6] = [
+    [0x3b, 0x82, 0xf6],
+    [0xef, 0x44, 0x44],
+    [0x22, 0xc5, 0x5e],
+    [0xec, 0x48, 0x99],
+    [0xf5, 0x9e, 0x0b],
+    [0xa8, 0x55, 0xf7],
+];
+
+/// The colour of a controller's tray icon: the chosen one, else one from the palette by its id
+/// (the same every time).
+pub fn pad_color(id: &str, chosen: &BTreeMap<String, String>) -> [u8; 3] {
+    chosen
+        .get(id)
+        .and_then(|c| parse_color(c))
+        .unwrap_or_else(|| {
+            // FNV-1a: stable across runs, unlike the standard hasher.
+            let hash = id.bytes().fold(0x811c_9dc5_u32, |h, b| {
+                (h ^ u32::from(b)).wrapping_mul(0x0100_0193)
+            });
+            PAD_COLORS[hash as usize % PAD_COLORS.len()]
+        })
+}
+
 /// On-screen notifications: which events show one, and where and how.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]

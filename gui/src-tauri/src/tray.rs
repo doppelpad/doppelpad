@@ -24,7 +24,7 @@ use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent}
 use tauri::{AppHandle, Manager, Wry};
 
 use crate::main_window::show_main;
-use crate::settings::parse_color;
+use crate::settings::pad_color;
 use crate::state::{AppState, lock};
 
 const TRAY_ID: &str = "main";
@@ -105,31 +105,6 @@ impl View {
             pads: pad_views(live, &BTreeMap::new()),
         }
     }
-}
-
-/// Colours for controllers' icons that have none chosen, picked by device id.
-const PAD_COLORS: [[u8; 3]; 6] = [
-    [0x3b, 0x82, 0xf6],
-    [0xef, 0x44, 0x44],
-    [0x22, 0xc5, 0x5e],
-    [0xec, 0x48, 0x99],
-    [0xf5, 0x9e, 0x0b],
-    [0xa8, 0x55, 0xf7],
-];
-
-/// The colour of a controller's icon: the chosen one, else one from the palette by its id
-/// (the same every time).
-fn pad_color(id: &str, chosen: &BTreeMap<String, String>) -> [u8; 3] {
-    chosen
-        .get(id)
-        .and_then(|c| parse_color(c))
-        .unwrap_or_else(|| {
-            // FNV-1a: stable across runs, unlike the standard hasher.
-            let hash = id.bytes().fold(0x811c_9dc5_u32, |h, b| {
-                (h ^ u32::from(b)).wrapping_mul(0x0100_0193)
-            });
-            PAD_COLORS[hash as usize % PAD_COLORS.len()]
-        })
 }
 
 /// What a controller's own icon shows.

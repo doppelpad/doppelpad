@@ -28,20 +28,20 @@ const MAPPINGS_SIZE: (f64, f64) = (1180.0, 980.0);
 const ACTIVITY: f32 = 0.08;
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
-struct PadContent {
-    device: LiveDevice,
-    opacity: u8,
-    corner: Corner,
+pub(crate) struct PadContent {
+    pub device: LiveDevice,
+    pub opacity: u8,
+    pub corner: Corner,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
-struct MappingsContent {
-    profile: Profile,
-    layer: u8,
-    family: Option<PadFamily>,
-    lang: String,
-    opacity: u8,
-    corner: Corner,
+pub(crate) struct MappingsContent {
+    pub profile: Profile,
+    pub layer: u8,
+    pub family: Option<PadFamily>,
+    pub lang: String,
+    pub opacity: u8,
+    pub corner: Corner,
 }
 
 /// Buttons changed or an axis moved noticeably.

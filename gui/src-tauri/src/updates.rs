@@ -22,11 +22,11 @@ pub struct PendingUpdate(Mutex<Option<Update>>);
 /// A newer version, as the window shows it.
 #[derive(Serialize)]
 pub struct UpdateInfo {
-    version: String,
+    pub version: String,
     /// The running version.
-    current: String,
+    pub current: String,
     /// The release notes, as plain text.
-    notes: Option<String>,
+    pub notes: Option<String>,
 }
 
 /// Ask the update endpoints whether a newer version is out; `None` when this one is the newest.

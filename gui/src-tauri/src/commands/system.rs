@@ -17,6 +17,7 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, State};
 
 use super::{CmdError, CmdResult, ErrorCode, err};
+use crate::settings::{PAD_COLORS, ZOOM, color_hex};
 use crate::state::{AppState, lock};
 
 /// Messages for the window that arrive before it is ready (`notices.<name>` in the catalogs).
@@ -62,6 +63,34 @@ pub struct Defaults {
     vibration: Vibration,
 }
 
+/// Sectors a radial menu has at most, and crosshairs a config: what the validator allows (a
+/// test checks it).
+pub const MAX_RADIAL_SECTORS: usize = 12;
+pub const MAX_CROSSHAIRS: usize = 10;
+
+/// Limits the window keeps to.
+#[derive(Serialize)]
+pub struct Limits {
+    /// The window's zoom in percent: smallest, largest.
+    zoom: [u16; 2],
+    radial_sectors: usize,
+    crosshairs: usize,
+    /// The palette the controllers' tray icons take their colour from (`#rrggbb`), in the
+    /// order the pick by device id counts in.
+    pad_colors: Vec<String>,
+}
+
+impl Limits {
+    fn new() -> Limits {
+        Limits {
+            zoom: [*ZOOM.start(), *ZOOM.end()],
+            radial_sectors: MAX_RADIAL_SECTORS,
+            crosshairs: MAX_CROSSHAIRS,
+            pad_colors: PAD_COLORS.into_iter().map(color_hex).collect(),
+        }
+    }
+}
+
 #[derive(Serialize)]
 pub struct Catalog {
     /// Keyboard key names (profile syntax).
@@ -70,6 +99,7 @@ pub struct Catalog {
     pad_buttons: Vec<&'static str>,
     mouse_buttons: Vec<&'static str>,
     pub(crate) defaults: Defaults,
+    pub(crate) limits: Limits,
 }
 
 /// Names and default values, so the frontend never duplicates them.
@@ -97,18 +127,19 @@ pub fn catalog() -> Catalog {
             light: Light::default(),
             vibration: Vibration::default(),
         },
+        limits: Limits::new(),
     }
 }
 
 /// A game a local store (Steam, Epic, GOG) has installed.
 #[derive(Serialize)]
 pub struct InstalledGame {
-    store: &'static str,
-    name: String,
-    dir: PathBuf,
+    pub store: &'static str,
+    pub name: String,
+    pub dir: PathBuf,
     /// Programs that may be the game's, the likeliest first.
-    programs: Vec<String>,
-    cover: Option<PathBuf>,
+    pub programs: Vec<String>,
+    pub cover: Option<PathBuf>,
 }
 
 /// The games the local stores have installed (their own files only, no network).
@@ -140,8 +171,8 @@ pub fn foreground_program() -> Option<String> {
 /// A program that shows a window now, offered as a game's program.
 #[derive(Serialize)]
 pub struct RunningProgram {
-    exe: String,
-    title: String,
+    pub exe: String,
+    pub title: String,
 }
 
 /// The programs with a visible window, sorted by file name (empty where the OS gives none).
@@ -242,9 +273,9 @@ fn reveal_path(path: &Path) -> std::io::Result<()> {
 #[derive(Serialize)]
 pub struct RewasdStatus {
     /// Display name of its service while that runs (quitting it needs administrator rights).
-    service: Option<String>,
+    pub service: Option<String>,
     /// Its other running programs (file names).
-    programs: Vec<String>,
+    pub programs: Vec<String>,
 }
 
 /// `None` when reWASD is not installed.

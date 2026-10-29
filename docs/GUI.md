@@ -766,7 +766,10 @@ npm run licenses              # re-generate THIRD_PARTY_LICENSES.md (see below)
 The GUI crate is not in the workspace's `default-members`, so `cargo build` and
 `cargo test` at the root build only the CLI. Use `cargo test -p dp-gui` for the bridge
 tests. They check that the frontend's key table, JSON shapes and default values match the
-Rust model, using the fixtures in `gui/src/lib/model/fixtures`. Regenerate them with
+Rust model, using the fixtures in `gui/src/lib/model/fixtures`: every type a command answers
+with or an event or overlay carries, the event names, the error codes, and the limits the
+catalog sends (zoom range, radial sectors, crosshairs, the controllers' tray colours), which the
+frontend tests also hold against the frontend's own copies. Regenerate them with
 `DOPPELPAD_UPDATE_FIXTURES=1 cargo test -p dp-gui`.
 
 The npm packages `@tauri-apps/api` and `@tauri-apps/plugin-dialog` are pinned to the minor

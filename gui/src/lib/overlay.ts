@@ -7,6 +7,9 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 
+/** What the patch event of a window is named: its label and this. */
+export const PATCH_SUFFIX = ':patch';
+
 /** `content` with the fields of `patch`; nothing while there is no content. */
 export function patched<T>(content: T | null, patch: Partial<T>): T | null {
   return content === null ? null : { ...content, ...patch };
@@ -22,7 +25,7 @@ export function overlayContent<T>(apply: (content: T | null) => void): () => voi
   };
   const offs = Promise.all([
     listen<T | null>(label, (e) => show(e.payload)),
-    listen<Partial<T>>(`${label}:patch`, (e) => show(patched(current, e.payload))),
+    listen<Partial<T>>(label + PATCH_SUFFIX, (e) => show(patched(current, e.payload))),
   ]);
   // Ready only once the page listens: the app sends changes as events from then on.
   offs

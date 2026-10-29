@@ -779,6 +779,19 @@ export interface Catalog {
     light: Required<Light>;
     vibration: Required<Vibration>;
   };
+  limits: CatalogLimits;
+}
+
+/** Limits the window keeps to (`Limits` in commands/system.rs). */
+export interface CatalogLimits {
+  /** The window's zoom in percent: smallest, largest. */
+  zoom: [number, number];
+  /** Sectors a radial menu has at most. */
+  radial_sectors: number;
+  /** Crosshairs a config has at most. */
+  crosshairs: number;
+  /** The palette of the controllers' tray icons (`#rrggbb`), in the order the pick by device id counts in. */
+  pad_colors: string[];
 }
 
 /** What to do when reWASD runs as the app starts. */
@@ -845,6 +858,8 @@ export interface OsdSettings {
   screenshot: boolean;
   /** Index into the monitors, the primary one first. */
   monitor: number;
+  /** The monitor chosen, by name and place (the app keeps it; the window sets `monitor`). */
+  screen?: ScreenRef;
   corner: Corner;
   /** Percent. */
   scale: number;
@@ -886,6 +901,13 @@ export interface MappingsOverlayContent {
   corner: Corner;
 }
 
+/** A monitor by its system name and position (`ScreenRef` in settings.rs). */
+export interface ScreenRef {
+  name: string;
+  x: number;
+  y: number;
+}
+
 /** A radial menu on screen (sent by gui/src-tauri/src/radial.rs). */
 export interface RadialContent {
   menu: RadialMenu;
@@ -894,6 +916,39 @@ export interface RadialContent {
   images: (string | null)[];
   /** Where the mouse pointer was as the menu opened, in the window's logical pixels. */
   cursor: [number, number] | null;
+}
+
+/** The sector pointed at, sent alone while the radial menu stays the same (`overlay-radial:patch`). */
+export type RadialPointed = Pick<RadialContent, 'pointed'>;
+
+/** A hint for the main window, sent while something happens elsewhere (the `hint` event; `Hint` in osd.rs). */
+export interface Hint {
+  /** Which hint (`hints.<id>` in the catalogs); also the id that turns it off. */
+  id: string;
+  game: string;
+}
+
+/** A game a local store (Steam, Epic, GOG) has installed (`installed_games`). */
+export interface InstalledGame {
+  store: 'steam' | 'epic' | 'gog';
+  name: string;
+  dir: string;
+  /** Programs that may be the game's, the likeliest first. */
+  programs: string[];
+  cover: string | null;
+}
+
+/** A program with a visible window now (`running_programs`). */
+export interface RunningProgram {
+  exe: string;
+  title: string;
+}
+
+/** An earlier version kept of a config (`config_versions`; `Version` in dp-config's history.rs). */
+export interface ConfigVersion {
+  path: string;
+  /** When it was replaced, ms since 1970. */
+  time_ms: number;
 }
 
 /** A config made from an imported file (sent by gui/src-tauri/src/commands/library.rs). */
