@@ -9,7 +9,7 @@
   import { comboLabel } from '../lib/model/labels';
   import { controlsFromPad, drawingsFor, moveStickCaps, triggerAxis } from '../lib/model/devices';
   import { app } from '../lib/state/app.svelte';
-  import type { LiveDevice } from '../lib/types';
+  import type { PadFamily } from '../lib/types';
   import Toggle from './ui/Toggle.svelte';
   import { tip } from '../lib/tooltip.svelte';
 
@@ -17,27 +17,15 @@
 
   const session = $derived(app.slotSet.session);
   const output = $derived(session?.output ?? null);
-  /** The virtual controller as a device, so the drawing helpers can show it. */
-  const virtual = $derived<LiveDevice | null>(
-    output?.pad && session?.virtual_pad
-      ? {
-          id: 'virtual',
-          name: session.virtual_pad,
-          family: session.virtual_pad === 'dual_shock4' ? 'dual_shock4' : 'xbox',
-          backend: 'virtual',
-          vendor_id: 0,
-          product_id: 0,
-          state: output.pad,
-          gyro_calibration: null,
-          battery: null,
-          raw: null,
-          mirror: false,
-        }
-      : null,
-  );
+  /** What the virtual controller sends now. */
+  const virtual = $derived(session?.virtual_pad ? (output?.pad ?? null) : null);
+  /** The family that draws the virtual controller when no controller is read. */
+  const virtualFamily = $derived<PadFamily>(session?.virtual_pad === 'dual_shock4' ? 'dual_shock4' : 'xbox');
   /** The controller the session reads: the drawing is that one, so the output shows where the player's buttons are. */
   const reading = $derived(app.live?.devices.find((d) => d.id === session?.device) ?? app.primary);
-  const layout = $derived(virtual ? DEVICE_LAYOUTS[drawingsFor(reading ?? virtual).front] : null);
+  const layout = $derived(
+    virtual ? DEVICE_LAYOUTS[drawingsFor(reading ?? { family: virtualFamily, vendor_id: 0, product_id: 0 }).front] : null,
+  );
   const pressed = $derived(virtual ? controlsFromPad(virtual, app.catalog?.pad_buttons ?? []) : new Set<string>());
 
   let drawing: HTMLDivElement | undefined = $state();
@@ -49,7 +37,7 @@
       const stick = c === 'LS' ? 'LeftStick' : c === 'RS' ? 'RightStick' : null;
       g.classList.toggle('pressed', pressed.has(c) || (!!stick && held.some((p) => p.startsWith(stick))));
     }
-    moveStickCaps(drawing, virtual.state.axes);
+    moveStickCaps(drawing, virtual.axes);
   });
 
   /** Why nothing is sent right now, if so. */

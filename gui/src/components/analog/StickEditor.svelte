@@ -43,7 +43,7 @@
   const ellipticLow = $derived(zones.x[0] !== zones.y[0]);
 
   /** The physical stick of the controller in use (y up). */
-  const raw = $derived(app.primary ? stickAxes(app.primary, side) : null);
+  const raw = $derived(app.primary ? stickAxes(app.primary.state, side) : null);
   const live = $derived(raw && cfg ? Math.hypot(...orient(raw, cfg)) : null);
 
   function set(patch: Partial<StickConfig>) {

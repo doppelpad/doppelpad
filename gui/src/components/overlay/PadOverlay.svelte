@@ -21,7 +21,7 @@
   });
 
   const layout = $derived(content ? DEVICE_LAYOUTS[drawingsFor(content.device).front] : null);
-  const pressed = $derived(content ? controlsFromPad(content.device, buttons) : new Set<string>());
+  const pressed = $derived(content ? controlsFromPad(content.device.state, buttons) : new Set<string>());
   const STICKS: Record<string, string> = { LS: SIDES.left.stick, RS: SIDES.right.stick };
 
   // Light up the pressed parts and move the stick caps.
@@ -55,7 +55,7 @@
       return [{ name: SIDES[side].trigger, side, x: b.x, y: b.y - BAR.gap - BAR.h, w: b.width, left: !i }];
     });
   });
-  const pull = (side: Side) => Math.min(1, Math.max(0, content ? triggerAxis(content.device, side) : 0));
+  const pull = (side: Side) => Math.min(1, Math.max(0, content ? triggerAxis(content.device.state, side) : 0));
 </script>
 
 {#if content && layout}

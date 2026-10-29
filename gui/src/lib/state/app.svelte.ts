@@ -232,7 +232,7 @@ export class AppState {
     if (before && s.app_navigation !== before.app_navigation) this.setPadNavigation(!this.settings.pad_navigation);
     if (firstSnapshot) this.applySlot = s.active_slot;
     const dev = this.primary;
-    this.pad.update(dev && this.catalog ? controlsFromPad(dev, this.catalog.pad_buttons) : new Set<ControlName>());
+    this.pad.update(dev && this.catalog ? controlsFromPad(dev.state, this.catalog.pad_buttons) : new Set<ControlName>());
   }
 
   /** Controller navigation on or off (bottom bar, hotkey); it replaces press-to-select while on. */

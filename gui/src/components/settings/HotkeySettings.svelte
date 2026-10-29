@@ -28,7 +28,7 @@
   let seen = $state<PadButtonName[]>([]);
 
   /** Pad buttons held on the controller in use. */
-  const down = $derived(app.primary ? padButtonsDown(app.primary, app.catalog?.pad_buttons ?? []) : []);
+  const down = $derived(app.primary ? padButtonsDown(app.primary.state, app.catalog?.pad_buttons ?? []) : []);
 
   $effect(() => {
     const now = down;

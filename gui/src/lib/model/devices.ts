@@ -3,7 +3,7 @@
 // vendor and product IDs pick the variant.
 
 import { DEVICE_LAYOUTS, type DeviceId } from '../../assets/devices/layouts';
-import type { Battery, ControlName, LiveDevice } from '../types';
+import type { Battery, ControlName, LiveDevice, PadState } from '../types';
 import type { Side } from './analog';
 import { SIDES } from './controls';
 
@@ -78,14 +78,14 @@ export const AXES = {
 const stickIn = (axes: number[], side: Side): [number, number] => [axes[AXES[side].x], axes[AXES[side].y]];
 
 /** A stick's deflection `[x, y]` (−1..1, up positive). */
-export const stickAxes = (dev: LiveDevice, side: Side) => stickIn(dev.state.axes, side);
+export const stickAxes = (pad: PadState, side: Side) => stickIn(pad.axes, side);
 
 /** A trigger's pull (0..1). */
-export const triggerAxis = (dev: LiveDevice, side: Side): number => dev.state.axes[AXES[side].trigger];
+export const triggerAxis = (pad: PadState, side: Side): number => pad.axes[AXES[side].trigger];
 
 /** The pad buttons a controller holds, from the catalog's `names` (in bit order). */
-export function padButtonsDown<T extends string>(dev: LiveDevice, names: T[]): T[] {
-  return names.filter((_, i) => (dev.state.buttons >>> i) & 1);
+export function padButtonsDown<T extends string>(pad: PadState, names: T[]): T[] {
+  return names.filter((_, i) => (pad.buttons >>> i) & 1);
 }
 
 /** Move a drawing's stick caps by the sticks' deflection in `axes` (as in `PadState`). */
@@ -97,11 +97,11 @@ export function moveStickCaps(svg: Element, axes: number[]) {
 }
 
 /** The controls a controller's live state presses (`buttons`: the catalog's pad buttons). */
-export function controlsFromPad(dev: LiveDevice, buttons: string[]): Set<ControlName> {
-  const s = new Set<ControlName>(padButtonsDown(dev, buttons));
+export function controlsFromPad(pad: PadState, buttons: string[]): Set<ControlName> {
+  const s = new Set<ControlName>(padButtonsDown(pad, buttons));
   const stick = (side: Side) => {
     const name = SIDES[side].stick;
-    const [x, y] = stickAxes(dev, side);
+    const [x, y] = stickAxes(pad, side);
     if (y > STICK_SELECT) s.add(`${name}Up`);
     if (y < -STICK_SELECT) s.add(`${name}Down`);
     if (x < -STICK_SELECT) s.add(`${name}Left`);
@@ -109,8 +109,8 @@ export function controlsFromPad(dev: LiveDevice, buttons: string[]): Set<Control
   };
   stick('left');
   stick('right');
-  if (triggerAxis(dev, 'left') > TRIGGER_SELECT) s.add('LT');
-  if (triggerAxis(dev, 'right') > TRIGGER_SELECT) s.add('RT');
+  if (triggerAxis(pad, 'left') > TRIGGER_SELECT) s.add('LT');
+  if (triggerAxis(pad, 'right') > TRIGGER_SELECT) s.add('RT');
   return s;
 }
 
