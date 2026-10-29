@@ -899,6 +899,20 @@ export interface Launch {
   args: string;
 }
 
+/** A config in a game bundle that cannot be read, so its launch commands cannot be checked (crates/dp-config/src/bundle.rs). */
+export interface UncheckedConfig {
+  file: string;
+  /** Why it cannot be read, for example because a newer Doppelpad made it. */
+  error: string;
+}
+
+/** What a game bundle's configs would start (`game_launches`). */
+export interface BundleLaunches {
+  launches: Launch[];
+  /** Left out of an import without launch commands. */
+  unchecked: UncheckedConfig[];
+}
+
 /** What of reWASD is running; it keeps the controllers to itself. */
 export interface RewasdStatus {
   /** Display name of its service while that runs. */

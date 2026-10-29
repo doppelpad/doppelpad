@@ -8,7 +8,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
 use dp_config::Diagnostic;
-use dp_config::bundle::{self, LayerPreset, PresetEntry};
+use dp_config::bundle::{self, BundleLaunches, LayerPreset, PresetEntry};
 use dp_config::history;
 use dp_config::launches::Launch;
 use dp_config::library::{self, Game, GameMeta, Library};
@@ -409,9 +409,10 @@ pub fn game_export(dir: PathBuf, out: PathBuf) -> CmdResult<()> {
     bundle::export_game(&dir, &out).map_err(err)
 }
 
-/// The launch commands in a game bundle's configs, to ask about before importing it.
+/// The launch commands in a game bundle's configs, and the configs that cannot be checked for
+/// them, to ask about before importing it.
 #[tauri::command(async)]
-pub fn game_launches(file: PathBuf) -> CmdResult<Vec<Launch>> {
+pub fn game_launches(file: PathBuf) -> CmdResult<BundleLaunches> {
     bundle::launches(&file).map_err(err)
 }
 

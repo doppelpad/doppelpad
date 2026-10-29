@@ -488,7 +488,9 @@ whether to import the game. A config can start programs (the
 *launch* command), so a shared one could run something harmful: when a game or a JSON profile
 you import has launch commands, the app first lists each program with its arguments and where
 it sits. **Import without these** (the default) leaves them out, **Import with them** keeps
-them, *Cancel* imports nothing. **Save bindings sheet …** in a config's
+them, *Cancel* imports nothing. A game's config that this version cannot read (one made by a
+newer Doppelpad, say) cannot be checked for launch commands, so an import without them leaves
+that config out too. **Save bindings sheet …** in a config's
 menu writes an HTML page listing every layer's mappings and routes, to print from a browser. A
 layer's menu can **Save as preset …** (its settings, mappings and routes); presets of all configs
 appear in every layer menu as **Insert preset: …**, which adds them as a new layer (layer
