@@ -380,7 +380,7 @@ impl DsuServer {
                 state: p.state,
                 battery: p.battery,
                 has_motion: p.info.has_motion,
-                bluetooth: p.info.name.contains("Bluetooth"),
+                bluetooth: p.info.transport == dp_platform::Transport::Bluetooth,
                 motion_us,
                 touch_ids,
             };

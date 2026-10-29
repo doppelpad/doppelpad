@@ -515,7 +515,7 @@ impl Runtime {
         let session = Session {
             owner,
             hide_wanted: engine.profile().output.hide_physical
-                && (vpad.is_some() || self.platform.hider.hides_without_virtual_pad()),
+                && (vpad.is_some() || !self.platform.virtual_pads.exist()),
             needs_capture: capture,
             engine,
             path,

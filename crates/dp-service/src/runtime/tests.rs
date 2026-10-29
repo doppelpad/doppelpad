@@ -201,7 +201,7 @@ fn hiding_without_a_virtual_pad_where_the_platform_does() {
     keys_only.output.virtual_pad = dp_core::profile::VirtualPadType::None;
     for (platform_hides, hidden) in [(false, &[][..]), (true, &["path-pro".to_owned()][..])] {
         let (mut rt, world) = testing::runtime_with(&[("pro", PadFamily::SwitchPro)]);
-        world.lock().unwrap().hide_without_pad = platform_hides;
+        world.lock().unwrap().no_virtual_pads = platform_hides;
         rt.apply(keys_only.clone(), None).unwrap();
         rt.tick();
         assert_eq!(world.lock().unwrap().hidden, hidden, "{platform_hides}");

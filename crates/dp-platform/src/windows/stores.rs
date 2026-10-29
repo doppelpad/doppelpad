@@ -18,7 +18,7 @@ pub fn installed_games() -> Vec<InstalledGame> {
 }
 
 fn steam() -> Vec<InstalledGame> {
-    match registry::get_path(HKEY_CURRENT_USER, r"Software\Valve\Steam", "SteamPath") {
+    match registry::get_sz(HKEY_CURRENT_USER, r"Software\Valve\Steam", "SteamPath") {
         Some(root) => {
             stores::steam_games(&PathBuf::from(root.replace('/', "\\")), stores::programs_in)
         }
@@ -42,9 +42,9 @@ fn gog() -> Vec<InstalledGame> {
         .into_iter()
         .filter_map(|id| {
             let key = format!(r"{GAMES}\{id}");
-            let name = registry::get_path(HKEY_LOCAL_MACHINE, &key, "gameName")?;
-            let dir = PathBuf::from(registry::get_path(HKEY_LOCAL_MACHINE, &key, "path")?);
-            let exe = registry::get_path(HKEY_LOCAL_MACHINE, &key, "exe").and_then(|e| {
+            let name = registry::get_sz(HKEY_LOCAL_MACHINE, &key, "gameName")?;
+            let dir = PathBuf::from(registry::get_sz(HKEY_LOCAL_MACHINE, &key, "path")?);
+            let exe = registry::get_sz(HKEY_LOCAL_MACHINE, &key, "exe").and_then(|e| {
                 Path::new(&e)
                     .file_name()
                     .map(|f| f.to_string_lossy().into_owned())

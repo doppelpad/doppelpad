@@ -281,6 +281,7 @@ mod tests {
                 family: PadFamily::DualSense,
                 vendor_id: 0,
                 product_id: 0,
+                transport: crate::Transport::Usb,
                 backend: "fake".into(),
                 instance_paths: vec![format!("path-{id}")],
                 joycon: None,

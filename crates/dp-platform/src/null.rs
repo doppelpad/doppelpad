@@ -28,6 +28,7 @@ impl NullPlatform {
             hider: Box::new(NullPlatform),
             foreground: Box::new(NullPlatform),
             system: Box::new(NullPlatform),
+            switch2_search: crate::Switch2Search::default(),
         }
     }
 }

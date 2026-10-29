@@ -12,7 +12,7 @@ fn dword(value: &str) -> Option<u32> {
 }
 
 fn string(value: &str) -> Option<String> {
-    registry::get_string(HKEY_LOCAL_MACHINE, KEY, value)
+    registry::get_sz(HKEY_LOCAL_MACHINE, KEY, value)
 }
 
 /// E.g. `Windows 10.0.26100.4652 (24H2, Professional)`. Build 22000 and later is Windows 11.

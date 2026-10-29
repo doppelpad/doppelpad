@@ -11,13 +11,13 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use super::dev::set_grab;
-use crate::hidhost::{HidHandle, Wait, Wake};
+use super::codes::BUS_USB;
+use super::dev::{poll_until, pollfd, set_grab};
+use super::sysfs::parse_uevent;
+use crate::hidhost::{HidHandle, Wait, Wake, read_via_wait};
 use crate::nintendo::{self, Model, Switch2Model};
 use crate::padio::ReportIo;
 
-/// The bus of a USB device in `HID_ID`.
-const BUS_USB: u32 = 0x0003;
 /// The controllers' output reports (rumble); shorter ones are zero-padded to it.
 const OUTPUT_LEN: usize = 64;
 /// Room for the largest input report.
@@ -71,32 +71,6 @@ fn entry(class: &Path) -> Option<Entry> {
         phys: ids.phys,
         usb_device,
         event_nodes: input_nodes(&hid),
-    })
-}
-
-/// What a HID device's `uevent` file says about it.
-#[derive(Debug, PartialEq, Eq)]
-struct Uevent {
-    bus: u32,
-    vid: u16,
-    pid: u16,
-    phys: String,
-}
-
-/// `HID_ID=0003:0000057E:00002069` and `HID_PHYS=…` from a HID device's `uevent` file.
-fn parse_uevent(text: &str) -> Option<Uevent> {
-    let field = |key: &str| {
-        text.lines()
-            .find_map(|l| l.strip_prefix(key)?.strip_prefix('='))
-    };
-    let mut ids = field("HID_ID")?.split(':');
-    let mut hex = || u32::from_str_radix(ids.next()?, 16).ok();
-    let (bus, vid, pid) = (hex()?, hex()?, hex()?);
-    Some(Uevent {
-        bus,
-        vid: u16::try_from(vid).ok()?,
-        pid: u16::try_from(pid).ok()?,
-        phys: field("HID_PHYS").unwrap_or_default().to_owned(),
     })
 }
 
@@ -187,36 +161,17 @@ impl HidHandle for Hidraw {
         let until = Instant::now() + timeout;
         loop {
             let mut fds = [
-                libc::pollfd {
-                    fd: self.file.as_raw_fd(),
-                    events: libc::POLLIN,
-                    revents: 0,
-                },
-                libc::pollfd {
-                    fd: self.wake.0.as_raw_fd(),
-                    events: libc::POLLIN,
-                    revents: 0,
-                },
+                pollfd(self.file.as_raw_fd(), libc::POLLIN),
+                pollfd(self.wake.0.as_raw_fd(), libc::POLLIN),
             ];
-            let left = until.saturating_duration_since(Instant::now());
-            // Round up, so a wait of less than a millisecond still waits.
-            let ms = left.as_micros().div_ceil(1000).min(i32::MAX as u128) as libc::c_int;
-            // SAFETY: two valid pollfd entries that live through the call.
-            let n = unsafe { libc::poll(fds.as_mut_ptr(), 2, ms) };
-            if n < 0 {
-                let e = io::Error::last_os_error();
-                if e.kind() == io::ErrorKind::Interrupted {
-                    continue;
-                }
-                return Err(e);
-            }
+            poll_until(&mut fds, until)?;
             if fds[0].revents & libc::POLLIN != 0 {
                 match self.file.read(&mut self.report) {
                     // Unplugged: the node goes away.
                     Ok(0) => return Err(io::ErrorKind::NotConnected.into()),
                     Ok(n) => {
                         self.len = n;
-                        return Ok(Wait::Report(n));
+                        return Ok(Wait::Report);
                     }
                     Err(e) if e.kind() == io::ErrorKind::WouldBlock => continue,
                     Err(e) => return Err(e),
@@ -276,18 +231,7 @@ impl ReportIo for Hidraw {
     }
 
     fn read(&mut self, buf: &mut [u8], timeout: Duration) -> io::Result<Option<usize>> {
-        let until = Instant::now() + timeout;
-        loop {
-            match self.wait(until.saturating_duration_since(Instant::now()))? {
-                Wait::Report(n) => {
-                    let n = n.min(buf.len());
-                    buf[..n].copy_from_slice(&self.report[..n]);
-                    return Ok(Some(n));
-                }
-                Wait::Woken if Instant::now() < until => {}
-                Wait::Woken | Wait::Timeout => return Ok(None),
-            }
-        }
+        read_via_wait(self, buf, timeout)
     }
 }
 
@@ -296,46 +240,17 @@ mod tests {
     use super::*;
 
     #[test]
-    fn uevents() {
-        // A Pro Controller 2 as the Steam Deck's kernel lists it.
-        let pro = "DRIVER=hid-generic\nHID_ID=0003:0000057E:00002069\n\
-                   HID_NAME=Nintendo Switch 2 Pro Controller\n\
-                   HID_PHYS=usb-0000:04:00.3-1.3/input0\nHID_UNIQ=\n\
-                   MODALIAS=hid:b0003g0001v0000057Ep00002069\n";
-        assert_eq!(
-            parse_uevent(pro),
-            Some(Uevent {
-                bus: BUS_USB,
-                vid: 0x057E,
-                pid: 0x2069,
-                phys: "usb-0000:04:00.3-1.3/input0".into(),
-            })
-        );
-        // The touchscreen on I2C.
-        let i2c = "HID_ID=0018:00002808:00001015\nHID_PHYS=i2c-FTS3528:00\n";
-        assert_eq!(parse_uevent(i2c).unwrap().bus, 0x18);
-        assert_eq!(parse_uevent("HID_NAME=no ids\n"), None);
-        assert_eq!(parse_uevent("HID_ID=0003:0000057E\n"), None, "cut short");
-        assert_eq!(
-            parse_uevent("HID_ID=0003:0001057E:00002069\n"),
-            None,
-            "no u16"
-        );
-    }
-
-    #[test]
     fn wake_ups_end_a_wait() {
         let fd = EventFd::new().unwrap();
         fd.wake();
-        let mut p = libc::pollfd {
-            fd: fd.0.as_raw_fd(),
-            events: libc::POLLIN,
-            revents: 0,
+        let ready = || {
+            poll_until(
+                &mut [pollfd(fd.0.as_raw_fd(), libc::POLLIN)],
+                Instant::now(),
+            )
         };
-        // SAFETY: one valid pollfd.
-        assert_eq!(unsafe { libc::poll(&raw mut p, 1, 0) }, 1);
+        assert_eq!(ready().unwrap(), 1);
         fd.drain();
-        // SAFETY: as above.
-        assert_eq!(unsafe { libc::poll(&raw mut p, 1, 0) }, 0, "drained");
+        assert_eq!(ready().unwrap(), 0, "drained");
     }
 }

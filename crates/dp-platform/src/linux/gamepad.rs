@@ -39,10 +39,11 @@ use super::padmap::{
     joycon_side, stable_id,
 };
 use super::sysfs::{LedWrite, bluez_device_path, lightbar_writes, player_writes};
+use crate::generic::GenericLayout;
 use crate::scan::{Pass, RESCAN, Rescanner};
 use crate::{
     Battery, DeviceHider, DeviceId, DeviceInfo, GamepadBackend, Leds, PadFamily, PadSnapshot,
-    PlatformError, Result,
+    PlatformError, Result, TriggerEffects, VirtualIgnoreList,
 };
 
 /// The latest state of one controller, written by its node readers.
@@ -318,21 +319,8 @@ impl Pad {
 
 /// Ask BlueZ to end a Bluetooth connection, which turns the controller off.
 fn disconnect(device: &str) {
-    let args = [
-        "call",
-        "org.bluez",
-        device,
-        "org.bluez.Device1",
-        "Disconnect",
-    ];
-    match super::host_command("busctl").args(args).output() {
-        Ok(out) if out.status.success() => {}
-        Ok(out) => tracing::warn!(
-            device,
-            "BlueZ did not end the connection: {}",
-            String::from_utf8_lossy(&out.stderr).trim()
-        ),
-        Err(e) => tracing::warn!("cannot run busctl to turn the controller off: {e}"),
+    if let Err(e) = super::bluez::disconnect(device) {
+        tracing::warn!(device, "BlueZ did not end the connection: {e}");
     }
 }
 
@@ -604,6 +592,7 @@ fn open_pad(path: &Path, dev: Device) -> io::Result<Pad> {
         family,
         vendor_id: vendor,
         product_id: product,
+        transport: transport(id.bus_type().0),
         backend: "evdev".into(),
         instance_paths: vec![path.display().to_string()],
         joycon,
@@ -739,14 +728,17 @@ impl GamepadBackend for EvdevBackend {
     /// Ends the Bluetooth connection, after which DualShock 4, DualSense and Switch
     /// controllers switch off. A controller on its cable stays on.
     fn power_off(&mut self, id: &DeviceId) -> bool {
-        let shared = self.shared.lock().unwrap();
-        let Some(pad) = shared.pads.values().find(|p| &p.info.id == id) else {
-            return false;
+        let path = {
+            let shared = self.shared.lock().unwrap();
+            let Some(pad) = shared.pads.values().find(|p| &p.info.id == id) else {
+                return false;
+            };
+            let (Some(device), Some(mac)) = (&pad.parent, &pad.bluetooth) else {
+                return false;
+            };
+            bluez_device_path(&device.to_string_lossy(), mac)
         };
-        let (Some(device), Some(mac)) = (&pad.parent, &pad.bluetooth) else {
-            return false;
-        };
-        let Some(path) = bluez_device_path(&device.to_string_lossy(), mac) else {
+        let Some(path) = path else {
             return false;
         };
         let spawned = std::thread::Builder::new()
@@ -756,25 +748,29 @@ impl GamepadBackend for EvdevBackend {
     }
 
     fn problems(&self) -> Vec<String> {
-        let shared = self.shared.lock().unwrap();
-        let mut out: Vec<String> = shared
-            .unreadable
-            .values()
-            .map(|name| {
-                format!(
-                    "the {name} cannot be read: controllers need the udev rule from docs/LINUX.md"
-                )
-            })
-            .collect();
-        out.extend(
-            shared
+        let (unreadable, mut out): (Vec<String>, Vec<String>) = {
+            let shared = self.shared.lock().unwrap();
+            let unreadable = shared.unreadable.values().cloned().collect();
+            let lights = shared
                 .pads
                 .values()
-                .filter_map(|p| p.lights_problem.clone()),
-        );
+                .filter_map(|p| p.lights_problem.clone());
+            (unreadable, lights.collect())
+        };
+        out.extend(unreadable.iter().map(|name| {
+            format!("the {name} cannot be read: controllers need the udev rule from docs/LINUX.md")
+        }));
         out.sort();
         out
     }
+
+    // evdev plays no trigger effects, Doppelpad's virtual pads carry its `phys` (see
+    // `is_own`), and the kernel maps generic pads.
+    fn set_trigger_effects(&mut self, _id: &DeviceId, _effects: TriggerEffects) {}
+
+    fn ignore_virtual(&mut self, _ignored: &VirtualIgnoreList) {}
+
+    fn set_layouts(&mut self, _layouts: Arc<Vec<GenericLayout>>) {}
 
     fn rescan(&mut self) {
         self.scanner.wake();
@@ -793,9 +789,11 @@ impl DeviceHider for GrabHider {
     }
 
     fn hide(&mut self, instance_paths: &[String]) -> Result<()> {
-        let mut shared = self.shared.lock().unwrap();
-        shared.hidden = instance_paths.iter().cloned().collect();
-        let result = shared.sync_grabs();
+        let result = {
+            let mut shared = self.shared.lock().unwrap();
+            shared.hidden = instance_paths.iter().cloned().collect();
+            shared.sync_grabs()
+        };
         if result.is_ok() && !instance_paths.is_empty() {
             tracing::info!(devices = ?instance_paths, "devices hidden via EVIOCGRAB");
         }

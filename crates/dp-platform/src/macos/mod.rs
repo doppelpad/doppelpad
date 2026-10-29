@@ -118,7 +118,8 @@ impl crate::VirtualPadFactory for NoVirtualPads {
 
 #[cfg(target_os = "macos")]
 pub fn platform() -> crate::Platform {
-    let gamepads = hid::backend();
+    let switch2_search = crate::Switch2Search::default();
+    let gamepads = hid::backend(switch2_search.clone());
     let hider = hid::SeizeHider::new(&gamepads);
     crate::Platform {
         probe_drivers: || crate::DriverReport {
@@ -136,5 +137,6 @@ pub fn platform() -> crate::Platform {
         hider: Box::new(hider),
         foreground: Box::new(foreground::Foreground::default()),
         system: Box::new(system::MacSystem::default()),
+        switch2_search,
     }
 }

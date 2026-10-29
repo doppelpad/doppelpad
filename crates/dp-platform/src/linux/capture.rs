@@ -9,7 +9,7 @@
 //! reading the devices directly. Limitations: keyboard LEDs (Caps/Num Lock) are not mirrored
 //! back to grabbed keyboards, and touchpads / tablets (absolute pointers) are not captured.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::io;
 use std::os::fd::AsRawFd;
 use std::path::{Path, PathBuf};
@@ -118,12 +118,16 @@ impl Scanner {
     fn scan(&mut self) -> usize {
         let present = event_nodes();
         let now = Instant::now();
-        let mut devices = self.devices.lock().unwrap();
-        devices.retain(|_, c| c.alive.load(Ordering::Relaxed));
+        // Not held while nodes are opened: only this scanner adds to the map.
+        let captured: HashSet<PathBuf> = {
+            let mut devices = self.devices.lock().unwrap();
+            devices.retain(|_, c| c.alive.load(Ordering::Relaxed));
+            devices.keys().cloned().collect()
+        };
         self.nodes.prune(&present, now);
         let mut denied = 0;
         for path in present {
-            if devices.contains_key(&path) || self.nodes.skips(&path) {
+            if captured.contains(&path) || self.nodes.skips(&path) {
                 continue;
             }
             let dev = match Device::open(&path) {
@@ -151,7 +155,8 @@ impl Scanner {
                     alive2.store(false, Ordering::Relaxed);
                 }) {
                 Ok(thread) => {
-                    devices.insert(path, Captured { alive, thread });
+                    let captured = Captured { alive, thread };
+                    self.devices.lock().unwrap().insert(path, captured);
                 }
                 Err(e) => tracing::warn!("cannot start capture thread: {e}"),
             }

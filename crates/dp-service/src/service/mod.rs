@@ -505,8 +505,9 @@ impl Service {
     }
 
     /// Looking for Switch 2 controllers over Bluetooth.
-    fn apply_switch2_bluetooth(&self) {
-        dp_platform::set_switch2_search(self.state.switch2_bluetooth);
+    fn apply_switch2_bluetooth(&mut self) {
+        let on = self.state.switch2_bluetooth;
+        self.rt.platform_mut().switch2_search.set(on);
     }
 
     /// Player lights and microphone LED of every controller, from the slots and remapping.

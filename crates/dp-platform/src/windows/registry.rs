@@ -3,7 +3,7 @@
 use std::ffi::c_void;
 use std::ptr::null_mut;
 
-use windows_sys::Win32::Foundation::ERROR_SUCCESS;
+use windows_sys::Win32::Foundation::{ERROR_MORE_DATA, ERROR_SUCCESS};
 use windows_sys::Win32::System::Registry::{
     HKEY, KEY_READ, REG_ROUTINE_FLAGS, RRF_RT_ANY, RRF_RT_REG_BINARY, RRF_RT_REG_DWORD,
     RRF_RT_REG_SZ, RegCloseKey, RegEnumKeyExW, RegGetValueW, RegOpenKeyExW,
@@ -69,38 +69,38 @@ pub(super) fn get_dword(root: HKEY, key: &str, name: &str) -> Option<u32> {
     Some(data)
 }
 
-/// A `REG_SZ` value of up to 127 characters.
-pub(super) fn get_string(root: HKEY, key: &str, name: &str) -> Option<String> {
-    let mut buf = [0u16; 128];
-    // SAFETY: `buf` holds its size in bytes.
-    unsafe {
-        get_value(
-            root,
-            key,
-            name,
-            RRF_RT_REG_SZ,
-            buf.as_mut_ptr().cast(),
-            size_of_val(&buf) as u32,
-        )
-    }?;
-    Some(from_wide(&buf))
-}
-
-/// A `REG_SZ` value of up to 1023 characters (paths).
-pub(super) fn get_path(root: HKEY, key: &str, name: &str) -> Option<String> {
-    let mut buf = vec![0u16; 1024];
-    // SAFETY: `buf` holds its size in bytes.
-    unsafe {
-        get_value(
-            root,
-            key,
-            name,
-            RRF_RT_REG_SZ,
-            buf.as_mut_ptr().cast(),
-            (buf.len() * size_of::<u16>()) as u32,
-        )
-    }?;
-    Some(from_wide(&buf))
+/// A `REG_SZ` value, however long: its size is asked first.
+pub(super) fn get_sz(root: HKEY, key: &str, name: &str) -> Option<String> {
+    let (key, name) = (wide(key), wide(name));
+    // In bytes; the value may grow between the two calls, then it is asked again.
+    let read = |data: *mut c_void, size: &mut u32| {
+        // SAFETY: NUL-terminated names; `data` is null (a size query) or holds `size` bytes,
+        // as the callers below see to.
+        unsafe {
+            RegGetValueW(
+                root,
+                key.as_ptr(),
+                name.as_ptr(),
+                RRF_RT_REG_SZ,
+                null_mut(),
+                data,
+                size,
+            )
+        }
+    };
+    loop {
+        let mut size = 0u32;
+        if read(null_mut(), &mut size) != ERROR_SUCCESS {
+            return None;
+        }
+        let mut buf = vec![0u16; (size as usize).div_ceil(size_of::<u16>()).max(1)];
+        let mut size = (buf.len() * size_of::<u16>()) as u32;
+        match read(buf.as_mut_ptr().cast(), &mut size) {
+            ERROR_SUCCESS => return Some(from_wide(&buf)),
+            ERROR_MORE_DATA => {}
+            _ => return None,
+        }
+    }
 }
 
 /// The names of the subkeys of `key` (none when it does not exist).
@@ -152,4 +152,24 @@ pub(super) fn get_binary(root: HKEY, key: &str, name: &str, buf: &mut [u8]) -> O
         )
     }?;
     Some(n as usize)
+}
+
+#[cfg(test)]
+mod tests {
+    use windows_sys::Win32::System::Registry::HKEY_LOCAL_MACHINE;
+
+    use super::*;
+
+    #[test]
+    fn strings() {
+        const KEY: &str = r"SOFTWARE\Microsoft\Windows NT\CurrentVersion";
+        let name = get_sz(HKEY_LOCAL_MACHINE, KEY, "ProductName");
+        assert!(name.is_some_and(|n| n.starts_with("Windows")));
+        assert_eq!(get_sz(HKEY_LOCAL_MACHINE, KEY, "NoSuchValue"), None);
+        assert_eq!(
+            get_sz(HKEY_LOCAL_MACHINE, KEY, "InstallDate"),
+            None,
+            "a DWORD"
+        );
+    }
 }

@@ -16,7 +16,8 @@ use super::OwnedHandle;
 const IOCTL_BTH_DISCONNECT_DEVICE: u32 = 0x0041_000C;
 
 /// Ask the first radio to drop the connection to `address`.
-pub fn disconnect(address: u64) -> io::Result<()> {
+pub(crate) fn disconnect(address: crate::bdaddr::BdAddr) -> io::Result<()> {
+    let address = address.get();
     let params = BLUETOOTH_FIND_RADIO_PARAMS {
         dwSize: size_of::<BLUETOOTH_FIND_RADIO_PARAMS>() as u32,
     };
