@@ -514,6 +514,9 @@ impl Engine {
             std::mem::take(&mut self.outs.commands).into();
         let mut done = Vec::new();
         while let Some(c) = queue.pop_front() {
+            if done.len() == MAX_COMMANDS_PER_TICK {
+                break;
+            }
             match c {
                 Command::ToggleGyro => self.gyro_enabled = !self.gyro_enabled,
                 Command::GyroOn => self.gyro_enabled = true,
@@ -523,9 +526,7 @@ impl Engine {
                 _ => self.radial_command(&c, now),
             }
             done.push(c);
-            if done.len() < MAX_COMMANDS_PER_TICK {
-                queue.extend(std::mem::take(&mut self.outs.commands));
-            }
+            queue.extend(std::mem::take(&mut self.outs.commands));
         }
         self.outs.commands = done;
 

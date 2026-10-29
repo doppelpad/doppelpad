@@ -105,6 +105,106 @@ fn repeat_mode() {
 }
 
 #[test]
+fn a_held_sequence_without_waits_repeats_once_per_tick() {
+    let mut p = Profile::default();
+    let mut m = map(
+        b(PadButton::A),
+        vec![Action::Wheel {
+            wheel: WheelDir::Up,
+            clicks: 1.0,
+        }],
+    );
+    m.mode = Mode::WhileHeld;
+    p.mappings.push(m);
+    let mut h = Harness::new(p);
+    h.btn(PadButton::A, true);
+    let mut notches = vec![h.last.wheel.len()];
+    for _ in 0..9 {
+        h.step();
+        notches.push(h.last.wheel.len());
+    }
+    assert_eq!(notches, vec![1; 10]);
+    h.btn(PadButton::A, false);
+    h.step();
+    assert!(h.last.wheel.is_empty(), "stops on release");
+}
+
+#[test]
+fn a_toggled_sequence_without_waits_repeats_once_per_tick() {
+    let mut p = Profile::default();
+    let mut m = map(
+        b(PadButton::X),
+        vec![
+            Action::Key {
+                key: Key::A,
+                action: Press::Down,
+            },
+            Action::Rumble {
+                rumble: 100,
+                low: 1.0,
+                high: 1.0,
+            },
+        ],
+    );
+    m.mode = Mode::Toggle;
+    p.mappings.push(m);
+    let mut h = Harness::new(p);
+    h.tap(PadButton::X);
+    h.until(20);
+    // Each run presses the key and releases it at its end: one run per tick.
+    let presses: Vec<u64> = h
+        .key_events(Key::A)
+        .into_iter()
+        .filter(|e| e.1)
+        .map(|e| e.0)
+        .collect();
+    let mut once = presses.clone();
+    once.dedup();
+    assert_eq!(presses, once, "at most one run per tick");
+    assert!(presses.len() >= 15, "{presses:?}");
+    h.tap(PadButton::X);
+    h.until(h.t + 5);
+    assert!(!h.e.is_output_down(Key::A), "toggled off");
+    let n = h.key_events(Key::A).len();
+    h.until(h.t + 5);
+    assert_eq!(h.key_events(Key::A).len(), n, "and stays off");
+}
+
+#[test]
+fn a_looping_sequence_does_not_replay_missed_runs_after_a_stall() {
+    let mut p = Profile::default();
+    let mut m = map(b(PadButton::A), vec![key(Key::E)]);
+    m.mode = Mode::WhileHeld;
+    m.repeat_pause_ms = Some(30);
+    p.mappings.push(m);
+    let mut h = Harness::new(p);
+    h.btn(PadButton::A, true);
+    h.until(100);
+    let before = h.key_events(Key::E).len();
+    // A one-second stall: the loop carries on from now instead of catching up.
+    h.t += 1000;
+    h.tick();
+    // At most the run in progress, one on time and one now (instead of ~25 runs).
+    let burst = h.key_events(Key::E).len() - before;
+    assert!(burst <= 6, "{burst} key events in one tick");
+}
+
+#[test]
+fn releasing_between_two_runs_starts_no_further_run() {
+    let mut p = Profile::default();
+    let mut m = map(b(PadButton::A), vec![key(Key::E)]);
+    m.mode = Mode::WhileHeld;
+    m.repeat_pause_ms = Some(100);
+    p.mappings.push(m);
+    let mut h = Harness::new(p);
+    h.btn(PadButton::A, true); // 1: run, tap ends at 11
+    h.until(50); // in the pause
+    h.btn(PadButton::A, false);
+    h.until(300);
+    assert_eq!(h.key_events(Key::E), vec![(1, true), (11, false)]);
+}
+
+#[test]
 fn random_ms_spreads_turbo_cycles() {
     let mut p = Profile::default();
     let mut m = map(b(PadButton::A), vec![key(Key::F)]);

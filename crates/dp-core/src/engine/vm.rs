@@ -11,8 +11,9 @@ use crate::pad::Rumble;
 use crate::profile::{Activator, Command, Mode, ShakeAxis};
 use crate::rng::Rng;
 
-/// Steps one activation may run in one advance before it counts as a runaway program (a
-/// loop without waits).
+/// Steps one activation may run in one advance before it counts as a runaway program. Loops
+/// cannot get there (each run takes at least a millisecond and a stall replays no missed
+/// runs), so only a very long program without waits can.
 const MAX_STEPS_PER_ADVANCE: u32 = 100_000;
 
 pub(super) type ActId = u64;
@@ -156,10 +157,11 @@ impl Outputs {
 /// Run an activation's program up to `until`.
 fn step(act: &mut Activation, program: &[Step], outs: &mut Outputs, until: u64) {
     let mut guard = 0;
+    let mut restarts = 0;
     while !act.finished && act.wait_until <= until {
         guard += 1;
         if guard > MAX_STEPS_PER_ADVANCE {
-            act.finished = true; // runaway program (e.g. zero-length loop)
+            act.finish(outs); // runaway program
             break;
         }
         let t = act.wait_until;
@@ -190,13 +192,22 @@ fn step(act: &mut Activation, program: &[Step], outs: &mut Outputs, until: u64) 
                     } else {
                         0
                     };
-                    let next = match period_ms {
+                    let mut next = match period_ms {
                         Some(p) => (act.run_start + u64::from(p) + extra).max(t),
                         None => t + u64::from(gap_ms) + extra,
                     };
+                    // A run takes at least a millisecond, so a loop without waits repeats
+                    // once per tick instead of until the step limit.
+                    next = next.max(act.run_start + 1);
+                    restarts += 1;
+                    if restarts > 1 {
+                        // After a stall, carry on from now instead of replaying the missed
+                        // runs in a burst.
+                        next = next.max(until);
+                    }
                     act.run_start = next;
                     act.pc = 0;
-                    act.wait_until = next.max(t + if program.is_empty() { 1 } else { 0 });
+                    act.wait_until = next;
                 }
             }
             continue;
@@ -370,6 +381,11 @@ impl Engine {
                 stop: StopRule::Immediate,
                 ..
             } => act.finish(&mut self.outs),
+            // Between two runs (waiting for the next one): it does not start.
+            Policy::Loop {
+                stop: StopRule::FinishRun,
+                ..
+            } if act.pc == 0 && act.runs_done > 0 => act.finish(&mut self.outs),
             Policy::Loop {
                 stop: StopRule::FinishRun,
                 ..
@@ -426,5 +442,44 @@ impl Engine {
         for (j, mask) in jumps {
             self.switch_layer(j.layer, Some(mask), j.at);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::keys::Key;
+
+    #[test]
+    fn a_runaway_program_releases_what_it_holds() {
+        let a = Out::Key(Key::A);
+        let mut program = vec![Step::Down(a)];
+        program.extend((0..MAX_STEPS_PER_ADVANCE).map(|_| Step::Wheel(WheelDir::Up, 1.0)));
+        let mut act = Activation {
+            id: 0,
+            binding: 0,
+            mask: 0,
+            kind: Activator::Single,
+            policy: Policy::Hold,
+            pc: 0,
+            wait_until: 0,
+            run_start: 0,
+            runs_done: 0,
+            ended: false,
+            stopping: false,
+            latched: false,
+            finished: false,
+            owned: Vec::new(),
+            analog: Vec::new(),
+            jump_at: None,
+            deferred: false,
+            segment: 0,
+            wheel_held: None,
+        };
+        let mut outs = Outputs::default();
+        step(&mut act, &program, &mut outs, 0);
+        assert!(act.finished);
+        assert!(!outs.is_down(a), "nothing stays held");
+        assert_eq!(outs.events, vec![(a, true), (a, false)]);
     }
 }
