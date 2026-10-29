@@ -23,6 +23,7 @@
   // A drop-down list in the app's look instead of the webview's native one: a field that shows
   // the chosen option and opens the list of options under it (see Menu).
   import { ChevronDown } from '@lucide/svelte';
+  import { nextChoice } from '../../lib/padnav';
   import Menu from './Menu.svelte';
 
   let {
@@ -74,9 +75,16 @@
           : { separator: true, label: '' },
     ),
   );
+
+  /** The controller steps the value without opening the list. */
+  function step(dir: 1 | -1) {
+    if (disabled) return;
+    const next = nextChoice(options.filter(isChoice), value, dir);
+    if (next !== undefined) onchange(next);
+  }
 </script>
 
-<Menu {items} {title} {disabled} {wide} label={label && `${label}: ${current?.label ?? placeholder}`} class="select {size} {cls}">
+<Menu {items} {title} {disabled} {wide} {step} label={label && `${label}: ${current?.label ?? placeholder}`} class="select {size} {cls}">
   {#snippet trigger()}
     {#if current?.color}<span class="dot" style:background={current.color}></span>{/if}
     {#if current?.icon}<span class="icon"><current.icon size={14} /></span>{/if}

@@ -27,6 +27,7 @@
   // longer than the room it has. It closes on a choice, a click elsewhere, Escape or Tab,
   // scrolling, resizing or when the window loses the focus.
   import type { Snippet } from 'svelte';
+  import { stepper } from '../../lib/padnav';
   import { tip } from '../../lib/tooltip.svelte';
   import MenuList from './MenuList.svelte';
 
@@ -41,6 +42,7 @@
     wide = false,
     class: cls = '',
     onopen,
+    step,
   }: {
     items: MenuItem[];
     trigger: Snippet;
@@ -58,6 +60,8 @@
     class?: string;
     /** Called as the list opens (e.g. to load what it lists). */
     onopen?: () => void;
+    /** Steps through the choices while the controller drives the app (a drop-down list). */
+    step?: (step: 1 | -1) => void;
   } = $props();
 
   let open = $state(false);
@@ -143,6 +147,7 @@
     {disabled}
     onclick={() => (open ? close(false) : show())}
     onkeydown={onTriggerKey}
+    use:stepper={step}
   >
     {@render trigger()}
   </button>

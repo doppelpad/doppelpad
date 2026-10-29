@@ -4,9 +4,9 @@
 
 import { menuOpen, popoverOpen } from '../lib/dom';
 import { layerIds } from '../lib/model/profile';
-import { firstFocus, navAction, nextFocus, type Dir } from '../lib/padnav';
+import { firstFocus, navAction, nextFocus, stepperOf } from '../lib/padnav';
 import { app, type View } from '../lib/state/app.svelte';
-import type { ControlName } from '../lib/types';
+import type { ControlName, Dir } from '../lib/types';
 import { modalOpen } from './ui/Dialog.svelte';
 
 /** The views the bumpers step through, in the toolbar's order. */
@@ -16,13 +16,11 @@ const FOCUSABLE = [
   'button',
   'a[href]',
   'input:not([type="hidden"])',
-  'select',
   'textarea',
   'summary',
   '[tabindex]:not([tabindex="-1"])',
   '[role="menuitem"]',
   '[role="tab"]',
-  '[role="option"]',
 ].join(', ');
 
 /** Where the focus may go: the open menu or popover, else the dialog that has the focus (else the last one), else the window. */
@@ -59,19 +57,6 @@ function changed(el: HTMLElement) {
   el.dispatchEvent(new Event('change', { bubbles: true }));
 }
 
-/** Step a list to its next (or previous) choice that can be picked. */
-function stepSelect(el: HTMLSelectElement, step: 1 | -1) {
-  const n = el.options.length;
-  let i = el.selectedIndex;
-  for (let k = 0; k < n; k++) {
-    i = (i + step + n) % n;
-    if (!el.options[i]!.disabled) break;
-  }
-  if (i === el.selectedIndex) return;
-  el.selectedIndex = i;
-  changed(el);
-}
-
 /** Left and right change a slider, a number field or a list instead of moving away; whether `el` took the direction. */
 function adjust(el: Element | null, dir: Dir): boolean {
   if (dir !== 'left' && dir !== 'right') return false;
@@ -82,8 +67,9 @@ function adjust(el: Element | null, dir: Dir): boolean {
     changed(el);
     return true;
   }
-  if (el instanceof HTMLSelectElement) {
-    stepSelect(el, step);
+  const stepList = stepperOf(el);
+  if (stepList) {
+    stepList(step);
     return true;
   }
   return false;
@@ -108,7 +94,8 @@ function activate() {
     if (i >= 0) focus(list[i]!);
     return;
   }
-  if (el instanceof HTMLSelectElement) return stepSelect(el, 1);
+  const stepList = stepperOf(el);
+  if (stepList) return stepList(1);
   if (el instanceof HTMLTextAreaElement) return;
   if (el instanceof HTMLInputElement && !['checkbox', 'radio', 'button', 'submit', 'reset', 'color', 'file'].includes(el.type)) return;
   el.click();
