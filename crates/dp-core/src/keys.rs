@@ -193,7 +193,13 @@ impl std::fmt::Display for Key {
 impl std::str::FromStr for Key {
     type Err = String;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Key::from_name(s).ok_or_else(|| format!("unknown key `{s}`"))
+        Key::from_name(s).ok_or_else(|| {
+            if s.len() > 1 && s.contains('+') {
+                format!("unknown key `{s}` (a key name names one key; a shortcut is several keys)")
+            } else {
+                format!("unknown key `{s}`")
+            }
+        })
     }
 }
 
