@@ -939,7 +939,6 @@ version = "0.7.0"
 dependencies = [
  "anyhow",
  "clap",
- "crossbeam-channel",
  "ctrlc",
  "dp-config",
  "dp-core",

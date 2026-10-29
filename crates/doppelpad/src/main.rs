@@ -105,7 +105,8 @@ enum Cmd {
     },
     /// Validate a profile and print diagnostics.
     Check { profile: PathBuf },
-    /// Check drivers (ViGEmBus and HidHide on Windows, uinput on Linux) and list controllers.
+    /// Check drivers (ViGEmBus and HidHide on Windows, uinput on Linux) or permissions
+    /// (Accessibility and Bluetooth on macOS) and list controllers.
     Doctor,
     /// Show live controller input (useful to verify devices and button names).
     Monitor,
@@ -320,10 +321,17 @@ fn import(file: &Path, output: Option<&Path>, keep_launches: bool) -> Result<()>
     for line in launch_notice(&mut profile, keep_launches) {
         eprintln!("{line}");
     }
-    let toml = dp_config::to_toml(&profile)?;
     match output {
         Some(out) => {
-            std::fs::write(out, toml).with_context(|| format!("writing {}", out.display()))?;
+            if same_file(file, out) {
+                bail!(
+                    "{} is the file being imported; pick another output",
+                    out.display()
+                );
+            }
+            // As the app saves: atomically, never over a JSON profile, and a hand-written
+            // TOML kept as `.bak` first.
+            dp_config::library::save_profile_atomic(out, &profile)?;
             eprintln!(
                 "wrote {} ({} mappings, {} layers)",
                 out.display(),
@@ -331,9 +339,14 @@ fn import(file: &Path, output: Option<&Path>, keep_launches: bool) -> Result<()>
                 profile.layers.len()
             );
         }
-        None => print!("{toml}"),
+        None => print!("{}", dp_config::to_toml(&profile)?),
     }
     Ok(())
+}
+
+/// Whether `a` and `b` name the same existing file.
+fn same_file(a: &Path, b: &Path) -> bool {
+    matches!((a.canonicalize(), b.canonicalize()), (Ok(a), Ok(b)) if a == b)
 }
 
 fn check(path: &Path) -> Result<()> {
@@ -547,6 +560,18 @@ fn monitor() -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn import_never_writes_over_its_source() {
+        let dir = std::env::temp_dir().join(format!("dp-cli-import-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let src = dir.join("game.json");
+        std::fs::write(&src, r#"{"schemaVersion": 3.0}"#).unwrap();
+        let err = import(&src, Some(&dir.join(".").join("game.json")), false).unwrap_err();
+        assert!(err.to_string().contains("the file being imported"), "{err}");
+        assert!(same_file(&src, &src) && !same_file(&src, &dir.join("other.toml")));
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
 
     /// Slot paths are compared with the ones the GUI writes, so they must not be verbatim
     /// (`\\?\C:\...`) paths.

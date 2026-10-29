@@ -120,7 +120,10 @@ pub(crate) fn parse_with_format(
         ),
         Format::Json => compat::import(src).map_err(|e| LoadError::Import(path.into(), e))?,
     };
-    if profile.name.is_empty() {
+    // An import without a name of its own (the importer says "Game") is named after its file,
+    // as the library names it.
+    let unnamed = format == Format::Json && profile.name == compat::DEFAULT_IMPORT_NAME;
+    if profile.name.is_empty() || unnamed {
         profile.name = path
             .file_stem()
             .and_then(|s| s.to_str())
