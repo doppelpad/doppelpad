@@ -482,32 +482,30 @@ pub fn config_check(profile: Profile) -> Vec<Diagnostic> {
     dp_config::validate(&profile).into_vec()
 }
 
-/// Validate and save; returns the validation diagnostics (errors block saving).
+/// Validate and save; returns the validation diagnostics (errors block saving). The file as
+/// it was becomes an earlier version.
 #[tauri::command(async)]
-pub fn config_save(app: AppHandle, path: PathBuf, profile: Profile) -> CmdResult<Vec<Diagnostic>> {
+pub fn config_save(
+    app: AppHandle,
+    state: State<AppState>,
+    path: PathBuf,
+    profile: Profile,
+) -> CmdResult<Vec<Diagnostic>> {
     let diags = dp_config::validate(&profile);
     if diags.has_errors() {
         return Ok(diags.into_vec());
     }
+    let library = state.library_dir();
     library_change(&app, || {
-        // The file as it was becomes an earlier version; a failure there does not stop saving.
-        if let Err(e) = history::keep_version(
-            &path,
-            &dp_config::history_dir(),
-            history::now_ms(),
-            history::KEEP,
-        ) {
-            tracing::warn!("cannot keep the earlier version of {}: {e}", path.display());
-        }
-        library::save_profile_atomic(&path, &profile).map_err(err)
+        history::save_profile(&path, &profile, &dp_config::history_dir(), &library).map_err(err)
     })?;
     Ok(diags.into_vec())
 }
 
 /// The earlier versions kept of a config, the newest first.
 #[tauri::command(async)]
-pub fn config_versions(path: PathBuf) -> Vec<history::Version> {
-    history::versions(&path, &dp_config::history_dir())
+pub fn config_versions(state: State<AppState>, path: PathBuf) -> Vec<history::Version> {
+    history::versions(&path, &dp_config::history_dir(), &state.library_dir())
 }
 
 #[tauri::command(async)]
