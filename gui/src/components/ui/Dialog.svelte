@@ -1,19 +1,10 @@
-<script module lang="ts">
-  /** Open dialogs, the topmost last: Escape closes only that one. */
-  const stack: symbol[] = [];
-
-  /** Whether a dialog is open; it owns the keyboard then. */
-  export function modalOpen(): boolean {
-    return stack.length > 0;
-  }
-</script>
-
 <script lang="ts">
   // A modal dialog over the window: a title row with an optional close button, the content,
   // and an optional footer. Not a native <dialog>: its top layer would cover the window's
   // caption buttons, which stay above backdrops on purpose (WindowControls).
   import { X } from '@lucide/svelte';
   import { onMount, type Snippet } from 'svelte';
+  import { dialogStack as stack } from '../../lib/dom';
   import { t } from '../../lib/i18n/index.svelte';
   import { tip } from '../../lib/tooltip.svelte';
 

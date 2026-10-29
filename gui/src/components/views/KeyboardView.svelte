@@ -5,8 +5,8 @@
   import { t } from '../../lib/i18n/index.svelte';
   import { keyFromEvent } from '../../lib/model/keymap';
   import { shownSummary } from '../../lib/model/labels';
+  import { keyboardOwned } from '../../lib/dom';
   import { app } from '../../lib/state/app.svelte';
-  import { modalOpen } from '../ui/Dialog.svelte';
   import { controlMenu } from '../binding/controlMenu';
   import { isFlagged } from '../../lib/model/lints';
   import { tip } from '../../lib/tooltip.svelte';
@@ -137,18 +137,8 @@
 
   const held = new SvelteSet<string>();
 
-  function typing(e: KeyboardEvent): boolean {
-    const el = e.target as HTMLElement | null;
-    return !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable);
-  }
-
-  /** A dialog or an open menu owns the keyboard. */
-  function overlayOpen(): boolean {
-    return modalOpen() || document.querySelector('[role=menu]') !== null;
-  }
-
   function onKeydown(e: KeyboardEvent) {
-    if (typing(e) || e.ctrlKey || overlayOpen()) return;
+    if (e.ctrlKey || keyboardOwned(e.target)) return;
     const k = keyFromEvent(e);
     if (!k) return;
     e.preventDefault();

@@ -5,7 +5,7 @@
   import { drawingsFor } from './lib/model/devices';
   import { VIEWS } from './lib/model/views';
   import { app } from './lib/state/app.svelte';
-  import { isTextEntry, menuOpen, popoverOpen } from './lib/dom';
+  import { isTextEntry, menuOpen, modalOpen, popoverOpen } from './lib/dom';
   import { matchShortcut } from './lib/state/shortcuts';
   import { runShortcut } from './components/shortcutActions';
   import { runPadControls } from './components/padNavigation';
@@ -33,7 +33,7 @@
   import SettingsDialog from './components/SettingsDialog.svelte';
   import PromptDialog from './components/ui/PromptDialog.svelte';
   import ConfirmDialog from './components/ui/ConfirmDialog.svelte';
-  import { modalOpen } from './components/ui/Dialog.svelte';
+
   import ContextMenu from './components/ui/ContextMenu.svelte';
   import RewasdDialog from './components/RewasdDialog.svelte';
   import WelcomeWizard from './components/WelcomeWizard.svelte';

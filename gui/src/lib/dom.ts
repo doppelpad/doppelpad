@@ -26,14 +26,35 @@ export function isStreamingField(el: unknown): boolean {
   return isTextEntry(f) || (f?.tagName === 'INPUT' && VALUE_TYPES.has(String(f.type)));
 }
 
+/** `el` takes keys itself: a text entry, or another input (Space ticks a box, arrows move a slider). */
+function takesKeys(el: unknown): boolean {
+  return isTextEntry(el) || field(el)?.tagName === 'INPUT';
+}
+
+/** Open dialogs (ui/Dialog), the topmost last: Escape closes only that one. */
+export const dialogStack: symbol[] = [];
+
+/** A dialog is open; it owns the keyboard then. */
+export function modalOpen(): boolean {
+  return dialogStack.length > 0;
+}
+
 /** A menu (ours or a context menu) is open and owns the keyboard. */
 export function menuOpen(): boolean {
   return document.querySelector('[role=menu]') !== null;
 }
 
-/** A popover marked `data-popover` (e.g. the stick's direction menu) is open; Escape closes it first. */
+/** A popover marked `data-popover` (e.g. the stick's direction menu, Find) is open; Escape closes it first. */
 export function popoverOpen(): boolean {
   return document.querySelector('[data-popover]') !== null;
+}
+
+/**
+ * The keys pressed at `target` belong to something other than the view: a field that takes
+ * them, a dialog, an open menu or popover.
+ */
+export function keyboardOwned(target: unknown): boolean {
+  return takesKeys(target) || modalOpen() || menuOpen() || popoverOpen();
 }
 
 /** Listen to `type` events on `target` (in the capture phase with `capture`) until the returned function is called. */
