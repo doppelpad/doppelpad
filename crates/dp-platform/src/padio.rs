@@ -161,9 +161,15 @@ pub trait PadDriver: Send {
     fn raw(&self) -> Option<Arc<RawInput>> {
         None
     }
-    /// Turn the controller off if it can be told to over its own link; `Ok(false)` if not.
-    fn power_off(&mut self, _io: &mut dyn ReportIo) -> io::Result<bool> {
-        Ok(false)
+    /// Whether [`power_off`](Self::power_off) can turn the controller off now, over its own
+    /// link. Asked after every report and service, so it may change (a wireless receiver's
+    /// slot).
+    fn can_power_off(&self) -> bool {
+        false
+    }
+    /// Turn the controller off; called only while [`can_power_off`](Self::can_power_off).
+    fn power_off(&mut self, _io: &mut dyn ReportIo) -> io::Result<()> {
+        Err(io::ErrorKind::Unsupported.into())
     }
     /// When [`service`](Self::service) must run again even if no report arrives.
     fn next_deadline(&self) -> Option<Instant>;

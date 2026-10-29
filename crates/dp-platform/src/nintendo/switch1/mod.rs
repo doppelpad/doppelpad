@@ -523,13 +523,14 @@ impl PadDriver for Switch1Driver {
         self.lights.set(leds.player);
     }
 
-    fn power_off(&mut self, io: &mut dyn ReportIo) -> io::Result<bool> {
-        if !self.link.bluetooth {
-            return Ok(false);
-        }
+    /// Only over Bluetooth: on USB (or in the charging grip) it has nothing to drop.
+    fn can_power_off(&self) -> bool {
+        self.link.bluetooth
+    }
+
+    fn power_off(&mut self, io: &mut dyn ReportIo) -> io::Result<()> {
         // Set HCI state: disconnect. The controller drops the link and sleeps.
-        self.send_subcommand(io, SUB_HCI_STATE, &[0x00])?;
-        Ok(true)
+        self.send_subcommand(io, SUB_HCI_STATE, &[0x00])
     }
 
     fn service(&mut self, io: &mut dyn ReportIo, rumble: Rumble) -> io::Result<()> {

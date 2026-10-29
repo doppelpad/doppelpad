@@ -423,11 +423,11 @@ fn shutdown_restores_simple_mode_over_bluetooth_only() {
 fn power_off_only_over_bluetooth() {
     let off = |w: &[u8]| w[0] == 0x01 && w[10] == SUB_HCI_STATE && w[11] == 0x00;
     let (mut d, mut io) = ready_driver(true);
-    assert!(d.power_off(&mut io).unwrap());
+    assert!(d.can_power_off());
+    d.power_off(&mut io).unwrap();
     assert!(io.writes().iter().any(|w| off(w)));
-    let (mut d, mut io) = ready_driver(false);
-    assert!(!d.power_off(&mut io).unwrap());
-    assert!(!io.writes().iter().any(|w| off(w)));
+    let (d, _) = ready_driver(false);
+    assert!(!d.can_power_off());
 }
 
 #[test]

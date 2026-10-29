@@ -92,7 +92,6 @@ fn found(entry: &Entry) -> Found {
         pid: entry.pid,
         // Its device thread hides it (see `Hidraw::set_exclusive`).
         instance_paths: vec![id],
-        bluetooth: false,
         bt_address: None,
     }
 }
@@ -199,7 +198,6 @@ mod tests {
         assert_eq!(f.id.0, "hid:057e:2069:usb-0000:04:00.3-1.3/input0");
         assert_eq!(f.instance_paths, vec![f.id.0.clone()], "hidden by its id");
         assert_eq!(f.transport, "USB");
-        assert!(!f.bluetooth);
     }
 
     /// Starts the first Switch 2 controller on USB and drives it (see

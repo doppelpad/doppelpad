@@ -194,7 +194,6 @@ fn found(path: String, props: &Props, kind: DriverKind) -> Found {
         vid: props.vid,
         pid: props.pid,
         instance_paths: vec![id],
-        bluetooth,
         bt_address,
     }
 }

@@ -89,7 +89,6 @@ impl Base {
             vid: self.vid,
             pid: self.pid,
             instance_paths: vec![self.instance_id.clone()],
-            bluetooth: self.bluetooth,
             bt_address: self.bt_address,
         }
     }

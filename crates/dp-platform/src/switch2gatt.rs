@@ -264,7 +264,6 @@ impl Ready {
             vid: NINTENDO_VID,
             pid: self.advert.pid,
             instance_paths,
-            bluetooth: true,
             bt_address: self.address,
         };
         let (model, commands) = (self.advert.model, self.commands);
