@@ -11,13 +11,13 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use super::codes::BUS_USB;
 use super::dev::{poll_until, pollfd, set_grab};
+use super::sysfs::parse_uevent;
 use crate::hidhost::{HidHandle, Wait, Wake, read_via_wait};
 use crate::nintendo::{self, Model, Switch2Model};
 use crate::padio::ReportIo;
 
-/// The bus of a USB device in `HID_ID`.
-const BUS_USB: u32 = 0x0003;
 /// The controllers' output reports (rumble); shorter ones are zero-padded to it.
 const OUTPUT_LEN: usize = 64;
 /// Room for the largest input report.
@@ -71,32 +71,6 @@ fn entry(class: &Path) -> Option<Entry> {
         phys: ids.phys,
         usb_device,
         event_nodes: input_nodes(&hid),
-    })
-}
-
-/// What a HID device's `uevent` file says about it.
-#[derive(Debug, PartialEq, Eq)]
-struct Uevent {
-    bus: u32,
-    vid: u16,
-    pid: u16,
-    phys: String,
-}
-
-/// `HID_ID=0003:0000057E:00002069` and `HID_PHYS=…` from a HID device's `uevent` file.
-fn parse_uevent(text: &str) -> Option<Uevent> {
-    let field = |key: &str| {
-        text.lines()
-            .find_map(|l| l.strip_prefix(key)?.strip_prefix('='))
-    };
-    let mut ids = field("HID_ID")?.split(':');
-    let mut hex = || u32::from_str_radix(ids.next()?, 16).ok();
-    let (bus, vid, pid) = (hex()?, hex()?, hex()?);
-    Some(Uevent {
-        bus,
-        vid: u16::try_from(vid).ok()?,
-        pid: u16::try_from(pid).ok()?,
-        phys: field("HID_PHYS").unwrap_or_default().to_owned(),
     })
 }
 
@@ -264,34 +238,6 @@ impl ReportIo for Hidraw {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn uevents() {
-        // A Pro Controller 2 as the Steam Deck's kernel lists it.
-        let pro = "DRIVER=hid-generic\nHID_ID=0003:0000057E:00002069\n\
-                   HID_NAME=Nintendo Switch 2 Pro Controller\n\
-                   HID_PHYS=usb-0000:04:00.3-1.3/input0\nHID_UNIQ=\n\
-                   MODALIAS=hid:b0003g0001v0000057Ep00002069\n";
-        assert_eq!(
-            parse_uevent(pro),
-            Some(Uevent {
-                bus: BUS_USB,
-                vid: 0x057E,
-                pid: 0x2069,
-                phys: "usb-0000:04:00.3-1.3/input0".into(),
-            })
-        );
-        // The touchscreen on I2C.
-        let i2c = "HID_ID=0018:00002808:00001015\nHID_PHYS=i2c-FTS3528:00\n";
-        assert_eq!(parse_uevent(i2c).unwrap().bus, 0x18);
-        assert_eq!(parse_uevent("HID_NAME=no ids\n"), None);
-        assert_eq!(parse_uevent("HID_ID=0003:0000057E\n"), None, "cut short");
-        assert_eq!(
-            parse_uevent("HID_ID=0003:0001057E:00002069\n"),
-            None,
-            "no u16"
-        );
-    }
 
     #[test]
     fn wake_ups_end_a_wait() {
