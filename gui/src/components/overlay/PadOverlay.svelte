@@ -19,7 +19,11 @@
   let drawing: HTMLDivElement | undefined = $state();
 
   onMount(() => {
-    api.catalog().then((c) => (buttons = c.pad_buttons));
+    // The overlay has no toasts: a catalog it cannot read leaves the buttons dark, said in the log.
+    api
+      .catalog()
+      .then((c) => (buttons = c.pad_buttons))
+      .catch((e) => console.error('catalog failed', e));
     return overlayContent<PadOverlayContent>((c) => (content = c));
   });
 

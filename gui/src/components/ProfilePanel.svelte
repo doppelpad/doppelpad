@@ -4,6 +4,7 @@
   import { api } from '../lib/api';
   import { t } from '../lib/i18n/index.svelte';
   import { app } from '../lib/state/app.svelte';
+  import { pictureOf } from '../lib/state/pictures.svelte';
   import { platform, win } from '../lib/state/window.svelte';
   import type { Game } from '../lib/types';
   import Menu from './ui/Menu.svelte';
@@ -41,22 +42,6 @@
     await app.refreshLibrary();
     await app.selectGame((await made).dir);
   }
-
-  /** Pictures of the games as data URLs, by folder and picture file. */
-  let pictures = $state<Record<string, string | null>>({});
-  const pictureKey = (g: Game) => `${g.dir}|${g.meta.image ?? ''}`;
-  $effect(() => {
-    for (const g of app.library.games) {
-      const key = pictureKey(g);
-      if (!g.meta.image || key in pictures) continue;
-      pictures[key] = null;
-      api
-        .gamePicture(g.dir)
-        .then((url) => (pictures[key] = url))
-        .catch(() => {});
-    }
-  });
-  const pictureOf = (g: Game) => (g.meta.image ? pictures[pictureKey(g)] : null);
 
   async function exportGame(g: Game) {
     const out = await save({
@@ -99,10 +84,11 @@
       <button class="btn primary add" onclick={addGame}><Plus size={16} /> {t('profiles.add')}</button>
     {/if}
     {#each app.library.games as g (g.dir)}
+      {@const picture = pictureOf(g.dir, g.meta.image)}
       <div class="game" class:selected={g.dir === app.gameDir}>
         <button class="game-main" onclick={() => app.selectGame(g.dir)}>
-          {#if pictureOf(g)}
-            <img class="avatar picture" src={pictureOf(g)} alt="" />
+          {#if picture}
+            <img class="avatar picture" src={picture} alt="" />
           {:else}
             <span class="avatar" style="--h: {hue(g.meta.name)}">{g.meta.name.slice(0, 1).toUpperCase()}</span>
           {/if}

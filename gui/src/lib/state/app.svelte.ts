@@ -270,6 +270,16 @@ export class AppState {
     return this.pad.capture(fn);
   }
 
+  /** Await `p` for its value; when it fails, show why and give `undefined`. */
+  async attemptGet<T>(p: Promise<T>): Promise<T | undefined> {
+    try {
+      return await p;
+    } catch (e) {
+      this.toast(errorText(e), 'error');
+      return undefined;
+    }
+  }
+
   /** Await `p`; when it fails, show why, else show `ok` if given. Returns whether it worked. */
   async attempt(p: Promise<unknown>, ok?: string): Promise<boolean> {
     try {

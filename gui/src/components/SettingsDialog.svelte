@@ -63,12 +63,13 @@
   );
 
   let logFile = $state('');
-  api.logFile().then((f) => (logFile = f));
+  app.attempt(api.logFile().then((f) => (logFile = f)));
   let version = $state('');
-  getVersion().then((v) => (version = v));
+  app.attempt(getVersion().then((v) => (version = v)));
   /** Read from Windows each time the dialog opens: Task Manager can change it too. */
   let autostart = $state<boolean | null>(null);
-  api.autostartGet().then((on) => (autostart = on));
+  const readAutostart = () => app.attempt(api.autostartGet().then((on) => (autostart = on)));
+  readAutostart();
 
   function show(p: Page) {
     page = p;
@@ -77,7 +78,7 @@
 
   async function setAutostart(on: boolean) {
     await app.attempt(api.autostartSet(on));
-    autostart = await api.autostartGet();
+    await readAutostart();
   }
 
   /** Close the settings and start the welcome guide again. */

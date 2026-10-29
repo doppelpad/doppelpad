@@ -27,7 +27,7 @@
       open = null;
       return;
     }
-    const loaded = await api.configLoad(path).catch(() => null);
+    const loaded = await app.attemptGet(api.configLoad(path));
     if (!loaded || !app.profile) return;
     open = { path, profile: loaded.profile, changes: profileChanges(app.snapshot()!, loaded.profile) };
   }
