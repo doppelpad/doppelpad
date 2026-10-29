@@ -3,8 +3,9 @@
   import { Activity, Gamepad2, List, PenTool, StickyNote } from '@lucide/svelte';
   import { t } from './lib/i18n/index.svelte';
   import { drawingsFor } from './lib/model/devices';
+  import { VIEWS } from './lib/model/views';
   import { app } from './lib/state/app.svelte';
-  import { isTextEntry, menuOpen, popoverOpen } from './lib/dom';
+  import { isTextEntry, menuOpen, modalOpen, popoverOpen } from './lib/dom';
   import { matchShortcut } from './lib/state/shortcuts';
   import { runShortcut } from './components/shortcutActions';
   import { runPadControls } from './components/padNavigation';
@@ -32,7 +33,7 @@
   import SettingsDialog from './components/SettingsDialog.svelte';
   import PromptDialog from './components/ui/PromptDialog.svelte';
   import ConfirmDialog from './components/ui/ConfirmDialog.svelte';
-  import { modalOpen } from './components/ui/Dialog.svelte';
+
   import ContextMenu from './components/ui/ContextMenu.svelte';
   import RewasdDialog from './components/RewasdDialog.svelte';
   import WelcomeWizard from './components/WelcomeWizard.svelte';
@@ -44,15 +45,13 @@
   let listMode = $state(false);
   /** The live output panel is open. */
   let liveOpen = $state(false);
-  /** Views that show what controls do, where notes can stand in for the actions. */
-  const CONTROL_VIEWS = new Set(['front', 'back', 'keyboard', 'mouse']);
 
   /** Front and back drawings for the connected controller model. */
   const drawings = $derived(drawingsFor(app.primary));
   const drawing = $derived(app.view === 'back' ? drawings.back : drawings.front);
 
   onMount(() => {
-    app.padHandler = runPadControls;
+    app.pad.navigate = runPadControls;
     app.init();
     win.init();
   });
@@ -85,7 +84,7 @@
       <DiagnosticsBar />
       <div class="workspace">
         <div class="center">
-          {#if CONTROL_VIEWS.has(app.view)}
+          {#if VIEWS[app.view].controls}
             <div class="view-tools">
               <button
                 class="icon-btn"
@@ -202,7 +201,7 @@
     position: absolute;
     top: 10px;
     right: 12px;
-    z-index: 5;
+    z-index: var(--z-float);
     display: flex;
     gap: 4px;
   }

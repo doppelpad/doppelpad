@@ -9,7 +9,8 @@
   import type { Template } from '../lib/types';
   import { templatesFor } from '../lib/model/labels';
   import IdentifyWizard from './IdentifyWizard.svelte';
-  import DriverList, { driverStates } from './settings/DriverList.svelte';
+  import { driverMissing as anyDriverMissing } from '../lib/model/drivers';
+  import DriverList from './settings/DriverList.svelte';
   import Dialog from './ui/Dialog.svelte';
   import Toggle from './ui/Toggle.svelte';
 
@@ -26,7 +27,7 @@
   let identify = $state<string | null>(null);
 
   const live = $derived(app.live);
-  const driverMissing = $derived(driverStates(live).some((d) => !d.state.available));
+  const driverMissing = $derived(anyDriverMissing(live, platform === 'macos'));
   const devices = $derived(live?.devices ?? []);
   const needsPad = $derived(template !== 'desktop');
 

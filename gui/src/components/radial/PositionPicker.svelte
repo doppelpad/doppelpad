@@ -3,6 +3,7 @@
   // edges, the middle), or at the mouse pointer; then fine-tuned by an offset in pixels.
   import { MousePointer2 } from '@lucide/svelte';
   import { t } from '../../lib/i18n/index.svelte';
+  import { arrowKeys } from '../../lib/dom';
   import { POSITION_GRID } from '../../lib/model/radial';
   import { tip } from '../../lib/tooltip.svelte';
   import type { RadialPosition } from '../../lib/types';
@@ -29,7 +30,7 @@
 </script>
 
 <div class="position">
-  <div class="screen" role="radiogroup" aria-label={t('radial.position')}>
+  <div class="screen" role="radiogroup" aria-label={t('radial.position')} use:arrowKeys={POSITION_GRID[0]!.length}>
     {#each POSITION_GRID as row, r (r)}
       {#each row as p (p)}
         <button
@@ -38,6 +39,7 @@
           class="spot"
           class:on={position === p}
           aria-checked={position === p}
+          tabindex={position === p || (position === 'cursor' && p === 'center') ? 0 : -1}
           aria-label={t(`radial.positions.${p}`)}
           {disabled}
           use:tip={t(`radial.positions.${p}`)}

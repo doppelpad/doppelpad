@@ -16,12 +16,12 @@
     updateRoute,
     type RouteField,
   } from '../../lib/model/routes';
-  import { controlLabel, controlLabelMixed } from '../../lib/model/controls';
-  import { keyFromEvent } from '../../lib/model/keymap';
+  import { controlLabelMixed } from '../../lib/model/controls';
   import { app } from '../../lib/state/app.svelte';
+  import { controlChoiceItems, createControlCapture } from '../../lib/state/controlCapture.svelte';
   import type { AnalogMapping, AnalogSource, AnalogTarget, ControlName } from '../../lib/types';
   import Chip from '../ui/Chip.svelte';
-  import Menu, { type MenuItem } from '../ui/Menu.svelte';
+  import Menu from '../ui/Menu.svelte';
   import Select from '../ui/Select.svelte';
   import Slider from '../ui/Slider.svelte';
   import { PCT, sliderHint, sliderUnit, type SliderSpec } from '../ui/sliderSpec';
@@ -60,10 +60,6 @@
   const flick = $derived(target === 'flick');
   const noGyro = $derived(source === 'gyro' && !!app.primary && !app.primary.state.motion);
 
-  /** Controls offered for "only while held": controller buttons, triggers, mouse buttons. */
-  const heldOptions = $derived([...((app.catalog?.pad_buttons ?? []) as string[]), 'LT', 'RT', 'LTFull', 'RTFull']);
-  const mouseOptions = $derived((app.catalog?.mouse_buttons ?? []).map((b) => `Mouse:${b}`));
-
   function set(patch: Partial<AnalogMapping>) {
     app.edit((p) => updateRoute(p, index, patch));
   }
@@ -72,51 +68,19 @@
     if (r && !r.while_held.includes(c)) set({ while_held: [...r.while_held, c] });
   }
 
-  let capturing = $state(false);
-  let releasePresses = () => {};
+  const capture = createControlCapture(addHeld);
+  onDestroy(capture.stop);
 
-  function startCapture() {
-    capturing = true;
-    releasePresses = app.capturePresses((c) => {
-      addHeld(c);
-      stopCapture();
-    });
-  }
-
-  function stopCapture() {
-    if (!capturing) return;
-    capturing = false;
-    releasePresses();
-  }
-
-  function onKeydown(e: KeyboardEvent) {
-    if (!capturing) return;
-    e.preventDefault();
-    if (e.key === 'Escape') return stopCapture();
-    const key = keyFromEvent(e);
-    if (key) {
-      addHeld(`Key:${key}`);
-      stopCapture();
-    }
-  }
-
-  /** The "add a control" menu: press one, or pick a controller or mouse button. */
-  const addItems = $derived<MenuItem[]>([
-    { label: t('analog.routes.press_control'), onclick: startCapture },
-    { heading: true, label: t('picker.gamepad') },
-    ...heldOptions
-      .filter((c) => !r?.while_held.includes(c))
-      .map((c) => ({ label: controlLabel(c, app.family), onclick: () => addHeld(c) })),
-    { heading: true, label: t('picker.mouse') },
-    ...mouseOptions
-      .filter((c) => !r?.while_held.includes(c))
-      .map((c) => ({ label: controlLabel(c, app.family), onclick: () => addHeld(c) })),
-  ]);
-
-  onDestroy(stopCapture);
+  /** The "add a control" menu: press one, or pick a controller button, a trigger or a mouse button. */
+  const addItems = $derived(
+    controlChoiceItems(app.catalog, app.family, addHeld, {
+      press: t('analog.routes.press_control'),
+      onpress: capture.start,
+      extra: ['LT', 'RT', 'LTFull', 'RTFull'],
+      skip: r?.while_held,
+    }),
+  );
 </script>
-
-<svelte:window onkeydown={onKeydown} />
 
 {#if r}
   <section class="route card">
@@ -227,9 +191,9 @@
         </Chip>
       {/each}
       {#if r.while_held.length === 0}<span class="always">{t('analog.routes.always')}</span>{/if}
-      {#if capturing}
+      {#if capture.active}
         <span class="capturing">{t('analog.routes.pressing')}</span>
-        <button class="icon-btn" use:tip={t('common.cancel')} onclick={stopCapture}><X size={14} /></button>
+        <button class="icon-btn" use:tip={t('common.cancel')} onclick={capture.stop}><X size={14} /></button>
       {:else if !disabled}
         <Menu items={addItems} class="add">
           {#snippet trigger()}<Plus size={13} /> {t('analog.routes.add_control')}{/snippet}

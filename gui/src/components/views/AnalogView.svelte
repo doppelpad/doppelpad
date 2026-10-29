@@ -3,7 +3,8 @@
   // the current layer changes) and the analog routes of the current layer.
   import { t } from '../../lib/i18n/index.svelte';
   import { layerRoutes } from '../../lib/model/routes';
-  import { app, type AnalogTab } from '../../lib/state/app.svelte';
+  import { ANALOG_TABS } from '../../lib/model/views';
+  import { app } from '../../lib/state/app.svelte';
   import GyroEditor from '../analog/GyroEditor.svelte';
   import RouteEditor from '../analog/RouteEditor.svelte';
   import StickEditor from '../analog/StickEditor.svelte';
@@ -12,16 +13,15 @@
   import VirtualStickEditor from '../analog/VirtualStickEditor.svelte';
   import Segmented from '../ui/Segmented.svelte';
 
-  const TABS: AnalogTab[] = ['left', 'right', 'triggers', 'gyro', 'touchpad', 'routes'];
   const routeCount = $derived(app.profile ? layerRoutes(app.profile, app.layer).length : 0);
 </script>
 
 <div class="analog">
   <div class="head">
-    <h2>{t('analog.title')}</h2>
+    <h2 class="view-title">{t('analog.title')}</h2>
     <Segmented
       label={t('analog.title')}
-      options={TABS.map((tab) => ({ value: tab, label: t(`analog.tabs.${tab}`), badge: tab === 'routes' ? routeCount : undefined }))}
+      options={ANALOG_TABS.map((tab) => ({ value: tab, label: t(`analog.tabs.${tab}`), badge: tab === 'routes' ? routeCount : undefined }))}
       value={app.analogTab}
       onchange={(tab) => (app.analogTab = tab)}
     />
@@ -62,11 +62,7 @@
     flex-wrap: wrap;
     gap: 10px 16px;
   }
-  h2 {
-    margin: 0;
-    font-size: 17px;
-    font-weight: 600;
-  }
+
   .scope {
     margin: -6px 0 4px;
     color: var(--text-faint);

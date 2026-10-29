@@ -17,21 +17,30 @@ const WARM_FOR = 400;
 let timer: ReturnType<typeof setTimeout> | undefined;
 let hiddenAt = -Infinity;
 let shownFor: Element | null = null;
+/** The element whose tooltip waits to show. */
+let pendingFor: Element | null = null;
 let ids = 0;
 
-function show(node: Element, text: string, delay: number) {
+/** Show `node`'s tooltip after `delay`, with its text then. */
+function show(node: Element, text: () => string, delay: number) {
   clearTimeout(timer);
-  if (!text) return;
+  pendingFor = null;
+  if (!text()) return;
+  pendingFor = node;
   timer = setTimeout(() => {
-    if (!node.isConnected) return;
+    pendingFor = null;
+    if (!node.isConnected || !text()) return;
     shownFor = node;
-    tooltip.current = { text, anchor: node.getBoundingClientRect(), id: ++ids };
+    tooltip.current = { text: text(), anchor: node.getBoundingClientRect(), id: ++ids };
   }, delay);
 }
 
-/** Hide the tooltip (of `node` only, when given). */
+/** Hide the tooltip, also one waiting to show (only `node`'s, when given). */
 export function hideTooltip(node?: Element) {
-  clearTimeout(timer);
+  if (!node || pendingFor === node) {
+    clearTimeout(timer);
+    pendingFor = null;
+  }
   if (node && shownFor !== node) return;
   if (tooltip.current) hiddenAt = performance.now();
   tooltip.current = null;
@@ -61,11 +70,12 @@ export function tip(node: HTMLElement | SVGElement, text: string | null | undefi
     node.setAttribute(setAttr, current);
   }
 
-  const enter = () => show(node, current, performance.now() - hiddenAt < WARM_FOR || tooltip.current ? WARM_DELAY : DELAY);
+  const textNow = () => current;
+  const enter = () => show(node, textNow, performance.now() - hiddenAt < WARM_FOR || tooltip.current ? WARM_DELAY : DELAY);
   const leave = () => hideTooltip(node);
   const focus = () => {
     // Only for keyboard (and controller) focus; a click focuses too.
-    if (node.matches(':focus-visible')) show(node, current, 0);
+    if (node.matches(':focus-visible')) show(node, textNow, 0);
   };
 
   node.addEventListener('pointerenter', enter);

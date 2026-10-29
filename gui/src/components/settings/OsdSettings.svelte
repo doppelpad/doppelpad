@@ -15,7 +15,7 @@
   const osd = $derived(app.settings.osd);
   const EVENTS = ['remap', 'slot', 'layer', 'controller', 'battery', 'screenshot'] as const;
   let monitors = $state<string[]>([]);
-  api.osdMonitors().then((m) => (monitors = m));
+  app.attempt(api.osdMonitors().then((m) => (monitors = m)));
 
   function set(patch: Partial<OsdSettings>) {
     app.setSettings((s) => ({ osd: { ...s.osd, ...patch } }));

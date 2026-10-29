@@ -4,6 +4,7 @@
   import { api } from '../lib/api';
   import { t } from '../lib/i18n/index.svelte';
   import { app } from '../lib/state/app.svelte';
+  import { pictureOf } from '../lib/state/pictures.svelte';
   import { platform, win } from '../lib/state/window.svelte';
   import type { Game } from '../lib/types';
   import Menu from './ui/Menu.svelte';
@@ -42,22 +43,6 @@
     await app.selectGame((await made).dir);
   }
 
-  /** Pictures of the games as data URLs, by folder and picture file. */
-  let pictures = $state<Record<string, string | null>>({});
-  const pictureKey = (g: Game) => `${g.dir}|${g.meta.image ?? ''}`;
-  $effect(() => {
-    for (const g of app.library.games) {
-      const key = pictureKey(g);
-      if (!g.meta.image || key in pictures) continue;
-      pictures[key] = null;
-      api
-        .gamePicture(g.dir)
-        .then((url) => (pictures[key] = url))
-        .catch(() => {});
-    }
-  });
-  const pictureOf = (g: Game) => (g.meta.image ? pictures[pictureKey(g)] : null);
-
   async function exportGame(g: Game) {
     const out = await save({
       title: t('profiles.export_title'),
@@ -78,19 +63,6 @@
     if (typeof file === 'string') await app.importGame(file);
   }
 
-  async function deleteGame(g: Game) {
-    if (!(await app.confirmAsk(t('profiles.delete_confirm', { name: g.meta.name })))) return;
-    await app.attempt(
-      api.gameDelete(g.dir).then(async () => {
-        if (app.gameDir === g.dir) {
-          app.gameDir = null;
-          app.closeConfig();
-        }
-        await app.refreshLibrary();
-      }),
-    );
-  }
-
   function gameIsActive(g: Game): boolean {
     const p = app.live?.profile_path;
     return !!p && g.configs.some((c) => c.path === p);
@@ -100,9 +72,9 @@
 <aside class="panel">
   <!-- Part of the title bar, beside the header; holds the macOS traffic lights. -->
   <div class="head" class:traffic-lights={platform === 'macos' && !win.fullscreen} data-tauri-drag-region="deep">
-    <span class="title">{t('profiles.title')}</span>
-    <button class="icon-btn" use:tip={t('stores.title') + '…'} onclick={() => (libraryOpen = true)}><Library size={17} /></button>
-    <button class="icon-btn" use:tip={t('profiles.import') + '…'} onclick={importGame}><Download size={17} /></button>
+    <span class="title section-title">{t('profiles.title')}</span>
+    <button class="icon-btn" use:tip={t('stores.menu')} onclick={() => (libraryOpen = true)}><Library size={17} /></button>
+    <button class="icon-btn" use:tip={t('profiles.import')} onclick={importGame}><Download size={17} /></button>
     <button class="icon-btn" use:tip={t('profiles.add')} onclick={addGame}><Plus size={18} /></button>
   </div>
 
@@ -112,10 +84,11 @@
       <button class="btn primary add" onclick={addGame}><Plus size={16} /> {t('profiles.add')}</button>
     {/if}
     {#each app.library.games as g (g.dir)}
+      {@const picture = pictureOf(g.dir, g.meta.image)}
       <div class="game" class:selected={g.dir === app.gameDir}>
         <button class="game-main" onclick={() => app.selectGame(g.dir)}>
-          {#if pictureOf(g)}
-            <img class="avatar picture" src={pictureOf(g)} alt="" />
+          {#if picture}
+            <img class="avatar picture" src={picture} alt="" />
           {:else}
             <span class="avatar" style="--h: {hue(g.meta.name)}">{g.meta.name.slice(0, 1).toUpperCase()}</span>
           {/if}
@@ -135,12 +108,12 @@
           iconOnly
           items={[
             { label: t('common.rename'), onclick: () => renameGame(g) },
-            { label: t('game.settings') + '…', onclick: () => (settingsOf = g) },
+            { label: t('game.settings'), onclick: () => (settingsOf = g) },
             { label: t('common.duplicate'), onclick: () => duplicateGame(g) },
             { label: t('common.reveal'), onclick: () => app.attempt(api.reveal(g.dir)) },
-            { label: t('profiles.export') + '…', onclick: () => exportGame(g) },
-            { separator: true, label: '' },
-            { label: t('common.delete'), danger: true, onclick: () => deleteGame(g) },
+            { label: t('profiles.export'), onclick: () => exportGame(g) },
+            { separator: true },
+            { label: t('common.delete'), danger: true, onclick: () => app.deleteGame(g) },
           ]}
         >
           {#snippet trigger()}<span class="icon-btn more"><Ellipsis size={16} /></span>{/snippet}
@@ -149,7 +122,7 @@
     {/each}
 
     {#if app.library.unsorted.length}
-      <div class="section">{t('profiles.unsorted')}</div>
+      <div class="section section-title">{t('profiles.unsorted')}</div>
       {#each app.library.unsorted as c (c.path)}
         <button
           class="loose"
@@ -196,11 +169,6 @@
   /* Pushes the buttons to the right edge as one group. */
   .title {
     margin-right: auto;
-    font-size: var(--fs-xs);
-    font-weight: 600;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--text-dim);
   }
   .list {
     flex: 1;
@@ -280,15 +248,12 @@
     opacity: 0;
   }
   .game:hover .more,
+  .game:focus-within .more,
   .game.selected .more {
     opacity: 1;
   }
   .section {
     margin: 14px 8px 6px;
-    font-size: var(--fs-xs);
-    color: var(--text-faint);
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
   }
   .loose {
     display: flex;

@@ -26,14 +26,86 @@ export function isStreamingField(el: unknown): boolean {
   return isTextEntry(f) || (f?.tagName === 'INPUT' && VALUE_TYPES.has(String(f.type)));
 }
 
+/** `el` takes keys itself: a text entry, or another input (Space ticks a box, arrows move a slider). */
+function takesKeys(el: unknown): boolean {
+  return isTextEntry(el) || field(el)?.tagName === 'INPUT';
+}
+
+/** What the keyboard (Tab) can reach. */
+export const FOCUSABLE = [
+  'button',
+  'a[href]',
+  'input:not([type="hidden"])',
+  'textarea',
+  'summary',
+  '[tabindex]:not([tabindex="-1"])',
+  '[role="menuitem"]',
+  '[role="tab"]',
+].join(', ');
+
+/** The elements in `root` that Tab stops at, in their order: enabled, shown, not taken out of the order. */
+export function tabbables(root: Element): HTMLElement[] {
+  return [...root.querySelectorAll<HTMLElement>(FOCUSABLE)].filter(
+    (el) => el.tabIndex >= 0 && !(el as HTMLButtonElement).disabled && el.getClientRects().length > 0,
+  );
+}
+
+/**
+ * Action for a radio group or a tab list: the arrow keys (and Home, End) move to the previous
+ * or next of its `[role=radio]` / `[role=tab]` items and choose it, as the system's own groups
+ * do. In a grid of `columns`, up and down move by a row. The items themselves keep only the
+ * chosen one in the Tab order (`tabindex`).
+ */
+export function arrowKeys(node: HTMLElement, columns = 0) {
+  function onkeydown(e: KeyboardEvent) {
+    const items = [...node.querySelectorAll<HTMLElement>('[role=radio], [role=tab]')].filter((el) => !(el as HTMLButtonElement).disabled);
+    const i = items.indexOf(document.activeElement as HTMLElement);
+    if (i < 0) return;
+    const row = columns || 1;
+    const step = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -row, ArrowDown: row, Home: -i, End: items.length - 1 - i }[e.key];
+    if (step === undefined) return;
+    e.preventDefault();
+    const next = items[(i + step + items.length) % items.length]!;
+    next.focus();
+    next.click();
+  }
+  node.addEventListener('keydown', onkeydown);
+  return {
+    update: (c = 0) => (columns = c),
+    destroy: () => node.removeEventListener('keydown', onkeydown),
+  };
+}
+
+/** Open dialogs (ui/Dialog), the topmost last: Escape closes only that one. */
+export const dialogStack: symbol[] = [];
+
+/** A dialog is open; it owns the keyboard then. */
+export function modalOpen(): boolean {
+  return dialogStack.length > 0;
+}
+
 /** A menu (ours or a context menu) is open and owns the keyboard. */
 export function menuOpen(): boolean {
   return document.querySelector('[role=menu]') !== null;
 }
 
-/** A popover marked `data-popover` (e.g. the stick's direction menu) is open; Escape closes it first. */
+/** A popover marked `data-popover` (e.g. the stick's direction menu, Find) is open; Escape closes it first. */
 export function popoverOpen(): boolean {
   return document.querySelector('[data-popover]') !== null;
+}
+
+/**
+ * The keys pressed at `target` belong to something other than the view: a field that takes
+ * them, a dialog, an open menu or popover.
+ */
+export function keyboardOwned(target: unknown): boolean {
+  return takesKeys(target) || modalOpen() || menuOpen() || popoverOpen();
+}
+
+/** Listen to `type` events on `target` (in the capture phase with `capture`) until the returned function is called. */
+export function listen<E extends Event>(target: EventTarget, type: string, fn: (e: E) => void, capture = false): () => void {
+  target.addEventListener(type, fn as EventListener, capture);
+  return () => target.removeEventListener(type, fn as EventListener, capture);
 }
 
 /**

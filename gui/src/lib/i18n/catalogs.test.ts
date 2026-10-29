@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { sources } from '../testing/sources';
 import en from './en.json';
 import { catalogs, has } from './index.svelte';
 
@@ -27,8 +28,11 @@ function placeholders(o: Tree): Map<string, string> {
   return out;
 }
 
-/** Every source file of the GUI, as text. */
-const sources = import.meta.glob('../../**/*.{ts,svelte}', { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
+/**
+ * Keys the GUI code does not read itself: the tray's texts, which the bridge reads from the
+ * catalogs (gui/src-tauri/src/tray.rs).
+ */
+const READ_ELSEWHERE = ['tray.'];
 
 describe('translations', () => {
   for (const [lang, catalog] of Object.entries(catalogs)) {
@@ -45,13 +49,24 @@ describe('translations', () => {
   }
 
   it('has every key the code asks for by name', () => {
-    expect(Object.keys(sources).length).toBeGreaterThan(100);
+    expect(sources.length).toBeGreaterThan(100);
     const missing: string[] = [];
-    for (const [file, text] of Object.entries(sources)) {
+    for (const [file, text] of sources) {
       for (const m of text.matchAll(/(?<![.\w])(?:t|has)\(\s*'([^'$]+)'/g)) {
         if (!has(m[1])) missing.push(`${file}: ${m[1]}`);
       }
     }
     expect(missing).toEqual([]);
+  });
+
+  it('has no key the code does not use', () => {
+    // A key is used when the code names it in quotes, or begins with the fixed part of a key
+    // the code builds (`t(\`hotkeys.${field}\`)` uses every key that begins with `hotkeys.`).
+    const text = sources.map(([, t]) => t).join('\n');
+    const built = [...text.matchAll(/`([a-z0-9_.]+)\$\{/g)].map((m) => m[1]!);
+    const used = (key: string) =>
+      [`'${key}'`, `"${key}"`, `\`${key}\``].some((quoted) => text.includes(quoted)) ||
+      [...built, ...READ_ELSEWHERE].some((prefix) => key.startsWith(prefix));
+    expect(keys(en as Tree).filter((key) => !used(key))).toEqual([]);
   });
 });

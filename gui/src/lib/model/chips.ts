@@ -161,7 +161,7 @@ export function buildChips(controls: LayoutControl[], v: ChipView): Chip[] {
  * chip stands for (a stick's directions). Kept apart from the summaries, which do not change
  * with every press.
  */
-export function pressedChips(controls: LayoutControl[], pressed: Set<ControlName>): Set<ControlName> {
+export function pressedChips(controls: LayoutControl[], pressed: ReadonlySet<ControlName>): Set<ControlName> {
   const out = new Set<ControlName>();
   if (pressed.size === 0) return out;
   for (const { control: c } of controls) {

@@ -8,7 +8,8 @@
   import { app } from '../../lib/state/app.svelte';
   import type { LiveDevice } from '../../lib/types';
   import IdentifyWizard from '../IdentifyWizard.svelte';
-  import Menu, { type MenuItem } from '../ui/Menu.svelte';
+  import type { MenuItem } from '../../lib/menu';
+  import Menu from '../ui/Menu.svelte';
   import BatteryBadge from './BatteryBadge.svelte';
   import { tip } from '../../lib/tooltip.svelte';
 

@@ -7,7 +7,9 @@
   import { onDestroy } from 'svelte';
   import { api } from '../lib/api';
   import { t } from '../lib/i18n/index.svelte';
+  import { addProgram, hasProgram } from '../lib/model/games';
   import { app } from '../lib/state/app.svelte';
+  import { forgetPicture, pictureOf } from '../lib/state/pictures.svelte';
   import type { Game } from '../lib/types';
   import Dialog from './ui/Dialog.svelte';
   import SettingRow from './settings/SettingRow.svelte';
@@ -23,15 +25,15 @@
   // svelte-ignore state_referenced_locally
   let programs = $state<string[]>([...game.meta.processes]);
   let typed = $state('');
-  let picture = $state<string | null>(null);
+  /** The picture file; it changes at once with its own buttons. */
+  // svelte-ignore state_referenced_locally
+  let image = $state(game.meta.image);
+  const picture = $derived(pictureOf(game.dir, image));
   let running = $state<{ exe: string; title: string }[] | null>(null);
   let filter = $state('');
   /** Seconds left before the program in front is taken, while counting down. */
   let countdown = $state(0);
   let timer: ReturnType<typeof setInterval> | undefined;
-
-  // svelte-ignore state_referenced_locally
-  app.attempt(api.gamePicture(game.dir).then((p) => (picture = p)));
 
   const shown = $derived(
     (running ?? []).filter((p) => {
@@ -41,12 +43,12 @@
   );
 
   function add(exe: string) {
-    const e = exe.trim();
-    if (e && !programs.some((p) => p.toLowerCase() === e.toLowerCase())) programs = [...programs, e];
+    programs = addProgram(programs, exe);
   }
 
   async function showRunning() {
-    running = running ? null : await api.runningPrograms();
+    if (running) running = null;
+    else running = (await app.attemptGet(api.runningPrograms())) ?? null;
   }
 
   async function browse() {
@@ -67,7 +69,8 @@
       countdown -= 1;
       if (countdown > 0) return;
       clearInterval(timer);
-      const exe = await api.foregroundProgram();
+      const exe = await app.attemptGet(api.foregroundProgram());
+      if (exe === undefined) return;
       if (exe && !/^doppelpad/i.test(exe)) add(exe);
       else app.toast(t('game.in_front_none'), 'info');
     }, 1000);
@@ -81,12 +84,16 @@
       directory: false,
       filters: [{ name: t('game.picture_filter'), extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif'] }],
     });
-    if (typeof file !== 'string') return;
-    if (await app.attempt(api.gameSetPicture(game.dir, file))) picture = await api.gamePicture(game.dir);
+    if (typeof file === 'string') await setPicture(file);
   }
 
-  async function removePicture() {
-    if (await app.attempt(api.gameSetPicture(game.dir, null))) picture = null;
+  /** Copy a picture into the game's folder, or (`null`) remove it; the games list shows it too. */
+  async function setPicture(source: string | null) {
+    const meta = await app.attemptGet(api.gameSetPicture(game.dir, source));
+    if (!meta) return;
+    forgetPicture(game.dir);
+    image = meta.image;
+    await app.attempt(app.refreshLibrary());
   }
 
   async function save() {
@@ -115,7 +122,7 @@
     {#if picture}<img src={picture} alt="" />{:else}<span class="empty"><ImagePlus size={22} /></span>{/if}
     <div class="picture-buttons">
       <button class="btn" onclick={choosePicture}><ImagePlus size={14} /> {t('game.picture_choose')}</button>
-      {#if picture}<button class="btn" onclick={removePicture}><Trash2 size={14} /> {t('common.remove')}</button>{/if}
+      {#if picture}<button class="btn" onclick={() => setPicture(null)}><Trash2 size={14} /> {t('common.remove')}</button>{/if}
     </div>
   </div>
 
@@ -134,6 +141,7 @@
       <input
         bind:value={typed}
         placeholder={t('game.program_placeholder')}
+        aria-label={t('game.program_placeholder')}
         onkeydown={(e) => {
           if (e.key === 'Enter') {
             add(typed);
@@ -150,7 +158,9 @@
       >
     </div>
     <div class="sources">
-      <button class="btn" class:on={running !== null} onclick={showRunning}><AppWindow size={14} /> {t('game.running')}</button>
+      <button class="btn" class:on={running !== null} aria-expanded={running !== null} onclick={showRunning}
+        ><AppWindow size={14} /> {t('game.running')}</button
+      >
       <button class="btn" onclick={browse}><FolderOpen size={14} /> {t('game.browse')}</button>
       <button class="btn" onclick={inFront} disabled={countdown > 0}>
         <Timer size={14} />
@@ -159,9 +169,9 @@
     </div>
     {#if running}
       <div class="running">
-        <input bind:value={filter} placeholder={t('game.filter')} />
+        <input bind:value={filter} placeholder={t('game.filter')} aria-label={t('game.filter')} />
         {#each shown as r (r.exe)}
-          <button class="pick" onclick={() => add(r.exe)} disabled={programs.includes(r.exe)}>
+          <button class="pick" onclick={() => add(r.exe)} disabled={hasProgram(programs, r.exe)}>
             <span class="exe">{r.exe}</span>
             <span class="title">{r.title}</span>
           </button>

@@ -6,20 +6,22 @@ import { setLanguage, t } from '../i18n/index.svelte';
 import type { Side } from '../model/analog';
 import { controlsFromPad, drawingsFor, sideShowing } from '../model/devices';
 import { setStickGroup, stickGroupConflicts, stickGroupOf, type StickGroup } from '../model/stickgroups';
-import { comboKey, editMappingIn, layerIds, mappingAt, type LayerCopy } from '../model/profile';
+import { comboKey, comboList, editMappingIn, layerIds, mappingAt, type LayerCopy } from '../model/profile';
+import { VIEWS, viewFor, type AnalogTab, type OutputPage, type Place, type View } from '../model/views';
 import { layerLabel } from '../model/labels';
 import { launchRows } from '../model/launches';
 import { clone } from '../model/util';
 import { isStreamingField, pointer } from '../dom';
 import { movedPath } from '../paths';
-import { padMode, PressRepeat } from '../padnav';
+import { padMode } from '../padnav';
+import { Dialogs, type Answer, type QuestionId, type QuestionOptions } from './dialogs.svelte';
 import { History, type EditKey } from './history';
+import { PadInput } from './padInput.svelte';
 import { flagsOf, hotkeyClashes, waitsForSave, type Flags } from '../model/lints';
 import type { Copied } from '../model/clipboard';
-import type { MenuItem } from '../../components/ui/Menu.svelte';
-import type { OutputPage } from '../../components/OutputPanel.svelte';
+import type { MenuItem } from '../menu';
 import { SETTINGS_PLACEHOLDER } from './settings';
-import { platform } from './window.svelte';
+import { Updater } from './updater.svelte';
 import type {
   Action,
   Activator,
@@ -38,64 +40,13 @@ import type {
   PadFamily,
   Profile,
   RewasdStatus,
-  UpdateInfo,
 } from '../types';
-
-export type View = 'front' | 'back' | 'keyboard' | 'mouse' | 'shortcuts' | 'macro' | 'output' | 'analog' | 'radial';
-/** Pages of the analog view. */
-export type AnalogTab = 'left' | 'right' | 'triggers' | 'gyro' | 'touchpad' | 'routes';
 
 export interface Toast {
   id: number;
   text: string;
   kind: 'info' | 'ok' | 'error';
 }
-
-interface PromptRequest {
-  title: string;
-  value: string;
-  multiline: boolean;
-  resolve: (v: string | null) => void;
-}
-
-/**
- * What a question (ConfirmDialog) can show and offer besides its message; without options it
- * asks with a warning sign, OK and Cancel.
- */
-export interface QuestionOptions {
-  title?: string;
-  /** Longer text below the message, kept as written (line breaks too), e.g. release notes. */
-  details?: string | null;
-  /** Rows under the message: a line of code (a command line, say) and notes under it. */
-  items?: { code: string; notes: string[] }[];
-  /** The label of the OK button. */
-  ok?: string;
-  /** The label of the Cancel button. */
-  cancel?: string;
-  /** A second answer, between Cancel and OK. */
-  alt?: string;
-  /** The sign before the title. */
-  kind?: 'warning' | 'update';
-  /** A question that can be silenced ("Don't ask again"); a silenced one answers OK at once. */
-  id?: QuestionId;
-}
-
-/** The button a question was answered with; `null` for Cancel (and Escape). */
-export type Answer = 'ok' | 'alt' | null;
-
-interface QuestionRequest extends QuestionOptions {
-  message: string;
-  /** Something to read, not to answer: only OK, and "Don't show again" with an id. */
-  info?: boolean;
-  resolve: (answer: Answer) => void;
-}
-
-/**
- * Questions that may be silenced: only ones whose change can be undone. Deleting games or
- * configs and discarding unsaved changes always ask.
- */
-export const QUESTION_IDS = ['power_command', 'clear_mappings', 'whole_stick_replace', 'steam_input'] as const;
-export type QuestionId = (typeof QUESTION_IDS)[number];
 
 export interface ContextMenuRequest {
   items: MenuItem[];
@@ -106,7 +57,20 @@ export interface ContextMenuRequest {
   from: HTMLElement | null;
 }
 
-class AppState {
+/**
+ * Runs writes one after the other: each starts when the one before has settled, so it sees
+ * its result. One that throws does not stop those after it.
+ */
+function writeChain() {
+  let last: Promise<void> = Promise.resolve();
+  return (write: () => Promise<void>): Promise<void> => {
+    const next = last.then(write);
+    last = next.catch(() => {});
+    return next;
+  };
+}
+
+export class AppState {
   catalog = $state<Catalog | null>(null);
   library = $state<Library>({ games: [], unsorted: [], errors: [] });
   live = $state<LiveState | null>(null);
@@ -117,15 +81,16 @@ class AppState {
   /** The start-up question whether to quit reWASD is open. */
   rewasdAsk = $state(false);
   rewasdQuitting = $state(false);
-  /** The update check runs. */
-  updateChecking = $state(false);
-  /** While an update downloads: its progress in percent. */
-  updateProgress = $state<number | null>(null);
 
   gameDir = $state<string | null>(null);
   configPath = $state<string | null>(null);
   profile = $state<Profile | null>(null);
   savedJson = $state('');
+  /**
+   * The draft as JSON, kept with every change that goes through the app (`commit`, undo, open):
+   * the undo steps and `dirty` compare it instead of turning the whole config into JSON again.
+   */
+  private draftJson = $state('');
   readOnly = $state(false);
   /** The validator's findings for the open config: from loading or saving, then after each change. */
   diagnostics = $state<DiagMsg[]>([]);
@@ -150,8 +115,14 @@ class AppState {
   /** The controller whose own slots the bottom bar shows; `null` for the shared slots. */
   slotDevice = $state<string | null>(null);
   toasts = $state<Toast[]>([]);
-  prompt = $state<PromptRequest | null>(null);
-  question = $state<QuestionRequest | null>(null);
+  /** Looking for, offering and installing updates. */
+  readonly updater = new Updater({
+    toast: (text, kind) => this.toast(text, kind),
+    confirmAsk: (message, options) => this.confirmAsk(message, options),
+    confirmDiscard: () => this.confirmDiscard(),
+  });
+  /** The questions, hints and prompts waiting to be answered, one shown at a time. */
+  readonly dialogs = new Dialogs({ silenced: () => this.settings.silenced, silence: (id) => this.silence(id) });
   copiedLayer = $state.raw<LayerCopy | null>(null);
   /** A copied control or direction group (see `lib/model/clipboard.ts`); kept across configs. */
   clipboard = $state.raw<Copied | null>(null);
@@ -170,20 +141,16 @@ class AppState {
   private history = new History();
   /** While set, every change belongs to one undo step (e.g. a recording); see `editGroup`. */
   private group: unknown = null;
-  /** Who gets the controller's presses instead of the editor (see `capturePresses`). */
-  private pressListener: ((c: ControlName) => void) | null = null;
-  /** Controls held on the primary controller; the drawing highlights exactly these. */
-  pressed = $state.raw(new Set<ControlName>());
-  /** Runs what the controller does while it drives the app (set by App.svelte). */
-  padHandler: ((controls: ControlName[]) => void) | null = null;
-  private padRepeat = new PressRepeat();
-  /** Repeats held directions while no new live state comes (a held D-pad does not change it). */
-  private padTimer: ReturnType<typeof setInterval> | null = null;
+  /** The primary controller's presses: held controls, captures, controller navigation. */
+  readonly pad = new PadInput({ mode: () => padMode(this.settings), select: (c) => this.selectPressed(c) });
   private toastId = 0;
-  /** The settings write in flight: the next one waits for it, so it builds on its result. */
-  private settingsWrite: Promise<void> = Promise.resolve();
+  /** Settings and hotkey writes, each one after the one before, so it builds on its result. */
+  private settingsWrites = writeChain();
+  private hotkeyWrites = writeChain();
 
-  dirty = $derived(this.profile !== null && JSON.stringify(this.profile) !== this.savedJson);
+  primary = $derived<LiveDevice | null>(this.live?.devices.find((d) => d.id === this.live?.primary) ?? this.live?.devices[0] ?? null);
+  family = $derived<PadFamily | null>(this.primary?.family ?? null);
+  dirty = $derived(this.profile !== null && this.draftJson !== this.savedJson);
   /** The layers of the config as saved; one added since is still being set up (see `waitsForSave`). */
   savedLayers = $derived<ReadonlySet<number>>(new Set(this.savedJson ? layerIds(JSON.parse(this.savedJson) as Profile) : []));
   /**
@@ -192,14 +159,15 @@ class AppState {
    */
   problems = $derived<DiagMsg[]>(
     this.profile
-      ? [...this.diagnostics.filter((d) => !waitsForSave(this.profile!, d, this.savedLayers)), ...hotkeyClashes(this.profile, this.hotkeys)]
+      ? [
+          ...this.diagnostics.filter((d) => !waitsForSave(this.profile!, d, this.savedLayers)),
+          ...hotkeyClashes(this.profile, this.hotkeys, this.family),
+        ]
       : [],
   );
   /** The controls and layers with a warning mark. */
   flags = $derived<Flags>(flagsOf(this.profile, this.problems));
   game = $derived<Game | null>(this.library.games.find((g) => g.dir === this.gameDir) ?? null);
-  primary = $derived<LiveDevice | null>(this.live?.devices.find((d) => d.id === this.live?.primary) ?? this.live?.devices[0] ?? null);
-  family = $derived<PadFamily | null>(this.primary?.family ?? null);
   /** The slot set the bottom bar shows and "Apply to slot" fills: a controller's own or the shared one. */
   slotSet = $derived.by(() => {
     const own = this.live?.device_slots.find((d) => d.id === this.slotDevice);
@@ -213,44 +181,52 @@ class AppState {
   });
   rewasdRunning = $derived(!!this.rewasd && (this.rewasd.service !== null || this.rewasd.programs.length > 0));
 
+  /** The radial menu shown: the last one when the chosen one is gone (undo). */
+  radialIndex = $derived(Math.min(this.radialMenu, Math.max(0, (this.profile?.radial_menus?.length ?? 0) - 1)));
+
   layerLabel = (id: number) => (this.profile ? layerLabel(this.profile, id) : String(id));
 
+  /** Start-up: each step on its own, so one that fails says why and the others still run. */
   async init() {
-    try {
-      this.settings = await api.settingsGet();
-      setLanguage(this.settings.language);
-      this.catalog = await api.catalog();
-      this.hotkeys = await api.hotkeysGet();
-      await this.refreshLibrary();
-      await api.liveSubscribe((s) => this.onLive(s));
-      for (const n of await api.takeNotices()) this.toast(t(`notices.${n}`), 'info');
-      // Bundles opened from Explorer: the one the app started with now, later ones as they come.
-      await listen<string[]>('open-files', (e) => this.openFiles(e.payload));
-      // Hints the app sends while something happens elsewhere (a game in front).
-      await listen<{ id: QuestionId; game: string }>('hint', (e) =>
+    const settingsRead = await this.attempt(
+      api.settingsGet().then((s) => {
+        this.settings = s;
+        setLanguage(s.language);
+      }),
+    );
+    await this.attempt(api.catalog().then((c) => (this.catalog = c)));
+    // Only for the clash marks: the rest does not wait for the service's answer.
+    this.refreshHotkeys();
+    await this.attempt(this.refreshLibrary());
+    await this.attempt(api.liveSubscribe((s) => this.onLive(s)));
+    await this.attempt(api.takeNotices().then((notices) => notices.forEach((n) => this.toast(t(`notices.${n}`), 'info'))));
+    // Bundles opened from Explorer: the one the app started with now, later ones as they come.
+    await this.attempt(listen<string[]>('open-files', (e) => this.openFiles(e.payload)));
+    // Hints the app sends while something happens elsewhere (a game in front).
+    await this.attempt(
+      listen<{ id: QuestionId; game: string }>('hint', (e) =>
         this.inform(t(`hints.${e.payload.id}`, { game: e.payload.game }), e.payload.id),
-      );
-      const opened = await api.takeOpenFiles();
-      this.rewasd = await api.rewasdStatus();
-      if (this.rewasdRunning) {
-        if (this.settings.rewasd_at_start === 'quit') this.quitRewasd();
-        else if (this.settings.rewasd_at_start === 'ask') {
-          this.rewasdAsk = true;
-          // The app may have started hidden with Windows.
-          await api.showWindow();
-        }
+      ),
+    );
+    let opened: string[] = [];
+    await this.attempt(api.takeOpenFiles().then((files) => (opened = files)));
+    await this.attempt(api.rewasdStatus().then((r) => (this.rewasd = r)));
+    if (this.rewasdRunning) {
+      if (this.settings.rewasd_at_start === 'quit') this.quitRewasd();
+      else if (this.settings.rewasd_at_start === 'ask') {
+        this.rewasdAsk = true;
+        // The app may have started hidden with Windows.
+        await this.attempt(api.showWindow());
       }
-      // Open the game of the config that is currently applied (when the first live state is
-      // already here), else the first game.
-      const applied = this.live?.profile_path;
-      const game = this.library.games.find((g) => g.configs.some((c) => c.path === applied)) ?? this.library.games[0];
-      if (game) await this.selectGame(game.dir);
-      if (opened.length) await this.openFiles(opened);
-      // The question waits in the window, also when the app started hidden with Windows.
-      if (this.settings.check_updates) this.checkForUpdate();
-    } catch (e) {
-      this.toast(errorText(e), 'error');
     }
+    // Open the game of the config that is currently applied (when the first live state is
+    // already here), else the first game.
+    const applied = this.live?.profile_path;
+    const game = this.library.games.find((g) => g.configs.some((c) => c.path === applied)) ?? this.library.games[0];
+    if (game) await this.selectGame(game.dir);
+    if (opened.length) await this.openFiles(opened);
+    // The question waits in the window, also when the app started hidden with Windows.
+    if (settingsRead && this.settings.check_updates) this.updater.check();
   }
 
   private onLive(s: LiveState) {
@@ -258,64 +234,50 @@ class AppState {
     const firstSnapshot = before === null;
     this.live = s;
     // The navigation hotkey fired (it counts; the app keeps the mode).
-    if (before && s.app_navigation !== before.app_navigation) this.setPadNavigation(!this.settings.pad_navigation);
+    if (before && s.app_navigation !== before.app_navigation) this.setPadNavigation();
     if (firstSnapshot) this.applySlot = s.active_slot;
     const dev = this.primary;
-    const now = dev && this.catalog ? controlsFromPad(dev, this.catalog.pad_buttons) : new Set<ControlName>();
-    for (const c of now) {
-      if (!this.pressed.has(c)) this.onPhysicalPress(c);
-    }
-    // Live state comes many times a second; only a change of the held controls is news.
-    if (now.size !== this.pressed.size || [...now].some((c) => !this.pressed.has(c))) this.pressed = now;
-    this.drivePad();
+    this.pad.update(dev && this.catalog ? controlsFromPad(dev.state, this.catalog.pad_buttons) : new Set<ControlName>());
   }
 
   /** Controller navigation on or off (bottom bar, hotkey); it replaces press-to-select while on. */
-  setPadNavigation(on: boolean) {
-    if (on === this.settings.pad_navigation) return;
-    this.setSettings({ pad_navigation: on });
-    this.toast(t(on ? 'padnav.on' : 'padnav.off'), 'info');
+  async setPadNavigation(on?: boolean) {
+    // Without `on` it turns round what the writes before this one leave (two hotkey presses
+    // within one round trip turn it on and off again).
+    const turned = { to: null as boolean | null };
+    await this.setSettings((s) => {
+      const next = on ?? !s.pad_navigation;
+      if (next !== s.pad_navigation) turned.to = next;
+      return { pad_navigation: next };
+    });
+    if (turned.to !== null && this.settings.pad_navigation === turned.to) this.toast(t(turned.to ? 'padnav.on' : 'padnav.off'), 'info');
   }
 
-  /** While the controller drives the app: act on new presses and on held directions, again and again. */
-  private drivePad() {
-    const now = performance.now();
-    const driving = padMode(this.settings) === 'navigate' && !this.pressListener && document.hasFocus();
-    if (!driving) {
-      // What is held when the mode comes on does not act.
-      this.padRepeat.reset(this.pressed, now);
-    } else {
-      const acting = this.padRepeat.update(this.pressed, now);
-      if (acting.length) this.padHandler?.(acting);
-    }
-    if (driving && this.padRepeat.repeating) this.padTimer ??= setInterval(() => this.drivePad(), 40);
-    else if (this.padTimer) {
-      clearInterval(this.padTimer);
-      this.padTimer = null;
-    }
-  }
-
-  private onPhysicalPress(c: ControlName) {
-    if (this.pressListener) {
-      this.pressListener(c);
-      return;
-    }
-    if (padMode(this.settings) !== 'select' || !this.profile || !document.hasFocus()) return;
-    if (this.view !== 'front' && this.view !== 'back') return;
+  /** A control pressed on the controller selects it on the controller views, on the side that shows it. */
+  private selectPressed(c: ControlName) {
+    if (!this.profile || (this.view !== 'front' && this.view !== 'back')) return;
     this.select(c);
     this.view = sideShowing(drawingsFor(this.primary), this.view, c);
   }
 
-  /**
-   * Send the controller's presses to `fn` instead of selecting controls (without `fn` they just
-   * stay away from the editor) until the returned function is called. That call does nothing
-   * once another caller has taken the presses over.
-   */
-  capturePresses(fn: (c: ControlName) => void = () => {}): () => void {
-    this.pressListener = fn;
-    return () => {
-      if (this.pressListener === fn) this.pressListener = null;
-    };
+  /** Controls held on the primary controller; the drawing highlights exactly these. */
+  get pressed(): ReadonlySet<ControlName> {
+    return this.pad.pressed;
+  }
+
+  /** The controller's presses go to `fn` instead of the editor until the returned function is called (see `PadInput.capture`). */
+  capturePresses(fn?: (c: ControlName) => void): () => void {
+    return this.pad.capture(fn);
+  }
+
+  /** Await `p` for its value; when it fails, show why and give `undefined`. */
+  async attemptGet<T>(p: Promise<T>): Promise<T | undefined> {
+    try {
+      return await p;
+    } catch (e) {
+      this.toast(errorText(e), 'error');
+      return undefined;
+    }
   }
 
   /** Await `p`; when it fails, show why, else show `ok` if given. Returns whether it worked. */
@@ -335,16 +297,27 @@ class AppState {
    * the writes before it left them (for a part of a nested setting).
    */
   setSettings(patch: Partial<GuiSettings> | ((s: GuiSettings) => Partial<GuiSettings>)): Promise<void> {
-    const write = this.settingsWrite.then(async () => {
+    return this.settingsWrites(async () => {
       const next = { ...this.settings, ...(typeof patch === 'function' ? patch(this.settings) : patch) };
       if (await this.attempt(api.settingsSet(next))) {
         this.settings = next;
         setLanguage(next.language);
       }
     });
-    // A write that throws must not stop the ones after it.
-    this.settingsWrite = write.catch(() => {});
-    return write;
+  }
+
+  /** Read the controller hotkeys from the service again. */
+  refreshHotkeys(): Promise<boolean> {
+    return this.attempt(api.hotkeysGet().then((h) => (this.hotkeys = h)));
+  }
+
+  /** Change some controller hotkeys; like the settings, writes go one after the other. */
+  setHotkeys(patch: Partial<Hotkeys> | ((h: Hotkeys) => Partial<Hotkeys>)): Promise<void> {
+    return this.hotkeyWrites(async () => {
+      if (!this.hotkeys) return;
+      const next = { ...this.hotkeys, ...(typeof patch === 'function' ? patch(this.hotkeys) : patch) };
+      if (await this.attempt(api.hotkeysSet(next))) this.hotkeys = next;
+    });
   }
 
   async refreshLibrary() {
@@ -385,6 +358,20 @@ class AppState {
     if (name) await this.createConfig(api.configCreate(dir, name));
   }
 
+  /** Delete a game after asking; its config closes when it is open. */
+  async deleteGame(g: Game) {
+    if (!(await this.confirmAsk(t('profiles.delete_confirm', { name: g.meta.name })))) return;
+    await this.attempt(
+      api.gameDelete(g.dir).then(async () => {
+        if (this.gameDir === g.dir) {
+          this.closeConfig();
+          this.gameDir = null;
+        }
+        await this.refreshLibrary();
+      }),
+    );
+  }
+
   /** List the library again and open `g`, a game that was just made. */
   async openCreatedGame(g: Game) {
     await this.refreshLibrary();
@@ -405,6 +392,23 @@ class AppState {
       const name = file.split(/[\\/]/).pop() ?? file;
       if (await this.confirmAsk(t('profiles.open_confirm', { name }))) await this.importGame(file);
     }
+  }
+
+  /**
+   * Import a profile file (JSON, a reWASD config) into the game `dir` as a new config and open
+   * it, asking first about programs it starts; a few of the converter's notes follow as toasts.
+   */
+  importConfig(dir: string, source: string): Promise<boolean> {
+    return this.attempt(
+      api.configImportLaunches(source).then(async (found) => {
+        const keep = await this.keepLaunches(found);
+        if (keep === null) return;
+        const r = await api.configImport(dir, source, keep);
+        await this.openCreated(r.path);
+        this.toast(t('notices.imported', { name: this.profile?.name ?? '' }), 'ok');
+        for (const d of r.diagnostics.filter((d) => d.severity !== 'info').slice(0, 3)) this.toast(d.message, 'info');
+      }),
+    );
   }
 
   /** Unpack a game bundle into a new game and open it, asking first about programs it starts. */
@@ -441,33 +445,27 @@ class AppState {
     setTimeout(() => (this.toasts = this.toasts.filter((x) => x.id !== id)), kind === 'error' ? 7000 : 3500);
   }
 
+  /** Ask for a text in the app's dialog (PromptDialog); `null` when cancelled or left empty. */
   ask(title: string, value = '', multiline = false): Promise<string | null> {
-    return new Promise((resolve) => (this.prompt = { title, value, multiline, resolve }));
+    return this.dialogs.ask(title, value, multiline);
   }
 
   /**
-   * Ask an OK/Cancel question in the app's own dialog (ConfirmDialog); `true` for OK. Not
-   * `window.confirm`: in the webview it returns a promise without asking. With `options.id` it
-   * offers "Don't ask again", and a silenced id answers OK at once.
+   * Ask an OK/Cancel question in the app's own dialog (ConfirmDialog); `true` for OK. With
+   * `options.id` it offers "Don't ask again", and a silenced id answers OK at once.
    */
-  async confirmAsk(message: string, options: QuestionOptions = {}): Promise<boolean> {
-    return (await this.choose(message, options)) === 'ok';
+  confirmAsk(message: string, options: QuestionOptions = {}): Promise<boolean> {
+    return this.dialogs.confirmAsk(message, options);
   }
 
   /** `confirmAsk` that tells which answer, for a question with a second one (`options.alt`). */
   choose(message: string, options: QuestionOptions = {}): Promise<Answer> {
-    if (options.id && this.settings.silenced.includes(options.id)) return Promise.resolve('ok');
-    this.question?.resolve(null);
-    return new Promise((resolve) => (this.question = { ...options, message, resolve }));
+    return this.dialogs.choose(message, options);
   }
 
   /** Tell something in the app's dialog; with an `id` it offers "Don't show again", and a silenced id shows nothing. */
   inform(message: string, id?: QuestionId): Promise<void> {
-    if (id && this.settings.silenced.includes(id)) return Promise.resolve();
-    // A question waiting for an answer keeps its place; the hint waits behind it.
-    const waiting = this.question;
-    if (waiting) return new Promise((r) => setTimeout(() => r(this.inform(message, id)), 500));
-    return new Promise((resolve) => (this.question = { message, id, info: true, resolve: () => resolve() }));
+    return this.dialogs.inform(message, id);
   }
 
   /** Stop asking a question (its answer is OK from now on), or (`false`) ask it again. */
@@ -475,52 +473,6 @@ class AppState {
     return this.setSettings((s) => ({
       silenced: on ? [...s.silenced.filter((x) => x !== id), id] : s.silenced.filter((x) => x !== id),
     }));
-  }
-
-  /**
-   * Ask the update endpoints (GitHub) for a newer version and offer to install it. `manual`
-   * (*Check now*) also says when there is none or the check failed; the check at start-up
-   * leaves that to the log.
-   */
-  async checkForUpdate(manual = false) {
-    if (this.updateChecking || this.updateProgress !== null) return;
-    this.updateChecking = true;
-    let update: UpdateInfo | null;
-    try {
-      update = await api.updateCheck();
-    } catch (e) {
-      if (manual) this.toast(t('updates.check_failed', { error: errorText(e) }), 'error');
-      return;
-    } finally {
-      this.updateChecking = false;
-    }
-    if (!update) {
-      if (manual) this.toast(t('updates.up_to_date'), 'ok');
-      return;
-    }
-    const available = { linux: 'updates.available_linux', macos: 'updates.available_macos', windows: 'updates.available' }[platform];
-    const install = await this.confirmAsk(t(available, { version: update.version, current: update.current }), {
-      title: t('updates.title'),
-      details: update.notes,
-      ok: t('updates.install'),
-      cancel: t('updates.later'),
-      kind: 'update',
-    });
-    if (install) await this.installUpdate();
-  }
-
-  /** Download and install the update the last check found; the app starts again when it worked. */
-  private async installUpdate() {
-    if (!(await this.confirmDiscard())) return;
-    this.updateProgress = 0;
-    this.toast(t('updates.downloading'));
-    try {
-      await api.updateInstall((percent) => (this.updateProgress = percent));
-    } catch (e) {
-      this.toast(t('updates.install_failed', { error: errorText(e) }), 'error');
-    } finally {
-      this.updateProgress = null;
-    }
   }
 
   /**
@@ -544,8 +496,10 @@ class AppState {
     return !this.dirty || (await this.confirmAsk(t('header.discard_confirm')));
   }
 
+  /** Open a game with the config it starts with; the open game's config stays as it is. */
   async selectGame(dir: string) {
-    if (dir !== this.gameDir && !(await this.confirmDiscard())) return;
+    if (dir === this.gameDir && this.configPath) return;
+    if (!(await this.confirmDiscard())) return;
     this.gameDir = dir;
     const g = this.library.games.find((x) => x.dir === dir);
     const target =
@@ -556,10 +510,18 @@ class AppState {
     else this.closeConfig();
   }
 
+  /** The draft as a plain object (not the reactive one), for the bridge or to keep a copy. */
+  snapshot(): Profile | null {
+    return this.profile && ($state.snapshot(this.profile) as Profile);
+  }
+
   closeConfig() {
+    // A config still loading does not open any more.
+    this.openRequest++;
     this.configPath = null;
     this.profile = null;
     this.savedJson = '';
+    this.draftJson = '';
     this.clearHistory();
     this.selected = null;
     this.stick = null;
@@ -567,11 +529,14 @@ class AppState {
 
   async openConfig(path: string, force = false) {
     if (!force && path !== this.configPath && !(await this.confirmDiscard())) return;
+    // A config opened later wins over one that is still loading.
+    const request = ++this.openRequest;
     try {
       const loaded = await api.configLoad(path);
+      if (request !== this.openRequest) return;
       this.configPath = path;
       this.profile = loaded.profile;
-      this.savedJson = JSON.stringify(loaded.profile);
+      this.savedJson = this.draftJson = JSON.stringify(loaded.profile);
       this.readOnly = loaded.read_only;
       this.clearHistory();
       this.diagnostics = loaded.diagnostics;
@@ -583,7 +548,7 @@ class AppState {
       this.radialSector = null;
       if (this.view === 'macro') this.view = 'front';
     } catch (e) {
-      this.toast(errorText(e), 'error');
+      if (request === this.openRequest) this.toast(errorText(e), 'error');
     }
   }
 
@@ -592,40 +557,46 @@ class AppState {
     if (this.readOnly) return;
     if (!this.profile) {
       this.profile = p;
+      this.draftJson = JSON.stringify(p);
       return;
     }
-    this.commit(JSON.stringify(this.profile), p);
+    this.commit(p);
   }
 
-  /** Change the draft profile; nothing happens without one or when it is read-only. */
+  /** Change the draft profile; nothing happens without one or when it is read-only. `change` may change it in place. */
   edit(change: (p: Profile) => Profile) {
     if (!this.profile || this.readOnly) return;
-    // Taken first: `change` may change the draft in place.
-    const before = JSON.stringify(this.profile);
-    this.commit(before, change(this.profile));
+    this.commit(change(this.profile));
   }
 
-  /** Make `next` the draft; `before` (the draft before, as JSON) becomes an undo step if anything changed. */
-  private commit(before: string, next: Profile) {
-    if (JSON.stringify(next) !== before) {
+  /** Make `next` the draft; the draft before becomes an undo step if anything changed. */
+  private commit(next: Profile) {
+    const before = this.draftJson;
+    const json = JSON.stringify(next);
+    if (json !== before) {
       this.history.record(before, this.editKey(), performance.now());
       this.syncHistory();
       this.checkSoon();
     }
     this.profile = next;
+    this.draftJson = json;
   }
 
+  /** Counts the configs asked to open and the findings asked for, so a slower, older reply does not win. */
+  private openRequest = 0;
+  private findingsRequest = 0;
   private checkTimer: ReturnType<typeof setTimeout> | undefined;
 
   /** Validate the draft again shortly after the last change (the diagnostics bar and the marks follow). */
   private checkSoon() {
     clearTimeout(this.checkTimer);
     this.checkTimer = setTimeout(async () => {
-      const path = this.configPath;
-      if (!this.profile) return;
+      const draft = this.snapshot();
+      if (!draft) return;
+      const request = ++this.findingsRequest;
       try {
-        const found = await api.configCheck($state.snapshot(this.profile) as Profile);
-        if (this.configPath === path) this.diagnostics = found ?? [];
+        const found = await api.configCheck(draft);
+        if (request === this.findingsRequest) this.diagnostics = found;
       } catch {
         // The last findings stay; saving validates again anyway.
       }
@@ -680,10 +651,11 @@ class AppState {
 
   private travel(step: (current: string) => string | null) {
     if (!this.profile || this.readOnly) return;
-    const target = step(JSON.stringify(this.profile));
+    const target = step(this.draftJson);
     this.syncHistory();
     if (target === null) return;
     this.profile = JSON.parse(target) as Profile;
+    this.draftJson = target;
     if (!layerIds(this.profile).includes(this.layer)) this.layer = 0;
     this.checkSoon();
   }
@@ -701,14 +673,19 @@ class AppState {
 
   async save(): Promise<boolean> {
     if (!this.profile || !this.configPath || this.readOnly) return false;
+    // What is saved is the draft now; changes made while the save is under way stay unsaved.
+    const json = this.draftJson;
+    const sent = this.snapshot()!;
+    const request = ++this.findingsRequest;
     try {
-      const diags = await api.configSave(this.configPath, $state.snapshot(this.profile) as Profile);
-      this.diagnostics = diags;
+      const diags = await api.configSave(this.configPath, sent);
+      // A check of a change made meanwhile is newer.
+      if (request === this.findingsRequest) this.diagnostics = diags;
       if (diags.some((d) => d.severity === 'error')) {
         this.toast(t('notices.save_errors'), 'error');
         return false;
       }
-      this.savedJson = JSON.stringify(this.profile);
+      this.savedJson = json;
       await this.refreshLibrary();
       this.toast(t('notices.saved'), 'ok');
       return true;
@@ -743,8 +720,34 @@ class AppState {
     this.selected = c;
     this.stick = null;
     this.macroTarget = null;
-    // The macro editor and the radial menus have no binding panel to show it in.
-    if (c && (this.view === 'macro' || this.view === 'radial')) this.view = 'front';
+    // Views without a binding panel (the macro editor, the radial menus) give way.
+    if (c && !VIEWS[this.view].selection) this.view = 'front';
+  }
+
+  /**
+   * Show a place in the config (a found mapping, a problem, an arrow of the layer map): a
+   * mapping selected in the view that has its control, on its layer and activator; a layer in
+   * a view that shows layers; a radial menu (and sector) in its view.
+   */
+  reveal(place: Place) {
+    if (place.kind === 'radial') {
+      this.view = 'radial';
+      this.radialMenu = place.menu;
+      this.radialSector = place.sector;
+      return;
+    }
+    this.layer = place.layer;
+    if (place.kind === 'layer') {
+      if (!VIEWS[this.view].layer) this.view = 'front';
+      return;
+    }
+    const view = viewFor(place.trigger, this.view);
+    const single = comboList(place.trigger);
+    // A trigger shows on the back of some controllers only.
+    this.view =
+      (view === 'front' || view === 'back') && single.length === 1 ? sideShowing(drawingsFor(this.primary), view, single[0]!) : view;
+    this.activator = place.activator;
+    this.select(place.trigger);
   }
 
   /** Show what a whole stick does in the side panel instead of a control's mappings. */

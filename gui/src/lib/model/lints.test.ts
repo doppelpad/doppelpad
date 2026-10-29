@@ -32,15 +32,21 @@ const warn = (path: string): DiagMsg => ({ severity: 'warning', path, message: '
 
 describe('lints', () => {
   it('a mapping holding every button of a hotkey clashes; a part of one does not', () => {
-    const found = hotkeyClashes(p, hotkeys);
+    const found = hotkeyClashes(p, hotkeys, 'xbox');
     expect(found.map((d) => d.path)).toEqual(['mappings[0] (LB+RB+X)']);
-    expect(found[0]!.message).toContain('LB + RB + X');
-    expect(hotkeyClashes(p, null)).toEqual([]);
+    expect(found[0]!.message).toContain('Left bumper + Right bumper + X');
+    expect(hotkeyClashes(p, null, 'xbox')).toEqual([]);
+  });
+
+  it('every hotkey can clash, named as the controller names its buttons', () => {
+    const found = hotkeyClashes(p, { ...hotkeys, app_navigation: ['Back', 'Start'] }, 'dual_sense');
+    expect(found.map((d) => d.path)).toEqual(['mappings[0] (LB+RB+X)', 'mappings[3] (Back+Start)']);
+    expect(found[1]!.message).toContain('Create + Options');
   });
 
   it('paths lead to mappings and layers', () => {
     expect(mappingPath(3, ['Back', 'Start'])).toBe('mappings[3] (Back+Start)');
-    expect(diagTarget(p, warn('mappings[2] (B)'))).toEqual({ kind: 'mapping', layer: 1, trigger: 'B' });
+    expect(diagTarget(p, warn('mappings[2] (B)'))).toEqual({ kind: 'mapping', layer: 1, trigger: 'B', activator: 'single' });
     expect(diagTarget(p, warn('layers[0]'))).toEqual({ kind: 'layer', layer: 2 });
     expect(diagTarget(p, warn('layers[0].lightbar'))).toBeNull();
     expect(diagTarget(p, warn('analog[0]'))).toBeNull();

@@ -45,7 +45,7 @@
       </Chip>
     {/each}
     {#if !readOnly}
-      <button class="add" class:on={picking} onclick={() => (picking = !picking)}>
+      <button class="add" class:on={picking} aria-expanded={picking} onclick={() => (picking = !picking)}>
         <Plus size={13} />
         {t('binding.add_action')}
       </button>

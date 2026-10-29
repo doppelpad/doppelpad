@@ -18,7 +18,7 @@ This guide describes the app on Windows. What differs on Linux and macOS is in
 |---|---|
 | **Games** (left) | One entry per game. A game has one or more configs and an optional list of programs (`game.exe`) that switch to it automatically. A green dot marks the game whose config is running. Configs outside a game folder appear under *Other configs*. A game's menu has **Game settings…**: its name, a description (shown under the name), a picture (copied into the game's folder and shown in the list), and its programs, picked from the running programs (those with a window), from a file picker, with *Game in front* (switch to the game; after three seconds the program in front is taken), or typed in. **Duplicate** copies a game with its configs and picture; the copy has no programs, so automatic switching keeps choosing the original. The books button at the top of the list shows the **games from your libraries**: what Steam, Epic and GOG have installed on this PC (read from their own files, nothing goes online). **Add** creates a game with its name, the program that switches to it (the likeliest is suggested; a list offers the others) and, for Steam games, the cover from Steam's cache; games already in the list are marked. |
 | **Header** | *Game › Config* picker (switch, create, import a JSON profile), **Undo** and **Redo** (see [Undo](#undo)), **Save** (Ctrl+S; a dot means unsaved changes), options (rename, duplicate, show in Explorer, clear, delete), settings. Imported JSON files are read-only; duplicate them to edit. The header and the top of the games list also act as the title bar: drag them to move the window, double-click to maximize. On Windows and Linux the app draws its own minimize, maximize and close buttons at the right. On macOS the system buttons sit at the top left. |
-| **Toolbar** | Views: *Controller*, *Back side*, *Keyboard*, *Mouse*. The two controller views draw the connected model as it looks from that side: the front shows the bumpers (L1 / R1, L / R) but not the triggers behind them; the back side shows the triggers, the bumpers where they show from behind (not on the DualSense), and the back buttons the model has, e.g. GL / GR on the Switch 2 Pro Controller, none on the first one. Layer chips: *Main* plus shift layers, which you can add, rename, copy, paste, clear and remove (together with their analog routes), and whose *Layer settings* say what they inherit from *Main*. Hovering a layer chip (or focusing it) shows how the layer is reached: every mapping that changes to it with its activator, kind (while held, toggle, switch) and delay, and the layer it sits on; a layer nothing changes to says so. The tooltip also names the radial menus the layer opens and whether it takes over *Main*'s mappings or gives the keyboard or mouse back. **Layer map…** in the layer menu draws all layers with an arrow for each mapping that changes layer (⇣ while held, ⇄ toggle, → switch), marks layers nothing changes to and switches nothing leaves again, and leads to a layer or a mapping when clicked. On the right: *Analog* (see [Sticks, triggers and analog routes](#sticks-triggers-and-analog-routes)), *Shortcuts*, *Radial menus* (see [Radial menus](#radial-menus)) and *Config settings*. When the window is too narrow for every layer chip, these four show only their icons (their names are in the tooltips). |
+| **Toolbar** | Views: *Controller*, *Back side*, *Keyboard*, *Mouse*. The two controller views draw the connected model as it looks from that side: the front shows the bumpers (L1 / R1, L / R) but not the triggers behind them; the back side shows the triggers, the bumpers where they show from behind (not on the DualSense), and the back buttons the model has, e.g. GL / GR on the Switch 2 Pro Controller, none on the first one. Layer chips: *Main* plus shift layers, which you can add, rename, copy, paste, clear and remove (together with their analog routes), and whose *Layer settings* say what they inherit from *Main*. Hovering a layer chip (or focusing it) shows how the layer is reached: every mapping that changes to it with its activator, kind (while held, toggle, switch) and delay, and the layer it sits on; a layer nothing changes to says so. The tooltip also names the radial menus the layer opens and whether it takes over *Main*'s mappings or gives the keyboard or mouse back. **Layer map…** in the layer menu draws all layers with an arrow for each mapping that changes layer (⇣ while held, ⇄ toggle, → switch), marks layers nothing changes to and switches nothing leaves again, and leads to a layer or a mapping when clicked (like a found mapping). On the right: *Analog* (see [Sticks, triggers and analog routes](#sticks-triggers-and-analog-routes)), *Shortcuts*, *Radial menus* (see [Radial menus](#radial-menus)) and *Config settings*. When the window is too narrow for every layer chip, these four show only their icons (their names are in the tooltips). |
 | **Centre** | The selected view. Click a control to edit it. On the controller views, pressing a button on the controller selects it, and turns the drawing to the side that shows it (a trigger to the back side, a face button to the front). On the keyboard view, pressing a key does the same. |
 | **Binding panel** (right) | See below. With nothing selected, it lists the mappings of the current layer, and on a layer that nothing changes to yet it says how to reach it. |
 | **Bottom bar** | On the left: the remap button (on in teal, off in grey; a pause sign while remapping pauses, see [Remapping while the window is open](#remapping-while-the-window-is-open); its tooltip names the running config), the controller in use with its battery level where the controller reports one (DualShock 4, DualSense, Switch controllers, wireless Xbox controllers; orange below 40 %, red below 20 %), and driver warnings. *+1* means another controller is connected; it turns orange or red when that one's battery runs low. The controller list picks the one to use, and the cog next to it holds that controller's options: *own slots* (see [Several controllers](#several-controllers)), identifying a generic pad's buttons, **Turn off** and **Ignore this controller**. On the right: *Apply to slot n* (saves, puts the config in that slot and activates it; the arrow picks the slot, and hovering the button marks it) and the four slots (click to activate, which also turns remapping on; × to unload). |
@@ -54,8 +54,9 @@ out of range it finds:
 - a shortcut or mapping that holds every button of a controller hotkey: the hotkey takes the
   buttons, so the mapping never fires while hotkeys are on.
 
-A problem about a mapping, a layer or a radial menu leads there when clicked. The controls, shortcut rows and
-layer chips concerned carry a small orange mark. Errors keep the config from being saved;
+A problem about a mapping, a layer or a radial menu leads there when clicked, as a found mapping
+does (a mapping on its layer and activator, in the view that shows it). The controls, shortcut
+rows and layer chips concerned carry a small orange mark. Errors keep the config from being saved;
 warnings do not.
 
 ## Copy and paste
@@ -117,8 +118,13 @@ Ctrl+/ (or F1, or *Keyboard shortcuts* in the config's options menu) lists them 
 | Ctrl + plus, Ctrl + minus, Ctrl+0 | Make the window's contents larger, smaller, normal (80–150 %; also *Settings → Display → Size*) |
 
 In the keyboard view, plain keys select themselves, so Delete, Escape, F1 and F2 do that there;
-clearing is Ctrl+Delete. In text fields the keys act on the text, and while a dialog or menu is
-open it gets them (Ctrl+S still saves). On macOS, Cmd takes the place of Ctrl.
+clearing is Ctrl+Delete. In text fields the keys act on the text, and while a dialog, a menu or
+Find is open it gets them (Ctrl+S still saves). On macOS, Cmd takes the place of Ctrl.
+
+Tab moves through the window's buttons and fields; in a dialog it stays inside the dialog. In a
+choice of a few (the activators, a row of options, a radial menu's place) and in a row of tabs,
+the arrow keys move to the previous or next one and choose it, Home and End to the first and
+last.
 
 ## Editing a control
 
@@ -401,8 +407,8 @@ Deleting a menu also deletes its layer and its button, unless something else use
 The pulse button at the top right of the controller, keyboard and mouse views opens a small
 panel with what the running config sends right now: the virtual controller's pressed
 buttons and stick caps, drawn on the controller in use (so they show where your buttons are;
-below it, which controller games see), a bar per trigger, the keys and mouse buttons it
-holds, and the layer. A config can be tried out this way without a game. Remapping pauses while the
+below it, which controller games see), a bar per trigger (named as on that controller), the
+keys and mouse buttons it holds, and the layer. A config can be tried out this way without a game. Remapping pauses while the
 window has the focus (see below); the panel then offers *Keep remapping active while this
 window is focused*. `doppelpad monitor` shows the controller's input in a terminal.
 
@@ -590,7 +596,7 @@ or its controller hotkey) turns it on:
 | Left / right on a list, slider or number field | Change its value |
 | A | Press the focused button, tick the box, step the list |
 | B | Back: close the menu or dialog, else drop the selection (what Escape does) |
-| LB / RB | Previous / next view (front, back, keyboard, mouse, analog, shortcuts, output) |
+| LB / RB | Previous / next view, in the toolbar's order (front, back, keyboard, mouse, analog, shortcuts, radial menus, config settings) |
 | LT / RT | Previous / next layer |
 | Start | Save the config |
 

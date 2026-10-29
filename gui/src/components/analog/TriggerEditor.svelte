@@ -31,7 +31,7 @@
     {#each SIDE_NAMES as side (side)}
       {@const cfg = triggerConfig(app.profile, side, def, app.layer)}
       {@const ref = app.layer === 0 ? def : triggerConfig(app.profile, side, def)}
-      {@const raw = app.primary ? triggerAxis(app.primary, side) : null}
+      {@const raw = app.primary ? triggerAxis(app.primary.state, side) : null}
       {@const name = controlLabel(SIDES[side].trigger, app.family)}
       {@const zones = triggerThresholds(cfg.zones, cfg.full_pull, zoneDefaults)}
       <section class="card">
