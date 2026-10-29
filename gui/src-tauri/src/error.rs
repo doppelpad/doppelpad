@@ -19,6 +19,8 @@ pub enum ErrorCode {
     SheetNotHtml,
     /// The service answered something else than the command asks for.
     ServiceAnswer,
+    /// `detail`, a path, is not in the library.
+    NotInLibrary,
     /// No update to install: there was no check, or it found none.
     NoUpdate,
     /// A portable copy cannot install an update over itself.
@@ -32,11 +34,12 @@ pub enum ErrorCode {
 
 impl ErrorCode {
     #[cfg(test)]
-    const ALL: [ErrorCode; 8] = [
+    const ALL: [ErrorCode; 9] = [
         ErrorCode::Failed,
         ErrorCode::NothingToAllow,
         ErrorCode::SheetNotHtml,
         ErrorCode::ServiceAnswer,
+        ErrorCode::NotInLibrary,
         ErrorCode::NoUpdate,
         ErrorCode::PortableUpdate,
         ErrorCode::PortableAutostart,

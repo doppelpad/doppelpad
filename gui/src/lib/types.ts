@@ -594,6 +594,7 @@ export type ErrorCode =
   | 'nothing_to_allow'
   | 'sheet_not_html'
   | 'service_answer'
+  | 'not_in_library'
   | 'no_update'
   | 'portable_update'
   | 'portable_autostart'

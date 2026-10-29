@@ -24,6 +24,16 @@ fn library_changed(app: &AppHandle) {
     crate::tray::refresh(app);
 }
 
+/// Refuse a path outside the library: the window only names games and configs in it, so
+/// anything else came from somewhere it should not (the commands write, delete and read files).
+fn in_library(app: &AppHandle, path: &Path) -> CmdResult<()> {
+    if library::contains(&app.state::<AppState>().library_dir(), path) {
+        Ok(())
+    } else {
+        Err(CmdError::with(ErrorCode::NotInLibrary, path.display()))
+    }
+}
+
 /// Change the games and configs on disk; when it worked, the service and the tray are told.
 fn library_change<T>(app: &AppHandle, change: impl FnOnce() -> CmdResult<T>) -> CmdResult<T> {
     let out = {
@@ -51,17 +61,20 @@ pub fn game_create(app: AppHandle, state: State<AppState>, name: String) -> CmdR
 
 #[tauri::command(async)]
 pub fn game_update(app: AppHandle, dir: PathBuf, meta: GameMeta) -> CmdResult<()> {
+    in_library(&app, &dir)?;
     library_change(&app, || library::update_game_meta(&dir, &meta).map_err(err))
 }
 
 #[tauri::command(async)]
 pub fn game_delete(app: AppHandle, dir: PathBuf) -> CmdResult<()> {
+    in_library(&app, &dir)?;
     library_change(&app, || library::delete_game(&dir).map_err(err))
 }
 
 /// Copy a game with its configs and picture (the copy has no programs).
 #[tauri::command(async)]
 pub fn game_duplicate(app: AppHandle, dir: PathBuf) -> CmdResult<Game> {
+    in_library(&app, &dir)?;
     library_change(&app, || library::duplicate_game(&dir).map_err(err))
 }
 
@@ -72,6 +85,7 @@ pub fn game_set_picture(
     dir: PathBuf,
     source: Option<PathBuf>,
 ) -> CmdResult<GameMeta> {
+    in_library(&app, &dir)?;
     library_change(&app, || {
         library::set_game_picture(&dir, source.as_deref()).map_err(err)
     })
@@ -79,7 +93,8 @@ pub fn game_set_picture(
 
 /// A game's picture as a `data:` URL, if it has one.
 #[tauri::command(async)]
-pub fn game_picture(dir: PathBuf) -> Option<String> {
+pub fn game_picture(app: AppHandle, dir: PathBuf) -> Option<String> {
+    in_library(&app, &dir).ok()?;
     library::game_picture(&dir)
 }
 
@@ -121,15 +136,17 @@ pub fn config_from_template(
     name: String,
     template: Template,
 ) -> CmdResult<PathBuf> {
+    in_library(&app, &game_dir)?;
     let profile = templates::profile(template, &name);
     library_change(&app, || {
         library::create_config_with(&game_dir, &profile).map_err(err)
     })
 }
 
-/// Write a game and its configs as one bundle file.
+/// Write a game and its configs as one bundle file, `out` (where the user chose).
 #[tauri::command(async)]
-pub fn game_export(dir: PathBuf, out: PathBuf) -> CmdResult<()> {
+pub fn game_export(app: AppHandle, dir: PathBuf, out: PathBuf) -> CmdResult<()> {
+    in_library(&app, &dir)?;
     bundle::export_game(&dir, &out).map_err(err)
 }
 
@@ -166,11 +183,12 @@ pub fn preset_save(state: State<AppState>, preset: LayerPreset) -> CmdResult<Pat
 }
 
 #[tauri::command(async)]
-pub fn preset_load(path: PathBuf) -> CmdResult<LayerPreset> {
+pub fn preset_load(app: AppHandle, path: PathBuf) -> CmdResult<LayerPreset> {
+    in_library(&app, &path)?;
     bundle::load_preset(&path).map_err(err)
 }
 
-/// Save a bindings sheet (an HTML page the editor made).
+/// Save a bindings sheet (an HTML page the editor made) where the user chose.
 #[tauri::command(async)]
 pub fn sheet_save(path: PathBuf, html: String) -> CmdResult<()> {
     let html_file = path
@@ -190,8 +208,12 @@ pub struct LoadedConfig {
     read_only: bool,
 }
 
+/// A config of the library, or an earlier version of one.
 #[tauri::command(async)]
-pub fn config_load(path: PathBuf) -> CmdResult<LoadedConfig> {
+pub fn config_load(app: AppHandle, path: PathBuf) -> CmdResult<LoadedConfig> {
+    if !library::contains(&dp_config::history_dir(), &path) {
+        in_library(&app, &path)?;
+    }
     let (profile, diags, format) = dp_config::load_with_format(&path).map_err(err)?;
     Ok(LoadedConfig {
         profile,
@@ -215,6 +237,7 @@ pub fn config_save(
     path: PathBuf,
     profile: Profile,
 ) -> CmdResult<Vec<Diagnostic>> {
+    in_library(&app, &path)?;
     let diags = dp_config::validate(&profile);
     if diags.has_errors() {
         return Ok(diags.into_vec());
@@ -234,6 +257,7 @@ pub fn config_versions(state: State<AppState>, path: PathBuf) -> Vec<history::Ve
 
 #[tauri::command(async)]
 pub fn config_create(app: AppHandle, game_dir: PathBuf, name: String) -> CmdResult<PathBuf> {
+    in_library(&app, &game_dir)?;
     library_change(&app, || {
         library::create_config(&game_dir, &name).map_err(err)
     })
@@ -241,11 +265,13 @@ pub fn config_create(app: AppHandle, game_dir: PathBuf, name: String) -> CmdResu
 
 #[tauri::command(async)]
 pub fn config_duplicate(app: AppHandle, path: PathBuf) -> CmdResult<PathBuf> {
+    in_library(&app, &path)?;
     library_change(&app, || library::duplicate_config(&path).map_err(err))
 }
 
 #[tauri::command(async)]
 pub fn config_delete(app: AppHandle, path: PathBuf) -> CmdResult<()> {
+    in_library(&app, &path)?;
     library_change(&app, || library::delete_config(&path).map_err(err))
 }
 
@@ -269,6 +295,7 @@ pub fn config_import(
     source: PathBuf,
     keep_launches: bool,
 ) -> CmdResult<Imported> {
+    in_library(&app, &game_dir)?;
     let (path, diags) = library_change(&app, || {
         library::import_into(&game_dir, &source, keep_launches).map_err(err)
     })?;

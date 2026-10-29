@@ -129,6 +129,20 @@ pub struct Library {
     pub errors: Vec<String>,
 }
 
+/// Whether `path` lies inside the folder `root` (not `root` itself), compared as absolute paths.
+/// A path that climbs with `..` never does, whatever it would land on.
+pub fn contains(root: &Path, path: &Path) -> bool {
+    if path
+        .components()
+        .any(|c| c == std::path::Component::ParentDir)
+    {
+        return false;
+    }
+    let absolute = |p: &Path| std::path::absolute(p).unwrap_or_else(|_| p.to_path_buf());
+    let (root, path) = (absolute(root), absolute(path));
+    path != root && path.starts_with(&root)
+}
+
 /// Whether two program names mean the same program: case-insensitively, and with or without
 /// `.exe`, so that a game listed by its Windows program is recognised where it runs natively,
 /// on macOS or Linux (`Hades.exe` and `Hades`).
@@ -936,6 +950,22 @@ mod tests {
         let lib = scan(root.path());
         assert_eq!(lib.config_for_process("game.EXE"), Some(loose));
         assert!(lib.config_for_process("other.exe").is_none());
+    }
+
+    #[test]
+    fn paths_inside_the_library() {
+        let root = tempfile::tempdir().unwrap();
+        let lib = root.path().join("profiles");
+        assert!(contains(&lib, &lib.join("halo").join("default.toml")));
+        assert!(contains(&lib, &lib.join("loose.toml")));
+        assert!(!contains(&lib, &lib), "the library itself");
+        assert!(!contains(
+            &lib,
+            &root.path().join("profiles-old").join("x.toml")
+        ));
+        assert!(!contains(&lib, &lib.join("..").join("elsewhere.toml")));
+        assert!(!contains(&lib, &lib.join("halo").join("..").join("x.toml")));
+        assert!(!contains(&lib, Path::new("C:/Windows/win.ini")));
     }
 
     #[test]
