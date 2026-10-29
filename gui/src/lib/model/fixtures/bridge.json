@@ -1,0 +1,297 @@
+{
+  "events": {
+    "open_files": "open-files",
+    "hint": "hint",
+    "overlay_patch": ":patch"
+  },
+  "limits": {
+    "zoom": [
+      80,
+      150
+    ],
+    "radial_sectors": 12,
+    "crosshairs": 10,
+    "pad_colors": [
+      "#3b82f6",
+      "#ef4444",
+      "#22c55e",
+      "#ec4899",
+      "#f59e0b",
+      "#a855f7"
+    ]
+  },
+  "pad_colors": {
+    "evdev:045e:028e:usb-0000:04:00.3-1/input0": "#ec4899",
+    "hid:a": "#ec4899",
+    "xinput:0": "#a855f7"
+  },
+  "error": {
+    "code": "not_in_library",
+    "detail": "C:\\elsewhere\\x.toml"
+  },
+  "error_codes": [
+    "failed",
+    "nothing_to_allow",
+    "sheet_not_html",
+    "service_answer",
+    "not_in_library",
+    "no_update",
+    "portable_update",
+    "portable_autostart",
+    "autostart_unsupported"
+  ],
+  "notices": [
+    "service-takeover"
+  ],
+  "update_info": {
+    "version": "0.8.0",
+    "current": "0.7.0",
+    "notes": "Faster"
+  },
+  "library": {
+    "games": [
+      {
+        "dir": "C:\\p\\racing",
+        "meta": {
+          "name": "Racing",
+          "processes": [
+            "racing.exe"
+          ],
+          "image": "cover.png",
+          "default_config": "fast.toml",
+          "order": 1,
+          "description": "Career"
+        },
+        "configs": [
+          {
+            "path": "C:\\p\\racing\\fast.toml",
+            "name": "Fast",
+            "error": null
+          }
+        ]
+      }
+    ],
+    "unsorted": [
+      {
+        "path": "C:\\p\\loose.toml",
+        "name": "loose",
+        "error": "line 1: unknown field `x`"
+      }
+    ],
+    "errors": [
+      "C:\\p\\broken\\game.toml: line 2: invalid type"
+    ]
+  },
+  "library_place": {
+    "dir": "D:\\Sync\\pads",
+    "default": "C:\\Users\\me\\AppData\\Roaming\\doppelpad\\profiles",
+    "is_default": false,
+    "portable": null
+  },
+  "library_targets": [
+    "empty",
+    "library",
+    "foreign"
+  ],
+  "library_moved": {
+    "dir": "D:\\Sync\\pads",
+    "moved_from": "C:\\p",
+    "left_behind": 0
+  },
+  "loaded_config": {
+    "profile": {
+      "name": "Racing",
+      "mappings": []
+    },
+    "diagnostics": [
+      {
+        "severity": "warning",
+        "path": "mappings[0] (A)",
+        "message": "pause longer than a minute"
+      }
+    ],
+    "read_only": false
+  },
+  "imported": {
+    "path": "C:\\p\\racing\\shared.toml",
+    "diagnostics": [
+      {
+        "severity": "warning",
+        "path": "mappings[0] (A)",
+        "message": "pause longer than a minute"
+      }
+    ]
+  },
+  "versions": [
+    {
+      "path": "C:\\history\\racing\\fast\\1793313942372.toml",
+      "time_ms": 1793313942372
+    }
+  ],
+  "bundle_launches": {
+    "launches": [],
+    "unchecked": [
+      {
+        "file": "future.toml",
+        "error": "made by a newer Doppelpad (format 2; this one reads up to 1)"
+      }
+    ]
+  },
+  "presets": [
+    {
+      "name": "Driving",
+      "path": "C:\\p\\presets\\driving.toml"
+    }
+  ],
+  "installed_games": [
+    {
+      "store": "steam",
+      "name": "Hades",
+      "dir": "C:\\Steam\\steamapps\\common\\Hades",
+      "programs": [
+        "Hades.exe"
+      ],
+      "cover": "C:\\Steam\\appcache\\librarycache\\1145360_library_600x900.jpg"
+    }
+  ],
+  "running_programs": [
+    {
+      "exe": "game.exe",
+      "title": "The Game"
+    }
+  ],
+  "rewasd_status": {
+    "service": "Mapping Service",
+    "programs": [
+      "tray.exe"
+    ]
+  },
+  "hint": {
+    "id": "steam_input",
+    "game": "Racing"
+  },
+  "osd_events": [
+    {
+      "kind": "remap_on"
+    },
+    {
+      "kind": "remap_off"
+    },
+    {
+      "kind": "slot",
+      "slot": 2,
+      "config": "Racing › Fast"
+    },
+    {
+      "kind": "layer",
+      "layer": 1,
+      "name": "Shift"
+    },
+    {
+      "kind": "connected",
+      "name": "DualSense"
+    },
+    {
+      "kind": "disconnected",
+      "name": "DualSense"
+    },
+    {
+      "kind": "battery_low",
+      "name": "DualSense",
+      "level": 35
+    },
+    {
+      "kind": "battery_critical",
+      "name": "DualSense",
+      "level": 15
+    },
+    {
+      "kind": "steam_input",
+      "game": "Racing"
+    },
+    {
+      "kind": "screenshot",
+      "file": "Racing 2026-10-30 00-01-02.png",
+      "error": null
+    },
+    {
+      "kind": "test"
+    }
+  ],
+  "osd_screen": {
+    "name": "\\\\.\\DISPLAY2",
+    "x": 1920,
+    "y": 0
+  },
+  "radial": {
+    "menu": {
+      "layer": 1,
+      "select": "right_stick",
+      "apply": "release",
+      "delay_ms": 0,
+      "tint": 0.0,
+      "scale": 1.0,
+      "position": "center",
+      "offset": [
+        0,
+        0
+      ],
+      "sectors": []
+    },
+    "pointed": 1,
+    "images": [
+      "data:image/png;base64,iVBORw==",
+      null
+    ],
+    "cursor": [
+      960.0,
+      540.0
+    ]
+  },
+  "radial_pointed": {
+    "pointed": 2
+  },
+  "pad_overlay": {
+    "device": {
+      "id": "hid:pad",
+      "name": "DualSense",
+      "family": "dual_sense",
+      "backend": "hid",
+      "vendor_id": 1356,
+      "product_id": 3302,
+      "state": {
+        "buttons": 0,
+        "axes": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "motion": null,
+        "touch": [
+          null,
+          null
+        ]
+      },
+      "gyro_calibration": null,
+      "battery": null,
+      "raw": null,
+      "mirror": false
+    },
+    "opacity": 90,
+    "corner": "top_left"
+  },
+  "mappings_overlay": {
+    "profile": {
+      "name": "Racing",
+      "mappings": []
+    },
+    "layer": 1,
+    "family": "dual_sense",
+    "lang": "en",
+    "opacity": 90,
+    "corner": "top_right"
+  }
+}

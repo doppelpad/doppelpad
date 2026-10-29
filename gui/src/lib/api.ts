@@ -1,8 +1,12 @@
-// Typed wrappers around the Rust commands in gui/src-tauri/src/commands.rs.
+// Typed wrappers around the Rust commands in gui/src-tauri/src/commands/.
 
 import { Channel, invoke } from '@tauri-apps/api/core';
+import { has, t } from './i18n/index.svelte';
 import type {
+  BundleLaunches,
   Catalog,
+  CmdError,
+  ConfigVersion,
   DeviceGroup,
   DiagMsg,
   Driver,
@@ -14,6 +18,7 @@ import type {
   Hotkeys,
   HttpSettings,
   Imported,
+  InstalledGame,
   Launch,
   LayerPreset,
   Library,
@@ -27,10 +32,14 @@ import type {
   PresetEntry,
   Profile,
   RewasdStatus,
+  RunningProgram,
   RuntimeOptions,
   Template,
   UpdateInfo,
 } from './types';
+
+/** Events the app sends the main window: bundles opened from the file manager (`string[]`) and hints (`Hint`). */
+export const EVENTS = { openFiles: 'open-files', hint: 'hint' } as const;
 
 export const api = {
   catalog: () => invoke<Catalog>('catalog'),
@@ -46,10 +55,9 @@ export const api = {
   /** The game's picture as a `data:` URL. */
   gamePicture: (dir: string) => invoke<string | null>('game_picture', { dir }),
   /** Programs with a visible window now. */
-  runningPrograms: () => invoke<{ exe: string; title: string }[]>('running_programs'),
+  runningPrograms: () => invoke<RunningProgram[]>('running_programs'),
   /** Games the local stores (Steam, Epic, GOG) have installed. */
-  installedGames: () =>
-    invoke<{ store: 'steam' | 'epic' | 'gog'; name: string; dir: string; programs: string[]; cover: string | null }[]>('installed_games'),
+  installedGames: () => invoke<InstalledGame[]>('installed_games'),
   /** A new game from a store's game, with its program and cover. */
   gameCreateFromStore: (name: string, program: string | null, cover: string | null) =>
     invoke<Game>('game_create_from_store', { name, program, cover }),
@@ -61,7 +69,10 @@ export const api = {
     invoke<string>('config_from_template', { gameDir, name, template }),
   openDriverPage: (driver: Driver) => invoke<void>('open_driver_page', { driver }),
   gameExport: (dir: string, out: string) => invoke<void>('game_export', { dir, out }),
-  gameLaunches: (file: string) => invoke<Launch[]>('game_launches', { file }),
+  /** The launch commands in a game bundle's readable configs. */
+  gameLaunches: (file: string) => invoke<BundleLaunches>('game_launches', { file }).then((found) => found.launches),
+  /** The launch commands in a game bundle's configs, and the configs that cannot be checked for them. */
+  bundleLaunches: (file: string) => invoke<BundleLaunches>('game_launches', { file }),
   gameImport: (file: string, keepLaunches: boolean) => invoke<Game>('game_import', { file, keepLaunches }),
   presetList: () => invoke<PresetEntry[]>('preset_list'),
   presetSave: (preset: LayerPreset) => invoke<string>('preset_save', { preset }),
@@ -73,7 +84,7 @@ export const api = {
   /** Validate a profile being edited, without saving it. */
   configCheck: (profile: Profile) => invoke<DiagMsg[]>('config_check', { profile }),
   /** Earlier versions kept of a config, the newest first. */
-  configVersions: (path: string) => invoke<{ path: string; time_ms: number }[]>('config_versions', { path }),
+  configVersions: (path: string) => invoke<ConfigVersion[]>('config_versions', { path }),
   configCreate: (gameDir: string, name: string) => invoke<string>('config_create', { gameDir, name }),
   configDuplicate: (path: string) => invoke<string>('config_duplicate', { path }),
   configDelete: (path: string) => invoke<void>('config_delete', { path }),
@@ -165,7 +176,16 @@ export const api = {
   },
 };
 
-/** Error text from a rejected command. */
+/** Whether `e` is a command's error with a code (`CmdError` in gui/src-tauri/src/error.rs). */
+function isCmdError(e: unknown): e is CmdError {
+  return typeof e === 'object' && e !== null && typeof (e as CmdError).code === 'string' && typeof (e as CmdError).detail === 'string';
+}
+
+/** Error text from a rejected command, in the window's language where the app words it (`errors.<code>`). */
 export function errorText(e: unknown): string {
+  if (isCmdError(e)) {
+    const key = `errors.${e.code}`;
+    return has(key) ? t(key, { detail: e.detail }) : e.detail || e.code;
+  }
   return typeof e === 'string' ? e : e instanceof Error ? e.message : JSON.stringify(e);
 }

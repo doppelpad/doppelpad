@@ -90,12 +90,17 @@ pub(crate) fn watch(app: AppHandle, live: SharedLive) {
     #[cfg_attr(not(windows), allow(clippy::let_unit_value))]
     let mut magnifier = Magnifier::default();
     let mut shown: Option<Crosshair> = None;
+    let mut generation = 0;
     loop {
         std::thread::sleep(WATCH_INTERVAL);
-        let want = live.get().crosshair.clone();
-        if want == shown {
+        let Some((g, state)) = live.since(generation) else {
+            continue;
+        };
+        generation = g;
+        if state.crosshair == shown {
             continue;
         }
+        let want = state.crosshair.clone();
         match &want {
             Some(c) => show(&app, c, &mut magnifier),
             None => {

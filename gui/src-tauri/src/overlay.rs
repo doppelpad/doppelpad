@@ -20,7 +20,8 @@ use tauri::{
     WebviewWindow, WebviewWindowBuilder,
 };
 
-use crate::settings::Corner;
+use crate::settings::{Corner, ScreenRef};
+use crate::state::lock;
 
 /// Gap between an overlay and the edge of the monitor's work area, in logical pixels.
 const MARGIN: f64 = 24.0;
@@ -31,7 +32,7 @@ pub fn spawn_watcher(
     name: &str,
     watch: impl FnOnce(AppHandle, SharedLive) + Send + 'static,
 ) -> tauri::Result<()> {
-    let live = app.state::<crate::commands::AppState>().live.clone();
+    let live = app.state::<crate::state::AppState>().live.clone();
     let handle = app.clone();
     std::thread::Builder::new()
         .name(name.into())
@@ -126,19 +127,15 @@ pub fn show_content(
     placement: Placement,
     content: &impl Serialize,
 ) -> Option<WebviewWindow> {
-    let (w, created) = ensure(app, kind, placement)?;
-    present(app, &w, created, kind, content);
+    let w = ensure(app, kind, placement)?;
+    present(app, &w, kind, content);
     Some(w)
 }
 
-/// The overlay window of `kind` at `placement`, created hidden on first use; also whether it
-/// was created now (its page is still loading). Failures are logged.
-pub fn ensure(
-    app: &AppHandle,
-    kind: OverlayKind,
-    placement: Placement,
-) -> Option<(WebviewWindow, bool)> {
-    let (w, created) = match window(app, kind) {
+/// The overlay window of `kind` at `placement`, created hidden on first use. Failures are
+/// logged.
+pub fn ensure(app: &AppHandle, kind: OverlayKind, placement: Placement) -> Option<WebviewWindow> {
+    let w = match window(app, kind) {
         Ok(w) => w,
         Err(e) => {
             tracing::warn!("cannot create the {kind} overlay: {e}");
@@ -148,28 +145,19 @@ pub fn ensure(
     if let Err(e) = place(app, &w, placement) {
         tracing::warn!("cannot place the {kind} overlay: {e}");
     }
-    Some((w, created))
+    Some(w)
 }
 
-/// Show `content` in `w`, the overlay window of `kind`. A page that is still loading
-/// (`created`) asks for it with `overlay_ready` and then shows.
-fn present(
-    app: &AppHandle,
-    w: &WebviewWindow,
-    created: bool,
-    kind: OverlayKind,
-    content: &impl Serialize,
-) {
+/// Show `content` in `w`, the overlay window of `kind`. A page that is still loading asks for
+/// it with `overlay_ready` and then shows.
+fn present(app: &AppHandle, w: &WebviewWindow, kind: OverlayKind, content: &impl Serialize) {
     let Ok(value) = serde_json::to_value(content) else {
         return;
     };
     let ready = {
         let state = app.state::<Overlays>();
-        let mut pages = state.pages.lock().unwrap();
+        let mut pages = lock(&state.pages);
         let page = pages.entry(kind).or_default();
-        if created {
-            page.ready = false;
-        }
         page.content = Some(value.clone());
         page.ready
     };
@@ -180,11 +168,40 @@ fn present(
     }
 }
 
+/// The event that changes some fields of what the overlay of `kind` shows: small changes
+/// (the sector pointed at) travel without the rest (the menu with its pictures).
+pub fn patch_event(kind: OverlayKind) -> String {
+    format!("{}:patch", label(kind))
+}
+
+/// Change the fields of `patch` (an object) in what the overlay of `kind` shows; nothing
+/// while it shows nothing.
+pub fn patch_content(app: &AppHandle, kind: OverlayKind, patch: &impl Serialize) {
+    let Ok(Value::Object(fields)) = serde_json::to_value(patch) else {
+        return;
+    };
+    let ready = {
+        let state = app.state::<Overlays>();
+        let mut pages = lock(&state.pages);
+        let Some(page) = pages.get_mut(&kind) else {
+            return;
+        };
+        let Some(Value::Object(content)) = &mut page.content else {
+            return;
+        };
+        content.extend(fields.clone());
+        page.ready
+    };
+    if ready {
+        let _ = app.emit_to(label(kind), &patch_event(kind), Value::Object(fields));
+    }
+}
+
 /// Hide the overlay of `kind` and forget what it showed. The page forgets it too: the window
 /// shows again before the next content reaches the page, and would show the old one meanwhile
 /// (the last radial menu with its last sector lit).
 pub fn dismiss(app: &AppHandle, kind: OverlayKind) {
-    let ready = match app.state::<Overlays>().pages.lock().unwrap().get_mut(&kind) {
+    let ready = match lock(&app.state::<Overlays>().pages).get_mut(&kind) {
         Some(page) => {
             page.content = None;
             page.ready
@@ -204,7 +221,7 @@ pub fn dismiss(app: &AppHandle, kind: OverlayKind) {
 pub fn overlay_ready(window: WebviewWindow, state: State<Overlays>) -> Option<Value> {
     let kind = OverlayKind::from_label(window.label())?;
     let content = {
-        let mut pages = state.pages.lock().unwrap();
+        let mut pages = lock(&state.pages);
         let page = pages.entry(kind).or_default();
         page.ready = true;
         page.content.clone()
@@ -215,13 +232,18 @@ pub fn overlay_ready(window: WebviewWindow, state: State<Overlays>) -> Option<Va
     content
 }
 
-/// The overlay window of `kind`, created hidden on first use. Returns whether it was created
-/// now (its page is still loading).
-fn window(app: &AppHandle, kind: OverlayKind) -> tauri::Result<(WebviewWindow, bool)> {
+/// The overlay window of `kind`, created hidden on first use.
+fn window(app: &AppHandle, kind: OverlayKind) -> tauri::Result<WebviewWindow> {
     let label = label(kind);
     if let Some(w) = app.get_webview_window(&label) {
-        return Ok((w, false));
+        return Ok(w);
     }
+    // The new page asks for its content once it has loaded, which can be before `build`
+    // returns: it must find itself not ready yet now, not after it said it is.
+    lock(&app.state::<Overlays>().pages)
+        .entry(kind)
+        .or_default()
+        .ready = false;
     let w = WebviewWindowBuilder::new(app, &label, WebviewUrl::App("overlay.html".into()))
         .title("Doppelpad overlay")
         .transparent(true)
@@ -256,7 +278,7 @@ fn window(app: &AppHandle, kind: OverlayKind) -> tauri::Result<(WebviewWindow, b
         // SAFETY: the window's own NSWindow, on the main thread.
         unsafe { dp_platform::macos::overlay::prepare(ns) }
     });
-    Ok((w, true))
+    Ok(w)
 }
 
 /// Monitors with the primary one first.
@@ -276,6 +298,18 @@ pub fn monitors(app: &AppHandle) -> Vec<Monitor> {
 /// The primary monitor.
 pub fn primary_monitor(app: &AppHandle) -> Option<Monitor> {
     monitors(app).into_iter().next()
+}
+
+/// [`monitors`] by name and place, as the settings keep a monitor.
+pub fn screens(app: &AppHandle) -> Vec<ScreenRef> {
+    monitors(app)
+        .iter()
+        .map(|m| ScreenRef {
+            name: m.name().cloned().unwrap_or_default(),
+            x: m.position().x,
+            y: m.position().y,
+        })
+        .collect()
 }
 
 /// Size and move `w` to `placement`; without monitors it stays as it is.

@@ -1685,5 +1685,16 @@
     "hint": "D-pad or left stick move the focus, A presses, B goes back or closes, LB and RB switch views, LT and RT switch layers, Start saves. Pressing a control then no longer selects it.",
     "on": "The controller drives the app",
     "off": "The controller selects controls again"
+  },
+  "errors": {
+    "failed": "{detail}",
+    "nothing_to_allow": "There is nothing to allow on this system.",
+    "sheet_not_html": "A bindings sheet is saved as an .html file.",
+    "service_answer": "The remapping service gave an unexpected answer.",
+    "not_in_library": "{detail} is not in the configs folder.",
+    "no_update": "There is no update to install. Check for one first.",
+    "portable_update": "This is a portable copy: replace its files with the new version from the releases page.",
+    "portable_autostart": "A portable copy does not start with the system.",
+    "autostart_unsupported": "Starting with the system works on Windows and macOS only."
   }
 }

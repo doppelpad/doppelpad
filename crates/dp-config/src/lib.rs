@@ -9,6 +9,7 @@ mod format;
 pub mod history;
 pub mod launches;
 pub mod library;
+pub mod picture;
 pub mod relocate;
 pub mod store;
 pub mod templates;
@@ -24,7 +25,10 @@ pub use dirs::{
 };
 use dp_core::profile::Profile;
 pub use format::{FileFormat, Migration};
-pub use store::{Loaded, load_toml_or_default, save_toml, set_aside, write_atomic};
+pub use store::{
+    Loaded, SaveError, load_toml_or_default, save_toml, save_toml_with_header, set_aside,
+    write_atomic,
+};
 pub use validate::validate;
 
 #[derive(Debug, thiserror::Error)]

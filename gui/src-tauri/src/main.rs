@@ -7,27 +7,30 @@
 mod autostart;
 mod commands;
 mod crosshair;
+mod error;
 mod logging;
+mod main_window;
 mod open_file;
 mod osd;
 mod overlay;
 mod pad_overlay;
 mod radial;
 mod settings;
+mod state;
 #[cfg(test)]
 mod tests;
 mod tray;
 mod updates;
 
-use std::sync::atomic::{AtomicBool, AtomicU64};
-use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use dp_service::{HostOptions, Ipc, ServiceOptions};
-use tauri::{Emitter, Manager, WebviewWindow, WebviewWindowBuilder, WindowEvent};
+use tauri::{Manager, WindowEvent};
 
-use crate::commands::{AppState, MAIN_WINDOW, Notice};
+use crate::commands::system::Notice;
+use crate::main_window::MAIN_WINDOW;
 use crate::settings::GuiSettings;
+use crate::state::AppState;
 
 /// How often, and at most how long, the app asks whether a service it stopped is gone.
 const TAKEOVER_POLL: Duration = Duration::from_millis(50);
@@ -53,58 +56,15 @@ pub(crate) fn webview_data_dir() -> Option<std::path::PathBuf> {
     dp_config::portable_dir().map(|dir| dir.join("webview"))
 }
 
-/// Create the main window from its config entry, with the title bar drawn by the app:
-/// macOS keeps its native traffic lights over the app's header, Windows and Linux get
-/// no system frame and the header draws its own window buttons. A hidden window still
-/// loads the frontend, so its start-up checks run.
-fn create_main_window(app: &tauri::App, visible: bool) -> tauri::Result<WebviewWindow> {
-    let config = app
-        .config()
-        .app
-        .windows
-        .iter()
-        .find(|w| w.label == MAIN_WINDOW)
-        .expect("main window config");
-    let mut builder = WebviewWindowBuilder::from_config(app.handle(), config)?.visible(visible);
-    if let Some(dir) = webview_data_dir() {
-        builder = builder.data_directory(dir);
-    }
-    #[cfg(target_os = "macos")]
-    let builder = builder
-        .title_bar_style(tauri::TitleBarStyle::Overlay)
-        .hidden_title(true)
-        // Centres the buttons in the 52 px header (see ProfilePanel.svelte). tao stretches
-        // the title bar to button height + y, and AppKit keeps the 14 px buttons 9 px above
-        // its bottom edge, so their centre lands at y - 2 (measured on macOS 26).
-        .traffic_light_position(tauri::LogicalPosition::new(18.0, 28.0));
-    #[cfg(not(target_os = "macos"))]
-    let builder = builder.decorations(false);
-    builder.build()
-}
-
-/// Maximize the main window if it is larger than the work area of its screen, such as a
-/// 1280 × 800 handheld, where its right end with the window buttons would be off screen.
-pub(crate) fn fit_to_screen(window: &WebviewWindow) {
-    if window.is_maximized().unwrap_or(true) {
-        return;
-    }
-    if let (Ok(Some(monitor)), Ok(size)) = (window.current_monitor(), window.inner_size()) {
-        let area = monitor.work_area().size;
-        if size.width > area.width || size.height > area.height {
-            let _ = window.maximize();
-        }
-    }
-}
-
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
-            tray::show_main(app);
-            // A game bundle opened from Explorer while the app runs.
-            let files = open_file::bundles_in(&args, std::path::Path::new(&cwd));
-            if !files.is_empty() {
-                let _ = app.emit_to(MAIN_WINDOW, open_file::OPEN_EVENT, files);
-            }
+            main_window::show_main(app);
+            // A game bundle opened from Explorer while the app runs (or still starts).
+            open_file::opened(
+                app,
+                open_file::bundles_in(&args, std::path::Path::new(&cwd)),
+            );
         }))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -126,22 +86,17 @@ fn main() {
                 ipc: Ipc::NoShutdown,
             })?;
 
-            app.manage(AppState {
-                live: handle.live_shared(),
-                service: handle,
-                disk: Mutex::default(),
-                settings: Mutex::new(GuiSettings::load()),
-                profiles_dir: Mutex::new(profiles_dir),
-                notices: Mutex::new(notices),
-                open_files: Mutex::new(open_file::bundles_in(
-                    &std::env::args().collect::<Vec<_>>(),
-                    &std::env::current_dir().unwrap_or_default(),
-                )),
-                open_files_taken: AtomicBool::new(false),
-                live_generation: Arc::new(AtomicU64::new(0)),
-                main_focused: AtomicBool::new(false),
-                min_size_held: AtomicBool::new(false),
-            });
+            let open_files = open_file::bundles_in(
+                &std::env::args().collect::<Vec<_>>(),
+                &std::env::current_dir().unwrap_or_default(),
+            );
+            app.manage(AppState::new(
+                handle,
+                GuiSettings::load(),
+                profiles_dir,
+                notices,
+                open_files,
+            ));
             #[cfg(target_os = "linux")]
             overlay::layer::detect();
             app.manage(overlay::Overlays::default());
@@ -149,39 +104,40 @@ fn main() {
             app.manage(updates::PendingUpdate::default());
             tray::create(app.handle())?;
             overlay::spawn_watcher(app.handle(), "osd", osd::watch)?;
+            overlay::spawn_watcher(app.handle(), "steam-hint", osd::watch_steam)?;
             overlay::spawn_watcher(app.handle(), "crosshair", crosshair::watch)?;
             overlay::spawn_watcher(app.handle(), "radial", radial::watch)?;
             overlay::spawn_watcher(app.handle(), "pad-overlay", pad_overlay::watch)?;
 
             // Started with Windows: only the tray icon shows.
             let visible = !autostart::started_hidden();
-            tray::show_in_dock(app.handle(), visible);
-            let window = create_main_window(app, visible)?;
-            commands::apply_zoom(&window, &app.state::<AppState>());
+            main_window::show_in_dock(app.handle(), visible);
+            let window = main_window::create_main_window(app, visible)?;
+            main_window::apply_zoom(&window, &app.state::<AppState>());
             // Only after the zoom: on Windows, setting the minimum size un-maximizes the
-            // window. A hidden window is fitted when it shows (`tray::show_main`).
+            // window. A hidden window is fitted when it shows (`main_window::show_main`).
             if visible {
-                fit_to_screen(&window);
+                main_window::fit_to_screen(&window);
             }
             let app_handle = app.handle().clone();
             window.on_window_event(move |event| {
                 let state = app_handle.state::<AppState>();
                 match event {
                     // Pause remapping while editing so mapped keys don't reach the editor.
-                    WindowEvent::Focused(focused) => state.set_main_focused(*focused),
+                    WindowEvent::Focused(focused) => state.set_main_focused(&app_handle, *focused),
                     // Closing hides to the tray; remapping keeps running.
                     WindowEvent::CloseRequested { api, .. } => {
                         api.prevent_close();
                         if let Some(w) = app_handle.get_webview_window(MAIN_WINDOW) {
                             let _ = w.hide();
                         }
-                        tray::show_in_dock(&app_handle, false);
+                        main_window::show_in_dock(&app_handle, false);
                         // A hidden window has no focus, whether or not Windows reports it.
-                        state.set_main_focused(false);
+                        state.set_main_focused(&app_handle, false);
                     }
                     WindowEvent::Resized(_) => {
                         if let Some(w) = app_handle.get_webview_window(MAIN_WINDOW) {
-                            commands::apply_held_min_size(&w, &state);
+                            main_window::apply_held_min_size(&w, &state);
                         }
                     }
                     _ => {}
@@ -190,80 +146,80 @@ fn main() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            commands::catalog,
-            commands::library_scan,
-            commands::game_create,
-            commands::game_update,
-            commands::game_delete,
-            commands::game_duplicate,
-            commands::running_programs,
-            commands::game_set_picture,
-            commands::game_picture,
-            commands::foreground_program,
-            commands::installed_games,
-            commands::game_create_from_store,
-            commands::game_create_template,
-            commands::config_from_template,
-            commands::open_driver_page,
-            commands::game_export,
-            commands::game_launches,
-            commands::game_import,
-            commands::preset_list,
-            commands::preset_save,
-            commands::preset_load,
-            commands::sheet_save,
-            commands::config_load,
-            commands::config_save,
-            commands::config_check,
-            commands::config_versions,
-            commands::config_create,
-            commands::config_duplicate,
-            commands::config_delete,
-            commands::config_import_launches,
-            commands::config_import,
-            commands::reveal,
-            commands::apply_to_slot,
-            commands::select_slot,
-            commands::clear_slot,
-            commands::own_slots,
-            commands::set_remap,
-            commands::set_auto_switch,
-            commands::set_lights,
-            commands::set_blocked,
-            commands::set_groups,
-            commands::set_power_off_after,
-            commands::set_switch2_bluetooth,
-            commands::power_off,
-            commands::set_layout,
-            commands::forget_layout,
-            commands::set_dsu,
-            commands::set_runtime_options,
-            commands::set_http,
-            commands::new_http_token,
-            commands::set_preferred_device,
-            commands::refresh_drivers,
-            commands::rescan_devices,
-            commands::hotkeys_get,
-            commands::hotkeys_set,
-            commands::hotkeys_pause,
-            commands::test_turn,
-            commands::gyro_calibrate,
-            commands::gyro_auto,
-            commands::gyro_reset,
-            commands::rewasd_status,
-            commands::rewasd_quit,
-            commands::live_subscribe,
-            commands::settings_get,
-            commands::settings_set,
-            commands::autostart_get,
-            commands::autostart_set,
-            commands::window_show,
-            commands::library_place,
-            commands::library_target,
-            commands::library_move,
-            commands::log_file,
-            commands::take_notices,
-            commands::take_open_files,
+            commands::system::catalog,
+            commands::library::library_scan,
+            commands::library::game_create,
+            commands::library::game_update,
+            commands::library::game_delete,
+            commands::library::game_duplicate,
+            commands::system::running_programs,
+            commands::library::game_set_picture,
+            commands::library::game_picture,
+            commands::system::foreground_program,
+            commands::system::installed_games,
+            commands::library::game_create_from_store,
+            commands::library::game_create_template,
+            commands::library::config_from_template,
+            commands::system::open_driver_page,
+            commands::library::game_export,
+            commands::library::game_launches,
+            commands::library::game_import,
+            commands::library::preset_list,
+            commands::library::preset_save,
+            commands::library::preset_load,
+            commands::library::sheet_save,
+            commands::library::config_load,
+            commands::library::config_save,
+            commands::library::config_check,
+            commands::library::config_versions,
+            commands::library::config_create,
+            commands::library::config_duplicate,
+            commands::library::config_delete,
+            commands::library::config_import_launches,
+            commands::library::config_import,
+            commands::system::reveal,
+            commands::service::apply_to_slot,
+            commands::service::select_slot,
+            commands::service::clear_slot,
+            commands::service::own_slots,
+            commands::service::set_remap,
+            commands::service::set_auto_switch,
+            commands::service::set_lights,
+            commands::service::set_blocked,
+            commands::service::set_groups,
+            commands::service::set_power_off_after,
+            commands::service::set_switch2_bluetooth,
+            commands::service::power_off,
+            commands::service::set_layout,
+            commands::service::forget_layout,
+            commands::service::set_dsu,
+            commands::service::set_runtime_options,
+            commands::service::set_http,
+            commands::service::new_http_token,
+            commands::service::set_preferred_device,
+            commands::service::refresh_drivers,
+            commands::service::rescan_devices,
+            commands::service::hotkeys_get,
+            commands::service::hotkeys_set,
+            commands::service::hotkeys_pause,
+            commands::service::test_turn,
+            commands::service::gyro_calibrate,
+            commands::service::gyro_auto,
+            commands::service::gyro_reset,
+            commands::system::rewasd_status,
+            commands::system::rewasd_quit,
+            commands::service::live_subscribe,
+            commands::settings::settings_get,
+            commands::settings::settings_set,
+            commands::settings::autostart_get,
+            commands::settings::autostart_set,
+            commands::system::window_show,
+            commands::library::library_place,
+            commands::library::library_target,
+            commands::library::library_move,
+            commands::system::log_file,
+            commands::system::take_notices,
+            commands::system::take_open_files,
             updates::update_check,
             updates::update_install,
             overlay::overlay_ready,
@@ -289,7 +245,7 @@ fn main() {
             tauri::RunEvent::Reopen {
                 has_visible_windows: false,
                 ..
-            } => tray::show_main(app),
+            } => main_window::show_main(app),
             _ => {}
         });
 }

@@ -488,7 +488,9 @@ whether to import the game. A config can start programs (the
 *launch* command), so a shared one could run something harmful: when a game or a JSON profile
 you import has launch commands, the app first lists each program with its arguments and where
 it sits. **Import without these** (the default) leaves them out, **Import with them** keeps
-them, *Cancel* imports nothing. **Save bindings sheet …** in a config's
+them, *Cancel* imports nothing. A game's config that this version cannot read (one made by a
+newer Doppelpad, say) cannot be checked for launch commands, so an import without them leaves
+that config out too. **Save bindings sheet …** in a config's
 menu writes an HTML page listing every layer's mappings and routes, to print from a browser. A
 layer's menu can **Save as preset …** (its settings, mappings and routes); presets of all configs
 appear in every layer menu as **Insert preset: …**, which adds them as a new layer (layer
@@ -607,7 +609,8 @@ Two overlays show over games, switched on and off by a controller hotkey or a ma
   the trigger behind it is pulled. It hides after a few seconds without input and comes
   back with the next one;
 - the **mappings overlay**, the running config's mappings on the active layer with their
-  descriptions, in columns of up to 40 rows (120 rows at most). It follows layer changes.
+  descriptions, in columns of up to 40 rows (120 rows at most). It follows layer changes and
+  a saved config.
 
 *Settings → Display → Overlays* picks their corner, the controller's size, both opacities and
 when the controller hides. Like the notifications they let clicks through and never take the
@@ -654,7 +657,10 @@ not show it) or could not (why). They also show
 while the window is closed to the tray, but not while the window has focus (it shows the same
 state) or in the first seconds after start. *Settings → Display → On-screen notifications*
 picks the events, the monitor and corner, the size, opacity and display time, and whether a
-layer message stays up while the layer is active; *Show a sample* previews them.
+layer message stays up while the layer is active; *Show a sample* previews them. The chosen
+monitor is kept by its name and place, so the messages stay on it when other monitors come and
+go. A layer message that stays up goes when the window takes the focus or the setting is
+switched off, and comes back afterwards while the layer is still active.
 
 Each message is a small window that stays above other windows, lets clicks through and never
 takes the focus, so it works over windowed and borderless games. Games in exclusive full-screen
@@ -686,7 +692,7 @@ reports a running reWASD.
 | `%APPDATA%\doppelpad\calibration.toml` | Gyro calibration per controller (also used by `doppelpad daemon`) |
 | `%APPDATA%\doppelpad\gui.toml` | Language, focus pause, press-to-select, what to do about a running reWASD, update checks, notifications, the controller and mappings overlays, whether the welcome guide is done, descriptions or actions in the editor, the questions turned off, zoom, controller navigation, the tray icons per controller |
 | `%LOCALAPPDATA%\doppelpad\logs\doppelpad-gui.log` | Log of the current run; the logs of the five runs before are kept as `doppelpad-gui.log.1` (the newest) to `.5` |
-| `%LOCALAPPDATA%\doppelpad\history\<game>\<config>\<time>.toml` | Earlier versions of each config, the last 20 |
+| `%LOCALAPPDATA%\doppelpad\history\<game>\<config>\<time>.toml` | Earlier versions of each config, the last 20 (`<game>` is `_loose` for the configs directly in the configs folder) |
 
 The app saves atomically (it writes a temporary file, then renames it). Before it
 overwrites a profile that it did not write itself, it keeps one `.bak` copy. Deleting
@@ -705,7 +711,8 @@ takes it back.
 *Settings → Files → Configs are stored in → Change…* moves the games, configs and layer
 presets to another folder, for example one that a cloud drive keeps in sync. Doppelpad
 copies every file, checks each copy, switches to the new folder (the slots and the open
-config follow their files) and only then removes the old files. The new folder must be empty
+config follow their files) and only then removes the old files; if remapping could not switch,
+the old files stay, and the app says so. The new folder must be empty
 or already hold a Doppelpad library: a folder synced from another computer is used as it is,
 and the current configs then stay where they were. A folder with other files is refused.
 *Reset to default* moves everything back to `%APPDATA%\doppelpad\profiles`. The app, the
@@ -719,8 +726,9 @@ An empty file named `portable` next to `doppelpad-gui.exe` (and `doppelpad.exe`)
 everything beside the app in a `data` folder: the settings, slots and hotkeys, the games and
 configs (`data\profiles`), the logs, the earlier versions of configs and the window's browser
 data. Copy the two programs and the `portable` file to a folder or a stick to use them
-there. A portable copy does not offer *Start with Windows*; *Settings → Files* says that it
-runs portable, and `doppelpad doctor` names the folder. The drivers (ViGEmBus, HidHide) still
+there. A portable copy does not offer *Start with Windows*, and it does not look for updates
+(the setup installs into Program Files): replace its programs with those of a new release.
+*Settings → Files* says that it runs portable, and `doppelpad doctor` names the folder. The drivers (ViGEmBus, HidHide) still
 have to be installed on each PC.
 
 ### Log file
@@ -758,7 +766,10 @@ npm run licenses              # re-generate THIRD_PARTY_LICENSES.md (see below)
 The GUI crate is not in the workspace's `default-members`, so `cargo build` and
 `cargo test` at the root build only the CLI. Use `cargo test -p dp-gui` for the bridge
 tests. They check that the frontend's key table, JSON shapes and default values match the
-Rust model, using the fixtures in `gui/src/lib/model/fixtures`. Regenerate them with
+Rust model, using the fixtures in `gui/src/lib/model/fixtures`: every type a command answers
+with or an event or overlay carries, the event names, the error codes, and the limits the
+catalog sends (zoom range, radial sectors, crosshairs, the controllers' tray colours), which the
+frontend tests also hold against the frontend's own copies. Regenerate them with
 `DOPPELPAD_UPDATE_FIXTURES=1 cargo test -p dp-gui`.
 
 The npm packages `@tauri-apps/api` and `@tauri-apps/plugin-dialog` are pinned to the minor
@@ -952,4 +963,6 @@ key (`doppelpad-updater.key.pub`).
 The UI is available in English and German (*Settings → General → Language*). Translations live
 in `gui/src/lib/i18n/{en,de}.json`. A test makes sure both files have the same keys and
 placeholders. To add a language, copy `en.json`, translate it and register it in
-`gui/src/lib/i18n/index.svelte.ts`. The tray menu takes its texts from the same files (`tray.*`).
+`gui/src/lib/i18n/index.svelte.ts`. The tray menu takes its texts from the same files
+(`tray.*`). Errors the app reports in its own words arrive in the window as codes, which it
+words with `errors.*`; a test checks that every code has a text in every file.

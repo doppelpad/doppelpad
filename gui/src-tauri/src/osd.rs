@@ -1,8 +1,10 @@
 //! On-screen notifications over games: remapping on/off, slot or config changes, layer
-//! changes, controllers coming and going, and screenshots. A watcher thread follows the service's live
-//! state like the tray does and shows each change for a few seconds in the `osd` overlay
-//! window; the overlay page words it in the app's language. Nothing shows while the main
-//! window has focus (it shows the same state) or in the first seconds after start.
+//! changes, controllers coming and going, and screenshots. A watcher thread follows the
+//! service's live state like the tray does and shows each change for a few seconds in the
+//! `osd` overlay window; the overlay page words it in the app's language. Nothing shows while
+//! the main window has focus (it shows the same state) or in the first seconds after start.
+//! The rules live in [`Osd::step`], apart from windows and threads; another watcher points at
+//! Steam Input when a game with a virtual controller comes to the front while Steam runs.
 
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
@@ -15,9 +17,10 @@ use dp_service::{LiveScreenshot, LiveState, SharedLive};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
 
-use crate::commands::{AppState, MAIN_WINDOW};
+use crate::main_window::MAIN_WINDOW;
 use crate::overlay::{self, OverlayKind, Placement};
 use crate::settings::{Corner, OsdSettings};
+use crate::state::{AppState, lock};
 
 const KIND: OverlayKind = OverlayKind::Osd;
 /// How often the watcher compares the live state with what it last saw.
@@ -105,6 +108,7 @@ impl Message {
     }
 }
 
+/// The notification overlay as the watcher, the Steam hint and the settings' sample share it.
 #[derive(Default)]
 pub struct OsdState {
     inner: Mutex<Inner>,
@@ -112,9 +116,26 @@ pub struct OsdState {
 
 #[derive(Default)]
 struct Inner {
-    /// When the current message goes away; `None` keeps it.
-    until: Option<Instant>,
+    on_screen: OnScreen,
     next_id: u64,
+}
+
+/// What the notification overlay shows.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum OnScreen {
+    #[default]
+    Nothing,
+    /// A message that goes away at this time.
+    Until(Instant),
+    /// A layer message that stays while its layer is active.
+    Kept,
+}
+
+impl OnScreen {
+    /// What shows after a message that stays for `keep` (`None`: kept) is shown at `now`.
+    fn after(now: Instant, keep: Option<Duration>) -> OnScreen {
+        keep.map_or(OnScreen::Kept, |d| OnScreen::Until(now + d))
+    }
 }
 
 /// The part of the live state notifications follow.
@@ -259,14 +280,115 @@ fn battery_events(devices: &[PadInfo], warned: &mut HashMap<String, Warned>) -> 
     out
 }
 
-/// Show `event` now, for `keep` or, with `None`, until the next message.
+/// How long `e` stays on screen with the settings `s`; `None` keeps it while its layer is
+/// active.
+fn keep_for(e: &Event, s: &OsdSettings) -> Option<Duration> {
+    match e {
+        Event::Layer { layer, .. } if s.keep_layer && *layer != 0 => None,
+        Event::Screenshot { .. } => Some(s.duration().min(SCREENSHOT_KEEP)),
+        _ => Some(s.duration()),
+    }
+}
+
+/// What the notification overlay is to do.
+#[derive(Clone, Debug, PartialEq)]
+enum Action {
+    /// Show a message, for a while or (`None`) while its layer is active.
+    Show(Event, Option<Duration>),
+    Hide,
+}
+
+/// The notification rules, apart from windows and threads: which changes of the live state
+/// show a message and for how long, and when a layer message that stays comes back or goes.
+struct Osd {
+    /// The live state as last seen.
+    seen: View,
+    /// The battery warning each controller got last.
+    warned: HashMap<String, Warned>,
+}
+
+impl Osd {
+    fn new(seen: View) -> Osd {
+        Osd {
+            seen,
+            warned: HashMap::new(),
+        }
+    }
+
+    /// What to do at `now` about the live state `view`, with the settings `s`, `quiet` while
+    /// nothing may show (notifications off, the app starting, the main window in front), and
+    /// `on_screen` what the overlay shows.
+    fn step(
+        &mut self,
+        view: &View,
+        s: &OsdSettings,
+        quiet: bool,
+        mut on_screen: OnScreen,
+        now: Instant,
+    ) -> Vec<Action> {
+        let mut out = Vec::new();
+        let show = |out: &mut Vec<Action>, on_screen: &mut OnScreen, e, keep: Option<Duration>| {
+            *on_screen = OnScreen::after(now, keep);
+            out.push(Action::Show(e, keep));
+        };
+        if *view != self.seen {
+            if !quiet {
+                for e in events(&self.seen, view, s) {
+                    let keep = keep_for(&e, s);
+                    show(&mut out, &mut on_screen, e, keep);
+                }
+            }
+            self.seen = view.clone();
+        }
+        if !quiet && s.battery {
+            for e in battery_events(&self.seen.devices, &mut self.warned) {
+                show(&mut out, &mut on_screen, e, Some(s.duration()));
+            }
+        }
+        let keep_layer = !quiet && s.layer && s.keep_layer && self.seen.layer != 0;
+        match on_screen {
+            OnScreen::Until(end) if now >= end => {
+                out.push(Action::Hide);
+                on_screen = OnScreen::Nothing;
+            }
+            // Gone quiet, "keep layer" switched off, or back on the main layer while quiet:
+            // a kept message would stay over the game, out of date.
+            OnScreen::Kept if !keep_layer => {
+                out.push(Action::Hide);
+                on_screen = OnScreen::Nothing;
+            }
+            _ => {}
+        }
+        // Another message replaced the layer message, or the quiet is over: it comes back.
+        if on_screen == OnScreen::Nothing && keep_layer {
+            let e = Event::Layer {
+                layer: self.seen.layer,
+                name: self.seen.layer_name.clone(),
+            };
+            show(&mut out, &mut on_screen, e, None);
+        }
+        out
+    }
+}
+
+/// Show `event` now, for `keep` or, with `None`, while its layer is active.
 pub fn notify(app: &AppHandle, event: Event, keep: Option<Duration>) {
-    let (lang, s) = {
-        let settings = app.state::<AppState>().settings.lock().unwrap().clone();
-        (settings.language, settings.osd)
+    let (lang, s) = app
+        .state::<AppState>()
+        .settings(|s| (s.language.clone(), s.osd.clone()));
+    // "Game › Config" for a slot's config file.
+    let event = match event {
+        Event::Slot {
+            slot,
+            config: Some(path),
+        } => Event::Slot {
+            slot,
+            config: Some(library::config_label(Path::new(&path))),
+        },
+        e => e,
     };
     let state = app.state::<OsdState>();
-    let mut inner = state.inner.lock().unwrap();
+    let mut inner = lock(&state.inner);
     inner.next_id += 1;
     let msg = Message {
         event,
@@ -276,29 +398,66 @@ pub fn notify(app: &AppHandle, event: Event, keep: Option<Duration>) {
         scale: s.scale,
         corner: s.corner,
     };
-    inner.until = keep.map(|d| Instant::now() + d);
+    inner.on_screen = OnScreen::after(Instant::now(), keep);
     drop(inner);
     let k = f64::from(s.scale) / 100.0;
     let placement = Placement::Corner {
-        monitor: s.monitor,
+        monitor: s.monitor_index(&overlay::screens(app)),
         corner: s.corner,
         size: (SIZE.0 * k, SIZE.1 * k),
     };
     overlay::show_content(app, KIND, placement, &msg);
 }
 
+/// Hide the message `shown`, unless another one replaced it meanwhile.
+fn hide(app: &AppHandle, shown: OnScreen) {
+    let state = app.state::<OsdState>();
+    let mut inner = lock(&state.inner);
+    if inner.on_screen != shown {
+        return;
+    }
+    inner.on_screen = OnScreen::Nothing;
+    drop(inner);
+    overlay::dismiss(app, KIND);
+}
+
+pub(crate) fn watch(app: AppHandle, live: SharedLive) {
+    let started = Instant::now();
+    let (mut generation, first) = live.since(0).unwrap_or_default();
+    let mut view = View::of(&first);
+    let mut osd = Osd::new(view.clone());
+    loop {
+        std::thread::sleep(WATCH_INTERVAL);
+        // A new view only when the live state changed; the times are checked on every pass.
+        if let Some((g, state)) = live.since(generation) {
+            generation = g;
+            view = View::of(&state);
+        }
+        let app_state = app.state::<AppState>();
+        let s = app_state.settings(|s| s.osd.clone());
+        let quiet = !s.enabled || started.elapsed() < STARTUP_QUIET || app_state.main_focused();
+        let on_screen = lock(&app.state::<OsdState>().inner).on_screen;
+        for action in osd.step(&view, &s, quiet, on_screen, Instant::now()) {
+            match action {
+                Action::Show(e, keep) => notify(&app, e, keep),
+                Action::Hide => hide(&app, on_screen),
+            }
+        }
+    }
+}
+
 /// The id of the Steam Input hint among the questions and hints turned off (`silenced`).
 pub const STEAM_HINT: &str = "steam_input";
 /// Event that asks the main window to show a hint.
-const HINT_EVENT: &str = "hint";
+pub const HINT_EVENT: &str = "hint";
 /// The Steam Input note stays this long at least: it needs reading.
 const STEAM_HINT_MIN: Duration = Duration::from_secs(10);
 
 /// A hint for the main window: which one, and the game it is about.
 #[derive(Clone, Debug, Serialize)]
-struct Hint {
-    id: &'static str,
-    game: String,
+pub struct Hint {
+    pub id: &'static str,
+    pub game: String,
 }
 
 /// The program in front, when it is a game of the library whose config drives a virtual
@@ -309,19 +468,35 @@ fn game_with_virtual_pad(live: &LiveState) -> Option<&str> {
         .flatten()
 }
 
-/// Whether to point at Steam Input for `front`: it just came to the front, it was not pointed
-/// out for this program in this run, the hint is not turned off, and Steam runs (asked last:
-/// it lists the processes).
-fn steam_hint_due(
-    front: Option<&str>,
-    before: Option<&str>,
-    hinted: &HashSet<String>,
-    silenced: bool,
-    steam_running: impl FnOnce() -> bool,
-) -> bool {
-    match front {
-        Some(exe) if before != Some(exe) && !silenced && !hinted.contains(exe) => steam_running(),
-        _ => false,
+/// The Steam Input hint's rule: point at Steam Input once per program and run, as such a game
+/// comes to the front while Steam runs.
+#[derive(Default)]
+struct SteamHint {
+    /// The game in front when last looked.
+    front: Option<String>,
+    /// The programs pointed out already.
+    hinted: HashSet<String>,
+}
+
+impl SteamHint {
+    /// The program to point out now, if any: one that just came to the front and was not
+    /// pointed out in this run, while the hint is not turned off (`silenced`) and Steam runs
+    /// (asked last: it lists the processes).
+    fn step(
+        &mut self,
+        live: &LiveState,
+        silenced: bool,
+        steam_running: impl FnOnce() -> bool,
+    ) -> Option<String> {
+        let now = game_with_virtual_pad(live);
+        let before = std::mem::replace(&mut self.front, now.map(str::to_owned));
+        let exe = now.filter(|exe| {
+            before.as_deref() != Some(*exe) && !silenced && !self.hinted.contains(*exe)
+        })?;
+        steam_running().then(|| {
+            self.hinted.insert(exe.to_owned());
+            exe.to_owned()
+        })
     }
 }
 
@@ -330,111 +505,47 @@ fn game_name(live: &LiveState, exe: &str) -> String {
     live.profile_path
         .as_deref()
         .and_then(|p| Path::new(p).parent())
-        .and_then(|dir| library::read_game(dir).ok())
-        .map_or_else(|| exe.to_owned(), |g| g.meta.name)
+        .and_then(|dir| library::read_game_meta(dir).ok())
+        .map_or_else(|| exe.to_owned(), |meta| meta.name)
 }
 
-/// Hide the message whose time is up. Returns whether one went away.
-fn expire(app: &AppHandle) -> bool {
-    let state = app.state::<OsdState>();
-    let mut inner = state.inner.lock().unwrap();
-    if inner.until.is_none_or(|u| Instant::now() < u) {
-        return false;
-    }
-    inner.until = None;
-    drop(inner);
-    overlay::dismiss(app, KIND);
-    true
-}
-
-/// "Game › Config" for a config path.
-fn config_label(path: &str) -> String {
-    library::config_label(Path::new(path))
-}
-
-pub(crate) fn watch(app: AppHandle, live: SharedLive) {
+/// Point at Steam Input when a game that drives a virtual controller comes to the front while
+/// Steam runs: as a hint in the main window, and as a notification over the game.
+pub(crate) fn watch_steam(app: AppHandle, live: SharedLive) {
     let started = Instant::now();
-    let mut seen = View::of(&live.get());
-    let mut warned = HashMap::new();
-    let (mut front, mut hinted) = (None::<String>, HashSet::new());
+    let mut generation = 0;
+    let mut hint = SteamHint::default();
     loop {
         std::thread::sleep(WATCH_INTERVAL);
-        let state = live.get();
-        let view = View::of(&state);
-        let app_state = app.state::<AppState>();
-        let (s, steam_silenced) = {
-            let settings = app_state.settings.lock().unwrap();
-            (
-                settings.osd.clone(),
-                settings.silenced.iter().any(|id| id == STEAM_HINT),
-            )
-        };
-        let starting = started.elapsed() < STARTUP_QUIET;
-        let quiet = !s.enabled || starting || app_state.main_focused();
         // The window may not listen yet while the app starts: look again afterwards.
-        if !starting {
-            let now = game_with_virtual_pad(&state);
-            if steam_hint_due(
-                now,
-                front.as_deref(),
-                &hinted,
-                steam_silenced,
-                dp_platform::steam_running,
-            ) && let Some(exe) = now
-            {
-                hinted.insert(exe.to_owned());
-                let game = game_name(&state, exe);
-                tracing::info!(%game, "Steam runs while the game uses a virtual controller");
-                let _ = app.emit_to(
-                    MAIN_WINDOW,
-                    HINT_EVENT,
-                    Hint {
-                        id: STEAM_HINT,
-                        game: game.clone(),
-                    },
-                );
-                if !quiet {
-                    notify(
-                        &app,
-                        Event::SteamInput { game },
-                        Some(s.duration().max(STEAM_HINT_MIN)),
-                    );
-                }
-            }
-            front = now.map(str::to_owned);
+        if started.elapsed() < STARTUP_QUIET {
+            continue;
         }
-        if view != seen {
-            if !quiet {
-                for mut e in events(&seen, &view, &s) {
-                    if let Event::Slot {
-                        config: Some(path), ..
-                    } = &mut e
-                    {
-                        *path = config_label(path);
-                    }
-                    let stays =
-                        s.keep_layer && matches!(e, Event::Layer { layer, .. } if layer != 0);
-                    let keep = match e {
-                        Event::Screenshot { .. } => s.duration().min(SCREENSHOT_KEEP),
-                        _ => s.duration(),
-                    };
-                    notify(&app, e, (!stays).then_some(keep));
-                }
-            }
-            seen = view;
-        }
-        if !quiet && s.battery {
-            for e in battery_events(&seen.devices, &mut warned) {
-                notify(&app, e, Some(s.duration()));
-            }
-        }
-        // Another message replaced a layer message that should stay: bring it back.
-        if expire(&app) && !quiet && s.layer && s.keep_layer && seen.layer != 0 {
-            let e = Event::Layer {
-                layer: seen.layer,
-                name: seen.layer_name.clone(),
-            };
-            notify(&app, e, None);
+        let Some((g, state)) = live.since(generation) else {
+            continue;
+        };
+        generation = g;
+        let app_state = app.state::<AppState>();
+        let (s, silenced) = app_state.settings(|s| {
+            let silenced = s.silenced.iter().any(|id| id == STEAM_HINT);
+            (s.osd.clone(), silenced)
+        });
+        let Some(exe) = hint.step(&state, silenced, dp_platform::steam_running) else {
+            continue;
+        };
+        let game = game_name(&state, &exe);
+        tracing::info!(%game, "Steam runs while the game uses a virtual controller");
+        let _ = app.emit_to(
+            MAIN_WINDOW,
+            HINT_EVENT,
+            Hint {
+                id: STEAM_HINT,
+                game: game.clone(),
+            },
+        );
+        if s.enabled && !app_state.main_focused() {
+            let keep = s.duration().max(STEAM_HINT_MIN);
+            notify(&app, Event::SteamInput { game }, Some(keep));
         }
     }
 }
@@ -443,13 +554,7 @@ pub(crate) fn watch(app: AppHandle, live: SharedLive) {
 /// run on the main thread, where plain commands run.
 #[tauri::command(async)]
 pub fn osd_test(app: AppHandle) {
-    let shown = app
-        .state::<AppState>()
-        .settings
-        .lock()
-        .unwrap()
-        .osd
-        .duration();
+    let shown = app.state::<AppState>().settings(|s| s.osd.duration());
     notify(&app, Event::Test, Some(shown));
 }
 
@@ -478,27 +583,31 @@ mod tests {
             ..LiveState::default()
         };
         assert_eq!(game_with_virtual_pad(&live), Some("game.exe"));
-        let mut hinted = HashSet::new();
-        let due = |front, before, hinted: &HashSet<String>, silenced, steam| {
-            steam_hint_due(front, before, hinted, silenced, || steam)
+        let in_front = |exe: Option<&str>| LiveState {
+            foreground: exe.map(str::to_owned),
+            ..live.clone()
         };
-        assert!(due(Some("game.exe"), None, &hinted, false, true));
-        assert!(
-            !due(Some("game.exe"), None, &hinted, false, false),
-            "no Steam"
+        let mut hint = SteamHint::default();
+        assert_eq!(hint.step(&live, false, || false), None, "no Steam");
+        let mut hint = SteamHint::default();
+        assert_eq!(hint.step(&live, true, || true), None, "turned off");
+        let mut hint = SteamHint::default();
+        assert_eq!(
+            hint.step(&live, false, || true).as_deref(),
+            Some("game.exe")
         );
-        assert!(
-            !due(Some("game.exe"), None, &hinted, true, true),
-            "turned off"
+        assert_eq!(hint.step(&live, false, || true), None, "still in front");
+        assert_eq!(hint.step(&in_front(None), false, || true), None);
+        assert_eq!(hint.step(&live, false, || true), None, "once per run");
+        assert_eq!(
+            hint.step(&in_front(Some("other.exe")), false, || true)
+                .as_deref(),
+            Some("other.exe")
         );
-        assert!(
-            !due(Some("game.exe"), Some("game.exe"), &hinted, false, true),
-            "still in front"
-        );
-        hinted.insert("game.exe".to_owned());
-        assert!(!due(Some("game.exe"), None, &hinted, false, true), "once");
-        assert!(due(Some("other.exe"), None, &hinted, false, true));
-        assert!(!due(None, Some("game.exe"), &hinted, false, true));
+        // Steam is asked last, and only when the rest says yes.
+        let mut hint = SteamHint::default();
+        hint.step(&live, false, || true);
+        hint.step(&in_front(None), false, || unreachable!("nothing in front"));
 
         live.virtual_pad = None;
         assert_eq!(
@@ -509,6 +618,137 @@ mod tests {
         live.virtual_pad = Some("ds4".into());
         live.auto_active = false;
         assert_eq!(game_with_virtual_pad(&live), None, "not a library game");
+    }
+
+    /// A step `ms` milliseconds after `t0`.
+    fn at(t0: Instant, ms: u64) -> Instant {
+        t0 + Duration::from_millis(ms)
+    }
+
+    fn layer(n: u8) -> View {
+        View {
+            layer: n,
+            layer_name: (n != 0).then(|| format!("L{n}")),
+            ..view()
+        }
+    }
+
+    fn layer_event(n: u8) -> Event {
+        Event::Layer {
+            layer: n,
+            name: (n != 0).then(|| format!("L{n}")),
+        }
+    }
+
+    #[test]
+    fn messages_go_when_their_time_is_up() {
+        let s = OsdSettings::default();
+        let t0 = Instant::now();
+        let mut osd = Osd::new(view());
+        let shown = osd.step(&layer(1), &s, false, OnScreen::Nothing, t0);
+        assert_eq!(shown, [Action::Show(layer_event(1), Some(s.duration()))]);
+        let until = OnScreen::after(t0, Some(s.duration()));
+        assert!(
+            osd.step(&layer(1), &s, false, until, at(t0, 4_999))
+                .is_empty()
+        );
+        assert_eq!(
+            osd.step(&layer(1), &s, false, until, at(t0, 5_000)),
+            [Action::Hide]
+        );
+        // Quiet does not cut a message short, nor keep it.
+        assert_eq!(
+            osd.step(&layer(1), &s, true, until, at(t0, 5_000)),
+            [Action::Hide]
+        );
+    }
+
+    #[test]
+    fn a_kept_layer_message_comes_back_after_another_one() {
+        let s = OsdSettings {
+            keep_layer: true,
+            ..OsdSettings::default()
+        };
+        let t0 = Instant::now();
+        let mut osd = Osd::new(view());
+        assert_eq!(
+            osd.step(&layer(2), &s, false, OnScreen::Nothing, t0),
+            [Action::Show(layer_event(2), None)]
+        );
+        // A battery warning replaced it and its time is up: the layer message is back.
+        let warning = OnScreen::after(t0, Some(s.duration()));
+        assert_eq!(
+            osd.step(&layer(2), &s, false, warning, at(t0, 5_000)),
+            [Action::Hide, Action::Show(layer_event(2), None)]
+        );
+        // Back to the main layer: a short message, which goes.
+        assert_eq!(
+            osd.step(&layer(0), &s, false, OnScreen::Kept, at(t0, 6_000)),
+            [Action::Show(layer_event(0), Some(s.duration()))]
+        );
+    }
+
+    #[test]
+    fn a_kept_layer_message_goes_when_it_must_not_stay() {
+        let keep = OsdSettings {
+            keep_layer: true,
+            ..OsdSettings::default()
+        };
+        let t0 = Instant::now();
+        let kept_on = |s: &OsdSettings, quiet: bool, back_to: u8| {
+            let mut osd = Osd::new(layer(2));
+            osd.step(&layer(back_to), s, quiet, OnScreen::Kept, t0)
+        };
+        assert!(kept_on(&keep, false, 2).is_empty(), "it stays");
+        // The window came to the front (or notifications went off).
+        assert_eq!(kept_on(&keep, true, 2), [Action::Hide]);
+        // "Keep layer" was switched off, or layer messages altogether.
+        let off = OsdSettings {
+            keep_layer: false,
+            ..keep.clone()
+        };
+        assert_eq!(kept_on(&off, false, 2), [Action::Hide]);
+        let no_layers = OsdSettings {
+            layer: false,
+            ..keep.clone()
+        };
+        assert_eq!(kept_on(&no_layers, false, 2), [Action::Hide]);
+        // Back on the main layer while quiet: no message about it, but the old one goes.
+        assert_eq!(kept_on(&keep, true, 0), [Action::Hide]);
+        // Once the quiet is over, the layer still active, it shows again.
+        let mut osd = Osd::new(layer(2));
+        assert_eq!(
+            osd.step(&layer(2), &keep, false, OnScreen::Nothing, t0),
+            [Action::Show(layer_event(2), None)]
+        );
+    }
+
+    #[test]
+    fn screenshots_go_soon_and_quiet_shows_nothing() {
+        let s = OsdSettings::default();
+        let t0 = Instant::now();
+        let mut osd = Osd::new(view());
+        let mut shot = view();
+        shot.screenshot.count = 1;
+        assert_eq!(
+            osd.step(&shot, &s, false, OnScreen::Nothing, t0),
+            [Action::Show(
+                Event::Screenshot {
+                    file: None,
+                    error: None
+                },
+                Some(SCREENSHOT_KEEP)
+            )]
+        );
+        // A change while quiet is not told later either.
+        assert!(
+            osd.step(&layer(1), &s, true, OnScreen::Nothing, t0)
+                .is_empty()
+        );
+        assert!(
+            osd.step(&layer(1), &s, false, OnScreen::Nothing, t0)
+                .is_empty()
+        );
     }
 
     fn view() -> View {

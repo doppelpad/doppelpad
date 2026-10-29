@@ -12,14 +12,13 @@ use serde::{Deserialize, Serialize};
 
 use crate::launches::{self, Launch};
 use crate::library::{self, Game, GameMeta, LibraryError, Result, io};
+use crate::picture::{MAX_IMAGE, base64, unbase64};
 use crate::{FileFormat, Format};
 
 /// Format version of game bundles.
 const BUNDLE_VERSION: u32 = 1;
 /// Folder of the layer presets inside the profiles directory.
 pub(crate) const PRESETS_DIR: &str = "presets";
-/// Pictures larger than this stay out of a bundle.
-pub(crate) const MAX_IMAGE: u64 = 8 << 20;
 
 #[derive(Serialize, Deserialize)]
 struct Bundle {
@@ -35,44 +34,6 @@ struct BundledFile {
     file: String,
     /// Text files as they are; the picture as base64.
     data: String,
-}
-
-const B64: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-
-pub(crate) fn base64(bytes: &[u8]) -> String {
-    let mut out = String::with_capacity(bytes.len().div_ceil(3) * 4);
-    for chunk in bytes.chunks(3) {
-        let n = chunk
-            .iter()
-            .enumerate()
-            .fold(0u32, |n, (i, &b)| n | u32::from(b) << (16 - 8 * i));
-        for i in 0..4 {
-            if i <= chunk.len() {
-                out.push(B64[(n >> (18 - 6 * i)) as usize & 63] as char);
-            } else {
-                out.push('=');
-            }
-        }
-    }
-    out
-}
-
-fn unbase64(text: &str) -> Option<Vec<u8>> {
-    let mut out = Vec::with_capacity(text.len() / 4 * 3);
-    let (mut n, mut bits) = (0u32, 0);
-    for c in text
-        .bytes()
-        .filter(|c| !c.is_ascii_whitespace() && *c != b'=')
-    {
-        let v = B64.iter().position(|&b| b == c)? as u32;
-        n = n << 6 | v;
-        bits += 6;
-        if bits >= 8 {
-            bits -= 8;
-            out.push((n >> bits) as u8);
-        }
-    }
-    Some(out)
 }
 
 fn invalid(path: &Path, why: impl Into<String>) -> LibraryError {
@@ -128,44 +89,75 @@ pub fn export_game(dir: &Path, out: &Path) -> Result<()> {
     crate::store::write_atomic(out, text).map_err(io(out))
 }
 
+/// Read a bundle file. Its version is read first, so that a bundle from a newer Doppelpad,
+/// whose layout this one may not know, says so.
 fn read_bundle(bundle: &Path) -> Result<Bundle> {
+    #[derive(Deserialize)]
+    struct Head {
+        doppelpad_game: u32,
+    }
     let text = std::fs::read_to_string(bundle).map_err(io(bundle))?;
-    let b: Bundle = serde_json::from_str(&text)
-        .map_err(|e| invalid(bundle, format!("not a Doppelpad game: {e}")))?;
-    if b.doppelpad_game > BUNDLE_VERSION {
+    let not_a_game = |e: serde_json::Error| invalid(bundle, format!("not a Doppelpad game: {e}"));
+    let head: Head = serde_json::from_str(&text).map_err(not_a_game)?;
+    if head.doppelpad_game > BUNDLE_VERSION {
         return Err(invalid(bundle, "made by a newer Doppelpad"));
     }
-    Ok(b)
+    serde_json::from_str(&text).map_err(not_a_game)
 }
 
 impl BundledFile {
-    /// The config as the library will read it once unpacked; `None` for one it cannot read
-    /// (which then runs nothing either).
-    fn profile(&self) -> Option<(Profile, Format)> {
-        let (profile, _, format) =
-            crate::parse_with_format(Path::new(&self.file), &self.data).ok()?;
-        Some((profile, format))
+    /// The config as the library will read it once unpacked, or why it cannot be read (it then
+    /// runs nothing in this version, but may in a newer one).
+    fn profile(&self) -> std::result::Result<(Profile, Format), String> {
+        let (profile, _, format) = crate::parse_with_format(Path::new(&self.file), &self.data)
+            .map_err(|e| e.to_string())?;
+        Ok((profile, format))
     }
 }
 
-/// Every launch command in a bundle's configs, to ask about before [`import_game`].
-pub fn launches(bundle: &Path) -> Result<Vec<Launch>> {
+/// A config in a bundle that cannot be read, so its launch commands cannot be checked either.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct Unchecked {
+    pub file: String,
+    /// Why it cannot be read (for example, a newer Doppelpad made it).
+    pub error: String,
+}
+
+/// What a bundle's configs would start: the launch commands of those that can be read, and
+/// those that cannot be checked.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize)]
+pub struct BundleLaunches {
+    pub launches: Vec<Launch>,
+    /// Left out of an import without launch commands.
+    pub unchecked: Vec<Unchecked>,
+}
+
+/// Every launch command in a bundle's configs, and the configs that cannot be checked for
+/// them, to ask about before [`import_game`].
+pub fn launches(bundle: &Path) -> Result<BundleLaunches> {
     let b = read_bundle(bundle)?;
-    let mut out = Vec::new();
+    let mut out = BundleLaunches::default();
     for c in b.configs.iter().filter(|c| safe_name(&c.file).is_some()) {
-        let Some((profile, _)) = c.profile() else {
-            continue;
-        };
-        out.extend(launches::find(&profile).into_iter().map(|l| Launch {
-            file: Some(c.file.clone()),
-            ..l
-        }));
+        match c.profile() {
+            Ok((profile, _)) => {
+                out.launches
+                    .extend(launches::find(&profile).into_iter().map(|l| Launch {
+                        file: Some(c.file.clone()),
+                        ..l
+                    }));
+            }
+            Err(error) => out.unchecked.push(Unchecked {
+                file: c.file.clone(),
+                error,
+            }),
+        }
     }
     Ok(out)
 }
 
-/// Unpack a bundle into a new game folder under `root`, without its launch commands unless
-/// `keep_launches`.
+/// Unpack a bundle into a new game folder under `root`. Unless `keep_launches`, it comes
+/// without its launch commands and without the configs that cannot be checked for them (see
+/// [`launches`]); with it, every config comes as it is.
 pub fn import_game(root: &Path, bundle: &Path, keep_launches: bool) -> Result<Game> {
     let mut b = read_bundle(bundle)?;
     if !keep_launches {
@@ -213,15 +205,22 @@ fn fill_game(created: &Path, b: Bundle) -> Result<Game> {
 
 /// Take the launch commands out of a bundle's configs. A config that has some is written
 /// again as Doppelpad TOML, a JSON one under a `.toml` name (which the default config
-/// follows); the others stay exactly as they came.
+/// follows); the others stay exactly as they came. A config that cannot be read is left out:
+/// a newer Doppelpad might read it, and run what it starts.
 fn drop_launches(b: &mut Bundle) -> Result<()> {
+    let mut unchecked = Vec::new();
     for i in 0..b.configs.len() {
         let file = b.configs[i].file.clone();
         if safe_name(&file).is_none() {
             continue;
         }
-        let Some((mut profile, format)) = b.configs[i].profile() else {
-            continue;
+        let (mut profile, format) = match b.configs[i].profile() {
+            Ok(read) => read,
+            Err(e) => {
+                tracing::warn!("leaving out {file}, which cannot be checked: {e}");
+                unchecked.push(i);
+                continue;
+            }
         };
         if launches::strip(&mut profile) == 0 {
             continue;
@@ -244,6 +243,9 @@ fn drop_launches(b: &mut Bundle) -> Result<()> {
             b.configs[i].file = renamed;
         }
         b.configs[i].data = text;
+    }
+    for i in unchecked.into_iter().rev() {
+        b.configs.remove(i);
     }
     Ok(())
 }
@@ -313,10 +315,13 @@ pub fn save_preset(profiles: &Path, preset: &LayerPreset) -> Result<PathBuf> {
         Some(same) => same.path,
         None => library::unique_path(&dir, &library::slugify(&preset.name), Some("toml")),
     };
-    let text =
-        toml::to_string_pretty(preset).map_err(|e| LibraryError::Serialize(path.clone(), e))?;
-    let text = format!("# Doppelpad layer preset\n{}", PRESET_FORMAT.stamp(&text));
-    crate::store::write_atomic(&path, text).map_err(io(&path))?;
+    crate::store::save_toml_with_header(
+        &path,
+        preset,
+        &PRESET_FORMAT,
+        Some("# Doppelpad layer preset"),
+    )
+    .map_err(library::unsaved(&path))?;
     Ok(path)
 }
 
@@ -328,17 +333,6 @@ mod tests {
     use dp_core::profile::{Action, Press};
 
     use super::*;
-
-    #[test]
-    fn base64_round_trips() {
-        assert_eq!(base64(b"Man"), "TWFu");
-        assert_eq!(base64(b"Ma"), "TWE=");
-        assert_eq!(base64(b"M"), "TQ==");
-        let bytes: Vec<u8> = (0..=255).collect();
-        assert_eq!(unbase64(&base64(&bytes)).unwrap(), bytes);
-        assert_eq!(unbase64("TWE="), Some(b"Ma".to_vec()));
-        assert_eq!(unbase64("T*"), None);
-    }
 
     #[test]
     fn games_travel_as_one_file() {
@@ -522,7 +516,9 @@ actions = [{ key = "W" }]
     fn bundles_list_their_launches() {
         let dir = tempfile::tempdir().unwrap();
         let found = launches(&launching_bundle(dir.path())).unwrap();
+        assert!(found.unchecked.is_empty());
         let summary: Vec<(Option<&str>, &str, &str, &str)> = found
+            .launches
             .iter()
             .map(|l| {
                 let file = l.file.as_deref();
@@ -541,6 +537,83 @@ actions = [{ key = "W" }]
                 (Some("shared.json"), "Json", "calc.exe", ""),
             ]
         );
+    }
+
+    /// A config from a newer Doppelpad that this one cannot read: it may launch a program once
+    /// an update reads it.
+    const NEWER_TOML: &str = r#"format = 2
+name = "Future"
+
+[[mappings]]
+trigger = "A"
+actions = [{ command = { launch = { path = "powershell" } } }]
+"#;
+
+    #[test]
+    fn configs_that_cannot_be_checked_are_named_and_left_out() {
+        let src = tempfile::tempdir().unwrap();
+        let bundle = Bundle {
+            doppelpad_game: BUNDLE_VERSION,
+            meta: library::GameMeta {
+                name: "Future".into(),
+                default_config: Some("future.toml".into()),
+                ..Default::default()
+            },
+            configs: vec![
+                BundledFile {
+                    file: "future.toml".into(),
+                    data: NEWER_TOML.into(),
+                },
+                BundledFile {
+                    file: "plain.toml".into(),
+                    data: PLAIN_TOML.into(),
+                },
+            ],
+            image: None,
+        };
+        let file = src.path().join("future.dpgame");
+        std::fs::write(&file, serde_json::to_string(&bundle).unwrap()).unwrap();
+
+        let found = launches(&file).unwrap();
+        assert!(found.launches.is_empty());
+        let [unchecked] = &found.unchecked[..] else {
+            panic!("{found:?}")
+        };
+        assert_eq!(unchecked.file, "future.toml");
+        assert!(
+            unchecked.error.contains("made by a newer Doppelpad"),
+            "{}",
+            unchecked.error
+        );
+
+        let dst = tempfile::tempdir().unwrap();
+        let g = import_game(dst.path(), &file, false).unwrap();
+        let files: Vec<_> = g
+            .configs
+            .iter()
+            .map(|c| c.path.file_name().unwrap())
+            .collect();
+        assert_eq!(files, ["plain.toml"]);
+        assert_eq!(g.meta.default_config, None, "it did not arrive");
+        // Kept on request, as it came.
+        let kept = import_game(dst.path(), &file, true).unwrap();
+        assert_eq!(
+            std::fs::read_to_string(kept.dir.join("future.toml")).unwrap(),
+            NEWER_TOML
+        );
+    }
+
+    #[test]
+    fn bundles_from_a_newer_doppelpad_say_so() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("next.dpgame");
+        // A layout this version does not know.
+        std::fs::write(&file, r#"{ "doppelpad_game": 2, "games": [] }"#).unwrap();
+        let e = launches(&file).unwrap_err().to_string();
+        assert!(e.ends_with("made by a newer Doppelpad"), "{e}");
+        std::fs::write(&file, r#"{ "name": "x" }"#).unwrap();
+        let e = launches(&file).unwrap_err().to_string();
+        assert!(e.contains("not a Doppelpad game"), "{e}");
     }
 
     #[test]
