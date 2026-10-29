@@ -7,8 +7,8 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use dp_service::{ServiceCmd, ServiceHandle, SharedLive};
 use tauri::{AppHandle, Manager};
 
-use crate::commands::CmdResult;
 use crate::commands::system::Notice;
+use crate::error::{CmdResult, err};
 use crate::open_file::OpenFiles;
 use crate::settings::GuiSettings;
 
@@ -75,7 +75,7 @@ impl AppState {
 
     /// Run a service command; its success text is for logs and the CLI, not the window.
     pub fn call(&self, cmd: ServiceCmd) -> CmdResult<()> {
-        self.service.call(cmd).into_result().map(drop)
+        self.service.call(cmd).into_result().map(drop).map_err(err)
     }
 
     /// What `f` reads from the settings, so that nobody copies all of them for one field.

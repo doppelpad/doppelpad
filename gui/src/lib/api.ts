@@ -1,9 +1,11 @@
 // Typed wrappers around the Rust commands in gui/src-tauri/src/commands/.
 
 import { Channel, invoke } from '@tauri-apps/api/core';
+import { has, t } from './i18n/index.svelte';
 import type {
   BundleLaunches,
   Catalog,
+  CmdError,
   DeviceGroup,
   DiagMsg,
   Driver,
@@ -169,7 +171,16 @@ export const api = {
   },
 };
 
-/** Error text from a rejected command. */
+/** Whether `e` is a command's error with a code (`CmdError` in gui/src-tauri/src/error.rs). */
+function isCmdError(e: unknown): e is CmdError {
+  return typeof e === 'object' && e !== null && typeof (e as CmdError).code === 'string' && typeof (e as CmdError).detail === 'string';
+}
+
+/** Error text from a rejected command, in the window's language where the app words it (`errors.<code>`). */
 export function errorText(e: unknown): string {
+  if (isCmdError(e)) {
+    const key = `errors.${e.code}`;
+    return has(key) ? t(key, { detail: e.detail }) : e.detail || e.code;
+  }
   return typeof e === 'string' ? e : e instanceof Error ? e.message : JSON.stringify(e);
 }

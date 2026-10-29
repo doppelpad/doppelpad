@@ -1,5 +1,5 @@
-//! Commands the web frontend invokes. The fallible ones return `Result<_, String>`, so
-//! errors arrive in JavaScript as readable messages. Plain commands run on the main thread,
+//! Commands the web frontend invokes. The fallible ones fail with a [`CmdError`], a code
+//! the window words in its language and a detail. Plain commands run on the main thread,
 //! which also runs the windows and the tray; the ones that touch the disk or wait for the
 //! service are `async` and run on Tauri's async runtime instead.
 //!
@@ -14,8 +14,4 @@ pub mod service;
 pub mod settings;
 pub mod system;
 
-pub type CmdResult<T> = Result<T, String>;
-
-pub fn err(e: impl std::fmt::Display) -> String {
-    e.to_string()
-}
+pub use crate::error::{CmdError, CmdResult, ErrorCode, err};

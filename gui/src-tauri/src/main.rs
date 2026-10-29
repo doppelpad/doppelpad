@@ -7,6 +7,7 @@
 mod autostart;
 mod commands;
 mod crosshair;
+mod error;
 mod logging;
 mod main_window;
 mod open_file;

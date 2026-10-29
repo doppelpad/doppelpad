@@ -955,4 +955,6 @@ key (`doppelpad-updater.key.pub`).
 The UI is available in English and German (*Settings → General → Language*). Translations live
 in `gui/src/lib/i18n/{en,de}.json`. A test makes sure both files have the same keys and
 placeholders. To add a language, copy `en.json`, translate it and register it in
-`gui/src/lib/i18n/index.svelte.ts`. The tray menu takes its texts from the same files (`tray.*`).
+`gui/src/lib/i18n/index.svelte.ts`. The tray menu takes its texts from the same files
+(`tray.*`). Errors the app reports in its own words arrive in the window as codes, which it
+words with `errors.*`; a test checks that every code has a text in every file.

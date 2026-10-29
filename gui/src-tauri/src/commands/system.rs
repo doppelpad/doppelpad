@@ -16,7 +16,7 @@ use dp_service::ServiceCmd;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, State};
 
-use super::{CmdResult, err};
+use super::{CmdError, CmdResult, ErrorCode, err};
 use crate::state::{AppState, lock};
 
 /// Messages for the window that arrive before it is ready (`notices.<name>` in the catalogs).
@@ -183,11 +183,11 @@ pub fn open_driver_page(driver: Driver) -> CmdResult<()> {
         Driver::Bluetooth => "ms-settings:bluetooth",
         #[cfg(not(target_os = "macos"))]
         Driver::InputAccess => {
-            return Err("nothing to allow on this system".into());
+            return Err(CmdError::new(ErrorCode::NothingToAllow));
         }
         #[cfg(not(any(windows, target_os = "macos")))]
         Driver::Bluetooth => {
-            return Err("nothing to allow on this system".into());
+            return Err(CmdError::new(ErrorCode::NothingToAllow));
         }
     };
     #[cfg(windows)]

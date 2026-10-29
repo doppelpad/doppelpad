@@ -14,7 +14,7 @@ use dp_service::{LIVE_INTERVAL, LiveState, PlayerLights, ServiceCmd, ServiceRepl
 use tauri::State;
 use tauri::ipc::Channel;
 
-use super::CmdResult;
+use super::{CmdError, CmdResult, ErrorCode, err};
 use crate::state::AppState;
 
 /// `device`: a controller's own slots instead of the shared ones.
@@ -147,10 +147,8 @@ pub fn rescan_devices(state: State<AppState>) -> CmdResult<()> {
 pub fn hotkeys_get(state: State<AppState>) -> CmdResult<Hotkeys> {
     match state.service.call(ServiceCmd::GetHotkeys) {
         ServiceReply::Hotkeys(h) => Ok(h),
-        other => Err(other
-            .into_result()
-            .err()
-            .unwrap_or_else(|| "the service answered something else than hotkeys".into())),
+        ServiceReply::Err(e) => Err(err(e)),
+        _ => Err(CmdError::new(ErrorCode::ServiceAnswer)),
     }
 }
 

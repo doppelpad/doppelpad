@@ -588,6 +588,24 @@ export interface UpdateInfo {
   notes: string | null;
 }
 
+/** What went wrong in a command, as `errors.<code>` in the catalogs words it (`ErrorCode` in error.rs). */
+export type ErrorCode =
+  | 'failed'
+  | 'nothing_to_allow'
+  | 'sheet_not_html'
+  | 'service_answer'
+  | 'no_update'
+  | 'portable_update'
+  | 'portable_autostart'
+  | 'autostart_unsupported';
+
+/** A command's error (`CmdError` in gui/src-tauri/src/error.rs); `errorText` words it. */
+export interface CmdError {
+  code: ErrorCode;
+  /** What the message names, or for `failed` the error's own text (English, from the system or the service). */
+  detail: string;
+}
+
 /** Messages from before the window was ready (`Notice` in commands/system.rs; `notices.<name>` keys). */
 export type Notice = 'service-takeover';
 

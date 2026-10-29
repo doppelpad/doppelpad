@@ -33,7 +33,7 @@ const WATCH_INTERVAL: Duration = Duration::from_millis(100);
 const TOOLTIP_MAX: usize = 127;
 
 /// The frontend's catalogs by language, `(language, JSON)` (listed by build.rs).
-const CATALOGS: &[(&str, &str)] = include!(concat!(env!("OUT_DIR"), "/catalogs.rs"));
+pub(crate) const CATALOGS: &[(&str, &str)] = include!(concat!(env!("OUT_DIR"), "/catalogs.rs"));
 
 /// The tray's texts: `tray.*` in the catalogs, whose parity test keeps every language complete.
 #[derive(Debug, Deserialize)]
@@ -546,7 +546,7 @@ fn run_commands(app: &AppHandle, commands: &Receiver<ServiceCmd>) {
     for cmd in commands {
         let what = format!("{cmd:?}");
         if let Err(e) = app.state::<AppState>().call(cmd) {
-            tracing::warn!("tray {what}: {e}");
+            tracing::warn!("tray {what}: {}", e.describe());
         }
         // Clicked check items have toggled themselves; show the actual state.
         refresh(app);

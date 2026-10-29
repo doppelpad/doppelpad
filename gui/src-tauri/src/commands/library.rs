@@ -14,7 +14,7 @@ use dp_service::ServiceCmd;
 use serde::Serialize;
 use tauri::{AppHandle, Manager, State};
 
-use super::{CmdResult, err};
+use super::{CmdError, CmdResult, ErrorCode, err};
 use crate::state::{AppState, lock};
 
 /// Games or configs changed on disk: the service re-reads them (process lists may have
@@ -177,9 +177,9 @@ pub fn sheet_save(path: PathBuf, html: String) -> CmdResult<()> {
         .extension()
         .is_some_and(|e| e.eq_ignore_ascii_case("html") || e.eq_ignore_ascii_case("htm"));
     if !html_file {
-        return Err("a bindings sheet is saved as .html".into());
+        return Err(CmdError::new(ErrorCode::SheetNotHtml));
     }
-    std::fs::write(&path, html).map_err(|e| format!("{}: {e}", path.display()))
+    dp_config::write_atomic(&path, html).map_err(|e| err(format!("{}: {e}", path.display())))
 }
 
 #[derive(Serialize)]
@@ -332,7 +332,7 @@ pub fn library_move(
             moved_from: moved_from.map(Path::to_path_buf),
         });
         if let Err(e) = &told {
-            tracing::warn!("the service did not switch the library: {e}");
+            tracing::warn!("the service did not switch the library: {}", e.describe());
         }
         told.is_ok()
     };

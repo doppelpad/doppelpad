@@ -1685,5 +1685,15 @@
     "hint": "Steuerkreuz oder linker Stick bewegen den Fokus, A drückt, B geht zurück oder schließt, LB und RB wechseln die Ansicht, LT und RT die Ebene, Start speichert. Ein gedrücktes Bedienelement wird dann nicht mehr ausgewählt.",
     "on": "Der Controller bedient die App",
     "off": "Der Controller wählt wieder Bedienelemente aus"
+  },
+  "errors": {
+    "failed": "{detail}",
+    "nothing_to_allow": "Auf diesem System gibt es nichts zu erlauben.",
+    "sheet_not_html": "Eine Belegungsübersicht wird als .html-Datei gespeichert.",
+    "service_answer": "Der Remapping-Dienst hat unerwartet geantwortet.",
+    "no_update": "Es gibt kein Update zum Installieren. Suche zuerst nach einem.",
+    "portable_update": "Dies ist eine portable Kopie: Ersetze ihre Dateien durch die neue Version von der Release-Seite.",
+    "portable_autostart": "Eine portable Kopie startet nicht mit dem System.",
+    "autostart_unsupported": "Mit dem System starten geht nur unter Windows und macOS."
   }
 }

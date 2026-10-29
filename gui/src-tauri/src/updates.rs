@@ -12,13 +12,8 @@ use tauri::ipc::Channel;
 use tauri::{AppHandle, Manager, State};
 use tauri_plugin_updater::{Error as UpdaterError, Update, UpdaterExt};
 
+use crate::error::{CmdError, CmdResult, ErrorCode, err};
 use crate::state::{AppState, lock};
-
-type CmdResult<T> = Result<T, String>;
-
-fn err(e: impl std::fmt::Display) -> String {
-    e.to_string()
-}
 
 /// The update the last check found, for `update_install`.
 #[derive(Default)]
@@ -109,15 +104,11 @@ pub async fn update_install(
 ) -> CmdResult<()> {
     // The setup installs into Program Files, not into a portable copy's folder.
     if dp_config::portable_dir().is_some() {
-        return Err(
-            "this is a portable copy: replace its files with the new version from the \
-                    releases page"
-                .into(),
-        );
+        return Err(CmdError::new(ErrorCode::PortableUpdate));
     }
     let update = lock(&pending.0)
         .clone()
-        .ok_or("no update to install: check for one first")?;
+        .ok_or(CmdError::new(ErrorCode::NoUpdate))?;
     let mut received: u64 = 0;
     let mut shown = None;
     let bytes = update

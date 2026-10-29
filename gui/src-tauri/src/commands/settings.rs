@@ -32,13 +32,14 @@ pub fn settings_set(
 }
 
 /// Whether the app starts hidden in the tray when the user signs in; `None` where it
-/// cannot (not Windows). Read from Windows each time: Task Manager can change it too.
+/// cannot (Linux, a portable copy). Read from the system each time: Task Manager or the login
+/// items can change it too.
 #[tauri::command]
-pub fn autostart_get() -> Option<bool> {
-    crate::autostart::enabled()
+pub fn autostart_get(app: AppHandle) -> Option<bool> {
+    crate::autostart::enabled(&app)
 }
 
 #[tauri::command]
-pub fn autostart_set(on: bool) -> CmdResult<()> {
-    crate::autostart::set(on).map_err(err)
+pub fn autostart_set(app: AppHandle, on: bool) -> CmdResult<()> {
+    crate::autostart::set(&app, on)
 }
