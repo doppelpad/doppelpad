@@ -3,6 +3,7 @@
   import { Activity, Gamepad2, List, PenTool, StickyNote } from '@lucide/svelte';
   import { t } from './lib/i18n/index.svelte';
   import { drawingsFor } from './lib/model/devices';
+  import { VIEWS } from './lib/model/views';
   import { app } from './lib/state/app.svelte';
   import { isTextEntry, menuOpen, popoverOpen } from './lib/dom';
   import { matchShortcut } from './lib/state/shortcuts';
@@ -44,8 +45,6 @@
   let listMode = $state(false);
   /** The live output panel is open. */
   let liveOpen = $state(false);
-  /** Views that show what controls do, where notes can stand in for the actions. */
-  const CONTROL_VIEWS = new Set(['front', 'back', 'keyboard', 'mouse']);
 
   /** Front and back drawings for the connected controller model. */
   const drawings = $derived(drawingsFor(app.primary));
@@ -85,7 +84,7 @@
       <DiagnosticsBar />
       <div class="workspace">
         <div class="center">
-          {#if CONTROL_VIEWS.has(app.view)}
+          {#if VIEWS[app.view].controls}
             <div class="view-tools">
               <button
                 class="icon-btn"

@@ -5,7 +5,7 @@
   import { Search, X } from '@lucide/svelte';
   import { t } from '../lib/i18n/index.svelte';
   import { comboLabel } from '../lib/model/labels';
-  import { mappingsPressing, searchMappings, viewFor, type Found } from '../lib/model/search';
+  import { mappingsPressing, searchMappings, type Found } from '../lib/model/search';
   import { app } from '../lib/state/app.svelte';
   import LayerBadge from './ui/LayerBadge.svelte';
   import { tip } from '../lib/tooltip.svelte';
@@ -32,10 +32,7 @@
   }
 
   function go(f: Found) {
-    app.view = viewFor(f.trigger, app.view);
-    app.layer = f.layer;
-    app.activator = f.activator;
-    app.select(f.trigger);
+    app.reveal({ kind: 'mapping', layer: f.layer, trigger: f.trigger, activator: f.activator });
     close();
   }
 

@@ -171,7 +171,7 @@
     {#if does === 'submenu'}
       <div class="sub-row">
         <Select value={String(s.submenu)} {disabled} wide options={submenuOptions} onchange={setSubmenu} />
-        <button class="btn" onclick={() => s.submenu && ((app.radialMenu = s.submenu - 1), (app.radialSector = null))}>
+        <button class="btn" onclick={() => s.submenu && app.reveal({ kind: 'radial', menu: s.submenu - 1, sector: null })}>
           {t('radial.edit_submenu')}
         </button>
       </div>

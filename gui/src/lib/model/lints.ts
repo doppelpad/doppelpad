@@ -3,7 +3,8 @@
 
 import { t } from '../i18n/index.svelte';
 import { HOTKEY_FIELDS, hotkeyLabel } from './hotkeys';
-import { comboKey, comboList, effectiveMappings, layerOf } from './profile';
+import { activatorOf, comboKey, comboList, effectiveMappings, layerOf } from './profile';
+import type { Place } from './views';
 import type { Combo, DiagMsg, Hotkeys, PadFamily, Profile } from '../types';
 
 /** A mapping's diagnostic path, as the validator writes it: `mappings[3] (LB+RB)`. */
@@ -33,17 +34,12 @@ export function hotkeyClashes(p: Profile, hk: Hotkeys | null, family: PadFamily 
   return out;
 }
 
-/** Where a diagnostic points: a mapping (its layer and trigger), a layer, or a radial menu (and a sector of it). */
-export type DiagTarget =
-  | { kind: 'mapping'; layer: number; trigger: Combo }
-  | { kind: 'layer'; layer: number }
-  | { kind: 'radial'; menu: number; sector: number | null };
-
-export function diagTarget(p: Profile, d: DiagMsg): DiagTarget | null {
+/** Where a diagnostic points: a mapping, a layer, or a radial menu (and a sector of it). */
+export function diagTarget(p: Profile, d: DiagMsg): Place | null {
   const m = /^mappings\[(\d+)\]/.exec(d.path);
   if (m) {
     const mapping = p.mappings[Number(m[1])];
-    return mapping ? { kind: 'mapping', layer: layerOf(mapping), trigger: mapping.trigger } : null;
+    return mapping ? { kind: 'mapping', layer: layerOf(mapping), trigger: mapping.trigger, activator: activatorOf(mapping) } : null;
   }
   const r = /^radial_menus\[(\d+)\](?:\.sectors\[(\d+)\])?/.exec(d.path);
   if (r) {

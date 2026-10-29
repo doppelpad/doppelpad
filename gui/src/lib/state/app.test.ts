@@ -203,3 +203,26 @@ describe('questions', () => {
     expect(QUESTION_IDS.filter((id) => !has(`questions.ids.${id}`))).toEqual([]);
   });
 });
+
+describe('going to a place in the config', () => {
+  it('a mapping shows in the view that has its control, on its layer and activator', async () => {
+    await app.openConfig('one.toml', true);
+    app.view = 'output';
+    app.reveal({ kind: 'mapping', layer: 1, trigger: 'Key:W', activator: 'double' });
+    expect([app.view, app.layer, app.activator, app.selected]).toEqual(['keyboard', 1, 'double', 'Key:W']);
+    app.reveal({ kind: 'mapping', layer: 0, trigger: ['LB', 'RB'], activator: 'single' });
+    expect([app.view, app.layer, app.activator, app.selected]).toEqual(['shortcuts', 0, 'single', ['LB', 'RB']]);
+  });
+
+  it('a layer shows in a view that shows layers, a radial menu in its own', async () => {
+    await app.openConfig('one.toml', true);
+    app.view = 'keyboard';
+    app.reveal({ kind: 'layer', layer: 2 });
+    expect([app.view, app.layer]).toEqual(['keyboard', 2]);
+    app.view = 'output';
+    app.reveal({ kind: 'layer', layer: 1 });
+    expect([app.view, app.layer]).toEqual(['front', 1]);
+    app.reveal({ kind: 'radial', menu: 1, sector: 3 });
+    expect([app.view, app.radialMenu, app.radialSector]).toEqual(['radial', 1, 3]);
+  });
+});

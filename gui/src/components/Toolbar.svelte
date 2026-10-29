@@ -5,7 +5,8 @@
   import { layerColor } from '../lib/theme/layers';
   import { insertPreset, makePreset } from '../lib/model/presets';
   import { addLayer, clearLayer, copyLayer, layerIds, pasteLayer, removeLayer, renameLayer } from '../lib/model/profile';
-  import { app, type View } from '../lib/state/app.svelte';
+  import { TOOLBAR_VIEWS, VIEWS, type ToolbarView } from '../lib/model/views';
+  import { app } from '../lib/state/app.svelte';
   import type { PresetEntry, Profile } from '../lib/types';
   import LayerDialog from './LayerDialog.svelte';
   import LayerTip from './LayerTip.svelte';
@@ -14,21 +15,24 @@
   import Menu from './ui/Menu.svelte';
   import { tip as tooltip } from '../lib/tooltip.svelte';
 
-  /** `title`: a tooltip that says more than the label. */
-  type Tile = { id: View; icon: typeof Gamepad2; label: string; title?: string };
-  const views: Tile[] = $derived([
-    { id: 'front', icon: Gamepad2, label: t('views.front') },
-    { id: 'back', icon: RotateCcw, label: t('views.back') },
-    { id: 'keyboard', icon: Keyboard, label: t('views.keyboard') },
-    { id: 'mouse', icon: Mouse, label: t('views.mouse') },
-  ]);
-  /** Tiles after the layers. */
-  const extras: Tile[] = $derived([
-    { id: 'analog', icon: Joystick, label: t('views.analog'), title: t('analog.hint') },
-    { id: 'shortcuts', icon: Combine, label: t('views.shortcuts') },
-    { id: 'radial', icon: ChartPie, label: t('views.radial'), title: t('radial.tile_hint') },
-    { id: 'output', icon: Cable, label: t('views.output') },
-  ]);
+  const ICONS: Record<ToolbarView, typeof Gamepad2> = {
+    front: Gamepad2,
+    back: RotateCcw,
+    keyboard: Keyboard,
+    mouse: Mouse,
+    analog: Joystick,
+    shortcuts: Combine,
+    radial: ChartPie,
+    output: Cable,
+  };
+  /** Tooltips that say more than the label. */
+  const TITLES: Partial<Record<ToolbarView, string>> = { analog: 'analog.hint', radial: 'radial.tile_hint' };
+
+  type Tile = { id: ToolbarView; icon: typeof Gamepad2; label: string; title?: string };
+  const tileOf = (id: ToolbarView): Tile => ({ id, icon: ICONS[id], label: t(`views.${id}`), title: TITLES[id] && t(TITLES[id]) });
+  /** Tiles before the layers, and after them. */
+  const views = $derived(TOOLBAR_VIEWS.filter((v) => VIEWS[v].tile === 'before').map(tileOf));
+  const extras = $derived(TOOLBAR_VIEWS.filter((v) => VIEWS[v].tile === 'after').map(tileOf));
 
   const layers = $derived(app.profile ? layerIds(app.profile) : [0]);
   /** The layout transforms dialog is open. */
@@ -96,7 +100,7 @@
     overflow.map((id) => ({ label: app.layerLabel(id), color: layerColor(id), onclick: () => (app.layer = id) })),
   );
 
-  function setView(v: View) {
+  function setView(v: ToolbarView) {
     app.view = v;
     app.select(null);
   }

@@ -5,12 +5,10 @@
 import { menuOpen, popoverOpen } from '../lib/dom';
 import { layerIds } from '../lib/model/profile';
 import { firstFocus, navAction, nextFocus, stepperOf } from '../lib/padnav';
-import { app, type View } from '../lib/state/app.svelte';
+import { TOOLBAR_VIEWS, type View } from '../lib/model/views';
+import { app } from '../lib/state/app.svelte';
 import type { ControlName, Dir } from '../lib/types';
 import { modalOpen } from './ui/Dialog.svelte';
-
-/** The views the bumpers step through, in the toolbar's order. */
-const VIEWS: View[] = ['front', 'back', 'keyboard', 'mouse', 'analog', 'shortcuts', 'radial', 'output'];
 
 const FOCUSABLE = [
   'button',
@@ -107,9 +105,11 @@ function back() {
   target.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true, cancelable: true }));
 }
 
+/** The bumpers step through the toolbar's views. */
 function stepView(step: 1 | -1) {
-  const i = VIEWS.indexOf(app.view);
-  app.view = i < 0 ? 'front' : VIEWS[(i + step + VIEWS.length) % VIEWS.length]!;
+  const n = TOOLBAR_VIEWS.length;
+  const i = (TOOLBAR_VIEWS as readonly View[]).indexOf(app.view);
+  app.view = i < 0 ? 'front' : TOOLBAR_VIEWS[(i + step + n) % n]!;
 }
 
 function stepLayer(step: 1 | -1) {

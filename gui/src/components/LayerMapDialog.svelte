@@ -50,15 +50,12 @@
   const flaggedEdge = (e: MapEdge) => app.flags.triggers.get(e.from)?.has(comboKey(e.trigger)) ?? false;
 
   function showLayer(id: number) {
-    app.layer = id;
+    app.reveal({ kind: 'layer', layer: id });
     onclose();
   }
 
   function showMapping(e: MapEdge) {
-    if (app.view !== 'front' && app.view !== 'back' && app.view !== 'shortcuts') app.view = 'front';
-    app.layer = e.from;
-    app.activator = e.activator;
-    app.select(e.trigger);
+    app.reveal({ kind: 'mapping', layer: e.from, trigger: e.trigger, activator: e.activator });
     onclose();
   }
 </script>

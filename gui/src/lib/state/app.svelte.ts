@@ -6,7 +6,8 @@ import { setLanguage, t } from '../i18n/index.svelte';
 import type { Side } from '../model/analog';
 import { controlsFromPad, drawingsFor, sideShowing } from '../model/devices';
 import { setStickGroup, stickGroupConflicts, stickGroupOf, type StickGroup } from '../model/stickgroups';
-import { comboKey, editMappingIn, layerIds, mappingAt, type LayerCopy } from '../model/profile';
+import { comboKey, comboList, editMappingIn, layerIds, mappingAt, type LayerCopy } from '../model/profile';
+import { VIEWS, viewFor, type Place, type View } from '../model/views';
 import { layerLabel } from '../model/labels';
 import { launchRows } from '../model/launches';
 import { clone } from '../model/util';
@@ -41,7 +42,6 @@ import type {
   UpdateInfo,
 } from '../types';
 
-export type View = 'front' | 'back' | 'keyboard' | 'mouse' | 'shortcuts' | 'macro' | 'output' | 'analog' | 'radial';
 /** Pages of the analog view. */
 export type AnalogTab = 'left' | 'right' | 'triggers' | 'gyro' | 'touchpad' | 'routes';
 
@@ -755,8 +755,34 @@ export class AppState {
     this.selected = c;
     this.stick = null;
     this.macroTarget = null;
-    // The macro editor and the radial menus have no binding panel to show it in.
-    if (c && (this.view === 'macro' || this.view === 'radial')) this.view = 'front';
+    // Views without a binding panel (the macro editor, the radial menus) give way.
+    if (c && !VIEWS[this.view].selection) this.view = 'front';
+  }
+
+  /**
+   * Show a place in the config (a found mapping, a problem, an arrow of the layer map): a
+   * mapping selected in the view that has its control, on its layer and activator; a layer in
+   * a view that shows layers; a radial menu (and sector) in its view.
+   */
+  reveal(place: Place) {
+    if (place.kind === 'radial') {
+      this.view = 'radial';
+      this.radialMenu = place.menu;
+      this.radialSector = place.sector;
+      return;
+    }
+    this.layer = place.layer;
+    if (place.kind === 'layer') {
+      if (!VIEWS[this.view].layer) this.view = 'front';
+      return;
+    }
+    const view = viewFor(place.trigger, this.view);
+    const single = comboList(place.trigger);
+    // A trigger shows on the back of some controllers only.
+    this.view =
+      (view === 'front' || view === 'back') && single.length === 1 ? sideShowing(drawingsFor(this.primary), view, single[0]!) : view;
+    this.activator = place.activator;
+    this.select(place.trigger);
   }
 
   /** Show what a whole stick does in the side panel instead of a control's mappings. */

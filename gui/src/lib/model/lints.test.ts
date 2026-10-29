@@ -46,7 +46,7 @@ describe('lints', () => {
 
   it('paths lead to mappings and layers', () => {
     expect(mappingPath(3, ['Back', 'Start'])).toBe('mappings[3] (Back+Start)');
-    expect(diagTarget(p, warn('mappings[2] (B)'))).toEqual({ kind: 'mapping', layer: 1, trigger: 'B' });
+    expect(diagTarget(p, warn('mappings[2] (B)'))).toEqual({ kind: 'mapping', layer: 1, trigger: 'B', activator: 'single' });
     expect(diagTarget(p, warn('layers[0]'))).toEqual({ kind: 'layer', layer: 2 });
     expect(diagTarget(p, warn('layers[0].lightbar'))).toBeNull();
     expect(diagTarget(p, warn('analog[0]'))).toBeNull();
