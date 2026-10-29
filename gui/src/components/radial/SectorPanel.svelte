@@ -4,14 +4,13 @@
   // or held for a time, with pauses), or another menu to open. Without a picked sector it
   // lists the menu's sectors.
   import { open } from '@tauri-apps/plugin-dialog';
-  import { ChevronRight, FolderOpen, Image, Info, Plus, Timer, Trash2, X } from '@lucide/svelte';
+  import { ChevronRight, FolderOpen, Image, Info, Plus, Trash2, X } from '@lucide/svelte';
   import { t } from '../../lib/i18n/index.svelte';
   import { actionLabel } from '../../lib/model/labels';
   import { DEFAULT_SECTOR_COLOR, createSubmenu, removeSector, updateSector } from '../../lib/model/radial';
   import { app } from '../../lib/state/app.svelte';
   import { tip } from '../../lib/tooltip.svelte';
   import type { Action, RadialSector } from '../../lib/types';
-  import ActionPicker from '../binding/ActionPicker.svelte';
   import StepList from '../binding/StepList.svelte';
   import Segmented from '../ui/Segmented.svelte';
   import Select from '../ui/Select.svelte';
@@ -27,13 +26,6 @@
   const steps = $derived<Action[]>(s?.actions ?? []);
   /** Run with the apply command: only then can a sector leave the menu open. */
   const byCommand = $derived((menu?.apply ?? app.catalog?.defaults.radial_menu.apply) === 'command');
-
-  let picking = $state(false);
-  // A new sector starts without the picker.
-  $effect(() => {
-    void k;
-    picking = false;
-  });
 
   function set(patch: Partial<RadialSector>) {
     if (k !== null) app.edit((p) => updateSector(p, i, k, patch));
@@ -176,24 +168,16 @@
       </div>
     {:else}
       <p class="hint">{t('radial.steps_hint')}</p>
-      <StepList
-        {steps}
-        {disabled}
-        narrow
-        empty={t('radial.no_steps')}
-        onchange={(next) => set({ actions: next.length ? next : undefined })}
-      />
-      {#if !disabled}
-        <div class="add">
-          <button class="btn" class:on={picking} onclick={() => (picking = !picking)}><Plus size={14} /> {t('binding.add_action')}</button>
-          <button class="btn" onclick={() => set({ actions: [...steps, { pause: 100 }] })}
-            ><Timer size={14} /> {t('macro.add_pause')}</button
-          >
-        </div>
-        {#if picking}
-          <ActionPicker onpick={(a) => set({ actions: [...steps, a] })} onclose={() => (picking = false)} />
-        {/if}
-      {/if}
+      <!-- A sector picked anew starts without the action picker. -->
+      {#key k}
+        <StepList
+          {steps}
+          {disabled}
+          narrow
+          empty={t('radial.no_steps')}
+          onchange={(next) => set({ actions: next.length ? next : undefined })}
+        />
+      {/key}
     {/if}
 
     {#if byCommand}
@@ -324,15 +308,7 @@
     flex: 1;
     min-width: 0;
   }
-  .add {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-  .add .on {
-    border-color: var(--accent);
-    color: var(--accent);
-  }
+
   .danger {
     align-self: flex-start;
     color: var(--danger);
