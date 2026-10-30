@@ -10,6 +10,10 @@ const stored: GuiSettings[] = [];
 const storedHotkeys: Hotkeys[] = [];
 /** Commands that fail. */
 const failing = new Set<string>();
+/** Configs changed on disk since the test began; `null`: the file is gone. */
+const onDisk = new Map<string, Profile | null>();
+/** The games the library lists. */
+let scanned: Game[] = [];
 /** Sends a live state to the app, once it has subscribed. */
 let sendLive: (s: LiveState) => void = () => {};
 vi.mock('@tauri-apps/api/core', () => ({
@@ -37,7 +41,7 @@ vi.mock('@tauri-apps/api/core', () => ({
       if ((args as { profile?: Profile } | undefined)?.profile?.name === 'slow') await new Promise((r) => setTimeout(r, 500));
       return [{ severity: 'warning', path: '', message: (args as { profile: Profile }).profile.name }];
     }
-    if (cmd === 'library_scan') return { games: [game], unsorted: [], errors: [] };
+    if (cmd === 'library_scan') return { games: scanned, unsorted: [], errors: [] };
     if (cmd === 'settings_get') return { ...SETTINGS_PLACEHOLDER, check_updates: false };
     if (cmd === 'take_notices' || cmd === 'take_open_files' || cmd === 'config_import_launches') return [];
     if (cmd === 'config_import') return { path: 'imported.toml', diagnostics: [{ severity: 'warning', path: '', message: 'converted' }] };
@@ -54,7 +58,9 @@ vi.mock('@tauri-apps/api/event', () => ({ listen: async () => () => {} }));
 
 /** A config as the bridge loads it; paths with "ro" in them are read-only. */
 function loaded(path: string): LoadedConfig {
-  const profile: Profile = { name: path, mappings: [{ trigger: 'A', actions: [{ key: 'Space' }] }] };
+  const changed = onDisk.get(path);
+  if (changed === null) throw new Error(`${path} is gone`);
+  const profile: Profile = changed ?? { name: path, mappings: [{ trigger: 'A', actions: [{ key: 'Space' }] }] };
   return { profile, diagnostics: [], read_only: path.includes('ro') };
 }
 
@@ -66,6 +72,8 @@ let app: InstanceType<typeof AppState>;
 beforeEach(() => {
   app = new AppState();
   failing.clear();
+  onDisk.clear();
+  scanned = [game];
 });
 
 /** A game with two configs. */
@@ -354,5 +362,55 @@ describe('going to a place in the config', () => {
     expect([app.view, app.layer]).toEqual(['front', 1]);
     app.reveal({ kind: 'radial', menu: 1, sector: 3 });
     expect([app.view, app.radialMenu, app.radialSector]).toEqual(['radial', 1, 3]);
+  });
+});
+
+describe('changes on disk', () => {
+  /** The game's first config, open, with an undone edit to redo. */
+  async function opened() {
+    app.library = { games: [game], unsorted: [], errors: [] };
+    await app.selectGame('game');
+    rename('edited');
+    app.undo();
+  }
+
+  it('a config changed while the window was away comes back with the change', async () => {
+    await opened();
+    onDisk.set('one.toml', { name: 'from an assistant', mappings: [] });
+    await app.followDisk();
+    expect([app.configPath, app.profile?.name, app.dirty, app.canRedo]).toEqual(['one.toml', 'from an assistant', false, false]);
+  });
+
+  it('one that is as it was stays as it is, its steps too', async () => {
+    await opened();
+    await app.followDisk();
+    expect([app.profile?.name, app.canRedo]).toEqual(['one.toml', true]);
+  });
+
+  it('unsaved changes stay, whatever the file says', async () => {
+    await opened();
+    rename('mine');
+    onDisk.set('one.toml', { name: 'from an assistant', mappings: [] });
+    await app.followDisk();
+    expect([app.profile?.name, app.dirty]).toEqual(['mine', true]);
+  });
+
+  it('a config gone from the library closes, and its game when that is gone too', async () => {
+    await opened();
+    onDisk.set('one.toml', null);
+    scanned = [{ ...game, configs: [game.configs[1]!] }];
+    await app.followDisk();
+    expect([app.gameDir, app.configPath]).toEqual(['game', null]);
+    expect(app.library.games[0]?.configs.map((c) => c.path)).toEqual(['two.toml']);
+
+    // Listed but unreadable (a hand edit gone wrong), it stays open.
+    await app.openConfig('two.toml', true);
+    onDisk.set('two.toml', null);
+    await app.followDisk();
+    expect(app.configPath).toBe('two.toml');
+
+    scanned = [];
+    await app.followDisk();
+    expect([app.gameDir, app.configPath]).toEqual([null, null]);
   });
 });

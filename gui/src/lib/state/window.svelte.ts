@@ -15,6 +15,8 @@ class WindowState {
   maximized = $state(false);
   fullscreen = $state(false);
   focused = $state(true);
+  /** Runs each time the window comes to the front again (not at start). */
+  onFocus: () => void = () => {};
 
   async init() {
     const w = getCurrentWindow();
@@ -24,7 +26,10 @@ class WindowState {
     };
     await sync();
     await w.onResized(sync);
-    await w.onFocusChanged(({ payload }) => (this.focused = payload));
+    await w.onFocusChanged(({ payload }) => {
+      if (payload && !this.focused) this.onFocus();
+      this.focused = payload;
+    });
   }
 
   minimize() {

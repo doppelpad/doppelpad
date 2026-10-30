@@ -53,6 +53,7 @@
   onMount(() => {
     app.pad.navigate = runPadControls;
     app.init();
+    win.onFocus = () => app.followDisk();
     win.init();
   });
 
