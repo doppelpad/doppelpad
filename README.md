@@ -207,14 +207,17 @@ can apply it for you to try. It reaches only the configs in your library, a conf
 keeps its earlier version in the app's history, and it cannot add launch commands: those you add
 in the app.
 
-Add it to the assistant as a local server whose command is `doppelpad mcp`, for example:
+Add it to the assistant as a local server that runs `doppelpad mcp`. On Windows the installer puts
+`doppelpad.exe` next to the app, so in Claude Code:
 
 ```bash
-claude mcp add doppelpad -- doppelpad mcp
+claude mcp add doppelpad -- "C:\Program Files\Doppelpad\doppelpad.exe" mcp
 ```
 
 In Claude Desktop, under `mcpServers` in `claude_desktop_config.json`:
-`"doppelpad": { "command": "C:\\path\\to\\doppelpad.exe", "args": ["mcp"] }`.
+`"doppelpad": { "command": "C:\\Program Files\\Doppelpad\\doppelpad.exe", "args": ["mcp"] }`.
+On Linux and macOS, `doppelpad` comes as its own archive with each release. An update replaces
+`doppelpad.exe` and ends a server that runs, so the assistant connects again afterwards.
 
 ## Profiles
 
