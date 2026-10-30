@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { DiagMsg, Hotkeys, Profile } from '../types';
+import diagnosticsFixture from './fixtures/diagnostics.json';
 import { diagTarget, flagsOf, hotkeyClashes, isFlagged, isReached, mappingPath, waitsForSave } from './lints';
 
 const p: Profile = {
@@ -32,15 +33,21 @@ const warn = (path: string): DiagMsg => ({ severity: 'warning', path, message: '
 
 describe('lints', () => {
   it('a mapping holding every button of a hotkey clashes; a part of one does not', () => {
-    const found = hotkeyClashes(p, hotkeys);
+    const found = hotkeyClashes(p, hotkeys, 'xbox');
     expect(found.map((d) => d.path)).toEqual(['mappings[0] (LB+RB+X)']);
-    expect(found[0]!.message).toContain('LB + RB + X');
-    expect(hotkeyClashes(p, null)).toEqual([]);
+    expect(found[0]!.message).toContain('Left bumper + Right bumper + X');
+    expect(hotkeyClashes(p, null, 'xbox')).toEqual([]);
+  });
+
+  it('every hotkey can clash, named as the controller names its buttons', () => {
+    const found = hotkeyClashes(p, { ...hotkeys, app_navigation: ['Back', 'Start'] }, 'dual_sense');
+    expect(found.map((d) => d.path)).toEqual(['mappings[0] (LB+RB+X)', 'mappings[3] (Back+Start)']);
+    expect(found[1]!.message).toContain('Create + Options');
   });
 
   it('paths lead to mappings and layers', () => {
     expect(mappingPath(3, ['Back', 'Start'])).toBe('mappings[3] (Back+Start)');
-    expect(diagTarget(p, warn('mappings[2] (B)'))).toEqual({ kind: 'mapping', layer: 1, trigger: 'B' });
+    expect(diagTarget(p, warn('mappings[2] (B)'))).toEqual({ kind: 'mapping', layer: 1, trigger: 'B', activator: 'single' });
     expect(diagTarget(p, warn('layers[0]'))).toEqual({ kind: 'layer', layer: 2 });
     expect(diagTarget(p, warn('layers[0].lightbar'))).toBeNull();
     expect(diagTarget(p, warn('analog[0]'))).toBeNull();
@@ -80,5 +87,29 @@ describe('layers being set up', () => {
     expect(waitsForSave(q, unreached, new Set([0, 1, 2]))).toBe(false);
     expect(waitsForSave(q, { ...unreached, severity: 'error' }, new Set([0]))).toBe(false);
     expect(waitsForSave(q, { severity: 'warning', path: 'mappings[1] (A)', message: 'x' }, new Set([0]))).toBe(false);
+  });
+});
+
+// What the Rust validator says about a profile with problems in every kind of place
+// (written by the bridge's tests): the paths must lead where the window thinks they do.
+describe("the validator's own paths", () => {
+  const { profile, diagnostics } = diagnosticsFixture as unknown as { profile: Profile; diagnostics: DiagMsg[] };
+
+  it('every mapping, layer and radial menu path points at what it names', () => {
+    for (const d of diagnostics) {
+      const target = diagTarget(profile, d);
+      if (d.path.startsWith('mappings[')) expect(target?.kind, d.path).toBe('mapping');
+      else if (d.path.startsWith('radial_menus[')) expect(target?.kind, d.path).toBe('radial');
+      else if (/^layers\[\d+\]$/.test(d.path)) expect(target?.kind, d.path).toBe('layer');
+      else expect(target, d.path).toBeNull();
+    }
+    const sector = diagnostics.find((d) => d.path.includes('.sectors['));
+    expect(sector && diagTarget(profile, sector)).toMatchObject({ kind: 'radial', menu: 0, sector: 0 });
+  });
+
+  it("the only warning about a whole layer is the one about a layer nothing changes to (waitsForSave's rule)", () => {
+    const whole = diagnostics.filter((d) => d.severity === 'warning' && /^layers\[\d+\]$/.test(d.path));
+    expect(whole.length).toBeGreaterThan(0);
+    for (const d of whole) expect(d.message, d.path).toMatch(/^nothing changes to layer \d+/);
   });
 });

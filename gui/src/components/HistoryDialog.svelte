@@ -6,7 +6,7 @@
   import { api } from '../lib/api';
   import { language, t } from '../lib/i18n/index.svelte';
   import { isSame, profileChanges, type Changes } from '../lib/model/changes';
-  import { comboLabel } from '../lib/model/labels';
+  import { activatorPart, comboLabel, joinLabel } from '../lib/model/labels';
   import { app } from '../lib/state/app.svelte';
   import type { Profile } from '../lib/types';
   import Dialog from './ui/Dialog.svelte';
@@ -27,9 +27,9 @@
       open = null;
       return;
     }
-    const loaded = await api.configLoad(path).catch(() => null);
+    const loaded = await app.attemptGet(api.configLoad(path));
     if (!loaded || !app.profile) return;
-    open = { path, profile: loaded.profile, changes: profileChanges($state.snapshot(app.profile) as Profile, loaded.profile) };
+    open = { path, profile: loaded.profile, changes: profileChanges(app.snapshot()!, loaded.profile) };
   }
 
   function restore(v: { path: string; time_ms: number }) {
@@ -65,9 +65,7 @@
                     <li>
                       <span class="kind {c.kind}">{t(`history.${c.kind}`)}</span>
                       {comboLabel(c.trigger, app.family)}
-                      <span class="dim"
-                        >· {app.layerLabel(c.layer)}{c.activator !== 'single' ? ` · ${t(`activators.${c.activator}`)}` : ''}</span
-                      >
+                      <span class="dim">· {joinLabel(app.layerLabel(c.layer), activatorPart(c.activator))}</span>
                     </li>
                   {/each}
                   {#each open.changes.sections as s (s)}

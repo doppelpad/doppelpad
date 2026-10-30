@@ -161,9 +161,15 @@ pub trait PadDriver: Send {
     fn raw(&self) -> Option<Arc<RawInput>> {
         None
     }
-    /// Turn the controller off if it can be told to over its own link; `Ok(false)` if not.
-    fn power_off(&mut self, _io: &mut dyn ReportIo) -> io::Result<bool> {
-        Ok(false)
+    /// Whether [`power_off`](Self::power_off) can turn the controller off now, over its own
+    /// link. Asked after every report and service, so it may change (a wireless receiver's
+    /// slot).
+    fn can_power_off(&self) -> bool {
+        false
+    }
+    /// Turn the controller off; called only while [`can_power_off`](Self::can_power_off).
+    fn power_off(&mut self, _io: &mut dyn ReportIo) -> io::Result<()> {
+        Err(io::ErrorKind::Unsupported.into())
     }
     /// When [`service`](Self::service) must run again even if no report arrives.
     fn next_deadline(&self) -> Option<Instant>;
@@ -176,13 +182,17 @@ pub trait PadDriver: Send {
     fn shutdown(&mut self, _io: &mut dyn ReportIo) {}
 }
 
+/// Room for the longest input report a driver reads through [`read_until`]: more than any
+/// controller's (a DualSense's over Bluetooth has 78 bytes), so none is cut short.
+const MAX_REPORT: usize = 512;
+
 /// Read reports until `accept` takes one (and gives its answer) or `until` passes (`None`).
 pub fn read_until<T>(
     io: &mut dyn ReportIo,
     until: Instant,
     mut accept: impl FnMut(&[u8]) -> Option<T>,
 ) -> io::Result<Option<T>> {
-    let mut buf = [0u8; 64];
+    let mut buf = [0u8; MAX_REPORT];
     loop {
         let now = io.now();
         if now >= until {

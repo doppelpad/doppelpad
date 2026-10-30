@@ -1,4 +1,5 @@
-//! Gamepads without a driver of their own, read through the operating system's HID parser.
+//! Gamepads without a driver of their own, read through a HID parser: Windows' own, or on
+//! macOS Doppelpad's (`hiddesc`), both by the rules in [`usages`].
 //!
 //! They report buttons, axes and hat switches in an order only the maker knows. A
 //! [`GenericLayout`], recorded by the user with the identify wizard and kept per model
@@ -16,7 +17,7 @@ use crate::padio::{Identity, InitError, PadDriver, ReportIo};
 
 /// What a generic pad reports, before any layout: buttons in HID order, axes in `-1..=1` by
 /// usage (X, Y, Z, Rx, Ry, Rz, sliders, dials, then simulation controls), hat switches as a
-/// direction 0–7 clockwise from up (`None` when centred).
+/// direction 0–7 clockwise from up (`None` when centred). [`usages`] says how.
 #[derive(Clone, Debug, Default, PartialEq, Serialize)]
 pub struct RawInput {
     pub buttons: Vec<bool>,
@@ -24,10 +25,134 @@ pub struct RawInput {
     pub hats: Vec<Option<u8>>,
 }
 
-/// Turns input reports into raw input; keeps what earlier reports said for devices that
-/// spread their controls over several reports.
+impl RawInput {
+    /// Make room for this many controls of each kind; what is there stays.
+    pub fn resize(&mut self, buttons: usize, axes: usize, hats: usize) {
+        self.buttons.resize(buttons, false);
+        self.axes.resize(axes, 0.0);
+        self.hats.resize(hats, None);
+    }
+}
+
+/// Turns input reports into raw input.
 pub trait ReportDecoder: Send {
-    fn decode(&mut self, report: &[u8]) -> Option<RawInput>;
+    /// Decode `report` (report ID first) into `out`, which holds what the earlier reports said
+    /// (devices may spread their controls over several reports): `false` for a report without
+    /// any of the pad's controls.
+    fn decode(&mut self, report: &[u8], out: &mut RawInput) -> bool;
+}
+
+/// How the HID parsers of the OSes (`hiddesc`, and `windows::hidparse` on top of Windows' own)
+/// make [`RawInput`] of a pad's inputs: which usages count, in which order, and how values
+/// become axes and hat directions. A saved [`GenericLayout`] indexes these positions, so a
+/// difference would map the wrong controls on the other OS.
+pub(crate) mod usages {
+    // Linux reads generic pads through evdev.
+    #![cfg_attr(not(any(windows, target_os = "macos")), allow(dead_code))]
+
+    use std::ops::RangeInclusive;
+
+    pub const PAGE_DESKTOP: u16 = 0x01;
+    pub const PAGE_SIMULATION: u16 = 0x02;
+    pub const PAGE_BUTTON: u16 = 0x09;
+    /// X, Y, Z, Rx, Ry, Rz, slider, dial, wheel.
+    const DESKTOP_AXES: RangeInclusive<u16> = 0x30..=0x38;
+    const HAT_SWITCH: u16 = 0x39;
+    /// More buttons than any pad has: the rest are left out.
+    pub const MAX_BUTTONS: usize = 32;
+
+    /// Whether an input of this page and usage is one of the axes.
+    pub fn is_axis(page: u16, usage: u16) -> bool {
+        (page == PAGE_DESKTOP && DESKTOP_AXES.contains(&usage)) || page == PAGE_SIMULATION
+    }
+
+    /// Whether an input of this page and usage is a hat switch.
+    pub fn is_hat(page: u16, usage: u16) -> bool {
+        page == PAGE_DESKTOP && usage == HAT_SWITCH
+    }
+
+    /// Button usages as the buttons are numbered: by usage, each once, at most
+    /// [`MAX_BUTTONS`].
+    pub fn order_buttons(usages: &mut Vec<u16>) {
+        usages.sort_unstable();
+        usages.dedup();
+        usages.truncate(MAX_BUTTONS);
+    }
+
+    /// Axes as they are numbered: by page and usage (X to wheel, then the simulation
+    /// controls), each once.
+    pub fn order_axes<T>(axes: &mut Vec<T>, usage: impl Fn(&T) -> (u16, u16)) {
+        axes.sort_by_key(&usage);
+        axes.dedup_by_key(|a| usage(a));
+    }
+
+    /// A value of `bits` bits as it reads: sign-extended when its logical range is signed
+    /// (`min` below 0).
+    pub fn signed(raw: u32, bits: u32, min: i64) -> i64 {
+        let v = i64::from(raw);
+        if min < 0 && (1..=32).contains(&bits) && v & (1 << (bits - 1)) != 0 {
+            v - (1 << bits)
+        } else {
+            v
+        }
+    }
+
+    /// A value as an axis: `-1..=1` over its logical range `min..=max`.
+    pub fn axis(v: i64, min: i64, max: i64) -> f32 {
+        if max <= min {
+            return 0.0;
+        }
+        (((v - min) as f32 / (max - min) as f32) * 2.0 - 1.0).clamp(-1.0, 1.0)
+    }
+
+    /// A value as a hat direction, 0–7 clockwise from up, over a range of eight directions
+    /// or four; `None` (centred) for a value outside it.
+    pub fn hat(v: i64, min: i64, max: i64) -> Option<u8> {
+        let d = v - min;
+        match max - min + 1 {
+            8 if (0..8).contains(&d) => Some(d as u8),
+            4 if (0..4).contains(&d) => Some(d as u8 * 2),
+            _ => None,
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn values() {
+            assert_eq!(signed(0xFF, 8, -128), -1);
+            assert_eq!(signed(0xFF, 8, 0), 255, "an unsigned range");
+            assert_eq!(signed(0x8000, 16, -32768), -32768);
+            assert_eq!(signed(u32::MAX, 32, -1), -1, "32 bits too");
+            assert_eq!(signed(u32::MAX, 32, 0), i64::from(u32::MAX));
+            assert_eq!(axis(0, 0, 255), -1.0);
+            assert_eq!(axis(255, 0, 255), 1.0);
+            assert_eq!(axis(5, 3, 3), 0.0, "no range");
+            assert_eq!(hat(2, 0, 7), Some(2));
+            assert_eq!(hat(8, 0, 7), None, "centred");
+            assert_eq!(hat(1, 1, 8), Some(0));
+            assert_eq!(hat(3, 0, 3), Some(6), "four ways: left");
+        }
+
+        #[test]
+        fn order() {
+            let mut buttons: Vec<u16> = (1..=40).rev().chain([3, 3]).collect();
+            order_buttons(&mut buttons);
+            assert_eq!(buttons, (1..=32).collect::<Vec<u16>>());
+            let mut axes = vec![
+                (PAGE_SIMULATION, 0xC4),
+                (PAGE_DESKTOP, 0x31),
+                (PAGE_DESKTOP, 0x30),
+                (PAGE_DESKTOP, 0x30),
+            ];
+            order_axes(&mut axes, |a| *a);
+            assert_eq!(axes, [(1, 0x30), (1, 0x31), (2, 0xC4)]);
+            assert!(is_axis(PAGE_DESKTOP, 0x38) && !is_axis(PAGE_DESKTOP, 0x39));
+            assert!(is_hat(PAGE_DESKTOP, 0x39) && !is_hat(PAGE_BUTTON, 0x39));
+        }
+    }
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -241,6 +366,49 @@ impl GenericLayout {
     }
 }
 
+/// The raw input of a pad's last reports, handed out without allocating: of its three
+/// buffers the engine holds at most one (from its last poll) and the device's published state
+/// another, so one is free to decode the next report into.
+struct RawRing {
+    bufs: [Arc<RawInput>; 3],
+    /// The buffer with the latest input; `None` before the first report.
+    latest: Option<usize>,
+}
+
+impl RawRing {
+    fn new() -> RawRing {
+        RawRing {
+            bufs: std::array::from_fn(|_| Arc::default()),
+            latest: None,
+        }
+    }
+
+    /// Decode `report` into a free buffer, on top of the latest input (a report may carry only
+    /// some controls); the input then, or `None` for a report without the pad's controls.
+    fn decode(&mut self, decoder: &mut dyn ReportDecoder, report: &[u8]) -> Option<&RawInput> {
+        let after = self.latest.map_or(0, |l| l + 1);
+        let free = (0..3)
+            .map(|i| (after + i) % 3)
+            .find(|&i| Some(i) != self.latest && Arc::strong_count(&self.bufs[i]) == 1)
+            // All held after all: one is copied.
+            .unwrap_or(after % 3);
+        let latest = self.latest.map(|l| self.bufs[l].clone());
+        let buf = Arc::make_mut(&mut self.bufs[free]);
+        if let Some(latest) = latest {
+            buf.clone_from(&latest);
+        }
+        if !decoder.decode(report, buf) {
+            return None;
+        }
+        self.latest = Some(free);
+        Some(buf)
+    }
+
+    fn latest(&self) -> Option<Arc<RawInput>> {
+        self.latest.map(|l| self.bufs[l].clone())
+    }
+}
+
 pub struct GenericDriver {
     name: String,
     device: String,
@@ -249,7 +417,7 @@ pub struct GenericDriver {
     layouts: Option<Arc<Vec<GenericLayout>>>,
     layout: Option<GenericLayout>,
     guess: Option<GenericLayout>,
-    raw: Option<Arc<RawInput>>,
+    raw: RawRing,
     /// Whether the user's layout was in use when the notice was last reported.
     noticed: bool,
 }
@@ -265,7 +433,7 @@ impl GenericDriver {
             layouts: None,
             layout: None,
             guess: None,
-            raw: None,
+            raw: RawRing::new(),
             noticed: false,
         }
     }
@@ -280,20 +448,18 @@ impl PadDriver for GenericDriver {
     }
 
     fn parse(&mut self, report: &[u8], _now: Instant) -> Option<PadState> {
-        let raw = self.decoder.decode(report)?;
-        let state = match &self.layout {
-            Some(l) => l.apply(&raw),
+        let raw = self.raw.decode(self.decoder.as_mut(), report)?;
+        Some(match &self.layout {
+            Some(l) => l.apply(raw),
             None => self
                 .guess
-                .get_or_insert_with(|| GenericLayout::guess(&self.device, &raw))
-                .apply(&raw),
-        };
-        self.raw = Some(Arc::new(raw));
-        Some(state)
+                .get_or_insert_with(|| GenericLayout::guess(&self.device, raw))
+                .apply(raw),
+        })
     }
 
     fn raw(&self) -> Option<Arc<RawInput>> {
-        self.raw.clone()
+        self.raw.latest()
     }
 
     fn set_layouts(&mut self, layouts: &Arc<Vec<GenericLayout>>) {
@@ -330,9 +496,49 @@ mod tests {
     struct Fixed(RawInput);
 
     impl ReportDecoder for Fixed {
-        fn decode(&mut self, _report: &[u8]) -> Option<RawInput> {
-            Some(self.0.clone())
+        fn decode(&mut self, _report: &[u8], out: &mut RawInput) -> bool {
+            out.clone_from(&self.0);
+            true
         }
+    }
+
+    /// Counts its reports into the first button's place, and takes only reports `[1]`.
+    struct Counter;
+
+    impl ReportDecoder for Counter {
+        fn decode(&mut self, report: &[u8], out: &mut RawInput) -> bool {
+            if report != [1] {
+                return false;
+            }
+            out.resize(1, 1, 0);
+            out.axes[0] += 1.0;
+            true
+        }
+    }
+
+    #[test]
+    fn raw_input_is_decoded_in_place() {
+        let mut ring = RawRing::new();
+        assert!(ring.latest().is_none());
+        let mut held = Vec::new();
+        for n in 1..=10 {
+            assert_eq!(ring.decode(&mut Counter, &[1]).unwrap().axes, [n as f32]);
+            assert!(ring.decode(&mut Counter, &[2]).is_none(), "not the pad's");
+            // The engine keeps the last one it polled, the device's state the latest.
+            held.push(ring.latest().unwrap());
+            if held.len() > 2 {
+                held.remove(0);
+            }
+        }
+        let addresses: Vec<*const RawInput> = ring.bufs.iter().map(Arc::as_ptr).collect();
+        for _ in 0..10 {
+            ring.decode(&mut Counter, &[1]);
+            held.push(ring.latest().unwrap());
+            held.remove(0);
+        }
+        let again: Vec<*const RawInput> = ring.bufs.iter().map(Arc::as_ptr).collect();
+        assert_eq!(addresses, again, "no buffer was made anew");
+        assert_eq!(ring.latest().unwrap().axes, [20.0]);
     }
 
     fn raw() -> RawInput {

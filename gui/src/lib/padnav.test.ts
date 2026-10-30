@@ -1,5 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { firstFocus, navAction, nextFocus, padMode, PressRepeat, REPEAT_DELAY, REPEAT_EVERY, type Box } from './padnav';
+import {
+  firstFocus,
+  navAction,
+  nextChoice,
+  nextFocus,
+  padMode,
+  PressRepeat,
+  REPEAT_DELAY,
+  REPEAT_EVERY,
+  stepper,
+  stepperOf,
+  type Box,
+} from './padnav';
 
 const box = (left: number, top: number, w = 40, h = 20): Box => ({ left, top, right: left + w, bottom: top + h });
 
@@ -77,5 +89,35 @@ describe('controller actions', () => {
     const r = new PressRepeat();
     r.reset(new Set(['A']), 0);
     expect(r.update(new Set(['A']), 10)).toEqual([]);
+  });
+});
+
+describe('stepping a list', () => {
+  const choices = [{ value: 'a' }, { value: 'b', disabled: true }, { value: 'c' }];
+
+  it('steps to the next choice that can be picked, round the end', () => {
+    expect(nextChoice(choices, 'a', 1)).toBe('c');
+    expect(nextChoice(choices, 'c', 1)).toBe('a');
+    expect(nextChoice(choices, 'a', -1)).toBe('c');
+    expect(nextChoice(choices, 'c', -1)).toBe('a');
+  });
+
+  it('starts at an end when no choice has the value, and stays without another choice', () => {
+    expect(nextChoice(choices, 'x', 1)).toBe('a');
+    expect(nextChoice(choices, 'x', -1)).toBe('c');
+    expect(nextChoice([{ value: 'a' }], 'a', 1)).toBeUndefined();
+    expect(nextChoice([], 'a', 1)).toBeUndefined();
+  });
+
+  it('a stepper registered for an element is found by it, until it goes', () => {
+    const el = {} as HTMLElement;
+    const steps: number[] = [];
+    const action = stepper(el, (s) => steps.push(s));
+    stepperOf(el)?.(1);
+    action.update((s) => steps.push(10 * s));
+    stepperOf(el)?.(-1);
+    action.destroy();
+    expect(stepperOf(el)).toBeUndefined();
+    expect(steps).toEqual([1, -10]);
   });
 });

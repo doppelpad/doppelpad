@@ -3,29 +3,16 @@
 // the app's own dialog. Only the file pickers are the system's.
 
 import { describe, expect, it } from 'vitest';
-
-const sources = import.meta.glob<string>('/src/**/*.{ts,svelte}', {
-  query: '?raw',
-  import: 'default',
-  eager: true,
-});
-const files = Object.entries(sources).filter(([path]) => !path.endsWith('.test.ts'));
+import { linesMatching, sources } from './testing/sources';
 
 describe('dialogs', () => {
   it('nothing calls confirm()', () => {
-    expect(files.length).toBeGreaterThan(50);
-    const calls = files.flatMap(([path, text]) =>
-      text
-        .split('\n')
-        .map((line, i) => [`${path}:${i + 1}`, line] as const)
-        .filter(([, line]) => /(?<![\w$])confirm\s*\(/.test(line))
-        .map(([at]) => at),
-    );
-    expect(calls).toEqual([]);
+    expect(sources.length).toBeGreaterThan(50);
+    expect(linesMatching(sources, /(?<![\w$])confirm\s*\(/)).toEqual([]);
   });
 
   it('only the file pickers come from the dialog plugin', () => {
-    const imports = files.flatMap(([path, text]) =>
+    const imports = sources.flatMap(([path, text]) =>
       [...text.matchAll(/import\s*\{([^}]*)\}\s*from\s*'@tauri-apps\/plugin-dialog'/g)]
         .flatMap((m) => m[1]!.split(',').map((name) => name.trim()))
         .filter((name) => name && name !== 'open' && name !== 'save')

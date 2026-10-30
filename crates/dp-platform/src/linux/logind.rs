@@ -1,35 +1,43 @@
-//! Asking systemd-logind about the user's session with `busctl`. No I/O here, so it is
-//! unit-tested on every OS.
+//! Asking systemd-logind about the user's session, and for its idle lock, on the system bus
+//! ([`super::sysbus`]).
 
-/// `busctl` arguments that read the `LockedHint` of the session Doppelpad runs in, or of the
-/// user's graphical session when it runs outside one (`session/auto`). The desktop sets the
-/// hint while its lock screen shows.
-pub const LOCKED_HINT_QUERY: [&str; 5] = [
-    "get-property",
-    "org.freedesktop.login1",
-    "/org/freedesktop/login1/session/auto",
-    "org.freedesktop.login1.Session",
-    "LockedHint",
-];
+use std::os::fd::OwnedFd;
 
-/// The hint from `busctl`'s answer (`b true`).
-pub fn locked_hint(answer: &str) -> Option<bool> {
-    match answer.trim() {
-        "b true" => Some(true),
-        "b false" => Some(false),
-        _ => None,
-    }
+use zbus::zvariant::{self, OwnedValue};
+
+const LOGIN1: &str = "org.freedesktop.login1";
+const PROPERTIES: &str = "org.freedesktop.DBus.Properties";
+
+/// Whether the session Doppelpad runs in is locked, or the user's graphical session when it
+/// runs outside one (`session/auto`): the desktop sets its `LockedHint` while its lock screen
+/// shows.
+pub fn locked() -> zbus::Result<bool> {
+    let value: OwnedValue = super::sysbus::connection()?
+        .call_method(
+            Some(LOGIN1),
+            "/org/freedesktop/login1/session/auto",
+            Some(PROPERTIES),
+            "Get",
+            &("org.freedesktop.login1.Session", "LockedHint"),
+        )?
+        .body()
+        .deserialize()?;
+    Ok(bool::try_from(value)?)
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn locked_hints() {
-        assert_eq!(locked_hint("b true\n"), Some(true));
-        assert_eq!(locked_hint("b false\n"), Some(false));
-        assert_eq!(locked_hint(""), None);
-        assert_eq!(locked_hint("s \"active\""), None);
-    }
+/// Take logind's idle lock: the computer does not count as idle while the returned file
+/// descriptor is open, and closing it (also when Doppelpad ends in any way) gives the lock
+/// back.
+pub fn inhibit_idle(why: &str) -> zbus::Result<OwnedFd> {
+    let fd: zvariant::OwnedFd = super::sysbus::connection()?
+        .call_method(
+            Some(LOGIN1),
+            "/org/freedesktop/login1",
+            Some("org.freedesktop.login1.Manager"),
+            "Inhibit",
+            &("idle", "Doppelpad", why, "block"),
+        )?
+        .body()
+        .deserialize()?;
+    Ok(fd.into())
 }

@@ -79,12 +79,12 @@ describe('controls pressed on a controller', () => {
   });
 
   it('reads buttons by catalog position, stick directions and triggers', () => {
-    const held = controlsFromPad(pad(0b101, [-0.9, 0.1, 0.7, -0.8, 0.5, 0.3]), ['A', 'B', 'X']);
+    const held = controlsFromPad(pad(0b101, [-0.9, 0.1, 0.7, -0.8, 0.5, 0.3]).state, ['A', 'B', 'X']);
     expect([...held]).toEqual(['A', 'X', 'LeftStickLeft', 'RightStickDown', 'RightStickRight', 'LT']);
   });
 
   it('ignores small deflections and light pulls', () => {
-    expect(controlsFromPad(pad(0, [0.6, -0.6, 0, 0, 0.4, 0.39]), ['A']).size).toBe(0);
+    expect(controlsFromPad(pad(0, [0.6, -0.6, 0, 0, 0.4, 0.39]).state, ['A']).size).toBe(0);
   });
 });
 

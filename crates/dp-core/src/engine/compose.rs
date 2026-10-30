@@ -3,12 +3,12 @@
 use super::analog::{
     apply_curve, orient, secs_since, shape_stick, shape_trigger, take_toward_zero,
 };
-use super::compile::{AnalogOut, Out};
+use super::compile::{AnalogOut, Out, PULSE_PAD_MS};
 use super::routes::{RouteInput, RouteOutput, RouteState};
 use super::{Engine, Output, gyro, routes, touch};
 use crate::control::{Control, Half, TrackpadPart};
 use crate::pad::{Motion, PadButton, PadState, Stick, Trigger};
-use crate::profile::{AnalogSource, GyroMode, VirtualPadType};
+use crate::profile::{GyroMode, VirtualPadType};
 
 /// Button-driven mouse motion speeds up to at most this many times its speed.
 const MOUSE_ACCEL_MAX: f32 = 20.0;
@@ -56,6 +56,17 @@ impl Engine {
             layer_changed: self.layer_changed,
             ..Default::default()
         };
+        // A pad button pressed and released within this tick (a key tap that arrived in one
+        // batch) is shown for a pulse, or the game would never see it.
+        for &(o, down) in &self.outs.events {
+            if let Out::Pad(b) = o
+                && down
+                && !self.outs.counts.contains_key(&o)
+            {
+                self.pad_pulses.push((b, now + PULSE_PAD_MS));
+            }
+        }
+        self.pad_pulses.retain(|&(_, until)| until > now);
         self.drain_digital(&mut out);
         self.repeat_held_wheels(now);
         out.wheel = std::mem::take(&mut self.outs.wheel);
@@ -70,6 +81,9 @@ impl Engine {
             if let Out::Pad(b) = o {
                 pad.set(*b, true);
             }
+        }
+        for &(b, _) in &self.pad_pulses {
+            pad.set(b, true);
         }
         let absolute = self.mix_analog_actions(&mut pad, &mut out, dt, now);
         self.spread_turns(&mut out, dt);
@@ -109,31 +123,29 @@ impl Engine {
         else {
             return pad;
         };
-        let table = self.table();
-        let route_consumes = |src: AnalogSource| {
-            table
-                .routes
-                .iter()
-                .any(|&i| self.profile.analog[i].source == src && self.profile.analog[i].consume)
-        };
-        let hidden = |c: Control| {
-            table.mapped.contains(&c)
-                || self.consumed.contains(&c)
-                || self.pending.iter().any(|(p, _)| *p == c)
+        let taken = self.table().taken;
+        // Beyond what the layer takes for good, presses waiting to be decided or consumed by
+        // a combo hide their controls for a while; usually there are none.
+        let busy = !self.consumed.is_empty() || !self.pending.is_empty();
+        let held = |c: Control| {
+            busy && (self.consumed.contains(&c) || self.pending.iter().any(|(p, _)| *p == c))
         };
         // A split pad's clicks come from the touchpad button.
-        let click_used = Half::ALL
-            .iter()
-            .any(|h| hidden(Control::Trackpad(*h, TrackpadPart::Click)));
+        let click_used = taken.clicks
+            || Half::ALL
+                .into_iter()
+                .any(|h| held(Control::Trackpad(h, TrackpadPart::Click)));
         for b in PadButton::ALL {
-            let used = hidden(Control::Button(b)) || (b == PadButton::Touchpad && click_used);
+            let used = taken.buttons & b.bit() != 0
+                || held(Control::Button(b))
+                || (b == PadButton::Touchpad && click_used);
             if phys.pressed(b) && !used {
                 pad.set(b, true);
             }
         }
         for s in Stick::ALL {
-            if Control::of_stick(s).any(hidden)
-                || route_consumes(AnalogSource::from(s))
+            if taken.sticks[s as usize]
+                || (busy && Control::of_stick(s).any(held))
                 || radial_stick == Some(s)
             {
                 continue;
@@ -142,7 +154,7 @@ impl Engine {
             pad.set_stick(s, shape_stick(orient(phys.stick(s), cfg), cfg));
         }
         for t in Trigger::ALL {
-            if Control::of_trigger(t).any(hidden) {
+            if taken.triggers[t as usize] || (busy && Control::of_trigger(t).any(held)) {
                 continue;
             }
             pad.set_axis(
@@ -151,12 +163,11 @@ impl Engine {
             );
         }
         // A remapped touchpad or gyro no longer reaches the game, like a remapped stick.
-        let touch_used =
-            Control::of_touchpad().any(hidden) || route_consumes(AnalogSource::Touchpad);
+        let touch_used = taken.touchpad || (busy && Control::of_touchpad().any(held));
         if !touch_used {
             pad.touch = phys.touch;
         }
-        let gyro_used = Control::of_gyro().any(hidden) || route_consumes(AnalogSource::Gyro);
+        let gyro_used = taken.gyro || (busy && Control::of_gyro().any(held));
         if !gyro_used {
             pad.motion = phys.motion;
         }
@@ -308,7 +319,7 @@ impl Engine {
         }
         // Jitter: an offset that steps through its pattern after random delays.
         for s in Stick::ALL {
-            let j = self.virtual_stick(s).jitter.clone();
+            let j = self.virtual_stick(s).jitter;
             let st = &mut self.jitter[s as usize];
             if !j.enabled {
                 *st = JitterState::default();

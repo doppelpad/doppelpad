@@ -1,9 +1,7 @@
 // Driving the app with a controller (handheld mode): what each control does, directions that
 // repeat while held, and the spatial search for the next element to focus.
 
-import type { ControlName } from './types';
-
-export type Dir = 'up' | 'down' | 'left' | 'right';
+import type { ControlName, Dir } from './types';
 
 export type NavAction =
   | { kind: 'move'; dir: Dir }
@@ -156,3 +154,35 @@ export function firstFocus(boxes: Box[]): number {
   });
   return best;
 }
+
+/**
+ * The value `step` choices on from `value` that can be picked, round the end of the list (from
+ * an end when no choice has `value`); `undefined` when there is no other.
+ */
+export function nextChoice<T>(choices: readonly { value: T; disabled?: boolean }[], value: T, step: 1 | -1): T | undefined {
+  const n = choices.length;
+  let i = choices.findIndex((c) => c.value === value);
+  if (i < 0) i = step > 0 ? -1 : n;
+  for (let k = 0; k < n; k++) {
+    i = (i + step + n) % n;
+    const c = choices[i]!;
+    if (!c.disabled) return c.value === value ? undefined : c.value;
+  }
+  return undefined;
+}
+
+/** What steps a field's value on (a drop-down list), by the field. */
+const steppers = new WeakMap<Element, (step: 1 | -1) => void>();
+
+/**
+ * Action: left and right on the controller (and A) step the value of this field through its
+ * choices instead of moving the focus away; the field opens its list for everyone else.
+ */
+export function stepper(el: HTMLElement, step: ((step: 1 | -1) => void) | undefined) {
+  const set = (s: typeof step) => (s ? steppers.set(el, s) : steppers.delete(el));
+  set(step);
+  return { update: set, destroy: () => steppers.delete(el) };
+}
+
+/** What steps `el`'s value on, if it is such a field (see `stepper`). */
+export const stepperOf = (el: Element | null) => (el ? steppers.get(el) : undefined);

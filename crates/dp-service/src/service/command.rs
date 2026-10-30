@@ -88,7 +88,7 @@ pub enum ServiceCmd {
     NewHttpToken,
     /// Turn a wireless controller off now.
     PowerOff(String),
-    /// Re-probe ViGEmBus / HidHide now.
+    /// Probe the drivers and system services again now; the report arrives a moment later.
     RefreshDrivers,
     /// Look for controllers now, e.g. after another program released them.
     RescanDevices,

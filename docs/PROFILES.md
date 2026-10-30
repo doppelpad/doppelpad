@@ -259,7 +259,12 @@ Several mappings can share a trigger with different activators.
 | `toggle` | The first activation holds the outputs and the next releases them. A sequence loops until toggled off. |
 | `once` | The sequence runs to completion; releasing the trigger does not cancel it. |
 | `repeat` | The sequence runs `repeat` times with `repeat_pause_ms` between runs. |
-| `while_held` | The sequence repeats while the trigger is held. |
+| `while_held` | The sequence repeats while the trigger is held, with `repeat_pause_ms` between runs. Releasing it lets the current run finish; in a pause, no further run starts. |
+
+A looping sequence (`toggle`, `while_held`, `turbo`) runs at most once per millisecond, so one
+without pauses (a single wheel notch, say) repeats every millisecond. After a stall (the
+computer was busy or asleep) a loop carries on from the moment it resumes instead of
+replaying the runs it missed.
 
 ### Actions
 

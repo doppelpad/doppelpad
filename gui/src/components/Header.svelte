@@ -8,8 +8,9 @@
   import { app } from '../lib/state/app.svelte';
   import { platform } from '../lib/state/window.svelte';
   import { shortcutLabel, withShortcut } from '../lib/state/shortcuts';
-  import type { Profile, Template } from '../lib/types';
-  import Menu, { type MenuItem } from './ui/Menu.svelte';
+  import type { Template } from '../lib/types';
+  import type { MenuItem } from '../lib/menu';
+  import Menu from './ui/Menu.svelte';
   import WindowControls from './WindowControls.svelte';
   import HistoryDialog from './HistoryDialog.svelte';
   import { tip } from '../lib/tooltip.svelte';
@@ -32,17 +33,7 @@
       return;
     }
     const source = await open({ title: t('header.import_title'), multiple: false, directory: false });
-    if (typeof source !== 'string') return;
-    await app.attempt(
-      api.configImportLaunches(source).then(async (found) => {
-        const keep = await app.keepLaunches(found);
-        if (keep === null) return;
-        const r = await api.configImport(dir, source, keep);
-        await app.openCreated(r.path);
-        app.toast(t('notices.imported', { name: app.profile?.name ?? '' }), 'ok');
-        for (const d of r.diagnostics.filter((d) => d.severity !== 'info').slice(0, 3)) app.toast(d.message, 'info');
-      }),
-    );
+    if (typeof source === 'string') await app.importConfig(dir, source);
   }
 
   async function saveSheet() {
@@ -53,7 +44,7 @@
       filters: [{ name: t('sheet.filter'), extensions: ['html'] }],
     });
     if (!path) return;
-    await app.attempt(api.sheetSave(path, bindingsSheet($state.snapshot(app.profile) as Profile, app.family)), t('sheet.saved'));
+    await app.attempt(api.sheetSave(path, bindingsSheet(app.snapshot()!, app.family)), t('sheet.saved'));
   }
 
   async function remove() {
@@ -78,8 +69,8 @@
       checked: c.path === app.configPath,
       onclick: () => app.openConfig(c.path),
     })),
-    { separator: true, label: '' },
-    { label: t('header.new_config') + '…', onclick: () => app.newConfig(), disabled: !app.gameDir },
+    { separator: true },
+    { label: t('header.new_config_menu'), onclick: () => app.newConfig(), disabled: !app.gameDir },
     { label: t('header.import'), onclick: importJson, disabled: !app.gameDir },
     ...templatesFor(platform !== 'macos').map((tpl) => ({
       label: t('header.from_template', { template: t(`welcome.templates.${tpl}`) }),
@@ -90,7 +81,7 @@
 
   const optionItems = $derived<MenuItem[]>([
     {
-      label: t('header.rename_config') + '…',
+      label: t('header.rename_config_menu'),
       onclick: () => app.renameConfig(),
       disabled: !app.profile || app.readOnly,
       detail: shortcutLabel('rename', mac),
@@ -101,12 +92,12 @@
       disabled: !app.configPath,
       detail: shortcutLabel('duplicate', mac),
     },
-    { label: t('sheet.menu') + '…', onclick: saveSheet, disabled: !app.profile },
+    { label: t('sheet.menu'), onclick: saveSheet, disabled: !app.profile },
     { label: t('common.reveal'), onclick: () => app.configPath && app.attempt(api.reveal(app.configPath)), disabled: !app.configPath },
     { label: t('header.clear_mappings'), onclick: clearMappings, disabled: !app.profile || app.readOnly },
-    { label: t('history.title') + '…', onclick: () => (historyOpen = true), disabled: !app.configPath || app.readOnly },
+    { label: t('history.menu'), onclick: () => (historyOpen = true), disabled: !app.configPath || app.readOnly },
     { label: t('shortcuts_list.title'), onclick: () => (app.shortcutsOpen = true), detail: shortcutLabel('help', mac) },
-    { separator: true, label: '' },
+    { separator: true },
     { label: t('common.delete'), danger: true, onclick: remove, disabled: !app.configPath },
   ]);
 </script>

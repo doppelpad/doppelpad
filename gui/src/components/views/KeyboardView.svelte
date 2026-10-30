@@ -5,8 +5,8 @@
   import { t } from '../../lib/i18n/index.svelte';
   import { keyFromEvent } from '../../lib/model/keymap';
   import { shownSummary } from '../../lib/model/labels';
+  import { keyboardOwned } from '../../lib/dom';
   import { app } from '../../lib/state/app.svelte';
-  import { modalOpen } from '../ui/Dialog.svelte';
   import { controlMenu } from '../binding/controlMenu';
   import { isFlagged } from '../../lib/model/lints';
   import { tip } from '../../lib/tooltip.svelte';
@@ -137,18 +137,8 @@
 
   const held = new SvelteSet<string>();
 
-  function typing(e: KeyboardEvent): boolean {
-    const el = e.target as HTMLElement | null;
-    return !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable);
-  }
-
-  /** A dialog or an open menu owns the keyboard. */
-  function overlayOpen(): boolean {
-    return modalOpen() || document.querySelector('[role=menu]') !== null;
-  }
-
   function onKeydown(e: KeyboardEvent) {
-    if (typing(e) || e.ctrlKey || overlayOpen()) return;
+    if (e.ctrlKey || keyboardOwned(e.target)) return;
     const k = keyFromEvent(e);
     if (!k) return;
     e.preventDefault();
@@ -172,8 +162,8 @@
         class="key"
         class:mapped={!!s}
         class:inh={s?.inherited}
-        class:noted={s?.hiddenNote}
-        class:flagged={isFlagged(app.flags, app.profile, app.layer, `Key:${key.k}`)}
+        class:note-mark={s?.hiddenNote}
+        class:flag-mark={isFlagged(app.flags, app.profile, app.layer, `Key:${key.k}`)}
         class:selected={app.selectedKey === `Key:${key.k}`}
         class:held={held.has(key.k)}
         style="--x: {key.x}; --y: {key.y}; --kw: {key.w}; --kh: {key.h}"
@@ -251,27 +241,5 @@
   }
   .key.held {
     box-shadow: 0 0 0 2px var(--accent);
-  }
-  /* A warning about the key's mapping (the diagnostics bar says which). */
-  .key.flagged::before {
-    content: '';
-    position: absolute;
-    top: 4px;
-    left: 4px;
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    background: var(--warning);
-  }
-  /* A note the summary does not show: a small corner mark (Show notes shows it). */
-  .key.noted::after {
-    content: '';
-    position: absolute;
-    top: 4px;
-    right: 4px;
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--text-dim);
   }
 </style>

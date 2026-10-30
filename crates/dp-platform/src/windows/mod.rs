@@ -55,6 +55,7 @@ pub fn windowed_programs() -> Vec<crate::WindowedProgram> {
 
 use std::io;
 use std::ptr::null;
+use std::time::Duration;
 
 use windows_sys::Win32::Foundation::{
     CloseHandle, HANDLE, HWND, INVALID_HANDLE_VALUE, LPARAM, LRESULT, WPARAM,
@@ -66,6 +67,7 @@ use crate::Platform;
 use crate::joycon::JoyConCombiner;
 
 pub fn platform() -> Platform {
+    let switch2_search = crate::Switch2Search::default();
     // Before any backend enumerates: un-hide pads a killed earlier run left hidden.
     hidhide::recover_stale();
     Platform {
@@ -80,7 +82,7 @@ pub fn platform() -> Platform {
         gamepads: vec![
             Box::new(xinput::XInputBackend::new()),
             Box::new(gcadapter::GcAdapterBackend::new()),
-            Box::new(JoyConCombiner::new(hid::backend())),
+            Box::new(JoyConCombiner::new(hid::backend(switch2_search.clone()))),
         ],
         virtual_pads: Box::new(vigem::VigemFactory::new()),
         kbm_out: Box::new(sendinput::SendInputOutput::default()),
@@ -88,7 +90,14 @@ pub fn platform() -> Platform {
         hider: Box::new(hidhide::HidHide::new()),
         foreground: Box::new(foreground::Foreground),
         system: Box::new(system::WinSystem),
+        switch2_search,
     }
+}
+
+/// A wait as the Win32 wait functions take it: whole milliseconds, rounded down, and short of
+/// `INFINITE` (`u32::MAX`), which would never end.
+pub(crate) fn win_ms(wait: Duration) -> u32 {
+    u32::try_from(wait.as_millis()).map_or(u32::MAX - 1, |ms| ms.min(u32::MAX - 1))
 }
 
 /// UTF-16, NUL-terminated.

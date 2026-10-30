@@ -15,8 +15,10 @@
   const ICONS = { face: Gamepad2, sticks: Joystick, bumpers_triggers: ArrowLeftRight, mirror: FlipHorizontal2 } as const;
 
   function run(kind: TransformKind) {
+    const def = app.catalog?.defaults.stick;
+    if (!def) return;
     const target = scope === 'all' ? 'all' : app.layer;
-    app.edit((p) => transform(p, kind, target));
+    app.edit((p) => transform(p, kind, target, def));
     app.toast(t('transforms.done', { name: t(`transforms.${kind}`) }), 'ok');
     onclose();
   }

@@ -3,42 +3,78 @@
 // and exactly the keys Rust writes (this test checks that).
 
 import { describe, expect, it } from 'vitest';
-import { setLanguage } from '../i18n/index.svelte';
+import { EVENTS } from '../api';
+import { has, setLanguage } from '../i18n/index.svelte';
+import { PATCH_SUFFIX } from '../overlay';
+import { ZOOM_MAX, ZOOM_MIN } from '../state/shortcuts';
 import type {
   Battery,
+  BundleLaunches,
   Catalog,
+  CatalogLimits,
+  CmdError,
+  ConfigEntry,
+  ConfigVersion,
   DeviceGroup,
+  DiagMsg,
   DriverState,
   DsuSettings,
+  ErrorCode,
+  Game,
+  GameMeta,
   GuiSettings,
   GyroCalibration,
+  Hint,
   Hotkeys,
   HttpSettings,
+  Imported,
+  InstalledGame,
   Launch,
   LaunchPlace,
+  Library,
+  LibraryMoved,
+  LibraryPlace,
+  LibraryTarget,
   LiveDevice,
   LiveDsu,
   LiveHttp,
   LiveSession,
+  LoadedConfig,
+  MappingsOverlayContent,
+  Notice,
   SessionOutput,
   LiveState,
   MappingsOverlaySettings,
+  OsdEvent,
   OsdMessage,
   OsdSettings,
+  PadOverlayContent,
   PadOverlaySettings,
   PadState,
+  PresetEntry,
+  RadialContent,
+  RadialPointed,
   RawInput,
+  RewasdStatus,
+  RunningProgram,
   RuntimeOptions,
+  ScreenRef,
   StickConfig,
   TriggerConfig,
+  UncheckedConfig,
+  UpdateInfo,
 } from '../types';
 import { applyCurve, shapeStick, shapeTrigger } from './analog';
 import { SETTINGS_PLACEHOLDER } from '../state/settings';
 import { controlLabel } from './controls';
+import { MAX_CROSSHAIRS } from './crosshair';
+import bridge from './fixtures/bridge.json';
 import contract from './fixtures/contract.json';
 import controls from './fixtures/controls.json';
 import defaultsJson from './fixtures/defaults.json';
 import shaping from './fixtures/shaping.json';
+import { PAD_COLORS, padColor } from './padColors';
+import { MAX_SECTORS } from './radial';
 import { stickThresholds, stickZoneAt, triggerThresholds, triggerZoneAt, zoneDefaults } from './zones';
 
 type Keys<T> = Record<keyof T, true>;
@@ -158,7 +194,7 @@ const osdSettings = {
   scale: true,
   opacity: true,
   seconds: true,
-} satisfies Keys<OsdSettings>;
+} satisfies Keys<Omit<OsdSettings, 'screen'>>; // `screen` only once a monitor was chosen: see ScreenRef
 const padOverlay = { corner: true, size: true, opacity: true, hide_after: true } satisfies Keys<PadOverlaySettings>;
 const mappingsOverlay = { corner: true, opacity: true } satisfies Keys<MappingsOverlaySettings>;
 const hotkeys = {
@@ -240,6 +276,122 @@ describe('the types match what Rust sends', () => {
   it('the crosshair and the radial menu arrive', () => {
     expect(l.crosshair).not.toBeNull();
     expect(l.radial.menu).toBeTypeOf('object');
+  });
+});
+
+// ----- the bridge's own types (fixtures/bridge.json) -------------------------------------
+
+const b = bridge;
+const game = b.library.games[0]!;
+const bridgeCases: [string, object, object][] = [
+  ['CatalogLimits', { zoom: true, radial_sectors: true, crosshairs: true, pad_colors: true } satisfies Keys<CatalogLimits>, b.limits],
+  ['CmdError', { code: true, detail: true } satisfies Keys<CmdError>, b.error],
+  ['UpdateInfo', { version: true, current: true, notes: true } satisfies Keys<UpdateInfo>, b.update_info],
+  ['Library', { games: true, unsorted: true, errors: true } satisfies Keys<Library>, b.library],
+  ['Game', { dir: true, meta: true, configs: true } satisfies Keys<Game>, game],
+  [
+    'GameMeta',
+    { name: true, processes: true, image: true, default_config: true, order: true, description: true } satisfies Keys<GameMeta>,
+    game.meta,
+  ],
+  ['ConfigEntry', { path: true, name: true, error: true } satisfies Keys<ConfigEntry>, game.configs[0]!],
+  ['LibraryPlace', { dir: true, default: true, is_default: true, portable: true } satisfies Keys<LibraryPlace>, b.library_place],
+  ['LibraryMoved', { dir: true, moved_from: true, left_behind: true } satisfies Keys<LibraryMoved>, b.library_moved],
+  ['LoadedConfig', { profile: true, diagnostics: true, read_only: true } satisfies Keys<LoadedConfig>, b.loaded_config],
+  ['DiagMsg', { severity: true, path: true, message: true } satisfies Keys<DiagMsg>, b.loaded_config.diagnostics[0]!],
+  ['Imported', { path: true, diagnostics: true } satisfies Keys<Imported>, b.imported],
+  ['ConfigVersion', { path: true, time_ms: true } satisfies Keys<ConfigVersion>, b.versions[0]!],
+  ['BundleLaunches', { launches: true, unchecked: true } satisfies Keys<BundleLaunches>, b.bundle_launches],
+  ['UncheckedConfig', { file: true, error: true } satisfies Keys<UncheckedConfig>, b.bundle_launches.unchecked[0]!],
+  ['PresetEntry', { name: true, path: true } satisfies Keys<PresetEntry>, b.presets[0]!],
+  [
+    'InstalledGame',
+    { store: true, name: true, dir: true, programs: true, cover: true } satisfies Keys<InstalledGame>,
+    b.installed_games[0]!,
+  ],
+  ['RunningProgram', { exe: true, title: true } satisfies Keys<RunningProgram>, b.running_programs[0]!],
+  ['RewasdStatus', { service: true, programs: true } satisfies Keys<RewasdStatus>, b.rewasd_status],
+  ['Hint', { id: true, game: true } satisfies Keys<Hint>, b.hint],
+  ['ScreenRef', { name: true, x: true, y: true } satisfies Keys<ScreenRef>, b.osd_screen],
+  ['RadialContent', { menu: true, pointed: true, images: true, cursor: true } satisfies Keys<RadialContent>, b.radial],
+  ['RadialPointed', { pointed: true } satisfies Keys<RadialPointed>, b.radial_pointed],
+  ['PadOverlayContent', { device: true, opacity: true, corner: true } satisfies Keys<PadOverlayContent>, b.pad_overlay],
+  [
+    'MappingsOverlayContent',
+    { profile: true, layer: true, family: true, lang: true, opacity: true, corner: true } satisfies Keys<MappingsOverlayContent>,
+    b.mappings_overlay,
+  ],
+];
+
+/** The fields of each notification kind, `kind` included. */
+const osdEvents = {
+  remap_on: { kind: true },
+  remap_off: { kind: true },
+  slot: { kind: true, slot: true, config: true },
+  layer: { kind: true, layer: true, name: true },
+  connected: { kind: true, name: true },
+  disconnected: { kind: true, name: true },
+  battery_low: { kind: true, name: true, level: true },
+  battery_critical: { kind: true, name: true, level: true },
+  steam_input: { kind: true, game: true },
+  screenshot: { kind: true, file: true, error: true },
+  test: { kind: true },
+} satisfies { [K in OsdEvent['kind']]: Keys<Extract<OsdEvent, { kind: K }>> };
+
+/** Every error code, as the catalogs word them. */
+const errorCodes = {
+  failed: true,
+  nothing_to_allow: true,
+  sheet_not_html: true,
+  service_answer: true,
+  not_in_library: true,
+  no_update: true,
+  portable_update: true,
+  portable_autostart: true,
+  autostart_unsupported: true,
+} satisfies Record<ErrorCode, true>;
+
+describe("the bridge's own types match what Rust sends", () => {
+  it.each(bridgeCases)('%s', (_, keys, json) => {
+    expect(sorted(json)).toEqual(sorted(keys));
+  });
+
+  it('every notification kind, each with its fields', () => {
+    expect(b.osd_events.map((e) => e.kind).sort()).toEqual(sorted(osdEvents));
+    for (const e of b.osd_events) expect(sorted(e), e.kind).toEqual(sorted(osdEvents[e.kind as OsdEvent['kind']]));
+  });
+
+  it('every error code, each with its text', () => {
+    expect([...b.error_codes].sort()).toEqual(sorted(errorCodes));
+    setLanguage('en');
+    for (const code of b.error_codes) expect(has(`errors.${code}`), code).toBe(true);
+  });
+
+  it('the other unions', () => {
+    expect([...b.library_targets].sort()).toEqual(
+      sorted({ empty: true, library: true, foreign: true } satisfies Record<LibraryTarget, true>),
+    );
+    expect(b.notices).toEqual(['service-takeover' satisfies Notice]);
+    expect(b.installed_games.map((g) => g.store)).toEqual(['steam' satisfies InstalledGame['store']]);
+  });
+
+  it('the event names', () => {
+    expect(EVENTS).toEqual({ openFiles: b.events.open_files, hint: b.events.hint });
+    expect(PATCH_SUFFIX).toBe(b.events.overlay_patch);
+  });
+});
+
+describe("the window's own copies of the catalog's limits", () => {
+  // Kept here until the window reads them from the catalog.
+  it('zoom, radial sectors and crosshairs', () => {
+    expect([ZOOM_MIN, ZOOM_MAX]).toEqual(b.limits.zoom);
+    expect(MAX_SECTORS).toBe(b.limits.radial_sectors);
+    expect(MAX_CROSSHAIRS).toBe(b.limits.crosshairs);
+  });
+
+  it("the controllers' colours and the pick by id", () => {
+    expect(PAD_COLORS).toEqual(b.limits.pad_colors);
+    for (const [id, color] of Object.entries(b.pad_colors)) expect(padColor(id, {}), id).toBe(color);
   });
 });
 

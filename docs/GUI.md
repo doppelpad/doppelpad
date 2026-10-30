@@ -18,7 +18,7 @@ This guide describes the app on Windows. What differs on Linux and macOS is in
 |---|---|
 | **Games** (left) | One entry per game. A game has one or more configs and an optional list of programs (`game.exe`) that switch to it automatically. A green dot marks the game whose config is running. Configs outside a game folder appear under *Other configs*. A game's menu has **Game settings…**: its name, a description (shown under the name), a picture (copied into the game's folder and shown in the list), and its programs, picked from the running programs (those with a window), from a file picker, with *Game in front* (switch to the game; after three seconds the program in front is taken), or typed in. **Duplicate** copies a game with its configs and picture; the copy has no programs, so automatic switching keeps choosing the original. The books button at the top of the list shows the **games from your libraries**: what Steam, Epic and GOG have installed on this PC (read from their own files, nothing goes online). **Add** creates a game with its name, the program that switches to it (the likeliest is suggested; a list offers the others) and, for Steam games, the cover from Steam's cache; games already in the list are marked. |
 | **Header** | *Game › Config* picker (switch, create, import a JSON profile), **Undo** and **Redo** (see [Undo](#undo)), **Save** (Ctrl+S; a dot means unsaved changes), options (rename, duplicate, show in Explorer, clear, delete), settings. Imported JSON files are read-only; duplicate them to edit. The header and the top of the games list also act as the title bar: drag them to move the window, double-click to maximize. On Windows and Linux the app draws its own minimize, maximize and close buttons at the right. On macOS the system buttons sit at the top left. |
-| **Toolbar** | Views: *Controller*, *Back side*, *Keyboard*, *Mouse*. The two controller views draw the connected model as it looks from that side: the front shows the bumpers (L1 / R1, L / R) but not the triggers behind them; the back side shows the triggers, the bumpers where they show from behind (not on the DualSense), and the back buttons the model has, e.g. GL / GR on the Switch 2 Pro Controller, none on the first one. Layer chips: *Main* plus shift layers, which you can add, rename, copy, paste, clear and remove (together with their analog routes), and whose *Layer settings* say what they inherit from *Main*. Hovering a layer chip (or focusing it) shows how the layer is reached: every mapping that changes to it with its activator, kind (while held, toggle, switch) and delay, and the layer it sits on; a layer nothing changes to says so. The tooltip also names the radial menus the layer opens and whether it takes over *Main*'s mappings or gives the keyboard or mouse back. **Layer map…** in the layer menu draws all layers with an arrow for each mapping that changes layer (⇣ while held, ⇄ toggle, → switch), marks layers nothing changes to and switches nothing leaves again, and leads to a layer or a mapping when clicked. On the right: *Analog* (see [Sticks, triggers and analog routes](#sticks-triggers-and-analog-routes)), *Shortcuts*, *Radial menus* (see [Radial menus](#radial-menus)) and *Config settings*. When the window is too narrow for every layer chip, these four show only their icons (their names are in the tooltips). |
+| **Toolbar** | Views: *Controller*, *Back side*, *Keyboard*, *Mouse*. The two controller views draw the connected model as it looks from that side: the front shows the bumpers (L1 / R1, L / R) but not the triggers behind them; the back side shows the triggers, the bumpers where they show from behind (not on the DualSense), and the back buttons the model has, e.g. GL / GR on the Switch 2 Pro Controller, none on the first one. Layer chips: *Main* plus shift layers, which you can add, rename, copy, paste, clear and remove (together with their analog routes), and whose *Layer settings* say what they inherit from *Main*. Hovering a layer chip (or focusing it) shows how the layer is reached: every mapping that changes to it with its activator, kind (while held, toggle, switch) and delay, and the layer it sits on; a layer nothing changes to says so. The tooltip also names the radial menus the layer opens and whether it takes over *Main*'s mappings or gives the keyboard or mouse back. **Layer map…** in the layer menu draws all layers with an arrow for each mapping that changes layer (⇣ while held, ⇄ toggle, → switch), marks layers nothing changes to and switches nothing leaves again, and leads to a layer or a mapping when clicked (like a found mapping). On the right: *Analog* (see [Sticks, triggers and analog routes](#sticks-triggers-and-analog-routes)), *Shortcuts*, *Radial menus* (see [Radial menus](#radial-menus)) and *Config settings*. When the window is too narrow for every layer chip, these four show only their icons (their names are in the tooltips). |
 | **Centre** | The selected view. Click a control to edit it. On the controller views, pressing a button on the controller selects it, and turns the drawing to the side that shows it (a trigger to the back side, a face button to the front). On the keyboard view, pressing a key does the same. |
 | **Binding panel** (right) | See below. With nothing selected, it lists the mappings of the current layer, and on a layer that nothing changes to yet it says how to reach it. |
 | **Bottom bar** | On the left: the remap button (on in teal, off in grey; a pause sign while remapping pauses, see [Remapping while the window is open](#remapping-while-the-window-is-open); its tooltip names the running config), the controller in use with its battery level where the controller reports one (DualShock 4, DualSense, Switch controllers, wireless Xbox controllers; orange below 40 %, red below 20 %), and driver warnings. *+1* means another controller is connected; it turns orange or red when that one's battery runs low. The controller list picks the one to use, and the cog next to it holds that controller's options: *own slots* (see [Several controllers](#several-controllers)), identifying a generic pad's buttons, **Turn off** and **Ignore this controller**. On the right: *Apply to slot n* (saves, puts the config in that slot and activates it; the arrow picks the slot, and hovering the button marks it) and the four slots (click to activate, which also turns remapping on; × to unload). |
@@ -54,8 +54,9 @@ out of range it finds:
 - a shortcut or mapping that holds every button of a controller hotkey: the hotkey takes the
   buttons, so the mapping never fires while hotkeys are on.
 
-A problem about a mapping, a layer or a radial menu leads there when clicked. The controls, shortcut rows and
-layer chips concerned carry a small orange mark. Errors keep the config from being saved;
+A problem about a mapping, a layer or a radial menu leads there when clicked, as a found mapping
+does (a mapping on its layer and activator, in the view that shows it). The controls, shortcut
+rows and layer chips concerned carry a small orange mark. Errors keep the config from being saved;
 warnings do not.
 
 ## Copy and paste
@@ -117,8 +118,13 @@ Ctrl+/ (or F1, or *Keyboard shortcuts* in the config's options menu) lists them 
 | Ctrl + plus, Ctrl + minus, Ctrl+0 | Make the window's contents larger, smaller, normal (80–150 %; also *Settings → Display → Size*) |
 
 In the keyboard view, plain keys select themselves, so Delete, Escape, F1 and F2 do that there;
-clearing is Ctrl+Delete. In text fields the keys act on the text, and while a dialog or menu is
-open it gets them (Ctrl+S still saves). On macOS, Cmd takes the place of Ctrl.
+clearing is Ctrl+Delete. In text fields the keys act on the text, and while a dialog, a menu or
+Find is open it gets them (Ctrl+S still saves). On macOS, Cmd takes the place of Ctrl.
+
+Tab moves through the window's buttons and fields; in a dialog it stays inside the dialog. In a
+choice of a few (the activators, a row of options, a radial menu's place) and in a row of tabs,
+the arrow keys move to the previous or next one and choose it, Home and End to the first and
+last.
 
 ## Editing a control
 
@@ -401,8 +407,8 @@ Deleting a menu also deletes its layer and its button, unless something else use
 The pulse button at the top right of the controller, keyboard and mouse views opens a small
 panel with what the running config sends right now: the virtual controller's pressed
 buttons and stick caps, drawn on the controller in use (so they show where your buttons are;
-below it, which controller games see), a bar per trigger, the keys and mouse buttons it
-holds, and the layer. A config can be tried out this way without a game. Remapping pauses while the
+below it, which controller games see), a bar per trigger (named as on that controller), the
+keys and mouse buttons it holds, and the layer. A config can be tried out this way without a game. Remapping pauses while the
 window has the focus (see below); the panel then offers *Keep remapping active while this
 window is focused*. `doppelpad monitor` shows the controller's input in a terminal.
 
@@ -488,7 +494,9 @@ whether to import the game. A config can start programs (the
 *launch* command), so a shared one could run something harmful: when a game or a JSON profile
 you import has launch commands, the app first lists each program with its arguments and where
 it sits. **Import without these** (the default) leaves them out, **Import with them** keeps
-them, *Cancel* imports nothing. **Save bindings sheet …** in a config's
+them, *Cancel* imports nothing. A game's config that this version cannot read (one made by a
+newer Doppelpad, say) cannot be checked for launch commands, so an import without them leaves
+that config out too. **Save bindings sheet …** in a config's
 menu writes an HTML page listing every layer's mappings and routes, to print from a browser. A
 layer's menu can **Save as preset …** (its settings, mappings and routes); presets of all configs
 appear in every layer menu as **Insert preset: …**, which adds them as a new layer (layer
@@ -588,7 +596,7 @@ or its controller hotkey) turns it on:
 | Left / right on a list, slider or number field | Change its value |
 | A | Press the focused button, tick the box, step the list |
 | B | Back: close the menu or dialog, else drop the selection (what Escape does) |
-| LB / RB | Previous / next view (front, back, keyboard, mouse, analog, shortcuts, output) |
+| LB / RB | Previous / next view, in the toolbar's order (front, back, keyboard, mouse, analog, shortcuts, radial menus, config settings) |
 | LT / RT | Previous / next layer |
 | Start | Save the config |
 
@@ -607,7 +615,8 @@ Two overlays show over games, switched on and off by a controller hotkey or a ma
   the trigger behind it is pulled. It hides after a few seconds without input and comes
   back with the next one;
 - the **mappings overlay**, the running config's mappings on the active layer with their
-  descriptions, in columns of up to 40 rows (120 rows at most). It follows layer changes.
+  descriptions, in columns of up to 40 rows (120 rows at most). It follows layer changes and
+  a saved config.
 
 *Settings → Display → Overlays* picks their corner, the controller's size, both opacities and
 when the controller hides. Like the notifications they let clicks through and never take the
@@ -654,7 +663,10 @@ not show it) or could not (why). They also show
 while the window is closed to the tray, but not while the window has focus (it shows the same
 state) or in the first seconds after start. *Settings → Display → On-screen notifications*
 picks the events, the monitor and corner, the size, opacity and display time, and whether a
-layer message stays up while the layer is active; *Show a sample* previews them.
+layer message stays up while the layer is active; *Show a sample* previews them. The chosen
+monitor is kept by its name and place, so the messages stay on it when other monitors come and
+go. A layer message that stays up goes when the window takes the focus or the setting is
+switched off, and comes back afterwards while the layer is still active.
 
 Each message is a small window that stays above other windows, lets clicks through and never
 takes the focus, so it works over windowed and borderless games. Games in exclusive full-screen
@@ -686,7 +698,7 @@ reports a running reWASD.
 | `%APPDATA%\doppelpad\calibration.toml` | Gyro calibration per controller (also used by `doppelpad daemon`) |
 | `%APPDATA%\doppelpad\gui.toml` | Language, focus pause, press-to-select, what to do about a running reWASD, update checks, notifications, the controller and mappings overlays, whether the welcome guide is done, descriptions or actions in the editor, the questions turned off, zoom, controller navigation, the tray icons per controller |
 | `%LOCALAPPDATA%\doppelpad\logs\doppelpad-gui.log` | Log of the current run; the logs of the five runs before are kept as `doppelpad-gui.log.1` (the newest) to `.5` |
-| `%LOCALAPPDATA%\doppelpad\history\<game>\<config>\<time>.toml` | Earlier versions of each config, the last 20 |
+| `%LOCALAPPDATA%\doppelpad\history\<game>\<config>\<time>.toml` | Earlier versions of each config, the last 20 (`<game>` is `_loose` for the configs directly in the configs folder) |
 
 The app saves atomically (it writes a temporary file, then renames it). Before it
 overwrites a profile that it did not write itself, it keeps one `.bak` copy. Deleting
@@ -705,7 +717,8 @@ takes it back.
 *Settings → Files → Configs are stored in → Change…* moves the games, configs and layer
 presets to another folder, for example one that a cloud drive keeps in sync. Doppelpad
 copies every file, checks each copy, switches to the new folder (the slots and the open
-config follow their files) and only then removes the old files. The new folder must be empty
+config follow their files) and only then removes the old files; if remapping could not switch,
+the old files stay, and the app says so. The new folder must be empty
 or already hold a Doppelpad library: a folder synced from another computer is used as it is,
 and the current configs then stay where they were. A folder with other files is refused.
 *Reset to default* moves everything back to `%APPDATA%\doppelpad\profiles`. The app, the
@@ -719,8 +732,9 @@ An empty file named `portable` next to `doppelpad-gui.exe` (and `doppelpad.exe`)
 everything beside the app in a `data` folder: the settings, slots and hotkeys, the games and
 configs (`data\profiles`), the logs, the earlier versions of configs and the window's browser
 data. Copy the two programs and the `portable` file to a folder or a stick to use them
-there. A portable copy does not offer *Start with Windows*; *Settings → Files* says that it
-runs portable, and `doppelpad doctor` names the folder. The drivers (ViGEmBus, HidHide) still
+there. A portable copy does not offer *Start with Windows*, and it does not look for updates
+(the setup installs into Program Files): replace its programs with those of a new release.
+*Settings → Files* says that it runs portable, and `doppelpad doctor` names the folder. The drivers (ViGEmBus, HidHide) still
 have to be installed on each PC.
 
 ### Log file
@@ -758,7 +772,10 @@ npm run licenses              # re-generate THIRD_PARTY_LICENSES.md (see below)
 The GUI crate is not in the workspace's `default-members`, so `cargo build` and
 `cargo test` at the root build only the CLI. Use `cargo test -p dp-gui` for the bridge
 tests. They check that the frontend's key table, JSON shapes and default values match the
-Rust model, using the fixtures in `gui/src/lib/model/fixtures`. Regenerate them with
+Rust model, using the fixtures in `gui/src/lib/model/fixtures`: every type a command answers
+with or an event or overlay carries, the event names, the error codes, and the limits the
+catalog sends (zoom range, radial sectors, crosshairs, the controllers' tray colours), which the
+frontend tests also hold against the frontend's own copies. Regenerate them with
 `DOPPELPAD_UPDATE_FIXTURES=1 cargo test -p dp-gui`.
 
 The npm packages `@tauri-apps/api` and `@tauri-apps/plugin-dialog` are pinned to the minor
@@ -952,4 +969,6 @@ key (`doppelpad-updater.key.pub`).
 The UI is available in English and German (*Settings → General → Language*). Translations live
 in `gui/src/lib/i18n/{en,de}.json`. A test makes sure both files have the same keys and
 placeholders. To add a language, copy `en.json`, translate it and register it in
-`gui/src/lib/i18n/index.svelte.ts`. The tray menu takes its texts from the same files (`tray.*`).
+`gui/src/lib/i18n/index.svelte.ts`. The tray menu takes its texts from the same files
+(`tray.*`). Errors the app reports in its own words arrive in the window as codes, which it
+words with `errors.*`; a test checks that every code has a text in every file.

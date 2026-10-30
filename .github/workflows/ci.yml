@@ -1,7 +1,8 @@
-# The checks every change passes before it lands (CLEANUP-AGENT.md §0.8 without the local paths):
+# The checks every change passes before it lands (the local check without the local paths):
 # Windows builds, lints and tests everything, the GUI's frontend included; Linux checks the
 # platform layer and the service and runs the tests that do not need Windows; macOS lints and
-# tests every Rust crate, the app's included.
+# tests every Rust crate, the app's included; and the crates still build with the oldest Rust
+# the workspace claims (`rust-version`).
 name: CI
 
 on:
@@ -22,12 +23,12 @@ jobs:
   windows:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
           components: rustfmt, clippy
-      - uses: Swatinem/rust-cache@v2
-      - uses: actions/setup-node@v4
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
           cache: npm
@@ -53,22 +54,34 @@ jobs:
   linux:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
           components: clippy
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
       - run: cargo check -p dp-platform -p dp-service
       - run: cargo clippy -p dp-platform -p dp-service --all-targets
-      - run: cargo test -p dp-core -p dp-config -p dp-ipc -p dp-service
+      # dp-platform included: its Linux backend has tests that run nowhere else.
+      - run: cargo test -p dp-core -p dp-config -p dp-platform -p dp-ipc -p dp-service
 
   macos:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
           components: clippy
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
       - run: cargo clippy --workspace --all-targets
       - run: cargo test --workspace
+
+  msrv:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
+        with:
+          toolchain: "1.88"
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+      # The crates without the app (it needs the frontend), as `rust-version` in Cargo.toml.
+      - run: cargo check --locked

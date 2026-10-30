@@ -1,24 +1,15 @@
-//! Decoding a generic gamepad's input reports with the Windows HID parser (`HidP_*`).
+//! Decoding a generic gamepad's input reports with the Windows HID parser (`HidP_*`), by the
+//! rules every OS reads generic pads by ([`crate::generic::usages`]).
 
 use windows_sys::Win32::Devices::HumanInterfaceDevice::{
-    HID_USAGE_GENERIC_HATSWITCH, HID_USAGE_GENERIC_WHEEL, HID_USAGE_GENERIC_X,
-    HID_USAGE_PAGE_BUTTON, HID_USAGE_PAGE_GENERIC, HID_USAGE_PAGE_SIMULATION, HIDP_BUTTON_CAPS,
-    HIDP_CAPS, HIDP_STATUS_SUCCESS, HIDP_VALUE_CAPS, HidD_FreePreparsedData, HidD_GetPreparsedData,
-    HidP_GetButtonCaps, HidP_GetCaps, HidP_GetUsageValue, HidP_GetUsages, HidP_GetValueCaps,
-    HidP_Input, PHIDP_PREPARSED_DATA,
+    HIDP_BUTTON_CAPS, HIDP_CAPS, HIDP_STATUS_SUCCESS, HIDP_VALUE_CAPS, HidD_FreePreparsedData,
+    HidD_GetPreparsedData, HidP_GetButtonCaps, HidP_GetCaps, HidP_GetUsageValue, HidP_GetUsages,
+    HidP_GetValueCaps, HidP_Input, PHIDP_PREPARSED_DATA,
 };
 use windows_sys::Win32::Foundation::HANDLE;
 
+use crate::generic::usages::{self, MAX_BUTTONS, PAGE_BUTTON};
 use crate::generic::{RawInput, ReportDecoder};
-
-const PAGE_DESKTOP: u16 = HID_USAGE_PAGE_GENERIC;
-const PAGE_SIMULATION: u16 = HID_USAGE_PAGE_SIMULATION;
-const PAGE_BUTTON: u16 = HID_USAGE_PAGE_BUTTON;
-/// X, Y, Z, Rx, Ry, Rz, slider, dial, wheel.
-const DESKTOP_AXES: std::ops::RangeInclusive<u16> = HID_USAGE_GENERIC_X..=HID_USAGE_GENERIC_WHEEL;
-const HAT_SWITCH: u16 = HID_USAGE_GENERIC_HATSWITCH;
-/// More buttons than any pad has: the rest are ignored.
-const MAX_BUTTONS: usize = 32;
 
 /// One value input of the device.
 #[derive(Clone, Copy, Debug)]
@@ -41,26 +32,12 @@ impl Value {
             // A full-width unsigned range that the parser read as signed (max = -1).
             (0, (1i64 << self.bits.min(32)) - 1)
         };
-        let v = if min < 0 && self.bits > 0 && self.bits < 32 && raw & (1 << (self.bits - 1)) != 0 {
-            i64::from(raw) - (1i64 << self.bits)
-        } else {
-            i64::from(raw)
-        };
+        let v = usages::signed(raw, u32::from(self.bits), min);
         if self.hat {
-            let steps = max - min + 1;
-            let d = v - min;
-            let dir = match steps {
-                8 if (0..8).contains(&d) => Some(d as u8),
-                4 if (0..4).contains(&d) => Some(d as u8 * 2),
-                _ => None,
-            };
-            return (0.0, dir);
+            (0.0, usages::hat(v, min, max))
+        } else {
+            (usages::axis(v, min, max), None)
         }
-        let span = (max - min) as f32;
-        (
-            (((v - min) as f32 / span) * 2.0 - 1.0).clamp(-1.0, 1.0),
-            None,
-        )
     }
 }
 
@@ -106,7 +83,9 @@ pub struct HidDecoder {
     button_links: Vec<u16>,
     axes: Vec<Value>,
     hats: Vec<Value>,
-    state: RawInput,
+    /// The report being decoded, padded to the device's input report length (kept from report
+    /// to report, so that decoding does not allocate).
+    buf: Vec<u8>,
 }
 
 impl HidDecoder {
@@ -117,14 +96,13 @@ impl HidDecoder {
         let raw = pp.raw();
         let mut d = HidDecoder {
             pp,
-            report_len: 0,
+            report_len: caps.InputReportByteLength as usize,
             buttons: Vec::new(),
             button_links: Vec::new(),
             axes: Vec::new(),
             hats: Vec::new(),
-            state: RawInput::default(),
+            buf: Vec::new(),
         };
-        d.report_len = caps.InputReportByteLength as usize;
 
         let mut n = caps.NumberInputButtonCaps;
         let mut bcaps = vec![HIDP_BUTTON_CAPS::default(); n as usize];
@@ -152,9 +130,7 @@ impl HidDecoder {
                 }
             }
         }
-        d.buttons.sort_unstable();
-        d.buttons.dedup();
-        d.buttons.truncate(MAX_BUTTONS);
+        usages::order_buttons(&mut d.buttons);
 
         let mut n = caps.NumberInputValueCaps;
         let mut vcaps = vec![HIDP_VALUE_CAPS::default(); n as usize];
@@ -173,12 +149,8 @@ impl HidDecoder {
                     }
                 };
                 for usage in lo..=hi {
-                    let wanted = match c.UsagePage {
-                        PAGE_DESKTOP => DESKTOP_AXES.contains(&usage) || usage == HAT_SWITCH,
-                        PAGE_SIMULATION => true,
-                        _ => false,
-                    };
-                    if !wanted {
+                    let hat = usages::is_hat(c.UsagePage, usage);
+                    if !hat && !usages::is_axis(c.UsagePage, usage) {
                         continue;
                     }
                     let v = Value {
@@ -188,9 +160,9 @@ impl HidDecoder {
                         min: c.LogicalMin,
                         max: c.LogicalMax,
                         bits: c.BitSize,
-                        hat: c.UsagePage == PAGE_DESKTOP && usage == HAT_SWITCH,
+                        hat,
                     };
-                    if v.hat {
+                    if hat {
                         d.hats.push(v);
                     } else {
                         d.axes.push(v);
@@ -198,46 +170,44 @@ impl HidDecoder {
                 }
             }
         }
-        d.axes.sort_by_key(|v| (v.page, v.usage));
-        d.axes.dedup_by_key(|v| (v.page, v.usage));
+        usages::order_axes(&mut d.axes, |v| (v.page, v.usage));
         if d.buttons.is_empty() && d.axes.is_empty() {
             return None;
         }
-        d.state = RawInput {
-            buttons: vec![false; d.buttons.len()],
-            axes: vec![0.0; d.axes.len()],
-            hats: vec![None; d.hats.len()],
-        };
         Some(d)
-    }
-
-    fn value(&self, v: &Value, report: &mut [u8]) -> Option<u32> {
-        let mut raw = 0u32;
-        // SAFETY: valid preparsed data and report buffer of the given length.
-        let status = unsafe {
-            HidP_GetUsageValue(
-                HidP_Input,
-                v.page,
-                v.link,
-                v.usage,
-                &mut raw,
-                self.pp.raw(),
-                report.as_ptr(),
-                report.len() as u32,
-            )
-        };
-        (status == HIDP_STATUS_SUCCESS).then_some(raw)
     }
 }
 
+/// The raw value of `v` in `report`.
+fn value(pp: &PreparsedData, v: &Value, report: &[u8]) -> Option<u32> {
+    let mut raw = 0u32;
+    // SAFETY: valid preparsed data and report buffer of the given length.
+    let status = unsafe {
+        HidP_GetUsageValue(
+            HidP_Input,
+            v.page,
+            v.link,
+            v.usage,
+            &mut raw,
+            pp.raw(),
+            report.as_ptr(),
+            report.len() as u32,
+        )
+    };
+    (status == HIDP_STATUS_SUCCESS).then_some(raw)
+}
+
 impl ReportDecoder for HidDecoder {
-    fn decode(&mut self, report: &[u8]) -> Option<RawInput> {
-        let mut buf = report.to_vec();
-        buf.resize(buf.len().max(self.report_len), 0);
+    fn decode(&mut self, report: &[u8], out: &mut RawInput) -> bool {
+        out.resize(self.buttons.len(), self.axes.len(), self.hats.len());
+        self.buf.clear();
+        self.buf.extend_from_slice(report);
+        self.buf.resize(report.len().max(self.report_len), 0);
+        let buf = &mut self.buf;
         let mut any = false;
-        // Buttons: the pressed usages of each collection that has buttons; a report that
-        // does not carry them leaves them as they were.
-        let mut pressed = Vec::new();
+        // Buttons: the pressed usages of each collection that has buttons, one bit per button
+        // index; a report that does not carry them leaves them as they were.
+        let mut pressed = 0u32;
         let mut carried = false;
         for &link in &self.button_links {
             let mut usages = [0u16; 128];
@@ -257,30 +227,33 @@ impl ReportDecoder for HidDecoder {
             };
             if status == HIDP_STATUS_SUCCESS {
                 carried = true;
-                pressed.extend_from_slice(&usages[..n as usize]);
+                for usage in usages.iter().take(n as usize) {
+                    if let Some(i) = self.buttons.iter().position(|b| b == usage) {
+                        pressed |= 1 << i;
+                    }
+                }
             }
         }
+        const _: () = assert!(MAX_BUTTONS <= 32, "one bit each in `pressed`");
         if carried {
             any = true;
-            for (i, usage) in self.buttons.iter().enumerate() {
-                self.state.buttons[i] = pressed.contains(usage);
+            for (i, b) in out.buttons.iter_mut().enumerate() {
+                *b = pressed & (1 << i) != 0;
             }
         }
-        for i in 0..self.axes.len() {
-            let v = self.axes[i];
-            if let Some(raw) = self.value(&v, &mut buf) {
+        for (v, axis) in self.axes.iter().zip(&mut out.axes) {
+            if let Some(raw) = value(&self.pp, v, buf) {
                 any = true;
-                self.state.axes[i] = v.read(raw).0;
+                *axis = v.read(raw).0;
             }
         }
-        for i in 0..self.hats.len() {
-            let v = self.hats[i];
-            if let Some(raw) = self.value(&v, &mut buf) {
+        for (v, hat) in self.hats.iter().zip(&mut out.hats) {
+            if let Some(raw) = value(&self.pp, v, buf) {
                 any = true;
-                self.state.hats[i] = v.read(raw).1;
+                *hat = v.read(raw).1;
             }
         }
-        any.then(|| self.state.clone())
+        any
     }
 }
 
@@ -290,8 +263,8 @@ mod tests {
 
     fn value(min: i32, max: i32, bits: u16, hat: bool) -> Value {
         Value {
-            page: PAGE_DESKTOP,
-            usage: if hat { HAT_SWITCH } else { 0x30 },
+            page: usages::PAGE_DESKTOP,
+            usage: if hat { 0x39 } else { 0x30 },
             link: 0,
             min,
             max,

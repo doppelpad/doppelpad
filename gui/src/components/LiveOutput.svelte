@@ -7,9 +7,13 @@
   import { DEVICE_LAYOUTS } from '../assets/devices/layouts';
   import { t } from '../lib/i18n/index.svelte';
   import { comboLabel } from '../lib/model/labels';
-  import { controlsFromPad, drawingsFor, moveStickCaps, triggerAxis } from '../lib/model/devices';
+  import { pressedChips } from '../lib/model/chips';
+  import { SIDE_NAMES, SIDES, controlLabel } from '../lib/model/controls';
+  import { controlsFromPad, drawingsFor, triggerAxis } from '../lib/model/devices';
+  import { clamp } from '../lib/model/util';
   import { app } from '../lib/state/app.svelte';
-  import type { LiveDevice } from '../lib/types';
+  import type { PadFamily } from '../lib/types';
+  import DeviceDrawing from './DeviceDrawing.svelte';
   import Toggle from './ui/Toggle.svelte';
   import { tip } from '../lib/tooltip.svelte';
 
@@ -17,40 +21,20 @@
 
   const session = $derived(app.slotSet.session);
   const output = $derived(session?.output ?? null);
-  /** The virtual controller as a device, so the drawing helpers can show it. */
-  const virtual = $derived<LiveDevice | null>(
-    output?.pad && session?.virtual_pad
-      ? {
-          id: 'virtual',
-          name: session.virtual_pad,
-          family: session.virtual_pad === 'dual_shock4' ? 'dual_shock4' : 'xbox',
-          backend: 'virtual',
-          vendor_id: 0,
-          product_id: 0,
-          state: output.pad,
-          gyro_calibration: null,
-          battery: null,
-          raw: null,
-          mirror: false,
-        }
-      : null,
-  );
+  /** What the virtual controller sends now. */
+  const virtual = $derived(session?.virtual_pad ? (output?.pad ?? null) : null);
+  /** The family that draws the virtual controller when no controller is read. */
+  const virtualFamily = $derived<PadFamily>(session?.virtual_pad === 'dual_shock4' ? 'dual_shock4' : 'xbox');
   /** The controller the session reads: the drawing is that one, so the output shows where the player's buttons are. */
   const reading = $derived(app.live?.devices.find((d) => d.id === session?.device) ?? app.primary);
-  const layout = $derived(virtual ? DEVICE_LAYOUTS[drawingsFor(reading ?? virtual).front] : null);
-  const pressed = $derived(virtual ? controlsFromPad(virtual, app.catalog?.pad_buttons ?? []) : new Set<string>());
-
-  let drawing: HTMLDivElement | undefined = $state();
-  $effect(() => {
-    if (!drawing || !virtual) return;
-    const held = [...pressed];
-    for (const g of drawing.querySelectorAll<SVGGElement>('[data-control]')) {
-      const c = g.getAttribute('data-control') ?? '';
-      const stick = c === 'LS' ? 'LeftStick' : c === 'RS' ? 'RightStick' : null;
-      g.classList.toggle('pressed', pressed.has(c) || (!!stick && held.some((p) => p.startsWith(stick))));
-    }
-    moveStickCaps(drawing, virtual.state.axes);
-  });
+  const layout = $derived(
+    virtual ? DEVICE_LAYOUTS[drawingsFor(reading ?? { family: virtualFamily, vendor_id: 0, product_id: 0 }).front] : null,
+  );
+  const pressed = $derived(
+    virtual && layout ? pressedChips(layout.controls, controlsFromPad(virtual, app.catalog?.pad_buttons ?? [])) : new Set<string>(),
+  );
+  /** The triggers are named as on the controller the drawing shows. */
+  const family = $derived(reading?.family ?? virtualFamily);
 
   /** Why nothing is sent right now, if so. */
   const stopped = $derived(
@@ -77,12 +61,12 @@
     <Toggle checked={false} label={t('settings.stay_live')} onchange={(v) => app.setSettings({ stay_live: v })} />
   {/if}
   {#if layout && virtual && session?.virtual_pad}
-    <div class="drawing" bind:this={drawing}>{@html layout.svg}</div>
+    <DeviceDrawing {layout} {pressed} axes={virtual.axes} />
     <p class="sent-as">{t('live_output.sent_as', { pad: t(`output.${session.virtual_pad}`) })}</p>
     <div class="triggers">
-      {#each ['left', 'right'] as const as side (side)}
-        <div class="bar" use:tip={side === 'left' ? 'LT' : 'RT'}>
-          <span style="width: {Math.round(Math.max(0, Math.min(1, triggerAxis(virtual, side))) * 100)}%"></span>
+      {#each SIDE_NAMES as side (side)}
+        <div class="bar" use:tip={controlLabel(SIDES[side].trigger, family)}>
+          <span style="width: {Math.round(clamp(triggerAxis(virtual, side), 0, 1) * 100)}%"></span>
         </div>
       {/each}
     </div>
@@ -103,7 +87,7 @@
     position: absolute;
     top: 48px;
     right: 12px;
-    z-index: 5;
+    z-index: var(--z-float);
     width: 260px;
     display: flex;
     flex-direction: column;
@@ -130,24 +114,6 @@
     margin: 0;
     color: var(--warning);
     font-size: var(--fs-s);
-  }
-  .drawing,
-  .drawing :global(svg) {
-    width: 100%;
-    height: auto;
-    display: block;
-  }
-  .drawing :global([data-control]) {
-    color: var(--line-strong);
-  }
-  .drawing :global([data-control].pressed) {
-    color: var(--accent-hover);
-  }
-  .drawing :global([data-control].pressed .hit) {
-    fill-opacity: 0.45;
-  }
-  .drawing :global(.body) {
-    color: var(--text-faint);
   }
   .sent-as {
     margin: -4px 0 0;

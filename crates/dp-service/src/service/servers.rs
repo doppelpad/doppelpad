@@ -5,16 +5,19 @@ use crate::dsu::DsuServer;
 use crate::httpapi::{HttpApi, Job};
 
 impl Service {
-    /// Start, stop or move the HTTP API to match the settings.
-    pub(super) fn apply_http(&mut self) {
-        if self.state.http.enabled && self.state.http.token.is_empty() {
-            self.update_state(|s| s.http.token = crate::httpapi::new_token());
+    /// Start, stop or move the HTTP API to match the settings. Returns whether it made a
+    /// token (the API is on without one), for the caller to save.
+    pub(super) fn apply_http(&mut self) -> bool {
+        let minted = self.state.http.enabled && self.state.http.token.is_empty();
+        if minted {
+            self.state.http.token = crate::httpapi::new_token();
         }
         let (settings, live) = (&self.state.http, &self.shared_live);
         self.http
             .restart(settings.enabled, "the HTTP API", settings.port, || {
                 HttpApi::start(settings, live.clone())
             });
+        minted
     }
 
     /// Answer what the HTTP API's clients asked for since the last tick.
@@ -26,6 +29,9 @@ impl Service {
         for job in jobs {
             let Job::Ipc(req, reply) = job;
             let answer = self.handle_ipc(req);
+            // As for IPC calls: a script reading the live state right after a command sees
+            // its effect.
+            self.publish_live();
             let _ = reply.send(answer);
         }
     }

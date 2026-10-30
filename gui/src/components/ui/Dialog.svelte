@@ -1,19 +1,11 @@
-<script module lang="ts">
-  /** Open dialogs, the topmost last: Escape closes only that one. */
-  const stack: symbol[] = [];
-
-  /** Whether a dialog is open; it owns the keyboard then. */
-  export function modalOpen(): boolean {
-    return stack.length > 0;
-  }
-</script>
-
 <script lang="ts">
   // A modal dialog over the window: a title row with an optional close button, the content,
   // and an optional footer. Not a native <dialog>: its top layer would cover the window's
-  // caption buttons, which stay above backdrops on purpose (WindowControls).
+  // caption buttons, which stay above backdrops on purpose (WindowControls). The focus stays
+  // inside the topmost dialog: Tab past its last field comes round to its first.
   import { X } from '@lucide/svelte';
   import { onMount, type Snippet } from 'svelte';
+  import { dialogStack as stack, tabbables } from '../../lib/dom';
   import { t } from '../../lib/i18n/index.svelte';
   import { tip } from '../../lib/tooltip.svelte';
 
@@ -67,14 +59,29 @@
     };
   });
 
+  /** The last Tab went backwards (Shift+Tab). */
+  let backwards = false;
+
   function onkeydown(e: KeyboardEvent) {
-    if (e.key !== 'Escape' || !escapeClose || !onclose || stack.at(-1) !== me) return;
+    if (stack.at(-1) !== me) return;
+    if (e.key === 'Tab') backwards = e.shiftKey;
+    if (e.key !== 'Escape' || !escapeClose || !onclose) return;
     e.preventDefault();
     onclose();
+  }
+
+  /** The focus went behind the dialog (Tab past either end): back to the dialog's other end. */
+  function onfocusin(e: FocusEvent) {
+    const to = e.target as Element | null;
+    // Menus and tooltips of the dialog's own fields live outside its box.
+    if (stack.at(-1) !== me || !to || box.contains(to) || to.closest('[role=menu], [role=tooltip]')) return;
+    const all = tabbables(box);
+    ((backwards ? all.at(-1) : all[0]) ?? box).focus();
   }
 </script>
 
 <svelte:window {onkeydown} />
+<svelte:document {onfocusin} />
 
 <div
   class="backdrop"

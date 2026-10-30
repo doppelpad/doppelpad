@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { setLanguage } from '../i18n/index.svelte';
 import type { Profile } from '../types';
-import { mappingsPressing, searchMappings, viewFor } from './search';
+import { mappingsPressing, searchMappings } from './search';
 
 const p: Profile = {
   name: 'T',
@@ -40,13 +40,5 @@ describe('search', () => {
   it('lists exactly the mappings that press a key, also inside macros', () => {
     expect(mappingsPressing(p, 'Space', label).map((f) => f.index)).toEqual([0, 2]);
     expect(mappingsPressing(p, 'Backspace', label)).toMatchObject([{ index: 1, layer: 1, trigger: 'B' }]);
-  });
-
-  it('picks the view that shows a trigger', () => {
-    expect(viewFor(['LB', 'RB'], 'front')).toBe('shortcuts');
-    expect(viewFor('Key:W', 'front')).toBe('keyboard');
-    expect(viewFor('Mouse:Left', 'keyboard')).toBe('mouse');
-    expect(viewFor('A', 'back')).toBe('back');
-    expect(viewFor('A', 'keyboard')).toBe('front');
   });
 });

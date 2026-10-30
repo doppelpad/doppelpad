@@ -60,13 +60,7 @@ impl Service {
                 None => return no_slot(n),
             },
             Request::ClearSlot { slot: None, device } => {
-                for slot in 0..SLOTS {
-                    self.run(ServiceCmd::ClearSlot {
-                        device: device.clone(),
-                        slot,
-                    });
-                }
-                return Response::ok("all slots cleared");
+                return self.clear_slots(device, 0..SLOTS).into();
             }
             Request::Remap { on } => ServiceCmd::SetRemap(on),
             Request::AutoSwitch { enabled } => ServiceCmd::SetAutoSwitch(enabled),
@@ -151,7 +145,7 @@ impl Service {
             ServiceCmd::SetLights { player, mic } => self.set_lights(player, mic),
             ServiceCmd::RefreshDrivers => {
                 self.check_drivers();
-                ServiceReply::Ok("drivers checked".into())
+                ServiceReply::Ok("checking drivers".into())
             }
             ServiceCmd::RescanDevices => {
                 self.rt.rescan_devices();
@@ -212,16 +206,12 @@ impl Service {
     /// Switch to another profiles directory; see [`ServiceCmd::UseLibrary`].
     fn use_library(&mut self, dir: PathBuf, moved_from: Option<PathBuf>) -> ServiceReply {
         if let Some(from) = &moved_from {
-            let moved = |p: &mut Option<PathBuf>| {
-                if let Some(n) = p
-                    .as_ref()
-                    .and_then(|p| dp_config::relocate::moved_path(p, from, &dir))
-                {
-                    *p = Some(n);
-                }
-            };
-            moved(&mut self.oneoff);
-            moved(&mut self.auto_active);
+            for p in [&mut self.oneoff, &mut self.auto_active]
+                .into_iter()
+                .flatten()
+            {
+                crate::slots::follow_move(p, from, &dir);
+            }
             self.rt.library_moved(from, &dir);
             self.update_state(|s| s.library_moved(from, &dir));
         }
@@ -291,19 +281,34 @@ impl Service {
     }
 
     fn clear_slot(&mut self, device: Option<String>, slot: usize) -> ServiceReply {
-        if let Some(e) = Self::bad_slot(slot) {
-            return e;
+        match Self::bad_slot(slot) {
+            Some(e) => e,
+            None => self.clear_slots(device, slot..slot + 1),
         }
+    }
+
+    /// Empty `slots` (in range) together: one save and at most one profile change.
+    fn clear_slots(
+        &mut self,
+        device: Option<String>,
+        slots: std::ops::Range<usize>,
+    ) -> ServiceReply {
+        let what = match slots.len() {
+            1 => format!("slot {} cleared", slots.start + 1),
+            _ => "all slots cleared".into(),
+        };
         let device = self.has_own_slots(device.as_deref());
-        self.slot_set_mut(device.as_deref()).slots[slot] = None;
+        for slot in slots.clone() {
+            self.slot_set_mut(device.as_deref()).slots[slot] = None;
+        }
         if let Some(device) = device {
-            return self.device_reply(&device, format!("slot {} cleared", slot + 1));
+            return self.device_reply(&device, what);
         }
         self.save_state();
-        if slot == self.state.shared.active && self.auto_active.is_none() {
+        if slots.contains(&self.state.shared.active) && self.auto_active.is_none() {
             self.apply_base();
         }
-        ServiceReply::Ok(format!("slot {} cleared", slot + 1))
+        ServiceReply::Ok(what)
     }
 
     fn own_slots(&mut self, device: String, on: bool) -> ServiceReply {
@@ -493,33 +498,33 @@ impl Service {
     pub(super) fn run_hotkeys(&mut self) {
         for (id, action) in self.rt.take_hotkey_actions() {
             match action {
-                HotkeyAction::Slot(n) => {
+                HotkeyAction::Slot1
+                | HotkeyAction::Slot2
+                | HotkeyAction::Slot3
+                | HotkeyAction::Slot4 => {
+                    let n = usize::from(action.slot().unwrap_or_default());
                     let device = self.has_own_slots(Some(id.as_str()));
                     let slots = &self.slot_set(device.as_deref()).slots;
-                    if slots.get(n as usize).is_none_or(Option::is_none) {
+                    if slots.get(n).is_none_or(Option::is_none) {
                         tracing::info!("slot {} is empty", n + 1);
                         continue;
                     }
-                    let cmd = ServiceCmd::SelectSlot {
-                        device,
-                        slot: n as usize,
-                    };
+                    let cmd = ServiceCmd::SelectSlot { device, slot: n };
                     match self.handle(cmd) {
                         ServiceReply::Err(e) => tracing::warn!("slot hotkey: {e}"),
-                        _ => self.rt.confirm_hotkey(&id, Confirm::Short(n + 1)),
+                        _ => self
+                            .rt
+                            .confirm_hotkey(&id, Confirm::for_action(action, true)),
                     }
                 }
                 HotkeyAction::ToggleRemap => {
                     let on = !self.state.remap_on;
                     match self.handle(ServiceCmd::SetRemap(on)) {
                         ServiceReply::Err(e) => tracing::warn!("remap hotkey: {e}"),
-                        // One long pulse for on, two for off.
-                        _ => self
-                            .rt
-                            .confirm_hotkey(&id, Confirm::Long(if on { 1 } else { 2 })),
+                        _ => self.rt.confirm_hotkey(&id, Confirm::for_action(action, on)),
                     }
                 }
-                // The runtime handles these itself.
+                // The runtime carries these out itself and never hands them over.
                 HotkeyAction::StopMacros
                 | HotkeyAction::EmergencyStop
                 | HotkeyAction::PadOverlay

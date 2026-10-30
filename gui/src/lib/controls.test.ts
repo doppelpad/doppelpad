@@ -2,13 +2,7 @@
 // `use:tip` (lib/tooltip.svelte.ts) and choices through ui/Select.svelte.
 
 import { describe, expect, it } from 'vitest';
-
-const sources = import.meta.glob<string>('/src/**/*.svelte', {
-  query: '?raw',
-  import: 'default',
-  eager: true,
-});
-const files = Object.entries(sources);
+import { components as files } from './testing/sources';
 
 /** Whether `text` from `from` to `to` stays inside one start tag (no `>` outside `{…}` and quotes). */
 function staysInTag(text: string, from: number, to: number): boolean {

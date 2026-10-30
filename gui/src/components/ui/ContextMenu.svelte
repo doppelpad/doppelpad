@@ -3,21 +3,24 @@
   // key or Shift+F10 (`app.openContextMenu`). It stays inside the window, takes the focus, and
   // closes on a click elsewhere, Escape, scrolling, resizing or when the window loses the
   // focus; without a choice the focus goes back where it came from.
+  import { listen } from '../../lib/dom';
+  import { placePopup, pointBox, windowBox } from '../../lib/place';
   import { app } from '../../lib/state/app.svelte';
   import MenuList from './MenuList.svelte';
 
   let box: HTMLDivElement | undefined = $state();
   let list: HTMLElement | undefined = $state();
-  let pos = $state({ left: 0, top: 0 });
+  let pos = $state<{ left: number; top: number; maxHeight: number } | null>(null);
 
   $effect(() => {
     const m = app.contextMenu;
-    if (!m || !box) return;
-    const w = box.offsetWidth;
-    const h = box.offsetHeight;
-    const left = Math.max(4, Math.min(m.x, window.innerWidth - w - 4));
-    const top = m.y + h + 4 > window.innerHeight ? Math.max(4, m.y - h) : m.y;
-    pos = { left, top };
+    if (!m || !box) {
+      pos = null;
+      return;
+    }
+    const size = { width: box.offsetWidth, height: box.offsetHeight };
+    const place = placePopup(pointBox(m.x, m.y), size, windowBox(), { gap: 0, edge: 4, minHeight: 120 });
+    pos = { left: place.left, top: place.top, maxHeight: place.maxHeight };
     (list?.querySelector<HTMLButtonElement>('.item:not(:disabled)') ?? list)?.focus();
   });
 
@@ -41,13 +44,30 @@
   }
 
   const dismiss = () => app.contextMenu && close(false);
+
+  // Listening only while it is open.
+  $effect(() => {
+    if (!app.contextMenu) return;
+    const off = [
+      listen(window, 'pointerdown', onpointerdown, true),
+      listen(window, 'keydown', onkeydown, true),
+      listen(window, 'blur', dismiss),
+      listen(window, 'resize', dismiss),
+      listen(document, 'scroll', dismiss, true),
+    ];
+    return () => off.forEach((stop) => stop());
+  });
 </script>
 
-<svelte:window onpointerdowncapture={onpointerdown} onkeydowncapture={onkeydown} onblur={dismiss} onresize={dismiss} />
-<svelte:document onscrollcapture={dismiss} />
-
 {#if app.contextMenu}
-  <div class="context" style="left: {pos.left}px; top: {pos.top}px" bind:this={box}>
+  <div
+    class="context"
+    style:left="{pos?.left ?? 0}px"
+    style:top="{pos?.top ?? 0}px"
+    style:--menu-max-height={pos ? `${pos.maxHeight}px` : 'none'}
+    style:visibility={pos ? 'visible' : 'hidden'}
+    bind:this={box}
+  >
     <MenuList items={app.contextMenu.items} onpick={() => close(true)} bind:el={list} />
   </div>
 {/if}

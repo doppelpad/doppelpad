@@ -109,6 +109,7 @@ fn pair_info(left: &DeviceInfo, right: &DeviceInfo) -> Arc<DeviceInfo> {
         } else {
             pid::JOYCOND_PAIR
         },
+        transport: left.transport,
         backend: left.backend.clone(),
         instance_paths,
         joycon: None,
@@ -320,6 +321,18 @@ mod tests {
         fn set_rumble(&mut self, id: &DeviceId, rumble: Rumble) {
             self.rumble.lock().unwrap().push((id.clone(), rumble));
         }
+        fn set_lightbar(&mut self, _id: &DeviceId, _color: Option<Rgb>) {}
+        fn set_leds(&mut self, _id: &DeviceId, _leds: Leds) {}
+        fn set_trigger_effects(&mut self, _id: &DeviceId, _effects: TriggerEffects) {}
+        fn power_off(&mut self, _id: &DeviceId) -> bool {
+            false
+        }
+        fn ignore_virtual(&mut self, _ignored: &VirtualIgnoreList) {}
+        fn set_layouts(&mut self, _layouts: Arc<Vec<crate::generic::GenericLayout>>) {}
+        fn problems(&self) -> Vec<String> {
+            Vec::new()
+        }
+        fn rescan(&mut self) {}
     }
 
     fn pad(id: &str, joycon: Option<JoyConSide>, state: PadState) -> PadSnapshot {
@@ -334,6 +347,7 @@ mod tests {
                 },
                 vendor_id: NINTENDO_VID,
                 product_id: pid::JOYCON_L,
+                transport: crate::Transport::Usb,
                 backend: "fake".into(),
                 instance_paths: vec![format!("path-{id}")],
                 joycon,

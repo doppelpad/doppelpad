@@ -132,6 +132,45 @@ impl Profile {
     pub fn layer(&self, id: u8) -> Option<&Layer> {
         self.layers.iter().find(|l| l.id == id)
     }
+
+    /// Whether layer `layer` takes over the base layer's mappings on `trigger`, unless it maps
+    /// the trigger itself: it inherits, does not leave the trigger out (`not_inherited`) and
+    /// gives none of its controls back (`unlock`).
+    pub fn inherits(&self, layer: u8, trigger: &[crate::control::Control]) -> bool {
+        if layer == 0 {
+            return false;
+        }
+        let Some(decl) = self.layer(layer) else {
+            return true; // an undeclared layer inherits everything
+        };
+        let key = Combo(trigger.to_vec()).normalized();
+        decl.inherit
+            && !decl.not_inherited.iter().any(|c| c.normalized() == key)
+            && !decl
+                .unlock
+                .is_some_and(|u| trigger.iter().any(|&c| u.covers(c)))
+    }
+
+    /// Whether `trigger` is mapped on `layer` itself, counting the way back of a hold or
+    /// toggle jump into the layer (the engine maps the jump's trigger there).
+    pub fn maps_on_layer(&self, layer: u8, trigger: &Combo) -> bool {
+        let key = trigger.normalized();
+        self.mappings.iter().any(|m| {
+            let back = m.jump.as_ref().is_some_and(|j| {
+                j.layer == layer && j.layer != m.layer && j.mode != JumpMode::Switch
+            });
+            (m.layer == layer || back) && m.trigger.normalized() == key
+        })
+    }
+
+    /// Whether mapping `m` works on layer `layer`: one of the layer's own, or a base-layer
+    /// mapping the layer takes over.
+    pub fn applies_on(&self, m: &Mapping, layer: u8) -> bool {
+        m.layer == layer
+            || (m.layer == 0
+                && self.inherits(layer, &m.trigger.0)
+                && !self.maps_on_layer(layer, &m.trigger))
+    }
 }
 
 /// Which keyboard and mouse events a profile's mappings see.

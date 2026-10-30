@@ -20,7 +20,7 @@ import { comboLabel } from '../../lib/model/labels';
 import { comboList } from '../../lib/model/profile';
 import { app } from '../../lib/state/app.svelte';
 import type { Combo, ControlName } from '../../lib/types';
-import type { MenuItem } from '../ui/Menu.svelte';
+import type { MenuChoice, MenuItem } from '../../lib/menu';
 
 const nameOf = (c: Combo) => comboLabel(c, app.family);
 const groupName = (g: GroupId) => t(`clipboard.groups.${g}`);
@@ -83,7 +83,7 @@ export function clearGroupAt(g: GroupId) {
 }
 
 /** Copy, paste and clear of one control or shortcut; `named` puts its name into the labels. */
-export function controlItems(c: Combo, named = false): MenuItem[] {
+export function controlItems(c: Combo, named = false): MenuChoice[] {
   const name = nameOf(c);
   const from = copiedName();
   return [
@@ -103,7 +103,7 @@ export function controlItems(c: Combo, named = false): MenuItem[] {
 }
 
 /** Copy, paste and clear of every direction of a group. */
-export function groupItems(g: GroupId): MenuItem[] {
+export function groupItems(g: GroupId): MenuChoice[] {
   return [
     { label: t('clipboard.copy_group'), onclick: () => copyGroupAt(g), disabled: !app.profile },
     {
@@ -131,12 +131,12 @@ export function menuItems(c: Combo): MenuItem[] {
   const member = single ? (groupOf(single)?.group ?? null) : null;
   const group = stands ?? member;
   const own = controlItems(c, !!stands);
-  const items = group ? [...own, { label: '', separator: true }, ...groupItems(group)] : own;
+  const items: MenuItem[] = group ? [...own, { separator: true }, ...groupItems(group)] : own;
   // A key of the keyboard view: which mappings press it.
   if (single?.startsWith('Key:')) {
     const key = single.slice(4);
     items.push(
-      { label: '', separator: true },
+      { separator: true },
       { label: t('find.who_presses'), onclick: () => (app.find = { query: '', key }), disabled: !app.profile },
     );
   }

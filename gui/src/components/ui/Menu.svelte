@@ -1,32 +1,13 @@
-<script lang="ts" module>
-  import type { Component } from 'svelte';
-
-  export interface MenuItem {
-    label: string;
-    onclick?: () => void;
-    danger?: boolean;
-    disabled?: boolean;
-    checked?: boolean;
-    separator?: boolean;
-    /** A caption over the items after it (the label), not an item. */
-    heading?: boolean;
-    /** CSS color for a dot in front of the label. */
-    color?: string;
-    /** An icon in front of the label. */
-    icon?: Component<{ size?: number }>;
-    /** Dim text at the end of the row, e.g. a battery level. */
-    detail?: string;
-    /** Colors the detail: low or critical. */
-    tone?: 'warning' | 'danger';
-  }
-</script>
-
 <script lang="ts">
   // A button that opens a list of items below it (above when there is no room). The list is
   // fixed to the window, so a scrolling panel does not cut it off, and scrolls when it is
   // longer than the room it has. It closes on a choice, a click elsewhere, Escape or Tab,
   // scrolling, resizing or when the window loses the focus.
   import type { Snippet } from 'svelte';
+  import { listen } from '../../lib/dom';
+  import type { MenuItem } from '../../lib/menu';
+  import { stepper } from '../../lib/padnav';
+  import { placePopup, windowBox } from '../../lib/place';
   import { tip } from '../../lib/tooltip.svelte';
   import MenuList from './MenuList.svelte';
 
@@ -41,6 +22,7 @@
     wide = false,
     class: cls = '',
     onopen,
+    step,
   }: {
     items: MenuItem[];
     trigger: Snippet;
@@ -58,6 +40,8 @@
     class?: string;
     /** Called as the list opens (e.g. to load what it lists). */
     onopen?: () => void;
+    /** Steps through the choices while the controller drives the app (a drop-down list). */
+    step?: (step: 1 | -1) => void;
   } = $props();
 
   let open = $state(false);
@@ -66,21 +50,12 @@
   let list: HTMLElement | undefined = $state();
   let pos = $state<{ left: number; top: number; minWidth: number; maxHeight: number } | null>(null);
 
-  /** Room kept free between the list and the window's edges. */
-  const EDGE = 8;
-
   $effect(() => {
     if (!open || !popup || !list) return;
     const r = root.getBoundingClientRect();
-    const below = window.innerHeight - r.bottom - EDGE;
-    const above = r.top - EDGE;
-    const h = popup.offsetHeight;
-    const up = h + 4 > below && above > below;
-    const maxHeight = Math.max(120, (up ? above : below) - 4);
-    const w = Math.max(popup.offsetWidth, r.width);
-    const left = Math.max(EDGE, Math.min(align === 'right' ? r.right - w : r.left, window.innerWidth - w - EDGE));
-    const top = up ? r.top - 4 - Math.min(h, maxHeight) : r.bottom + 4;
-    pos = { left, top, minWidth: r.width, maxHeight };
+    const size = { width: Math.max(popup.offsetWidth, r.width), height: popup.offsetHeight };
+    const place = placePopup(r, size, windowBox(), { align: align === 'right' ? 'end' : 'start', minHeight: 120 });
+    pos = { left: place.left, top: place.top, minWidth: r.width, maxHeight: place.maxHeight };
     // The checked item, else the first one, gets the focus (and is scrolled into view).
     const start =
       list.querySelector<HTMLElement>('.item.checked:not(:disabled)') ?? list.querySelector<HTMLElement>('.item:not(:disabled)');
@@ -126,10 +101,20 @@
   }
 
   const dismiss = () => open && close(false);
-</script>
 
-<svelte:window onpointerdowncapture={onpointerdown} onkeydowncapture={onkeydown} onblur={dismiss} onresize={dismiss} />
-<svelte:document onscrollcapture={onscroll} />
+  // Listening only while open: a list of games has a menu per row.
+  $effect(() => {
+    if (!open) return;
+    const off = [
+      listen(window, 'pointerdown', onpointerdown, true),
+      listen(window, 'keydown', onkeydown, true),
+      listen(window, 'blur', dismiss),
+      listen(window, 'resize', dismiss),
+      listen(document, 'scroll', onscroll, true),
+    ];
+    return () => off.forEach((stop) => stop());
+  });
+</script>
 
 <div class="menu" class:wide bind:this={root}>
   <button
@@ -143,6 +128,7 @@
     {disabled}
     onclick={() => (open ? close(false) : show())}
     onkeydown={onTriggerKey}
+    use:stepper={step}
   >
     {@render trigger()}
   </button>

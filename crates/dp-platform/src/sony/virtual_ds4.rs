@@ -179,23 +179,11 @@ impl Ds4ReportBuilder {
     }
 }
 
-/// Hat in the low nibble, then square, cross, circle, triangle, L1, R1, L2, R2, share,
-/// options, L3, R3.
+/// Hat in the low nibble, then the buttons as the controller reports them ([`super::BUTTONS`]),
+/// and L2 and R2 from the triggers.
 fn ds4_buttons(s: &PadState) -> u16 {
     let mut buttons = u16::from(hat_from_dpad(s));
-    let bits = [
-        (PadButton::X, 1 << 4),  // square
-        (PadButton::A, 1 << 5),  // cross
-        (PadButton::B, 1 << 6),  // circle
-        (PadButton::Y, 1 << 7),  // triangle
-        (PadButton::LB, 1 << 8), // L1
-        (PadButton::RB, 1 << 9), // R1
-        (PadButton::Back, 1 << 12),
-        (PadButton::Start, 1 << 13),
-        (PadButton::LS, 1 << 14),
-        (PadButton::RS, 1 << 15),
-    ];
-    for (b, bit) in bits {
+    for (b, bit) in super::BUTTONS {
         if s.pressed(b) {
             buttons |= bit;
         }

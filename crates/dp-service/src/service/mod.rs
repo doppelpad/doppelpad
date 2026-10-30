@@ -139,7 +139,7 @@ struct DriverWatch {
     /// A report has arrived.
     known: bool,
     reports: Receiver<DriverReport>,
-    _probe: Rescanner,
+    probe: Rescanner,
 }
 
 impl DriverWatch {
@@ -154,7 +154,7 @@ impl DriverWatch {
             system_problems: Vec::new(),
             known: false,
             reports,
-            _probe: probe,
+            probe,
         }
     }
 }
@@ -185,8 +185,8 @@ pub struct Service {
     fg: Foreground,
     drivers: DriverWatch,
     errors: Errors,
-    /// Connected controllers when their sessions were last brought in line.
-    connected: Vec<String>,
+    /// The runtime's device generation when the sessions were last brought in line.
+    devices_seen: u64,
     /// The DSU motion server.
     dsu: Listener<DsuServer>,
     /// The local HTTP API.
@@ -264,7 +264,7 @@ impl Service {
             },
             drivers: DriverWatch::start(probe),
             errors,
-            connected: Vec::new(),
+            devices_seen: 0,
             dsu: Listener::default(),
             http: Listener::default(),
             shared_live: SharedLive::default(),
@@ -284,7 +284,9 @@ impl Service {
         svc.apply_power_off();
         svc.apply_switch2_bluetooth();
         svc.apply_dsu();
-        svc.apply_http();
+        if svc.apply_http() {
+            svc.save_state();
+        }
         svc.rt.set_prevent_sleep(svc.state.runtime.prevent_sleep);
         svc.reload();
         if let Some(p) = svc.oneoff.clone() {
@@ -307,12 +309,7 @@ impl Service {
         // With the option on, a disconnected controller keeps its session (and so its
         // virtual controller, idle) until it is back.
         let keep = self.state.runtime.keep_offline_pads;
-        let running: Vec<String> = self
-            .rt
-            .sessions()
-            .into_iter()
-            .filter_map(|s| s.owner)
-            .collect();
+        let running: Vec<String> = self.rt.session_owners().map(|d| d.0.clone()).collect();
         let wanted: Vec<(String, PathBuf)> = if self.state.remap_on {
             self.state
                 .devices
@@ -323,10 +320,8 @@ impl Service {
         } else {
             Vec::new()
         };
-        for s in self.rt.sessions() {
-            if let Some(owner) = s.owner
-                && !wanted.iter().any(|(id, _)| *id == owner)
-            {
+        for owner in running {
+            if !wanted.iter().any(|(id, _)| *id == owner) {
                 self.rt
                     .stop_device(&dp_platform::DeviceId::from(owner.clone()));
                 self.errors.devices.remove(&owner);
@@ -349,7 +344,7 @@ impl Service {
                 }
             }
         }
-        self.connected = connected;
+        self.devices_seen = self.rt.device_generation();
     }
 
     /// A controller's own slots if it has them, else the shared ones.
@@ -510,8 +505,9 @@ impl Service {
     }
 
     /// Looking for Switch 2 controllers over Bluetooth.
-    fn apply_switch2_bluetooth(&self) {
-        dp_platform::set_switch2_search(self.state.switch2_bluetooth);
+    fn apply_switch2_bluetooth(&mut self) {
+        let on = self.state.switch2_bluetooth;
+        self.rt.platform_mut().switch2_search.set(on);
     }
 
     /// Player lights and microphone LED of every controller, from the slots and remapping.
@@ -549,14 +545,7 @@ impl Service {
             self.turn_remap_off();
         }
         // Controllers with slots of their own start or stop as they come and go.
-        if self.rt.devices().len() != self.connected.len()
-            || self
-                .rt
-                .devices()
-                .iter()
-                .zip(&self.connected)
-                .any(|(s, id)| s.info.id.as_str() != id)
-        {
+        if self.rt.device_generation() != self.devices_seen {
             self.sync_devices();
         }
         let now = self.rt.now_ms();
@@ -571,10 +560,11 @@ impl Service {
         }
     }
 
-    /// Probe the drivers now, on this thread (an explicit refresh).
-    fn check_drivers(&mut self) {
-        let report = (self.rt.driver_probe())();
-        self.take_driver_report(report);
+    /// Probe the drivers now (an explicit refresh), on their own thread: the probe asks the
+    /// Bluetooth stack and system services, which can take seconds, and this thread runs the
+    /// controllers. The report arrives like the periodic ones.
+    fn check_drivers(&self) {
+        self.drivers.probe.wake();
     }
 
     fn take_driver_report(&mut self, report: DriverReport) {

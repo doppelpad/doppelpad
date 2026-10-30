@@ -81,9 +81,13 @@ impl Props {
         }
     }
 
-    /// Connected over Bluetooth (classic or LE).
-    pub fn bluetooth(&self) -> bool {
-        self.transport.starts_with("Bluetooth")
+    /// How it is connected: over Bluetooth (classic or LE), else over USB.
+    pub fn link(&self) -> crate::Transport {
+        if self.transport.starts_with("Bluetooth") {
+            crate::Transport::Bluetooth
+        } else {
+            crate::Transport::Usb
+        }
     }
 }
 

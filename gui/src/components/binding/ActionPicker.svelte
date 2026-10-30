@@ -3,13 +3,24 @@
   // or a built-in command.
   import { Keyboard, Mouse, Gamepad2, Terminal, X } from '@lucide/svelte';
   import { open } from '@tauri-apps/plugin-dialog';
+  import { arrowKeys } from '../../lib/dom';
   import { t } from '../../lib/i18n/index.svelte';
   import { keyFromEvent, keyGroups, keyLabel } from '../../lib/model/keymap';
   import { parseNonNegInt } from '../../lib/model/numbers';
-  import { SIDES, controlLabel } from '../../lib/model/controls';
+  import { CARDINALS, SIDES, controlLabel } from '../../lib/model/controls';
   import { POWER_COMMANDS, RADIAL_COMMANDS, SIMPLE_COMMANDS } from '../../lib/model/labels';
   import { app } from '../../lib/state/app.svelte';
-  import type { Action, Dir, MouseButtonName, PadButtonName, ShakeAxis, StickName, TouchOutput, TriggerName } from '../../lib/types';
+  import type {
+    Action,
+    Dir,
+    MouseButtonName,
+    PadButtonName,
+    PadFamily,
+    ShakeAxis,
+    StickName,
+    TouchOutput,
+    TriggerName,
+  } from '../../lib/types';
   import { tip } from '../../lib/tooltip.svelte';
 
   let { onpick, onclose }: { onpick: (a: Action) => void; onclose: () => void } = $props();
@@ -51,6 +62,10 @@
     'multi_tap',
   ];
   const PAD_BUTTONS = $derived((app.catalog?.pad_buttons ?? []) as PadButtonName[]);
+  /** Controller actions press the virtual controller's buttons, named as that controller names them. */
+  const outFamily = $derived<PadFamily>(
+    (app.profile?.output?.virtual_pad ?? app.catalog?.defaults.output.virtual_pad) === 'dual_shock4' ? 'dual_shock4' : 'xbox',
+  );
 
   function stickAction(stick: StickName, d: Dir): Action {
     const v = { up: [0, 1], down: [0, -1], left: [-1, 0], right: [1, 0] }[d];
@@ -95,26 +110,35 @@
 
 <div class="picker">
   <div class="tabs">
-    {#each TABS as tb (tb.id)}
-      <button class="tab" class:active={tab === tb.id} onclick={() => (tab = tb.id)}>
-        <tb.icon size={16} />
-        <span>{t(`picker.${tb.id}`)}</span>
-      </button>
-    {/each}
+    <div class="tab-list" role="tablist" aria-label={t('binding.add_action')} use:arrowKeys>
+      {#each TABS as tb (tb.id)}
+        <button
+          class="tab"
+          role="tab"
+          class:active={tab === tb.id}
+          aria-selected={tab === tb.id}
+          tabindex={tab === tb.id ? 0 : -1}
+          onclick={() => (tab = tb.id)}
+        >
+          <tb.icon size={16} />
+          <span>{t(`picker.${tb.id}`)}</span>
+        </button>
+      {/each}
+    </div>
     <button class="icon-btn close" use:tip={t('common.close')} onclick={onclose}><X size={15} /></button>
   </div>
 
   {#if tab === 'keyboard'}
     <div class="row">
-      <button class="btn capture" class:on={capturing} onclick={() => (capturing = !capturing)}>
+      <button class="btn capture" class:on={capturing} aria-pressed={capturing} onclick={() => (capturing = !capturing)}>
         <Keyboard size={14} />
         {capturing ? t('picker.press_now') : t('picker.press_key')}
       </button>
-      <input class="search" placeholder={t('picker.search')} bind:value={search} />
+      <input class="search" placeholder={t('picker.search')} aria-label={t('picker.search')} bind:value={search} />
     </div>
     <div class="scroll">
       {#each groups as g (g.id)}
-        <div class="group">{t(`picker.groups.${g.id}`)}</div>
+        <div class="group section-title">{t(`picker.groups.${g.id}`)}</div>
         <div class="grid">
           {#each g.keys as k (k)}
             <button class="chip" onclick={() => onpick({ key: k })}>{keyLabel(k)}</button>
@@ -124,25 +148,25 @@
     </div>
   {:else if tab === 'mouse'}
     <div class="scroll">
-      <div class="group">{t('picker.mouse_buttons')}</div>
+      <div class="group section-title">{t('picker.mouse_buttons')}</div>
       <div class="grid">
         {#each MOUSE_BUTTONS as b (b)}
           <button class="chip" onclick={() => onpick({ mouse: b })}>{t(`controls.mouse.${b}`)}</button>
         {/each}
       </div>
-      <div class="group">{t('picker.mouse_wheel')}</div>
+      <div class="group section-title">{t('picker.mouse_wheel')}</div>
       <div class="grid">
         {#each DIRS as d (d)}
           <button class="chip" onclick={() => onpick({ wheel: d })}>{t(`dirs.${d}`)}</button>
         {/each}
       </div>
-      <div class="group">{t('picker.mouse_move')}</div>
+      <div class="group section-title">{t('picker.mouse_move')}</div>
       <div class="grid">
         {#each DIRS as d (d)}
           <button class="chip" onclick={() => onpick({ mouse_move: d })}>{t(`dirs.${d}`)}</button>
         {/each}
       </div>
-      <div class="group">{t('picker.cursor')}</div>
+      <div class="group section-title">{t('picker.cursor')}</div>
       <div class="grid">
         <button class="chip" use:tip={t('picker.cursor_hint')} onclick={() => onpick({ mouse_to: [0.5, 0.5] })}>
           {t('picker.cursor_centre')}
@@ -151,7 +175,7 @@
           {t('picker.cursor_clip')}
         </button>
       </div>
-      <div class="group">{t('picker.turn')}</div>
+      <div class="group section-title">{t('picker.turn')}</div>
       <div class="grid">
         {#each TURNS as deg (deg)}
           <button class="chip" use:tip={t('picker.turn_hint')} onclick={() => onpick({ turn: deg })}
@@ -162,19 +186,18 @@
     </div>
   {:else if tab === 'gamepad'}
     <div class="scroll">
-      <div class="group">{t('picker.pad_buttons')}</div>
+      <div class="group section-title">{t('picker.pad_buttons')}</div>
       <div class="grid">
         {#each PAD_BUTTONS as b (b)}
-          <button class="chip" onclick={() => onpick({ pad: b })}>{controlLabel(b, 'xbox')}</button>
+          <button class="chip" onclick={() => onpick({ pad: b })}>{controlLabel(b, outFamily)}</button>
         {/each}
       </div>
-      <div class="group">{t('picker.pad_sticks')}</div>
+      <div class="group section-title">{t('picker.pad_sticks')}</div>
       {#each ['left', 'right'] as const as s (s)}
         <div class="grid">
-          {#each DIRS as d (d)}
-            <button class="chip" onclick={() => onpick(stickAction(s, d))}>
-              {t(`controls.${SIDES[s].stick}`)}
-              {t(`dirs.${d}`)}
+          {#each CARDINALS as d (d)}
+            <button class="chip" onclick={() => onpick(stickAction(s, d.toLowerCase() as Dir))}>
+              {controlLabel(`${SIDES[s].stick}${d}`, outFamily)}
             </button>
           {/each}
         </div>
@@ -184,7 +207,7 @@
           {t('picker.anti_recoil')}
         </button>
       </div>
-      <div class="group">{t('picker.pad_triggers')}</div>
+      <div class="group section-title">{t('picker.pad_triggers')}</div>
       <div class="grid">
         {#each ['left', 'right'] as const as tr (tr)}
           <button class="chip" onclick={() => onpick({ trigger: tr as TriggerName })}>
@@ -192,7 +215,7 @@
           </button>
         {/each}
       </div>
-      <div class="group">{t('picker.pad_touch')}</div>
+      <div class="group section-title">{t('picker.pad_touch')}</div>
       <div class="grid">
         {#each TOUCH_OUTPUTS as g (g)}
           <button class="chip" use:tip={t('picker.pad_touch_hint')} onclick={() => onpick({ touch: g })}>
@@ -200,7 +223,7 @@
           </button>
         {/each}
       </div>
-      <div class="group">{t('picker.pad_shake')}</div>
+      <div class="group section-title">{t('picker.pad_shake')}</div>
       <div class="grid">
         {#each SHAKES as s (s)}
           <button class="chip" use:tip={t('picker.pad_shake_hint')} onclick={() => onpick({ shake: s })}>
@@ -230,9 +253,9 @@
       {#each POWER_COMMANDS as c (c)}
         <button class="cmd power" onclick={() => pickPower(c)}>{t(`picker.${c}`)}…</button>
       {/each}
-      <button class="cmd" onclick={pickLaunch}>{t('picker.launch')}…</button>
-      <button class="cmd" onclick={pickPause}>{t('picker.pause')}…</button>
-      <button class="cmd" onclick={pickRumble}>{t('picker.rumble')}…</button>
+      <button class="cmd" onclick={pickLaunch}>{t('picker.launch')}</button>
+      <button class="cmd" onclick={pickPause}>{t('picker.pause')}</button>
+      <button class="cmd" onclick={pickRumble}>{t('picker.rumble')}</button>
       <button class="cmd" onclick={() => onpick({ break: true })}>{t('picker.break')}</button>
     </div>
   {/if}
@@ -254,6 +277,11 @@
     gap: 2px;
     padding: 4px;
     border-bottom: 1px solid var(--line);
+  }
+  .tab-list {
+    flex: 1;
+    display: flex;
+    gap: 2px;
   }
   .tab {
     flex: 1;
@@ -306,10 +334,6 @@
     padding: 4px 8px 10px;
   }
   .group {
-    font-size: 10.5px;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--text-faint);
     margin: 8px 0 4px;
   }
   .grid {

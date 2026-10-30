@@ -138,6 +138,7 @@ impl Runtime {
             .map(|s| &s.info.id)
             .eq(&self.device_ids);
         if devices_changed {
+            self.device_generation += 1;
             self.device_ids.clear();
             self.device_ids
                 .extend(self.snapshots.iter().map(|s| s.info.id.clone()));

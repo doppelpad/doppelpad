@@ -444,7 +444,7 @@ impl DeviceHider for HidHide {
     /// device.
     fn expand(&self, device: &DeviceInfo, out: &mut Vec<String>) {
         out.extend(device.instance_paths.iter().cloned());
-        if device.backend == "xinput" {
+        if device.backend == super::xinput::BACKEND {
             out.extend(super::physical_xusb_instances());
         }
     }

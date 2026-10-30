@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { placePatch } from './radial';
 import type { Profile } from '../types';
 import {
   MAX_SECTORS,
@@ -16,6 +17,16 @@ import {
   setOpener,
   updateSector,
 } from './radial';
+
+describe('menu place', () => {
+  it('leaves the defaults out: the centre and no offset', () => {
+    expect(placePatch({ position: 'center' })).toEqual({ position: undefined });
+    expect(placePatch({ position: 'top_left' })).toEqual({ position: 'top_left' });
+    expect(placePatch({ offset: [0, 0] })).toEqual({ offset: undefined });
+    expect(placePatch({ offset: [0, 20] })).toEqual({ offset: [0, 20] });
+    expect(placePatch({})).toEqual({});
+  });
+});
 
 describe('radial menus', () => {
   it('puts sector 0 at the top and goes clockwise', () => {

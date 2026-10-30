@@ -609,6 +609,36 @@ mod tests {
         }
     }
 
+    /// Every control, not only samples: what the name tables can make, as it prints.
+    #[test]
+    fn every_control_round_trips() {
+        let mouse = Dir::ALL.into_iter().flat_map(|d| {
+            std::iter::once(Control::MouseMove(d)).chain(
+                Zone::ALL
+                    .into_iter()
+                    .map(move |z| Control::MouseZone(Some(d), z)),
+            )
+        });
+        let all: Vec<Control> = PadButton::ALL
+            .map(Control::Button)
+            .into_iter()
+            .chain(Stick::ALL.into_iter().flat_map(Control::of_stick))
+            .chain(Trigger::ALL.into_iter().flat_map(Control::of_trigger))
+            .chain(Control::of_touchpad())
+            .chain(Control::of_gyro())
+            .chain(Key::ALL.iter().copied().map(Control::Key))
+            .chain(MouseButton::ALL.map(Control::Mouse))
+            .chain(WheelDir::ALL.map(Control::Wheel))
+            .chain(mouse)
+            .chain(Zone::ALL.map(|z| Control::MouseZone(None, z)))
+            .collect();
+        assert!(all.len() > 300, "{}", all.len());
+        for c in all {
+            let s = c.to_string();
+            assert_eq!(s.parse::<Control>().ok(), Some(c), "{s}");
+        }
+    }
+
     #[test]
     fn aliases() {
         assert_eq!(

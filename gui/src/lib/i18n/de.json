@@ -47,7 +47,7 @@
     }
   },
   "sheet": {
-    "menu": "Belegungsübersicht speichern",
+    "menu": "Belegungsübersicht speichern…",
     "save_title": "Belegungsübersicht als HTML speichern",
     "saved": "Belegungsübersicht gespeichert; zum Drucken im Browser öffnen",
     "untitled": "Config",
@@ -72,11 +72,11 @@
     "hint": "Gut zu wissen"
   },
   "profiles": {
-    "export": "Spiel exportieren",
+    "export": "Spiel exportieren…",
     "export_title": "Spiel mit allen Configs speichern",
     "bundle_filter": "Doppelpad-Spiel",
     "exported": "{name} exportiert",
-    "import": "Spiel importieren",
+    "import": "Spiel importieren…",
     "import_title": "Doppelpad-Spiel öffnen",
     "imported": "{name} importiert",
     "title": "Spiele",
@@ -96,7 +96,9 @@
     "drop": "Ohne diese importieren",
     "keep": "Mit ihnen importieren",
     "radial": "{name} (Radialmenü)",
-    "sector": "Sektor {n}"
+    "sector": "Sektor {n}",
+    "unchecked": "Nicht prüfbar: {error}",
+    "unchecked_note": "Manche Configs darin lassen sich nicht auf Programme prüfen (von einer neueren Doppelpad-Version?): Ohne diese Programme importiert, bleiben jene Configs draußen."
   },
   "window": {
     "minimize": "Minimieren",
@@ -121,6 +123,7 @@
   "header": {
     "from_template": "Neu aus Vorlage: {template}",
     "new_config": "Neue Config",
+    "new_config_menu": "Neue Config…",
     "new_config_name": "Name der Config",
     "default_config_name": "Standard",
     "import": "JSON-Profil importieren…",
@@ -128,7 +131,6 @@
     "undo": "Rückgängig",
     "redo": "Wiederholen",
     "save": "Speichern",
-    "unsaved": "Ungespeicherte Änderungen",
     "discard_confirm": "Ungespeicherte Änderungen verwerfen?",
     "read_only": "Importierte Datei (schreibgeschützt) – zum Bearbeiten duplizieren",
     "options": "Optionen",
@@ -136,6 +138,7 @@
     "clear_confirm": "Alle Mappings dieser Config entfernen?",
     "delete_confirm": "Config „{name}“ in den Papierkorb verschieben?",
     "rename_config": "Config umbenennen",
+    "rename_config_menu": "Config umbenennen…",
     "settings": "Einstellungen",
     "no_selection": "Wähle links ein Spiel oder füge ein neues hinzu",
     "no_config": "Dieses Spiel hat noch keine Config"
@@ -163,7 +166,7 @@
     "radial": "Radialmenüs"
   },
   "layers": {
-    "save_preset": "Als Vorlage speichern",
+    "save_preset": "Als Vorlage speichern…",
     "preset_name": "Name der Vorlage",
     "preset_saved": "Vorlage {name} gespeichert",
     "insert_preset": "Vorlage einfügen: {name}",
@@ -171,7 +174,7 @@
     "main": "Haupt",
     "shift": "Shift {n}",
     "add": "Shift-Ebene hinzufügen",
-    "rename": "Umbenennen",
+    "rename": "Umbenennen…",
     "copy": "Mappings kopieren",
     "paste": "Mappings einfügen",
     "clear": "Ebene leeren",
@@ -180,7 +183,7 @@
     "inherit": "Nicht belegte Tasten nutzen die Haupt-Ebene",
     "more": "Weitere Ebenen ({n})",
     "options": "Ebenen-Optionen",
-    "settings": "Ebenen-Einstellungen",
+    "settings": "Ebenen-Einstellungen…",
     "settings_title": "Einstellungen von {layer}",
     "inherit_hint_on": "Tasten, die diese Ebene nicht belegt, tun dasselbe wie auf der Haupt-Ebene.",
     "inherit_hint_off": "Tasten, die diese Ebene nicht belegt, tun nichts, solange sie aktiv ist.",
@@ -668,12 +671,12 @@
     "hibernate": "Ruhezustand",
     "log_off": "Von Windows abmelden",
     "power_confirm": "„{command}“ wird jedes Mal ohne Rückfrage ausgeführt, wenn diese Belegung auslöst. Hinzufügen?",
-    "launch": "Programm starten",
+    "launch": "Programm starten…",
     "launch_path": "Pfad zum Programm (.exe)",
     "launch_args": "Argumente für das Programm (optional)",
     "break": "Trenner (nächster Druck spielt den nächsten Teil)",
-    "pause": "Pause",
-    "rumble": "Vibration",
+    "pause": "Pause…",
+    "rumble": "Vibration…",
     "mouse_buttons": "Tasten",
     "mouse_wheel": "Mausrad",
     "mouse_move": "Bewegung",
@@ -1075,7 +1078,6 @@
   "devices": {
     "none": "Kein Controller verbunden",
     "in_use": "Aktiv",
-    "pick": "Der Controller, auf dem die Slots laufen",
     "options": "Controller-Optionen",
     "own_slots": "Eigene Slots für diesen Controller",
     "own_hint": "Dieser Controller hat eigene Slots: eigene Config und eigener virtueller Controller",
@@ -1504,7 +1506,6 @@
     "errors": "{n} Fehler",
     "warnings": "{n} Warnungen",
     "service": "Warnungen des Remapping-Dienstes",
-    "go": "Hinzeigen",
     "rescan": "Controller suchen",
     "rescan_hint": "Jetzt nach Controllern suchen, auch nach denen, die ein anderes Programm bisher belegt hat"
   },
@@ -1598,7 +1599,7 @@
     "who_presses": "Welche Mappings drücken diese Taste?"
   },
   "transforms": {
-    "menu": "Tasten tauschen oder spiegeln",
+    "menu": "Tasten tauschen oder spiegeln…",
     "title": "Tasten tauschen oder spiegeln",
     "scope": "Wo",
     "this_layer": "Diese Ebene ({layer})",
@@ -1616,11 +1617,12 @@
   },
   "layer_map": {
     "title": "Ebenen-Übersicht",
+    "menu": "Ebenen-Übersicht…",
     "empty": "Diese Config hat noch keine Shift-Ebenen.",
     "hint": "Jeder Pfeil ist ein Mapping, das die Ebene wechselt: ⇣ solange gedrückt, ⇄ umschalten, → wechseln. Ein Klick auf eine Ebene zeigt sie, auf die Beschriftung eines Pfeils wählt sein Mapping. Orange markiert Ebenen, auf die nichts wechselt, und Wechsel, aus denen nichts zurückführt."
   },
   "game": {
-    "settings": "Spiel-Einstellungen",
+    "settings": "Spiel-Einstellungen…",
     "title": "{name}",
     "name": "Name",
     "description": "Beschreibung",
@@ -1645,6 +1647,7 @@
   },
   "stores": {
     "title": "Spiele aus deinen Bibliotheken",
+    "menu": "Spiele aus deinen Bibliotheken…",
     "hint": "Spiele, die Steam, Epic und GOG auf diesem PC installiert haben, gelesen aus deren eigenen Dateien. Hinzufügen legt ein Spiel mit Namen, dem Programm, das dorthin wechselt, und bei Steam mit seinem Cover an.",
     "loading": "Suche installierte Spiele…",
     "none": "Keine installierten Spiele gefunden.",
@@ -1667,6 +1670,7 @@
   },
   "history": {
     "title": "Frühere Versionen",
+    "menu": "Frühere Versionen…",
     "hint": "Jedes Mal, wenn die Config überschrieben wird, bleibt die Version davor erhalten (die letzten 20). Öffne eine, um zu sehen, was das Wiederherstellen ändern würde.",
     "none": "Noch keine früheren Versionen. Sie werden ab dem nächsten Speichern aufbewahrt.",
     "same": "Diese Version ist gleich der Config jetzt.",
@@ -1685,5 +1689,16 @@
     "hint": "Steuerkreuz oder linker Stick bewegen den Fokus, A drückt, B geht zurück oder schließt, LB und RB wechseln die Ansicht, LT und RT die Ebene, Start speichert. Ein gedrücktes Bedienelement wird dann nicht mehr ausgewählt.",
     "on": "Der Controller bedient die App",
     "off": "Der Controller wählt wieder Bedienelemente aus"
+  },
+  "errors": {
+    "failed": "{detail}",
+    "nothing_to_allow": "Auf diesem System gibt es nichts zu erlauben.",
+    "sheet_not_html": "Eine Belegungsübersicht wird als .html-Datei gespeichert.",
+    "service_answer": "Der Remapping-Dienst hat unerwartet geantwortet.",
+    "not_in_library": "{detail} liegt nicht im Configs-Ordner.",
+    "no_update": "Es gibt kein Update zum Installieren. Suche zuerst nach einem.",
+    "portable_update": "Dies ist eine portable Kopie: Ersetze ihre Dateien durch die neue Version von der Release-Seite.",
+    "portable_autostart": "Eine portable Kopie startet nicht mit dem System.",
+    "autostart_unsupported": "Mit dem System starten geht nur unter Windows und macOS."
   }
 }

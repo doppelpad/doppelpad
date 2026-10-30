@@ -5,30 +5,35 @@
   import { layerColor } from '../lib/theme/layers';
   import { insertPreset, makePreset } from '../lib/model/presets';
   import { addLayer, clearLayer, copyLayer, layerIds, pasteLayer, removeLayer, renameLayer } from '../lib/model/profile';
-  import { app, type View } from '../lib/state/app.svelte';
-  import type { PresetEntry, Profile } from '../lib/types';
+  import { TOOLBAR_VIEWS, VIEWS, type ToolbarView } from '../lib/model/views';
+  import { app } from '../lib/state/app.svelte';
+  import type { PresetEntry } from '../lib/types';
   import LayerDialog from './LayerDialog.svelte';
   import LayerTip from './LayerTip.svelte';
   import TransformDialog from './TransformDialog.svelte';
   import LayerMapDialog from './LayerMapDialog.svelte';
+  import type { MenuItem } from '../lib/menu';
   import Menu from './ui/Menu.svelte';
   import { tip as tooltip } from '../lib/tooltip.svelte';
 
-  /** `title`: a tooltip that says more than the label. */
-  type Tile = { id: View; icon: typeof Gamepad2; label: string; title?: string };
-  const views: Tile[] = $derived([
-    { id: 'front', icon: Gamepad2, label: t('views.front') },
-    { id: 'back', icon: RotateCcw, label: t('views.back') },
-    { id: 'keyboard', icon: Keyboard, label: t('views.keyboard') },
-    { id: 'mouse', icon: Mouse, label: t('views.mouse') },
-  ]);
-  /** Tiles after the layers. */
-  const extras: Tile[] = $derived([
-    { id: 'analog', icon: Joystick, label: t('views.analog'), title: t('analog.hint') },
-    { id: 'shortcuts', icon: Combine, label: t('views.shortcuts') },
-    { id: 'radial', icon: ChartPie, label: t('views.radial'), title: t('radial.tile_hint') },
-    { id: 'output', icon: Cable, label: t('views.output') },
-  ]);
+  const ICONS: Record<ToolbarView, typeof Gamepad2> = {
+    front: Gamepad2,
+    back: RotateCcw,
+    keyboard: Keyboard,
+    mouse: Mouse,
+    analog: Joystick,
+    shortcuts: Combine,
+    radial: ChartPie,
+    output: Cable,
+  };
+  /** Tooltips that say more than the label. */
+  const TITLES: Partial<Record<ToolbarView, string>> = { analog: 'analog.hint', radial: 'radial.tile_hint' };
+
+  type Tile = { id: ToolbarView; icon: typeof Gamepad2; label: string; title?: string };
+  const tileOf = (id: ToolbarView): Tile => ({ id, icon: ICONS[id], label: t(`views.${id}`), title: TITLES[id] && t(TITLES[id]) });
+  /** Tiles before the layers, and after them. */
+  const views = $derived(TOOLBAR_VIEWS.filter((v) => VIEWS[v].tile === 'before').map(tileOf));
+  const extras = $derived(TOOLBAR_VIEWS.filter((v) => VIEWS[v].tile === 'after').map(tileOf));
 
   const layers = $derived(app.profile ? layerIds(app.profile) : [0]);
   /** The layout transforms dialog is open. */
@@ -36,17 +41,14 @@
   /** The layer map is open. */
   let mapOpen = $state(false);
 
-  /** The layer chip whose tooltip shows, and where (below the chip). */
-  let tip = $state<{ layer: number; x: number; y: number } | null>(null);
+  /** The layer chip whose tooltip shows, and the chip's box. */
+  let tip = $state<{ layer: number; anchor: DOMRect } | null>(null);
   let tipTimer: ReturnType<typeof setTimeout> | undefined;
   const tipId = $props.id();
 
   function showTip(layer: number, chip: HTMLElement, delay: number) {
     clearTimeout(tipTimer);
-    tipTimer = setTimeout(() => {
-      const r = chip.getBoundingClientRect();
-      tip = { layer, x: Math.max(4, Math.min(r.left, window.innerWidth - 344)), y: r.bottom + 6 };
-    }, delay);
+    tipTimer = setTimeout(() => (tip = { layer, anchor: chip.getBoundingClientRect() }), delay);
   }
 
   function hideTip() {
@@ -96,7 +98,7 @@
     overflow.map((id) => ({ label: app.layerLabel(id), color: layerColor(id), onclick: () => (app.layer = id) })),
   );
 
-  function setView(v: View) {
+  function setView(v: ToolbarView) {
     app.view = v;
     app.select(null);
   }
@@ -116,7 +118,7 @@
 
   function onCopy() {
     if (!app.profile) return;
-    app.copiedLayer = copyLayer($state.snapshot(app.profile) as Profile, app.layer);
+    app.copiedLayer = copyLayer(app.snapshot()!, app.layer);
   }
 
   function onPaste() {
@@ -136,7 +138,7 @@
     if (!app.profile) return;
     const name = await app.ask(t('layers.preset_name'), app.layerLabel(app.layer));
     if (!name) return;
-    const preset = makePreset($state.snapshot(app.profile) as Profile, app.layer, name);
+    const preset = makePreset(app.snapshot()!, app.layer, name);
     await app.attempt(api.presetSave(preset).then(loadPresets), t('layers.preset_saved', { name }));
   }
 
@@ -161,22 +163,22 @@
 
   let layerDialog = $state<number | null>(null);
 
-  const layerMenu = $derived([
-    { label: t('layers.settings') + '…', onclick: () => (layerDialog = app.layer), disabled: app.layer === 0 },
-    { label: t('layers.rename') + '…', onclick: onRename, disabled: app.layer === 0 },
+  const layerMenu = $derived<MenuItem[]>([
+    { label: t('layers.settings'), onclick: () => (layerDialog = app.layer), disabled: app.layer === 0 },
+    { label: t('layers.rename'), onclick: onRename, disabled: app.layer === 0 },
     { label: t('layers.copy'), onclick: onCopy },
     { label: t('layers.paste'), onclick: onPaste, disabled: !app.copiedLayer },
     { label: t('layers.clear'), onclick: () => app.edit((p) => clearLayer(p, app.layer)) },
-    { label: t('transforms.menu') + '…', onclick: () => (transformOpen = true), disabled: !app.profile || app.readOnly },
-    { label: t('layer_map.title') + '…', onclick: () => (mapOpen = true), disabled: !app.profile },
-    { separator: true, label: '' },
-    { label: t('layers.save_preset') + '…', onclick: onSavePreset, disabled: !app.profile },
+    { label: t('transforms.menu'), onclick: () => (transformOpen = true), disabled: !app.profile || app.readOnly },
+    { label: t('layer_map.menu'), onclick: () => (mapOpen = true), disabled: !app.profile },
+    { separator: true },
+    { label: t('layers.save_preset'), onclick: onSavePreset, disabled: !app.profile },
     ...presets.map((p) => ({
       label: t('layers.insert_preset', { name: p.name }),
       onclick: () => onInsertPreset(p),
       disabled: !app.profile || app.readOnly,
     })),
-    { separator: true, label: '' },
+    { separator: true },
     { label: t('layers.remove'), danger: true, onclick: onRemove, disabled: app.layer === 0 },
   ]);
 </script>
@@ -185,6 +187,7 @@
   <button
     class="tile"
     class:active={app.view === v.id}
+    aria-current={app.view === v.id ? 'page' : undefined}
     use:tooltip={iconOnly ? (v.title ?? v.label) : v.title}
     onclick={() => setView(v.id)}
   >
@@ -203,7 +206,7 @@
       <button
         class="layer"
         class:active={app.layer === id}
-        class:flagged={app.flags.layers.has(id)}
+        aria-current={app.layer === id ? 'true' : undefined}
         style:--c={layerColor(id)}
         aria-describedby={tip?.layer === id ? tipId : undefined}
         onmouseenter={(e) => showTip(id, e.currentTarget, 400)}
@@ -215,6 +218,7 @@
         }}
       >
         <span class="dot"></span><span class="name">{app.layerLabel(id)}</span>
+        {#if app.flags.layers.has(id)}<span class="flag-dot"></span>{/if}
       </button>
     {/each}
     {#if overflow.length}
@@ -233,8 +237,9 @@
 
     <div class="measure" aria-hidden="true">
       {#each layers as id (id)}
-        <span class="layer" class:flagged={app.flags.layers.has(id)} bind:offsetWidth={chipWidths[id]}>
+        <span class="layer" bind:offsetWidth={chipWidths[id]}>
           <span class="dot"></span><span class="name">{app.layerLabel(id)}</span>
+          {#if app.flags.layers.has(id)}<span class="flag-dot"></span>{/if}
         </span>
       {/each}
       <span class="layer more" bind:offsetWidth={moreWidth}>+{layers.length}<ChevronDown size={14} /></span>
@@ -255,7 +260,7 @@
   </div>
 </div>
 
-{#if tip}<LayerTip layer={tip.layer} x={tip.x} y={tip.y} id={tipId} />{/if}
+{#if tip}<LayerTip layer={tip.layer} anchor={tip.anchor} id={tipId} />{/if}
 
 {#if transformOpen}<TransformDialog onclose={() => (transformOpen = false)} />{/if}
 {#if mapOpen}<LayerMapDialog onclose={() => (mapOpen = false)} />{/if}
@@ -374,14 +379,5 @@
     border-color: var(--c);
     color: var(--text);
     background: color-mix(in srgb, var(--c) 14%, transparent);
-  }
-  /* A warning about the layer (nothing changes to it; the diagnostics bar says so). */
-  .layer.flagged::after {
-    content: '';
-    flex: none;
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--warning);
   }
 </style>

@@ -5,7 +5,8 @@
 use std::path::{Path, PathBuf};
 
 /// The store a game was installed with.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Store {
     Steam,
     Epic,
@@ -13,7 +14,7 @@ pub enum Store {
 }
 
 /// An installed game.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub struct InstalledGame {
     pub store: Store,
     pub name: String,
@@ -158,9 +159,17 @@ pub fn steam_libraries(libraryfolders: &str) -> Vec<PathBuf> {
 /// Steam's tools that are not games.
 const STEAM_TOOLS: [&str; 4] = ["228980", "1070560", "1391110", "1628350"];
 
-/// The app id, name and install folder name of an installed Steam app (`appmanifest_*.acf`),
-/// `None` for tools and runtimes.
-pub fn steam_app(acf: &str) -> Option<(String, String, String)> {
+/// An installed Steam app, as its manifest (`appmanifest_*.acf`) names it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct SteamApp {
+    id: String,
+    name: String,
+    /// Its folder under `steamapps/common`.
+    dir: String,
+}
+
+/// The Steam app a manifest describes; `None` for tools and runtimes.
+fn steam_app(acf: &str) -> Option<SteamApp> {
     let vdf = parse_vdf(acf);
     let app = vdf.get("AppState")?;
     let id = app.get("appid")?.str()?.to_owned();
@@ -169,11 +178,20 @@ pub fn steam_app(acf: &str) -> Option<(String, String, String)> {
     let tool = STEAM_TOOLS.contains(&id.as_str())
         || name.starts_with("Proton")
         || name.starts_with("Steam Linux Runtime");
-    (!tool).then_some((id, name, dir))
+    (!tool).then_some(SteamApp { id, name, dir })
 }
 
-/// Name, folder and program of an Epic installation (`*.item` manifest JSON).
-pub fn epic_item(json: &str) -> Option<(String, PathBuf, String)> {
+/// An Epic installation, as its manifest (`*.item`, JSON) names it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct EpicItem {
+    name: String,
+    dir: PathBuf,
+    /// The file name of the program it starts.
+    exe: String,
+}
+
+/// The Epic installation a manifest describes; `None` for one that is not complete.
+fn epic_item(json: &str) -> Option<EpicItem> {
     let v: serde_json::Value = serde_json::from_str(json).ok()?;
     if v.get("bIsIncompleteInstall")
         .and_then(serde_json::Value::as_bool)
@@ -184,8 +202,8 @@ pub fn epic_item(json: &str) -> Option<(String, PathBuf, String)> {
     let name = v.get("DisplayName")?.as_str()?.to_owned();
     let dir = PathBuf::from(v.get("InstallLocation")?.as_str()?);
     let exe = v.get("LaunchExecutable")?.as_str()?;
-    let file = Path::new(exe).file_name()?.to_str()?.to_owned();
-    (!file.is_empty()).then_some((name, dir, file))
+    let exe = Path::new(exe).file_name()?.to_str()?.to_owned();
+    (!exe.is_empty()).then_some(EpicItem { name, dir, exe })
 }
 
 /// Programs that ship with games but are not the game.
@@ -211,7 +229,8 @@ fn is_helper(file: &str) -> bool {
     .any(|h| f.contains(h))
 }
 
-/// The `.exe` files in a game's folder (two levels deep), biggest first, helpers left out.
+/// The `.exe` files in a game's folder and the two levels of folders below it, biggest first,
+/// helpers left out.
 pub fn programs_in(dir: &Path) -> Vec<String> {
     let mut found: Vec<(u64, String)> = Vec::new();
     let visit = |d: &Path, found: &mut Vec<(u64, String)>| -> Vec<PathBuf> {
@@ -264,8 +283,8 @@ fn with_first(first: Option<String>, rest: Vec<String>) -> Vec<String> {
     out
 }
 
-/// The programs of a Mac game folder: the executables of the app bundles in it (two levels
-/// deep), the bundle's own one first, biggest first otherwise.
+/// The programs of a Mac game folder: the executables of the app bundles in it and in its
+/// folders, the bundle's own one first, biggest first otherwise.
 pub fn app_programs_in(dir: &Path) -> Vec<String> {
     let mut found: Vec<(u64, String)> = Vec::new();
     let mut level = vec![dir.to_path_buf()];
@@ -344,22 +363,22 @@ pub fn steam_games(root: &Path, programs: fn(&Path) -> Vec<String>) -> Vec<Insta
             if !(file.starts_with("appmanifest_") && file.ends_with(".acf")) {
                 continue;
             }
-            let Some((id, name, dir)) = std::fs::read_to_string(e.path())
+            let Some(app) = std::fs::read_to_string(e.path())
                 .ok()
                 .as_deref()
                 .and_then(steam_app)
             else {
                 continue;
             };
-            let dir = apps.join("common").join(dir);
+            let dir = apps.join("common").join(&app.dir);
             if !dir.is_dir() {
                 continue;
             }
             out.push(InstalledGame {
                 store: Store::Steam,
-                name,
+                name: app.name,
                 programs: programs(&dir),
-                cover: steam_cover(&cache, &id),
+                cover: steam_cover(&cache, &app.id),
                 dir,
             });
         }
@@ -382,12 +401,12 @@ pub fn epic_games(manifests: &Path, programs: fn(&Path) -> Vec<String>) -> Vec<I
         })
         .filter_map(|e| std::fs::read_to_string(e.path()).ok())
         .filter_map(|text| epic_item(&text))
-        .filter(|(_, dir, _)| dir.is_dir())
-        .map(|(name, dir, exe)| InstalledGame {
+        .filter(|item| item.dir.is_dir())
+        .map(|item| InstalledGame {
             store: Store::Epic,
-            programs: with_first(Some(exe), programs(&dir)),
-            name,
-            dir,
+            programs: with_first(Some(item.exe), programs(&item.dir)),
+            name: item.name,
+            dir: item.dir,
             cover: None,
         })
         .collect()
@@ -450,11 +469,11 @@ mod tests {
         let game = "\"AppState\" { \"appid\" \"1030300\" \"name\" \"Hollow Knight: Silksong\" \"installdir\" \"Hollow Knight Silksong\" }";
         assert_eq!(
             steam_app(game),
-            Some((
-                "1030300".into(),
-                "Hollow Knight: Silksong".into(),
-                "Hollow Knight Silksong".into()
-            ))
+            Some(SteamApp {
+                id: "1030300".into(),
+                name: "Hollow Knight: Silksong".into(),
+                dir: "Hollow Knight Silksong".into()
+            })
         );
         let tool = "\"AppState\" { \"appid\" \"228980\" \"name\" \"Steamworks Common Redistributables\" \"installdir\" \"Steamworks Shared\" }";
         assert_eq!(steam_app(tool), None);
@@ -465,14 +484,14 @@ mod tests {
         let item = r#"{ "DisplayName": "Ghostrunner 2", "InstallLocation": "G:\\EpicGames\\Ghostrunner2", "LaunchExecutable": "Ghostrunner2.exe", "bIsIncompleteInstall": false }"#;
         assert_eq!(
             epic_item(item),
-            Some((
-                "Ghostrunner 2".into(),
-                PathBuf::from("G:\\EpicGames\\Ghostrunner2"),
-                "Ghostrunner2.exe".into()
-            ))
+            Some(EpicItem {
+                name: "Ghostrunner 2".into(),
+                dir: PathBuf::from("G:\\EpicGames\\Ghostrunner2"),
+                exe: "Ghostrunner2.exe".into()
+            })
         );
         let nested = r#"{ "DisplayName": "X", "InstallLocation": "D:\\X", "LaunchExecutable": "Bin/Win64/X-Win64.exe" }"#;
-        assert_eq!(epic_item(nested).unwrap().2, "X-Win64.exe");
+        assert_eq!(epic_item(nested).unwrap().exe, "X-Win64.exe");
         assert_eq!(
             epic_item(
                 r#"{ "DisplayName": "X", "InstallLocation": "D:\\X", "LaunchExecutable": "" }"#

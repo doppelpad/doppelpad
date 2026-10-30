@@ -195,7 +195,7 @@
     border-radius: var(--radius-m);
     box-shadow: var(--shadow);
     padding: 8px;
-    z-index: 10;
+    z-index: var(--z-popover);
   }
   .stick-menu.up {
     transform: translate(-50%, calc(-100% - 12px));

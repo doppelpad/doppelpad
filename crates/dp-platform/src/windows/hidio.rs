@@ -1,9 +1,9 @@
 //! Overlapped HID device handle.
 //!
 //! One read is always pending; [`HidHandle::wait`] waits for it, for a timeout, or for the
-//! [`Waker`] that another thread can signal. Writes and feature reports use their own
-//! `OVERLAPPED`, so they never queue behind the pending read the way they would on a
-//! synchronous handle.
+//! [`Waker`] that another thread can signal. Writes and feature reports (read and sent) use
+//! their own `OVERLAPPED` and give up after [`WRITE_TIMEOUT`], so they never queue behind the
+//! pending read the way they would on a synchronous handle, and never block for good.
 
 use std::ffi::c_void;
 use std::io;
@@ -13,7 +13,6 @@ use std::time::Duration;
 
 use windows_sys::Win32::Devices::HumanInterfaceDevice::{
     HIDD_ATTRIBUTES, HidD_GetAttributes, HidD_GetProductString, HidD_GetSerialNumberString,
-    HidD_SetFeature,
 };
 use windows_sys::Win32::Foundation::{
     ERROR_IO_PENDING, GENERIC_READ, GENERIC_WRITE, GetLastError, HANDLE, WAIT_OBJECT_0,
@@ -31,11 +30,13 @@ use windows_sys::Win32::System::Threading::{SetEvent, WaitForMultipleObjects};
 use super::hidparse::PreparsedData;
 use super::overlapped::{EventReset, event, run_overlapped};
 use super::{OwnedHandle, from_wide, wide};
-use crate::hidhost::{HidHandle, Wait, Wake};
+use crate::hidhost::{HidHandle, Wait, Wake, read_via_wait};
 use crate::padio::ReportIo;
 
 /// `CTL_CODE(FILE_DEVICE_KEYBOARD, 100, METHOD_OUT_DIRECT, FILE_ANY_ACCESS)`.
 const IOCTL_HID_GET_FEATURE: u32 = 0x000B_0192;
+/// `CTL_CODE(FILE_DEVICE_KEYBOARD, 100, METHOD_IN_DIRECT, FILE_ANY_ACCESS)`.
+const IOCTL_HID_SET_FEATURE: u32 = 0x000B_0191;
 /// Bluetooth writes can take a while; give up after this.
 const WRITE_TIMEOUT: Duration = Duration::from_secs(1);
 
@@ -201,7 +202,7 @@ impl HidIo {
     fn wait_report(&mut self, timeout: Duration) -> io::Result<Wait> {
         self.start_read()?;
         let handles: [HANDLE; 2] = [self.read.event.raw(), self.waker.0.raw()];
-        let ms = timeout.as_millis().min(u128::from(u32::MAX) - 1) as u32;
+        let ms = super::win_ms(timeout);
         // SAFETY: two valid event handles.
         let rc = unsafe { WaitForMultipleObjects(2, handles.as_ptr(), 0, ms) };
         match rc {
@@ -214,7 +215,7 @@ impl HidIo {
                     return Err(io::Error::last_os_error());
                 }
                 self.last_len = n as usize;
-                Ok(Wait::Report(n as usize))
+                Ok(Wait::Report)
             }
             r if r == WAIT_OBJECT_0 + 1 => Ok(Wait::Woken),
             WAIT_TIMEOUT => Ok(Wait::Timeout),
@@ -260,20 +261,32 @@ impl HidIo {
         let n = unsafe { run_overlapped(handle, &self.io_event, Some(WRITE_TIMEOUT), start) }?;
         Ok(n as usize)
     }
-}
 
-impl HidIo {
-    /// Send a feature report, padded to the device's feature length.
+    /// Send a feature report (`report[0]` = report ID), padded to the device's feature
+    /// length. Overlapped, as a write: `HidD_SetFeature` would block on this handle without a
+    /// time limit.
     pub fn set_feature(&self, report: &[u8]) -> io::Result<()> {
         let mut buf = report.to_vec();
-        buf.resize(buf.len().max(self.caps().feature_len), 0);
-        // SAFETY: `buf` is valid for its length during the call.
-        if unsafe { HidD_SetFeature(self.handle.raw(), buf.as_mut_ptr().cast(), buf.len() as u32) }
-        {
-            Ok(())
-        } else {
-            Err(io::Error::last_os_error())
-        }
+        buf.resize(buf.len().max(self.caps.feature_len), 0);
+        let handle = self.handle.raw();
+        let (ptr, len) = (buf.as_ptr(), buf.len() as u32);
+        let start = |ov| {
+            // SAFETY: valid handle, the report as input buffer, and OVERLAPPED.
+            unsafe {
+                DeviceIoControl(
+                    handle,
+                    IOCTL_HID_SET_FEATURE,
+                    ptr.cast(),
+                    len,
+                    null_mut(),
+                    0,
+                    null_mut(),
+                    ov,
+                )
+            }
+        };
+        // SAFETY: `buf` lives until the request has finished.
+        unsafe { run_overlapped(handle, &self.io_event, Some(WRITE_TIMEOUT), start) }.map(drop)
     }
 }
 
@@ -283,20 +296,7 @@ impl ReportIo for HidIo {
     }
 
     fn read(&mut self, buf: &mut [u8], timeout: Duration) -> io::Result<Option<usize>> {
-        let deadline = std::time::Instant::now() + timeout;
-        loop {
-            let left = deadline.saturating_duration_since(std::time::Instant::now());
-            match self.wait_report(left)? {
-                Wait::Report(n) => {
-                    let n = n.min(buf.len());
-                    buf[..n].copy_from_slice(&self.read.buf[..n]);
-                    return Ok(Some(n));
-                }
-                // Wake-ups only matter to the run loop; keep waiting.
-                Wait::Woken if !left.is_zero() => {}
-                _ => return Ok(None),
-            }
-        }
+        read_via_wait(self, buf, timeout)
     }
 
     fn get_feature(&mut self, buf: &mut [u8]) -> io::Result<usize> {

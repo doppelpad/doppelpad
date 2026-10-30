@@ -12,8 +12,18 @@ pub const EV_MSC: u16 = 0x04;
 
 pub const SYN_REPORT: u16 = 0x00;
 
-/// `bustype` of a device connected over Bluetooth (`include/uapi/linux/input.h`).
+/// `bustype` of a device connected over USB and over Bluetooth (`include/uapi/linux/input.h`).
+pub const BUS_USB: u16 = 0x03;
 pub const BUS_BLUETOOTH: u16 = 0x05;
+
+/// How a device of `bustype` is connected.
+pub fn transport(bustype: u16) -> crate::Transport {
+    match bustype {
+        BUS_USB => crate::Transport::Usb,
+        BUS_BLUETOOTH => crate::Transport::Bluetooth,
+        _ => crate::Transport::Other,
+    }
+}
 
 /// Xbox Series "Share" button as reported by xpad.
 pub const KEY_RECORD: u16 = 167;

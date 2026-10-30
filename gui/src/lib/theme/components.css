@@ -49,6 +49,46 @@
   color: var(--danger);
 }
 
+/* A warning dot: a problem behind what it sits on (the diagnostics bar says which), or a
+   missing driver. */
+.flag-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--warning);
+}
+
+/* The same marks in the corners of a control (a tile, a key, a chip): `.flag-mark` warns about
+   its mapping, `.note-mark` stands for a note its summary does not show (Show notes shows it).
+   The control is positioned; --mark-inset says how far in from its corners they sit. */
+.flag-mark::before,
+.note-mark::after {
+  content: '';
+  position: absolute;
+  top: var(--mark-inset, 4px);
+  border-radius: 50%;
+}
+.flag-mark::before {
+  left: var(--mark-inset, 4px);
+  width: 7px;
+  height: 7px;
+  background: var(--warning);
+}
+.note-mark::after {
+  right: var(--mark-inset, 4px);
+  width: 6px;
+  height: 6px;
+  background: var(--text-dim);
+}
+
+/* The title of a view (the radial menus, the config settings, the shortcuts …). */
+.view-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
 /* The small uppercase caption above a group of settings. */
 .section-title {
   font-size: var(--fs-xs);

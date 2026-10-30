@@ -157,6 +157,26 @@ fn mouse_speed_zones() {
 }
 
 #[test]
+fn four_way_mouse_directions_follow_speed_like_sticks() {
+    let mut p = Profile::default();
+    p.mouse.zones = [1000.0, 3000.0, 5000.0];
+    p.mappings
+        .push(map(Control::MouseMove(Dir::Right), vec![key(Key::R)]));
+    p.mappings
+        .push(map(Control::MouseMove(Dir::Down), vec![key(Key::D)]));
+    p.mappings
+        .push(map(Control::MouseZone(None, Zone::Low), vec![key(Key::L)]));
+    let mut h = Harness::new(p);
+    // Diagonally at almost 1000 counts/s on each axis: about 1400 counts/s in all, above the
+    // low zone, so the directions fire with the zone (each axis alone stays below it).
+    for _ in 0..100 {
+        h.kbm([KbmEvent::MouseMove { dx: 1, dy: 1 }]);
+    }
+    assert!(h.e.is_output_down(Key::L), "the speed is in the low zone");
+    assert!(h.e.is_output_down(Key::R) && h.e.is_output_down(Key::D));
+}
+
+#[test]
 fn mouse_acceleration_wheel_repeat_and_absolute() {
     let mut p = Profile::default();
     p.virtual_devices.mouse.wheel_repeat_ms = 50;

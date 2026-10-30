@@ -5,7 +5,7 @@ use dp_core::profile::TriggerEffect;
 
 use super::SonyModel;
 use crate::report::motor_u8;
-use crate::{Leds, TriggerEffects};
+use crate::{Leds, Transport, TriggerEffects};
 
 /// What an output report sets.
 #[derive(Copy, Clone, Debug, Default, PartialEq)]
@@ -151,8 +151,13 @@ fn dualsense_common(c: &mut [u8], o: &SonyOutput) {
 
 /// Build an output report: rumble, light bar and lights. Over Bluetooth `seq` (0–15) counts
 /// DualSense reports.
-pub(super) fn output_report(model: SonyModel, bluetooth: bool, o: &SonyOutput, seq: u8) -> Vec<u8> {
-    match (model, bluetooth) {
+pub(super) fn output_report(
+    model: SonyModel,
+    transport: Transport,
+    o: &SonyOutput,
+    seq: u8,
+) -> Vec<u8> {
+    match (model, transport == Transport::Bluetooth) {
         (SonyModel::DualShock4, false) => {
             let mut r = vec![0u8; 32];
             r[0] = 0x05;

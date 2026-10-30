@@ -1,7 +1,7 @@
 //! Continuous analog routes: stick → mouse, mouse → stick, gyro → mouse/stick,
 //! touchpad → mouse/stick.
 
-use super::analog::{MIN_SPAN, ema_alpha, mix, orient, secs_since, shape_radial, take_toward_zero};
+use super::analog::{ema_alpha, lift, mix, orient, secs_since, shape_radial, take_toward_zero};
 use crate::pad::{PadState, Stick};
 use crate::profile::{
     AnalogMapping, AnalogSource, AnalogTarget, StickConfig, Sticks, VirtualMouse,
@@ -13,9 +13,8 @@ const ACCEL_FROM: f32 = 0.9;
 const ACCEL_MAX: f32 = 4.0;
 /// A flick stick stays out until it falls below this part of its threshold.
 const FLICK_RELEASE_RATIO: f32 = 0.9;
-/// The touchpad's glide speed keeps this much of the last speed each tick and takes the
-/// rest from the newest motion.
-const TOUCH_VEL_KEEP: f32 = 0.7;
+/// The part of the newest motion the touchpad's glide speed takes each tick (it keeps the
+/// rest of the last speed).
 const TOUCH_VEL_NEW: f32 = 0.3;
 
 /// Calibration constants: what `sensitivity = 1.0` means for each route.
@@ -102,18 +101,14 @@ fn smooth(st: &mut RouteState, v: (f32, f32), smoothing_ms: u32, dt: f32) -> (f3
 
 /// Normalized magnitude after a source deadzone, the deflection that counts as full and a
 /// power curve, keeping direction.
-fn shape_vector((x, y): (f32, f32), deadzone: f32, outer: f32, curve: f32) -> (f32, f32) {
-    let mag = (x * x + y * y).sqrt();
-    if mag <= deadzone || mag == 0.0 {
-        return (0.0, 0.0);
-    }
-    let t = ((mag - deadzone) / (outer - deadzone).max(MIN_SPAN)).clamp(0.0, 1.0);
-    let t = if curve > 0.0 && curve != 1.0 {
-        t.powf(curve)
-    } else {
-        t
-    };
-    (x / mag * t, y / mag * t)
+fn shape_vector(v: (f32, f32), deadzone: f32, outer: f32, curve: f32) -> (f32, f32) {
+    shape_radial(v, deadzone, outer, |t| {
+        if curve > 0.0 && curve != 1.0 {
+            t.powf(curve)
+        } else {
+            t
+        }
+    })
 }
 
 /// `v`, or 0 below `min` (noise).
@@ -145,7 +140,7 @@ fn to_stick(r: &AnalogMapping, (x, y): (f32, f32)) -> RouteOutput {
         return RouteOutput::Stick(stick, 0.0, 0.0);
     }
     if mag > 0.0 && r.anti_deadzone > 0.0 {
-        let lifted = r.anti_deadzone + (1.0 - r.anti_deadzone) * mag;
+        let lifted = lift(mag, r.anti_deadzone);
         x *= lifted / mag;
         y *= lifted / mag;
     }
@@ -380,10 +375,7 @@ fn touch_route(
                     st.last_touch = Some(f);
                     if input.dt > 0.0 {
                         let v = (d.0 / input.dt, d.1 / input.dt);
-                        st.touch_vel = (
-                            st.touch_vel.0 * TOUCH_VEL_KEEP + v.0 * TOUCH_VEL_NEW,
-                            st.touch_vel.1 * TOUCH_VEL_KEEP + v.1 * TOUCH_VEL_NEW,
-                        );
+                        st.touch_vel = mix(st.touch_vel, v, TOUCH_VEL_NEW);
                     }
                     RouteOutput::Mouse(d.0, d.1)
                 }

@@ -139,6 +139,7 @@ pub fn spawn_with(
             let _ = ready_tx.send(Ok(svc.shared_live()));
 
             let mut last_live = Instant::now();
+            let mut next_tick = Instant::now();
             'run: loop {
                 for job in rx.try_iter() {
                     // Publish the effect before answering, so a caller reading `live()`
@@ -168,7 +169,14 @@ pub fn spawn_with(
                     svc.publish_live();
                     last_live = Instant::now();
                 }
-                std::thread::sleep(TICK);
+                // The next tick is due a tick after this one was, however long the work took,
+                // so the rate stays at TICK (after falling behind, it starts over from now).
+                next_tick += TICK;
+                let now = Instant::now();
+                match next_tick.checked_duration_since(now) {
+                    Some(wait) => std::thread::sleep(wait),
+                    None => next_tick = now,
+                }
             }
             svc.shutdown();
             svc.publish_live();
@@ -190,15 +198,25 @@ pub fn spawn_with(
 
     let ipc = if opts.ipc != Ipc::Off {
         let ipc_tx = tx.clone();
-        let thread = std::thread::Builder::new()
+        let spawned = std::thread::Builder::new()
             .name("dp-ipc".into())
             .spawn(move || {
                 let result = dp_ipc::serve(|req| ipc_answer(&ipc_tx, req, opts.ipc));
                 if let Err(e) = result {
                     tracing::error!("IPC server stopped: {e}");
                 }
-            })?;
-        Some(thread)
+            });
+        match spawned {
+            Ok(t) => Some(t),
+            Err(e) => {
+                // Stop the service again rather than leave it running with nobody to stop it:
+                // it holds the virtual pads and the hidden controllers.
+                let (reply, _answer) = bounded(1);
+                let _ = tx.send(Job::Cmd(ServiceCmd::Shutdown, reply));
+                let _ = thread.join();
+                return Err(e.into());
+            }
+        }
     } else {
         None
     };
@@ -247,7 +265,7 @@ mod tests {
             path: profile,
         });
         assert!(r.into_result().is_ok());
-        std::thread::sleep(Duration::from_millis(50));
+        // No waiting: the call publishes before it answers.
         let live = h.live();
         assert_eq!(live.profile.as_deref(), Some("P"));
         assert_eq!(live.active_slot, 1);
@@ -271,7 +289,11 @@ mod tests {
         let h = spawn_with(opts, NullPlatform::platform).unwrap();
         let refused = ipc_answer(&h.tx, Request::Shutdown, Ipc::NoShutdown);
         assert_eq!(refused, Response::error(SHUTDOWN_REFUSED));
-        std::thread::sleep(Duration::from_millis(20));
+        // A later call still gets an answer: the service thread went on.
+        assert!(matches!(
+            h.call(ServiceCmd::GetStatus),
+            ServiceReply::Status(_)
+        ));
         assert!(h.is_running(), "the app's service keeps running");
         let stopped = ipc_answer(&h.tx, Request::Shutdown, Ipc::On);
         assert!(!matches!(stopped, Response::Error { .. }), "{stopped:?}");

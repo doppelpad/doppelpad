@@ -36,8 +36,8 @@ fn io_err(path: &Path) -> impl FnOnce(io::Error) -> MoveError + '_ {
 /// The chosen profiles folder written in `config_dir`, if any. A relative or empty entry is
 /// ignored, so a broken file falls back to the default.
 pub fn chosen_dir(config_dir: &Path) -> Option<PathBuf> {
-    let text = fs::read_to_string(config_dir.join(LOCATION_FILE)).ok()?;
-    let dir = PathBuf::from(text.trim());
+    let text = fs::read(config_dir.join(LOCATION_FILE)).ok()?;
+    let dir = path_of(text.trim_ascii())?;
     dir.is_absolute().then_some(dir)
 }
 
@@ -45,15 +45,42 @@ pub fn chosen_dir(config_dir: &Path) -> Option<PathBuf> {
 pub fn save_choice(config_dir: &Path, dir: Option<&Path>) -> Result<(), MoveError> {
     let file = config_dir.join(LOCATION_FILE);
     match dir {
-        Some(dir) => {
-            fs::create_dir_all(config_dir).map_err(io_err(config_dir))?;
-            fs::write(&file, format!("{}\n", dir.display())).map_err(io_err(&file))
-        }
+        Some(dir) => location_text(dir)
+            .and_then(|text| crate::store::write_atomic(&file, text))
+            .map_err(io_err(&file)),
         None => match fs::remove_file(&file) {
             Err(e) if e.kind() != io::ErrorKind::NotFound => Err(MoveError::Io(file, e)),
             _ => Ok(()),
         },
     }
+}
+
+/// The location file's content for `dir`: the folder's name as the system has it (on Unix any
+/// bytes, so that a name that is not valid UTF-8 survives), and a line break.
+fn location_text(dir: &Path) -> io::Result<Vec<u8>> {
+    #[cfg(unix)]
+    let name = std::os::unix::ffi::OsStrExt::as_bytes(dir.as_os_str()).to_vec();
+    #[cfg(not(unix))]
+    let name = dir
+        .to_str()
+        .ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                "the folder's name is not valid Unicode",
+            )
+        })?
+        .as_bytes()
+        .to_vec();
+    Ok([name, b"\n".to_vec()].concat())
+}
+
+/// The folder a location file names (see [`location_text`]).
+fn path_of(text: &[u8]) -> Option<PathBuf> {
+    #[cfg(unix)]
+    let path = PathBuf::from(<std::ffi::OsStr as std::os::unix::ffi::OsStrExt>::from_bytes(text));
+    #[cfg(not(unix))]
+    let path = PathBuf::from(std::str::from_utf8(text).ok()?);
+    Some(path)
 }
 
 /// What a folder offered as the new library holds.
@@ -166,6 +193,61 @@ pub fn copy_library(from: &Path, to: &Path) -> Result<Copied, MoveError> {
     }
 }
 
+/// The library after [`move_library`].
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct Moved {
+    pub dir: PathBuf,
+    /// The old folder, when the files moved (not when an existing library is used).
+    pub moved_from: Option<PathBuf>,
+    /// Old files that are still there, because they could not be removed or may still be in
+    /// use; their copies are in `dir`.
+    pub left_behind: usize,
+}
+
+/// Move the library in `from` to `to` (missing or empty), or use the Doppelpad library already
+/// there. The files are copied and checked, the new place is remembered in `config_dir` (`to`
+/// being `default_dir` forgets the choice), and `switch(to, moved_from)` tells whoever uses the
+/// library. Only when that switched to the new folder do the old files go; otherwise they stay
+/// for what still points at them.
+pub fn move_library(
+    from: &Path,
+    to: &Path,
+    default_dir: &Path,
+    config_dir: &Path,
+    switch: impl FnOnce(&Path, Option<&Path>) -> bool,
+) -> Result<Moved, MoveError> {
+    let copied = match check_move(from, to, default_dir)? {
+        Target::Foreign => return Err(MoveError::Foreign(to.to_path_buf())),
+        Target::Library => None,
+        Target::Empty => Some(copy_library(from, to)?),
+    };
+    let choice = (!same_dir(to, default_dir)).then_some(to);
+    if let Err(e) = save_choice(config_dir, choice) {
+        if let Some(c) = copied {
+            c.undo();
+        }
+        return Err(e);
+    }
+    let moved_from = copied.as_ref().map(|_| from.to_path_buf());
+    let switched = switch(to, moved_from.as_deref());
+    let left_behind = match copied {
+        Some(c) if switched => c.remove_originals(),
+        Some(c) => {
+            tracing::warn!(
+                "keeping the files in {}: it may still be in use",
+                from.display()
+            );
+            c.files.len()
+        }
+        None => 0,
+    };
+    Ok(Moved {
+        dir: to.to_path_buf(),
+        moved_from,
+        left_behind,
+    })
+}
+
 fn copy_all(c: &Copied) -> Result<(), MoveError> {
     fs::create_dir_all(&c.to).map_err(io_err(&c.to))?;
     for rel in &c.files {
@@ -249,13 +331,29 @@ mod tests {
         assert_eq!(chosen_dir(cfg.path()), None);
         let dir = cfg.path().join("sync").join("pads");
         save_choice(cfg.path(), Some(&dir)).unwrap();
-        assert_eq!(chosen_dir(cfg.path()), Some(dir));
+        assert_eq!(chosen_dir(cfg.path()), Some(dir.clone()));
         save_choice(cfg.path(), None).unwrap();
         assert_eq!(chosen_dir(cfg.path()), None);
         save_choice(cfg.path(), None).unwrap();
         // A relative entry is ignored.
         fs::write(cfg.path().join(LOCATION_FILE), "pads\n").unwrap();
         assert_eq!(chosen_dir(cfg.path()), None);
+        // Written atomically, into a settings folder that does not exist yet.
+        let fresh = cfg.path().join("fresh");
+        save_choice(&fresh, Some(&dir)).unwrap();
+        assert_eq!(chosen_dir(&fresh), Some(dir));
+        let left: Vec<_> = fs::read_dir(&fresh).unwrap().flatten().collect();
+        assert_eq!(left.len(), 1, "no temporary file: {left:?}");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn folders_whose_names_are_not_utf8_are_kept_as_they_are() {
+        use std::os::unix::ffi::OsStrExt;
+        let cfg = tempfile::tempdir().unwrap();
+        let dir = cfg.path().join(std::ffi::OsStr::from_bytes(b"pads-\xff"));
+        save_choice(cfg.path(), Some(&dir)).unwrap();
+        assert_eq!(chosen_dir(cfg.path()), Some(dir));
     }
 
     #[test]
@@ -283,6 +381,84 @@ mod tests {
         for f in ["loose.toml", "game/game.toml", "presets/p.toml"] {
             assert!(to.join(f).is_file(), "{f}");
         }
+    }
+
+    #[test]
+    fn a_move_switches_then_removes_the_old_files() {
+        let root = tempfile::tempdir().unwrap();
+        let (cfg, from, to) = (
+            root.path().join("cfg"),
+            root.path().join("profiles"),
+            root.path().join("synced"),
+        );
+        write(&from.join("game").join("a.toml"), "a");
+        let mut told = None;
+        let moved = move_library(&from, &to, &from, &cfg, |dir, moved_from| {
+            told = Some((dir.to_path_buf(), moved_from.map(Path::to_path_buf)));
+            true
+        })
+        .unwrap();
+        assert_eq!(
+            moved,
+            Moved {
+                dir: to.clone(),
+                moved_from: Some(from.clone()),
+                left_behind: 0
+            }
+        );
+        assert_eq!(told, Some((to.clone(), Some(from.clone()))));
+        assert_eq!(chosen_dir(&cfg), Some(to.clone()));
+        assert!(!from.exists());
+        assert!(to.join("game").join("a.toml").is_file());
+
+        // Back to the default folder: the choice is forgotten.
+        move_library(&to, &from, &from, &cfg, |_, _| true).unwrap();
+        assert_eq!(chosen_dir(&cfg), None);
+        assert!(from.join("game").join("a.toml").is_file());
+    }
+
+    #[test]
+    fn the_old_files_stay_when_the_switch_failed() {
+        let root = tempfile::tempdir().unwrap();
+        let (cfg, from, to) = (
+            root.path().join("cfg"),
+            root.path().join("profiles"),
+            root.path().join("synced"),
+        );
+        write(&from.join("game").join("a.toml"), "a");
+        write(&from.join("b.toml"), "b");
+        let moved = move_library(&from, &to, &from, &cfg, |_, _| false).unwrap();
+        assert_eq!(moved.left_behind, 2);
+        assert!(from.join("game").join("a.toml").is_file(), "still in use");
+        assert!(to.join("game").join("a.toml").is_file());
+        assert_eq!(chosen_dir(&cfg), Some(to));
+    }
+
+    #[test]
+    fn a_choice_that_cannot_be_saved_takes_the_copies_back() {
+        let root = tempfile::tempdir().unwrap();
+        let (from, to) = (root.path().join("profiles"), root.path().join("synced"));
+        write(&from.join("a.toml"), "a");
+        // A file where the settings folder should be.
+        let cfg = root.path().join("cfg");
+        fs::write(&cfg, "").unwrap();
+        let switched = std::cell::Cell::new(false);
+        assert!(
+            move_library(&from, &to, &from, &cfg, |_, _| {
+                switched.set(true);
+                true
+            })
+            .is_err()
+        );
+        assert!(!switched.get());
+        assert!(!to.exists());
+        assert!(from.join("a.toml").is_file());
+        // A folder with other files is refused.
+        write(&to.join("letter.txt"), "x");
+        assert!(matches!(
+            move_library(&from, &to, &from, &root.path().join("cfg2"), |_, _| true),
+            Err(MoveError::Foreign(_))
+        ));
     }
 
     #[test]

@@ -5,7 +5,8 @@
   import { Plus, Trash2, Check, X } from '@lucide/svelte';
   import { onDestroy } from 'svelte';
   import { t } from '../../lib/i18n/index.svelte';
-  import { CARDINALS, SIDES, SIDE_NAMES, ZONES, controlLabel, withZone } from '../../lib/model/controls';
+  import { clearControl } from '../../lib/model/clipboard';
+  import { CARDINALS, SIDES, SIDE_NAMES, controlLabel, zoneFamily } from '../../lib/model/controls';
   import { comboLabel, mappingSummary } from '../../lib/model/labels';
   import { comboKey, comboList, sameCombo, shortcuts, toCombo } from '../../lib/model/profile';
   import { app } from '../../lib/state/app.svelte';
@@ -27,7 +28,7 @@
     return [...byKey.values()];
   });
 
-  const TRIGGERS = ['LT', 'RT'].flatMap((tr) => [tr, ...ZONES.map((z) => withZone(tr, z))]);
+  const TRIGGERS = SIDE_NAMES.flatMap((s) => zoneFamily(SIDES[s].trigger));
 
   const controls = $derived([...((app.catalog?.pad_buttons ?? []) as string[]), ...STICKS, ...TRIGGERS]);
 
@@ -57,10 +58,7 @@
   }
 
   function remove(trigger: Combo) {
-    app.edit((p) => ({
-      ...p,
-      mappings: p.mappings.filter((m) => !((m.layer ?? 0) === app.layer && sameCombo(m.trigger, trigger))),
-    }));
+    app.edit((p) => clearControl(p, app.layer, trigger));
     if (app.selected && sameCombo(app.selected, trigger)) app.select(null);
   }
 
@@ -71,7 +69,7 @@
 
 <div class="shortcuts">
   <div class="head">
-    <h2>{t('shortcuts.title', { layer: app.layerLabel(app.layer) })}</h2>
+    <h2 class="view-title">{t('shortcuts.title', { layer: app.layerLabel(app.layer) })}</h2>
     {#if !picking && !app.readOnly}
       <button class="btn primary" onclick={start}><Plus size={14} /> {t('shortcuts.add')}</button>
     {/if}
@@ -85,6 +83,7 @@
           <button
             class="ctl"
             class:on={picking.includes(c)}
+            aria-pressed={picking.includes(c)}
             disabled={!picking.includes(c) && picking.length >= MAX}
             onclick={() => toggle(c)}
           >
@@ -146,11 +145,7 @@
     align-items: center;
     justify-content: space-between;
   }
-  h2 {
-    margin: 0;
-    font-size: 17px;
-    font-weight: 600;
-  }
+
   .picker {
     border: 1px solid var(--accent);
     border-radius: var(--radius-m);

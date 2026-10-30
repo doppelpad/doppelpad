@@ -2,30 +2,21 @@
 // layers that get a warning mark, and the mapping a diagnostic leads to.
 
 import { t } from '../i18n/index.svelte';
-import { comboKey, comboList, effectiveMappings, layerOf } from './profile';
-import type { Combo, DiagMsg, Hotkeys, Profile } from '../types';
-
-/** The controller hotkeys a mapping can clash with, by their name in `hotkeys.*`. */
-const HOTKEY_FIELDS = [
-  'slot1',
-  'slot2',
-  'slot3',
-  'slot4',
-  'remap',
-  'stop_macros',
-  'emergency_stop',
-  'pad_overlay',
-  'mappings_overlay',
-] as const satisfies readonly (keyof Hotkeys)[];
+import { HOTKEY_FIELDS, hotkeyLabel } from './hotkeys';
+import { activatorOf, jumpsTo, layerOf } from './mapping';
+import { comboKey, comboList, effectiveMappings } from './profile';
+import type { Place } from './views';
+import type { Combo, DiagMsg, Hotkeys, PadFamily, Profile } from '../types';
 
 /** A mapping's diagnostic path, as the validator writes it: `mappings[3] (LB+RB)`. */
 export const mappingPath = (i: number, trigger: Combo) => `mappings[${i}] (${comboList(trigger).join('+')})`;
 
 /**
  * Mappings whose trigger holds every button of a controller hotkey: once those are down, the
- * hotkey takes them, so the mapping never fires while hotkeys are on.
+ * hotkey takes them, so the mapping never fires while hotkeys are on. The buttons are named as
+ * `family` names them, like the hotkey settings do.
  */
-export function hotkeyClashes(p: Profile, hk: Hotkeys | null): DiagMsg[] {
+export function hotkeyClashes(p: Profile, hk: Hotkeys | null, family: PadFamily | null): DiagMsg[] {
   if (!hk) return [];
   const out: DiagMsg[] = [];
   p.mappings.forEach((m, i) => {
@@ -36,7 +27,7 @@ export function hotkeyClashes(p: Profile, hk: Hotkeys | null): DiagMsg[] {
         out.push({
           severity: 'warning',
           path: mappingPath(i, m.trigger),
-          message: t('lints.hotkey', { hotkey: t(`hotkeys.${field}`), keys: buttons.join(' + ') }),
+          message: t('lints.hotkey', { hotkey: t(`hotkeys.${field}`), keys: hotkeyLabel(buttons, family) }),
         });
       }
     }
@@ -44,17 +35,12 @@ export function hotkeyClashes(p: Profile, hk: Hotkeys | null): DiagMsg[] {
   return out;
 }
 
-/** Where a diagnostic points: a mapping (its layer and trigger), a layer, or a radial menu (and a sector of it). */
-export type DiagTarget =
-  | { kind: 'mapping'; layer: number; trigger: Combo }
-  | { kind: 'layer'; layer: number }
-  | { kind: 'radial'; menu: number; sector: number | null };
-
-export function diagTarget(p: Profile, d: DiagMsg): DiagTarget | null {
+/** Where a diagnostic points: a mapping, a layer, or a radial menu (and a sector of it). */
+export function diagTarget(p: Profile, d: DiagMsg): Place | null {
   const m = /^mappings\[(\d+)\]/.exec(d.path);
   if (m) {
     const mapping = p.mappings[Number(m[1])];
-    return mapping ? { kind: 'mapping', layer: layerOf(mapping), trigger: mapping.trigger } : null;
+    return mapping ? { kind: 'mapping', layer: layerOf(mapping), trigger: mapping.trigger, activator: activatorOf(mapping) } : null;
   }
   const r = /^radial_menus\[(\d+)\](?:\.sectors\[(\d+)\])?/.exec(d.path);
   if (r) {
@@ -68,7 +54,7 @@ export function diagTarget(p: Profile, d: DiagMsg): DiagTarget | null {
 
 /** Whether a mapping on another layer changes to layer `id` (Main is always there). */
 export function isReached(p: Profile, id: number): boolean {
-  return id === 0 || p.mappings.some((m) => m.jump?.layer === id && layerOf(m) !== id);
+  return id === 0 || p.mappings.some((m) => jumpsTo(m, id));
 }
 
 /**

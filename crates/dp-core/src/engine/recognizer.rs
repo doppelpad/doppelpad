@@ -26,19 +26,31 @@ pub(super) struct RecConfig {
     pub(super) t_pulse: u64,
 }
 
-impl Default for RecConfig {
-    fn default() -> Self {
+impl RecConfig {
+    /// No activator yet, the profile's `timing` and pulses of `t_pulse`.
+    pub(super) fn new(timing: &crate::profile::Timing, t_pulse: u64) -> Self {
         RecConfig {
-            single: true,
+            single: false,
             long: false,
             double: false,
             triple: false,
             start: false,
             release: false,
-            t_long: 300,
-            t_double: 150,
-            t_triple: 300,
-            t_pulse: 20,
+            t_long: u64::from(timing.long_press_ms),
+            t_double: u64::from(timing.double_tap_ms),
+            t_triple: u64::from(timing.triple_tap_ms),
+            t_pulse,
+        }
+    }
+}
+
+/// Single presses with the default timing, for the timelines below.
+#[cfg(test)]
+impl Default for RecConfig {
+    fn default() -> Self {
+        RecConfig {
+            single: true,
+            ..RecConfig::new(&Default::default(), super::compile::PULSE_PAD_MS)
         }
     }
 }

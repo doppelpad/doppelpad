@@ -19,7 +19,7 @@ use dp_core::pad::{Axis, Motion, PadButton, PadState, Rgb, Rumble, TouchPoint, u
 use self::output::{SonyOutput, output_report};
 use crate::padio::{Identity, InitError, PadDriver, ReportIo, Seq4};
 use crate::report::{apply_hat, apply_u8_sticks, le_i16, unpack12};
-use crate::{Battery, Leds, PadFamily, TriggerEffects};
+use crate::{Battery, Leds, PadFamily, Transport, TriggerEffects};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum SonyModel {
@@ -73,18 +73,28 @@ impl SonyModel {
 const GYRO_DPS_PER_LSB: f32 = 1.0 / 16.0;
 const ACCEL_G_PER_LSB: f32 = 1.0 / 8192.0;
 
+/// The buttons in the two bytes after the sticks and triggers of DualShock 4 and DualSense
+/// reports, read as one little-endian number (the hat is in its low nibble, and bits 10 and 11
+/// are L2 and R2, which the triggers carry). The virtual DualShock 4 writes them the same way.
+const BUTTONS: [(PadButton, u16); 10] = [
+    (PadButton::X, 1 << 4),      // square
+    (PadButton::A, 1 << 5),      // cross
+    (PadButton::B, 1 << 6),      // circle
+    (PadButton::Y, 1 << 7),      // triangle
+    (PadButton::LB, 1 << 8),     // L1
+    (PadButton::RB, 1 << 9),     // R1
+    (PadButton::Back, 1 << 12),  // share / create
+    (PadButton::Start, 1 << 13), // options
+    (PadButton::LS, 1 << 14),    // L3
+    (PadButton::RS, 1 << 15),    // R3
+];
+
 fn face_buttons(state: &mut PadState, b0: u8, b1: u8) {
     apply_hat(state, b0);
-    state.set(PadButton::X, b0 & 0x10 != 0); // Square
-    state.set(PadButton::A, b0 & 0x20 != 0); // Cross
-    state.set(PadButton::B, b0 & 0x40 != 0); // Circle
-    state.set(PadButton::Y, b0 & 0x80 != 0); // Triangle
-    state.set(PadButton::LB, b1 & 0x01 != 0);
-    state.set(PadButton::RB, b1 & 0x02 != 0);
-    state.set(PadButton::Back, b1 & 0x10 != 0); // Share / Create
-    state.set(PadButton::Start, b1 & 0x20 != 0); // Options
-    state.set(PadButton::LS, b1 & 0x40 != 0);
-    state.set(PadButton::RS, b1 & 0x80 != 0);
+    let bits = u16::from_le_bytes([b0, b1]);
+    for (button, bit) in BUTTONS {
+        state.set(button, bits & bit != 0);
+    }
 }
 
 fn motion(r: &[u8], gyro_at: usize, accel_at: usize) -> Motion {
@@ -225,7 +235,7 @@ pub fn parse_battery(model: SonyModel, r: &[u8]) -> Option<Battery> {
 /// bar colour and the player and microphone lights.
 pub struct SonyDriver {
     model: SonyModel,
-    bluetooth: bool,
+    transport: Transport,
     feature_len: usize,
     lightbar: Option<Rgb>,
     leds: Leds,
@@ -239,10 +249,10 @@ pub struct SonyDriver {
 
 impl SonyDriver {
     /// `feature_len` is the device's feature report length.
-    pub fn new(model: SonyModel, bluetooth: bool, feature_len: usize) -> Self {
+    pub fn new(model: SonyModel, transport: Transport, feature_len: usize) -> Self {
         SonyDriver {
             model,
-            bluetooth,
+            transport,
             feature_len,
             lightbar: None,
             leds: Leds::default(),
@@ -256,8 +266,8 @@ impl SonyDriver {
 }
 
 /// Touchpad resolution of the DualShock 4.
-/// Touchpad resolutions.
 const DS4_TOUCH: (f32, f32) = (1920.0, 943.0);
+/// Touchpad resolution of the DualSense.
 const DUALSENSE_TOUCH: (f32, f32) = (1920.0, 1080.0);
 
 impl PadDriver for SonyDriver {
@@ -327,7 +337,7 @@ impl PadDriver for SonyDriver {
         self.set_up |= setup;
         let report = output_report(
             self.model,
-            self.bluetooth,
+            self.transport,
             &SonyOutput { setup, ..want },
             self.seq.step(),
         );
@@ -350,7 +360,7 @@ mod tests {
     #[test]
     fn driver_forwards_rumble_changes_only() {
         let mut io = crate::padio::testing::ScriptIo::silent();
-        let mut d = SonyDriver::new(SonyModel::DualSense, false, 64);
+        let mut d = SonyDriver::new(SonyModel::DualSense, Transport::Usb, 64);
         let id = d.init(&mut io).unwrap();
         assert_eq!(id.family, PadFamily::DualSense);
         assert_eq!(io.features[0][0], 0x05);
@@ -376,12 +386,17 @@ mod tests {
             lightbar: Some(Rgb { r: 255, g: 0, b: 0 }),
             ..Default::default()
         };
-        let r = output_report(SonyModel::DualShock4, false, &red, 0);
+        let r = output_report(SonyModel::DualShock4, Transport::Usb, &red, 0);
         assert_eq!((r[0], r[1], &r[6..9]), (0x05, 0x03, &[255, 0, 0][..]));
-        let r = output_report(SonyModel::DualShock4, false, &SonyOutput::default(), 0);
+        let r = output_report(
+            SonyModel::DualShock4,
+            Transport::Usb,
+            &SonyOutput::default(),
+            0,
+        );
         assert_eq!(r[1], 0x01);
         // Bluetooth: the same fields three bytes later, sealed with a CRC.
-        let bt = output_report(SonyModel::DualShock4, true, &red, 0);
+        let bt = output_report(SonyModel::DualShock4, Transport::Bluetooth, &red, 0);
         assert_eq!(
             (bt.len(), bt[0], bt[1], bt[3], &bt[8..11]),
             (78, 0x11, 0xC0, 0x03, &[255, 0, 0][..])
@@ -424,7 +439,7 @@ mod tests {
             ],
             ..Default::default()
         };
-        let r = output_report(SonyModel::DualSense, false, &o, 0);
+        let r = output_report(SonyModel::DualSense, Transport::Usb, &o, 0);
         assert_eq!(r[1] & 0x0C, 0x0C);
         assert_eq!((&r[11..22], r[22]), (&raw[..], 0x05));
     }
@@ -445,7 +460,7 @@ mod tests {
             setup: true,
             ..Default::default()
         };
-        let usb = output_report(SonyModel::DualSense, false, &o, 0);
+        let usb = output_report(SonyModel::DualSense, Transport::Usb, &o, 0);
         assert_eq!(
             usb[2],
             0x01 | 0x04 | 0x10,
@@ -453,7 +468,7 @@ mod tests {
         );
         assert_eq!((usb[9], usb[39], usb[42], usb[44]), (1, 0x02, 0x02, 0x0A));
         assert_eq!(usb[45..48], [9, 8, 7]);
-        let bt = output_report(SonyModel::DualSense, true, &o, 5);
+        let bt = output_report(SonyModel::DualSense, Transport::Bluetooth, &o, 5);
         assert_eq!((bt.len(), bt[0], bt[1], bt[2]), (78, 0x31, 0x50, 0x10));
         assert_eq!(bt[3..50], usb[1..48], "the same common part");
         let off = Leds {
@@ -462,7 +477,7 @@ mod tests {
         };
         let r = output_report(
             SonyModel::DualSense,
-            false,
+            Transport::Usb,
             &SonyOutput {
                 leds: off,
                 ..Default::default()
