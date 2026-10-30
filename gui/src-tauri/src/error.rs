@@ -14,6 +14,7 @@ pub enum ErrorCode {
     /// An error from the library, the service or the system: `detail` says what.
     Failed,
     /// A driver page with nothing to allow on this system.
+    #[cfg_attr(target_os = "macos", allow(dead_code))]
     NothingToAllow,
     /// A bindings sheet to be saved under another extension than `.html`.
     SheetNotHtml,
