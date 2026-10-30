@@ -247,6 +247,15 @@ describe('games', () => {
 });
 
 describe('importing', () => {
+  it('a bundle with configs that cannot be checked asks even without programs, and lists them', async () => {
+    const keep = app.keepLaunches([], [{ file: 'new.toml', error: 'made by a newer Doppelpad' }]);
+    expect(app.dialogs.question?.items?.map((i) => i.code)).toEqual(['new.toml']);
+    expect(app.dialogs.question?.items?.[0]?.notes[0]).toContain('made by a newer Doppelpad');
+    app.dialogs.answerQuestion('ok');
+    expect(await keep).toBe(false);
+    expect(await app.keepLaunches([], [])).toBe(false);
+  });
+
   it("a profile file without programs to start opens as a new config, with the converter's notes", async () => {
     app.library = { games: [game], unsorted: [], errors: [] };
     await expect(app.importConfig('game', 'C:/old.rewasd')).resolves.toBe(true);

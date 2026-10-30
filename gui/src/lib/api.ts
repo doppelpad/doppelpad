@@ -69,8 +69,6 @@ export const api = {
     invoke<string>('config_from_template', { gameDir, name, template }),
   openDriverPage: (driver: Driver) => invoke<void>('open_driver_page', { driver }),
   gameExport: (dir: string, out: string) => invoke<void>('game_export', { dir, out }),
-  /** The launch commands in a game bundle's readable configs. */
-  gameLaunches: (file: string) => invoke<BundleLaunches>('game_launches', { file }).then((found) => found.launches),
   /** The launch commands in a game bundle's configs, and the configs that cannot be checked for them. */
   bundleLaunches: (file: string) => invoke<BundleLaunches>('game_launches', { file }),
   gameImport: (file: string, keepLaunches: boolean) => invoke<Game>('game_import', { file, keepLaunches }),

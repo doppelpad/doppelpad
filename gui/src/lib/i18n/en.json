@@ -96,7 +96,9 @@
     "drop": "Import without these",
     "keep": "Import with them",
     "radial": "{name} (radial menu)",
-    "sector": "Sector {n}"
+    "sector": "Sector {n}",
+    "unchecked": "Cannot be checked: {error}",
+    "unchecked_note": "Some configs in it cannot be checked for programs (a newer Doppelpad made them?): imported without these programs, it leaves those configs out."
   },
   "window": {
     "minimize": "Minimize",

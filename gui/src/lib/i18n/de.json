@@ -96,7 +96,9 @@
     "drop": "Ohne diese importieren",
     "keep": "Mit ihnen importieren",
     "radial": "{name} (Radialmenü)",
-    "sector": "Sektor {n}"
+    "sector": "Sektor {n}",
+    "unchecked": "Nicht prüfbar: {error}",
+    "unchecked_note": "Manche Configs darin lassen sich nicht auf Programme prüfen (von einer neueren Doppelpad-Version?): Ohne diese Programme importiert, bleiben jene Configs draußen."
   },
   "window": {
     "minimize": "Minimieren",

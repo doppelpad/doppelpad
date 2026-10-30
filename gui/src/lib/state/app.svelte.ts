@@ -40,6 +40,7 @@ import type {
   PadFamily,
   Profile,
   RewasdStatus,
+  UncheckedConfig,
 } from '../types';
 
 export interface Toast {
@@ -414,8 +415,8 @@ export class AppState {
   /** Unpack a game bundle into a new game and open it, asking first about programs it starts. */
   importGame(file: string): Promise<boolean> {
     return this.attempt(
-      api.gameLaunches(file).then(async (found) => {
-        const keep = await this.keepLaunches(found);
+      api.bundleLaunches(file).then(async (found) => {
+        const keep = await this.keepLaunches(found.launches, found.unchecked);
         if (keep === null) return;
         const g = await api.gameImport(file, keep);
         await this.openCreatedGame(g);
@@ -478,13 +479,19 @@ export class AppState {
   /**
    * Whether an import keeps the launch commands it brings (`found`), which start programs:
    * asked in the app's dialog, where leaving them out is the default; `null` when the import
-   * is cancelled. Without any there is no question, and `false`.
+   * is cancelled. Configs of a bundle that cannot be checked for them (`unchecked`) are listed
+   * too: an import without launch commands leaves them out. Without either there is no
+   * question, and `false`.
    */
-  async keepLaunches(found: Launch[]): Promise<boolean | null> {
-    if (found.length === 0) return false;
-    const answer = await this.choose(t('launches.message'), {
+  async keepLaunches(found: Launch[], unchecked: UncheckedConfig[] = []): Promise<boolean | null> {
+    if (found.length === 0 && unchecked.length === 0) return false;
+    const message = unchecked.length ? `${t('launches.message')} ${t('launches.unchecked_note')}` : t('launches.message');
+    const answer = await this.choose(message, {
       title: t('launches.title'),
-      items: launchRows(found, this.family).map((r) => ({ code: r.command, notes: r.places })),
+      items: [
+        ...launchRows(found, this.family).map((r) => ({ code: r.command, notes: r.places })),
+        ...unchecked.map((c) => ({ code: c.file, notes: [t('launches.unchecked', { error: c.error })] })),
+      ],
       ok: t('launches.drop'),
       alt: t('launches.keep'),
     });
