@@ -1,6 +1,7 @@
 //! `doppelpad` — free, open-source controller remapping.
 
 mod daemon;
+mod mcp;
 
 use std::io::Write as _;
 use std::path::{Path, PathBuf};
@@ -16,6 +17,7 @@ use dp_ipc::{Request, Response};
 
 use dp_platform::timer::TimerResolution;
 use dp_service::{Runtime, on_off};
+use tracing_subscriber::fmt::writer::BoxMakeWriter;
 
 #[derive(Parser)]
 #[command(
@@ -110,6 +112,10 @@ enum Cmd {
     Doctor,
     /// Show live controller input (useful to verify devices and button names).
     Monitor,
+    /// Serve the Model Context Protocol on stdin and stdout, for an AI assistant to write,
+    /// check, save and apply profiles in the library. An assistant runs it itself: set up
+    /// `doppelpad mcp` as its command.
+    Mcp,
 }
 
 /// `on` or `off`.
@@ -151,11 +157,20 @@ fn parse_slot_or_all(s: &str) -> Result<SlotOrAll, String> {
 fn main() {
     let cli = Cli::parse();
     let filter = cli.log.clone().unwrap_or_else(|| "info".into());
+    // `mcp` talks on stdout, so it logs to stderr, without colours: the assistant keeps it.
+    let mcp = matches!(cli.cmd, Cmd::Mcp);
+    let writer = if mcp {
+        BoxMakeWriter::new(std::io::stderr)
+    } else {
+        BoxMakeWriter::new(std::io::stdout)
+    };
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_new(&filter).unwrap_or_else(|_| "info".into()),
         )
         .with_target(false)
+        .with_writer(writer)
+        .with_ansi(!mcp)
         .init();
     if let Err(e) = run(cli) {
         eprintln!("error: {e:#}");
@@ -220,6 +235,7 @@ fn run(cli: Cli) -> Result<()> {
         Cmd::Check { profile } => check(&profile),
         Cmd::Doctor => doctor(),
         Cmd::Monitor => monitor(),
+        Cmd::Mcp => mcp::run(),
     }
 }
 
@@ -356,19 +372,23 @@ fn check(path: &Path) -> Result<()> {
     for w in engine.warnings() {
         eprintln!("warning: {w}");
     }
-    let p = engine.profile();
-    println!(
+    println!("{}", summary(engine.profile()));
+    if diags.has_errors() {
+        bail!("profile has errors");
+    }
+    Ok(())
+}
+
+/// What `check` says a profile holds.
+fn summary(p: &Profile) -> String {
+    format!(
         "{}: {} mappings, {} layers, {} analog routes, virtual pad {:?}",
         p.name,
         p.mappings.len(),
         p.layers.len(),
         p.analog.len(),
         p.output.virtual_pad
-    );
-    if diags.has_errors() {
-        bail!("profile has errors");
-    }
-    Ok(())
+    )
 }
 
 /// Cleared when the user presses Ctrl+C.
