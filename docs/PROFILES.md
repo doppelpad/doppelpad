@@ -7,8 +7,10 @@ Unknown keys are rejected, so typos are caught by `doppelpad check`.
 format = 1                   # version of the file format (see Format versions); optional
 name = "My game"
 description = "..."
-processes = ["MyGame.exe"]   # auto-apply while one of these is in the foreground (daemon); any case,
-                             # with or without .exe, so "MyGame" on macOS and Linux matches too
+processes = ["MyGame.exe"]   # auto-apply while one of these is in the foreground; any case, with
+                             # or without .exe, so "MyGame" on macOS and Linux matches too. Only
+                             # for a profile directly in the library folder: in a game's folder,
+                             # the game's programs (set in the app) switch to its default config
 kbm_source = "all"            # all | physical | scripts: which keyboard/mouse input the mappings see
 
 [output]
@@ -162,6 +164,11 @@ every 25 ms; only a virtual DualShock 4 has motion sensors.
 `trigger` is one control (`"A"`) or a combo (`["LB", "RB"]`, up to 4). A combo may mix devices,
 such as `["Key:LeftAlt", "Key:W"]`. [All names](#all-names) lists every control name and alias.
 
+A control in a combo still works alone: its press waits up to `combo_window_ms` (50 ms) for the
+rest of the combo, then counts as a press of its own, reaching the virtual controller or its own
+mapping. A combo pressed in time takes its controls: while it is held, they neither reach the
+virtual controller nor run their own mappings.
+
 **Key names** are positions on a US keyboard (the key's scan code), not the characters printed
 on the keys. On a German keyboard, for example, `Y` is the key printed Z, `Z` the one printed Y,
 `Semicolon` is Ö, `Apostrophe` Ä, `LeftBracket` Ü, `Minus` ß, `Backslash` # and
@@ -258,8 +265,8 @@ Only `trigger` is needed (with `actions`, a `jump`, or neither to unmap it): `la
 
 Several mappings can share a trigger with different activators.
 
-A control with any mapping on the active layer no longer reaches the virtual controller by
-itself, whatever the activator. To keep the short press of a button that also has a `long` or
+A control with a mapping of its own on the active layer (one in a combo does not count) no
+longer reaches the virtual controller by itself, whatever the activator. To keep the short press of a button that also has a `long` or
 `double` mapping, give it a `single` mapping that sends the button:
 
 ```toml
@@ -604,6 +611,22 @@ What `sensitivity = 1.0` means for each route:
 | touchpad → mouse | a full-width swipe moves 1000 px |
 | touchpad → stick | finger position relative to the pad centre |
 | stick → flick | 1 = exact: the turn follows the stick's angle one to one |
+
+Gyro aiming that only works while a control is held takes `while_held = ["LT"]`. One that a
+button turns on and off is a gyro route with a command beside it:
+
+```toml
+[gyro]
+initially_on = false         # starts off
+
+[[analog]]
+source = "gyro"
+target = "mouse"
+
+[[mappings]]                 # L1+R1 turns it on, and again off
+trigger = ["LB", "RB"]
+actions = [{ command = "toggle_gyro" }]
+```
 
 With `target = "flick"` (flick stick, stick sources only), pushing the stick past `deadzone`
 turns the view to face where the stick points, spread over `turn_ms`; while it stays out,
