@@ -40,10 +40,10 @@ use self::recognizer::{RecEvent, Recognizer};
 use self::routes::RouteState;
 use self::touch::GestureTracker;
 use self::vm::{ActId, Activation, Outputs};
-use crate::control::{Control, TrackpadPart};
+use crate::control::{Control, TouchRegion, TrackpadPart};
 use crate::event::KbmEvent;
 use crate::keys::{Key, MouseButton, WheelDir};
-use crate::pad::{PadState, Rumble, Stick};
+use crate::pad::{PadButton, PadState, Rumble, Stick};
 use crate::profile::{
     Command, Profile, Sticks, TriggerEffect, Triggers, VirtualPadType, VirtualStick,
 };
@@ -105,6 +105,18 @@ fn uses(p: &Profile, f: impl Fn(&Control) -> bool) -> bool {
         || p.analog.iter().any(|r| r.while_held.iter().any(&f))
 }
 
+/// Buffers one tick fills and empties again (taken out with `mem::take` and put back), so
+/// a tick does not allocate.
+#[derive(Default)]
+struct Scratch {
+    /// Masks whose recognizer is busy.
+    masks: Vec<MaskId>,
+    /// Touchpad regions under a finger.
+    regions: Vec<TouchRegion>,
+    /// Keys and mouse buttons that went down during the tick.
+    downs: HashSet<Control>,
+}
+
 /// The remapping engine for one profile.
 pub struct Engine {
     profile: Profile,
@@ -118,7 +130,7 @@ pub struct Engine {
     /// Keys and mouse buttons held down.
     kbm_down: HashSet<Control>,
     taps: Vec<Control>,
-    wheel: [WheelPulse; 4],
+    wheel: [WheelPulse; WheelDir::ALL.len()],
     mouse_counts: (f32, f32),
     mouse_vel: (f32, f32),
     gyro_enabled: bool,
@@ -158,6 +170,10 @@ pub struct Engine {
     /// Next segment to play, per binding whose sequence has break steps.
     segment_cursor: HashMap<BindingId, usize>,
     outs: Outputs,
+    /// Pad buttons pressed and released within one tick, shown until when.
+    pad_pulses: Vec<(PadButton, u64)>,
+    /// Buffers a tick fills and empties again, kept so ticks do not allocate.
+    scratch: Scratch,
     route_state: Vec<RouteState>,
     layer_changed: bool,
 }
@@ -224,6 +240,8 @@ impl Engine {
             toggles: HashMap::new(),
             segment_cursor: HashMap::new(),
             outs: Outputs::default(),
+            pad_pulses: Vec::new(),
+            scratch: Scratch::default(),
             route_state,
             layer_changed: false,
         }
@@ -363,20 +381,23 @@ impl Engine {
     }
 
     fn poll_recognizers(&mut self, now: u64) {
-        let mut ids: Vec<MaskId> = self
-            .recs
-            .iter()
-            .filter(|(_, r)| !r.is_idle())
-            .map(|(m, _)| *m)
-            .collect();
-        ids.sort();
-        for m in ids {
+        let mut ids = std::mem::take(&mut self.scratch.masks);
+        ids.clear();
+        ids.extend(
+            self.recs
+                .iter()
+                .filter(|(_, r)| !r.is_idle())
+                .map(|(m, _)| *m),
+        );
+        ids.sort_unstable();
+        for &m in &ids {
             let Some(cfg) = self.table().rec.get(&m).copied() else {
                 self.reset_rec(m);
                 continue;
             };
             self.feed_rec(m, |r, ev| r.poll(now, &cfg, ev));
         }
+        self.scratch.masks = ids;
     }
 
     fn handle_events(&mut self, m: MaskId, mut events: Vec<RecEvent>) {
@@ -430,6 +451,7 @@ impl Engine {
         self.outs.shakes.clear();
         self.outs.turns.clear();
         self.outs.touch = None;
+        self.pad_pulses.clear();
     }
 
     /// Release everything and return the final output (call before unloading the profile).
@@ -514,6 +536,9 @@ impl Engine {
             std::mem::take(&mut self.outs.commands).into();
         let mut done = Vec::new();
         while let Some(c) = queue.pop_front() {
+            if done.len() == MAX_COMMANDS_PER_TICK {
+                break;
+            }
             match c {
                 Command::ToggleGyro => self.gyro_enabled = !self.gyro_enabled,
                 Command::GyroOn => self.gyro_enabled = true,
@@ -523,9 +548,7 @@ impl Engine {
                 _ => self.radial_command(&c, now),
             }
             done.push(c);
-            if done.len() < MAX_COMMANDS_PER_TICK {
-                queue.extend(std::mem::take(&mut self.outs.commands));
-            }
+            queue.extend(std::mem::take(&mut self.outs.commands));
         }
         self.outs.commands = done;
 

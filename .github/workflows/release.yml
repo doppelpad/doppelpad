@@ -47,7 +47,7 @@ jobs:
       release_id: ${{ steps.tauri.outputs.releaseId }}
       notes: ${{ steps.notes.outputs.notes }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Check the tag, the version and the updater key
         shell: bash
@@ -88,9 +88,9 @@ jobs:
             echo 'DP_RELEASE_NOTES'
           } >> "$GITHUB_OUTPUT"
 
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      - uses: actions/setup-node@v4
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
           cache: npm
@@ -101,7 +101,7 @@ jobs:
 
       # `tauri build`: the setup, its .sig (bundle.createUpdaterArtifacts) and latest.json,
       # uploaded to a draft release for the tag.
-      - uses: tauri-apps/tauri-action@v1
+      - uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # v1
         id: tauri
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -128,7 +128,7 @@ jobs:
       # The Windows job's draft; empty when started by hand.
       RELEASE_ID: ${{ needs.windows.outputs.release_id }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: System libraries for the app
         run: |
@@ -143,9 +143,9 @@ jobs:
           sudo rm "$(pkg-config --variable=gdk_pixbuf_moduledir gdk-pixbuf-2.0)/libpixbufloader-tiff.so"
           sudo "$(pkg-config --variable=gdk_pixbuf_query_loaders gdk-pixbuf-2.0)" --update-cache
 
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      - uses: actions/setup-node@v4
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
           cache: npm
@@ -157,7 +157,7 @@ jobs:
       # `tauri build` with tauri.linux.conf.json: the AppImage and its .sig. On a tag they go to
       # the draft; without a release id and tag, tauri-action only builds. It writes
       # latest.json anew with releaseBody as the notes, so it gets the Windows job's.
-      - uses: tauri-apps/tauri-action@v1
+      - uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -290,7 +290,7 @@ jobs:
           upload "$LIST" text/plain
           upload "$SOURCES" application/x-tar
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: doppelpad-linux
           path: |
@@ -308,12 +308,12 @@ jobs:
     env:
       RELEASE_ID: ${{ needs.windows.outputs.release_id }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
           targets: aarch64-apple-darwin,x86_64-apple-darwin
-      - uses: Swatinem/rust-cache@v2
-      - uses: actions/setup-node@v4
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
           cache: npm
@@ -377,7 +377,7 @@ jobs:
       # `tauri build` with tauri.macos.conf.json for both kinds of Mac: the .app, the .dmg and
       # the updater's .app.tar.gz with its .sig. Like the Linux job, it adds them to the draft
       # on a tag and only builds otherwise.
-      - uses: tauri-apps/tauri-action@v1
+      - uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -427,7 +427,7 @@ jobs:
             --data-binary @"$ARCHIVE" \
             "https://uploads.github.com/repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID/assets?name=$(basename "$ARCHIVE")" > /dev/null
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: doppelpad-macos
           path: |

@@ -435,12 +435,13 @@ impl PadDriver for SteamDriver {
         Ok(())
     }
 
-    fn power_off(&mut self, io: &mut dyn ReportIo) -> io::Result<bool> {
-        if self.model != SteamModel::Receiver || !self.connected {
-            return Ok(false);
-        }
-        io.set_feature(&command(CMD_TURN_OFF, b"off!"))?;
-        Ok(true)
+    /// A wireless controller, through its receiver; a wired one has no link to drop.
+    fn can_power_off(&self) -> bool {
+        self.model == SteamModel::Receiver && self.connected
+    }
+
+    fn power_off(&mut self, io: &mut dyn ReportIo) -> io::Result<()> {
+        io.set_feature(&command(CMD_TURN_OFF, b"off!"))
     }
 
     fn next_deadline(&self) -> Option<Instant> {
@@ -676,7 +677,7 @@ mod tests {
         assert!(!d.connected());
         d.service(&mut io, Rumble::default()).unwrap();
         assert_eq!(io.set_features.len(), 1, "only the question");
-        assert!(!d.power_off(&mut io).unwrap());
+        assert!(!d.can_power_off(), "no controller in the slot");
 
         d.parse(
             &report(TYPE_LINK, |p| p[4] = LINK_CONNECTED),
@@ -690,7 +691,8 @@ mod tests {
         );
         d.parse(&report(TYPE_BATTERY, |p| p[14] = 64), Instant::now());
         assert_eq!(d.battery().unwrap().level, 64);
-        assert!(d.power_off(&mut io).unwrap());
+        assert!(d.can_power_off());
+        d.power_off(&mut io).unwrap();
         assert_eq!(
             io.set_features.last().unwrap()[1..7],
             [CMD_TURN_OFF, 4, b'o', b'f', b'f', b'!']

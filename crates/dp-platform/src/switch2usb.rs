@@ -15,10 +15,11 @@ use nusb::descriptors::TransferType;
 use nusb::transfer::{Buffer, Bulk, In, Out};
 use nusb::{Endpoint, Interface, MaybeFuture};
 
+use crate::holders::busy_message;
 use crate::nintendo::switch2::Switch2Driver;
 use crate::nintendo::{self, NINTENDO_VID, Switch2Model};
 use crate::padio::{self, BulkIo, BulkRetry, PadDriver};
-use crate::usb::{endpoint_addrs, transfer_error};
+use crate::usb::{endpoint_addrs, is_busy, transfer_error};
 
 /// Vendor-specific interface class.
 const VENDOR_CLASS: u8 = 0xFF;
@@ -43,10 +44,32 @@ impl From<String> for OpenError {
 }
 
 /// How an OS reaches a controller's channel: whether a listed USB device is the controller's,
-/// and what to tell the user about an error opening it.
+/// and what goes into telling the user about an error opening it (see [`explain`]).
 pub(crate) struct Locate {
     pub is_it: Box<dyn Fn(&nusb::DeviceInfo) -> bool + Send + Sync>,
-    pub explain: fn(&nusb::Error) -> OpenError,
+    /// The running program that most likely holds the channel.
+    pub holder: fn() -> Option<&'static str>,
+    /// What access to it needs, where the OS can be told (a driver, a udev rule).
+    pub refused: Option<&'static str>,
+}
+
+/// A user-facing explanation of why the vendor interface cannot be used.
+fn explain(e: &nusb::Error, locate: &Locate) -> OpenError {
+    const WHAT: &str = "the controller's USB command interface";
+    if is_busy(e) {
+        return OpenError {
+            message: busy_message(WHAT, (locate.holder)()),
+            busy: true,
+        };
+    }
+    match (e.kind(), locate.refused) {
+        (nusb::ErrorKind::Disconnected, _) => "the controller was disconnected".to_owned(),
+        (nusb::ErrorKind::PermissionDenied | nusb::ErrorKind::Unsupported, Some(needs)) => {
+            format!("{WHAT} cannot be opened: {needs} ({e})")
+        }
+        _ => format!("cannot open {WHAT}: {e}"),
+    }
+    .into()
 }
 
 /// The driver for a Switch 2 controller whose channel `locate` finds.
@@ -116,6 +139,8 @@ impl BulkIo for VendorBulk {
                 break;
             }
         }
+        // A whole packet may hold more than was asked for.
+        reply.truncate(reply_len);
         Ok(reply)
     }
 }
@@ -131,12 +156,9 @@ fn open(locate: &Locate) -> Result<VendorBulk, OpenError> {
     let info = match devices.iter().find(|d| (locate.is_it)(d)) {
         Some(d) => d,
         None => {
-            let mut switch2 = devices.iter().filter(|d| {
-                matches!(
-                    nintendo::model_for(d.vendor_id(), d.product_id()),
-                    Some(nintendo::Model::Switch2(_))
-                )
-            });
+            let mut switch2 = devices
+                .iter()
+                .filter(|d| nintendo::is_switch2(d.vendor_id(), d.product_id()));
             match (switch2.next(), switch2.next()) {
                 (Some(d), None) => d,
                 _ => {
@@ -148,23 +170,16 @@ fn open(locate: &Locate) -> Result<VendorBulk, OpenError> {
             }
         }
     };
-    let explain = locate.explain;
+    let why = |e: nusb::Error| explain(&e, locate);
     let number = info
         .interfaces()
         .find(|i| i.class() == VENDOR_CLASS)
         .map_or(1, |i| i.interface_number());
-    let device = info.open().wait().map_err(|e| explain(&e))?;
-    let interface = device
-        .claim_interface(number)
-        .wait()
-        .map_err(|e| explain(&e))?;
+    let device = info.open().wait().map_err(why)?;
+    let interface = device.claim_interface(number).wait().map_err(why)?;
     let (out_addr, in_addr) = endpoint_addrs(&interface, TransferType::Bulk, (0x02, 0x82));
-    let out = interface
-        .endpoint::<Bulk, Out>(out_addr)
-        .map_err(|e| explain(&e))?;
-    let input = interface
-        .endpoint::<Bulk, In>(in_addr)
-        .map_err(|e| explain(&e))?;
+    let out = interface.endpoint::<Bulk, Out>(out_addr).map_err(why)?;
+    let input = interface.endpoint::<Bulk, In>(in_addr).map_err(why)?;
     tracing::debug!(
         interface = number,
         out_addr,

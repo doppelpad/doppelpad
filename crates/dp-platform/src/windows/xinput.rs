@@ -4,14 +4,18 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use dp_core::pad::{
-    Axis, PadButton, PadState, Rumble, axis_from_i16, unit_from_u8, unit_to_u16_trunc,
+    Axis, PadButton, PadState, Rgb, Rumble, axis_from_i16, unit_from_u8, unit_to_u16_trunc,
 };
 use windows_sys::Win32::Foundation::ERROR_SUCCESS;
-use windows_sys::Win32::System::LibraryLoader::{GetProcAddress, LoadLibraryW};
+use windows_sys::Win32::System::LibraryLoader::{
+    GetProcAddress, LOAD_LIBRARY_SEARCH_SYSTEM32, LoadLibraryExW,
+};
 
 use super::wide;
+use crate::generic::GenericLayout;
 use crate::{
-    Battery, DeviceId, DeviceInfo, GamepadBackend, PadFamily, PadSnapshot, VirtualIgnoreList,
+    Battery, DeviceId, DeviceInfo, GamepadBackend, Leds, PadFamily, PadSnapshot, Transport,
+    TriggerEffects, VirtualIgnoreList,
 };
 
 #[repr(C)]
@@ -51,8 +55,11 @@ type SetStateFn = unsafe extern "system" fn(u32, *mut XInputVibration) -> u32;
 type GetBatteryFn = unsafe extern "system" fn(u32, u8, *mut XInputBatteryInformation) -> u32;
 type PowerOffFn = unsafe extern "system" fn(u32) -> u32;
 
+/// The name of the backend, which its devices carry ([`DeviceInfo::backend`]).
+pub(super) const BACKEND: &str = "xinput";
 const SLOTS: u32 = 4;
-const RESCAN: Duration = Duration::from_secs(1);
+/// An empty slot is asked again after this: asking an empty slot is slow.
+const PROBE_EMPTY: Duration = Duration::from_secs(1);
 /// Battery levels change slowly; asking costs a call per slot.
 const BATTERY_EVERY: Duration = Duration::from_secs(10);
 const BATTERY_DEVTYPE_GAMEPAD: u8 = 0;
@@ -95,8 +102,17 @@ impl XInputBackend {
         let mut get_battery = None;
         let mut power_off = None;
         for dll in ["xinput1_4.dll", "xinput1_3.dll", "xinput9_1_0.dll"] {
-            // SAFETY: plain library load; the handle is intentionally leaked for the process lifetime.
-            let h = unsafe { LoadLibraryW(wide(dll).as_ptr()) };
+            // Only from System32: the program's own folder (Downloads, for the command-line
+            // tool) must not be able to hand it a DLL of the same name.
+            // SAFETY: plain library load; the handle is intentionally leaked for the process
+            // lifetime.
+            let h = unsafe {
+                LoadLibraryExW(
+                    wide(dll).as_ptr(),
+                    std::ptr::null_mut(),
+                    LOAD_LIBRARY_SEARCH_SYSTEM32,
+                )
+            };
             if h.is_null() {
                 continue;
             }
@@ -138,7 +154,7 @@ impl XInputBackend {
             power_off,
             batteries: Default::default(),
             infos: Default::default(),
-            last_probe: [None; 4],
+            last_probe: [None; SLOTS as usize],
             ignored: Vec::new(),
         }
     }
@@ -171,7 +187,8 @@ impl XInputBackend {
             family: PadFamily::Xbox,
             vendor_id: crate::MICROSOFT_VID,
             product_id: 0,
-            backend: "xinput".into(),
+            transport: Transport::Other,
+            backend: BACKEND.into(),
             instance_paths: Vec::new(),
             joycon: None,
             has_motion: false,
@@ -216,7 +233,7 @@ fn convert(g: &XInputGamepad) -> PadState {
 
 impl GamepadBackend for XInputBackend {
     fn name(&self) -> &'static str {
-        "xinput"
+        BACKEND
     }
 
     fn poll(&mut self, out: &mut Vec<PadSnapshot>) {
@@ -231,7 +248,8 @@ impl GamepadBackend for XInputBackend {
                 continue;
             }
             // Probing empty slots is slow, so only rescan them periodically.
-            if self.infos[i].is_none() && self.last_probe[i].is_some_and(|t| now - t < RESCAN) {
+            if self.infos[i].is_none() && self.last_probe[i].is_some_and(|t| now - t < PROBE_EMPTY)
+            {
                 continue;
             }
             let mut st = XInputState::default();
@@ -286,6 +304,22 @@ impl GamepadBackend for XInputBackend {
     fn ignore_virtual(&mut self, ignored: &VirtualIgnoreList) {
         self.ignored = ignored.xinput_slots.clone();
     }
+
+    // XInput has no lights or trigger effects, and every pad it reads is mapped.
+    fn set_lightbar(&mut self, _id: &DeviceId, _color: Option<Rgb>) {}
+
+    fn set_leds(&mut self, _id: &DeviceId, _leds: Leds) {}
+
+    fn set_trigger_effects(&mut self, _id: &DeviceId, _effects: TriggerEffects) {}
+
+    fn set_layouts(&mut self, _layouts: Arc<Vec<GenericLayout>>) {}
+
+    // Slots are asked on every poll: nothing to look for and nothing that fails.
+    fn problems(&self) -> Vec<String> {
+        Vec::new()
+    }
+
+    fn rescan(&mut self) {}
 }
 
 /// The XInput slot behind an `xinput:<n>` id.

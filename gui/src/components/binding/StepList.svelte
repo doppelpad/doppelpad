@@ -1,8 +1,10 @@
 <script lang="ts">
   // An ordered list of action steps (a macro, a radial menu sector): per step how it presses
   // (tap, down, up, or held for a time), its parameters, pauses and breaks, and buttons to
-  // move or remove it. Narrow places (the side panel) get rows that wrap.
-  import { ArrowDown, ArrowUp, SeparatorHorizontal, Timer, X } from '@lucide/svelte';
+  // move or remove it; below it the buttons that add steps (an action from the picker, a
+  // pause, a rumble, a break). Narrow places (the side panel) get rows that wrap.
+  import type { Snippet } from 'svelte';
+  import { ArrowDown, ArrowUp, Plus, SeparatorHorizontal, Timer, Vibrate, X } from '@lucide/svelte';
   import { t } from '../../lib/i18n/index.svelte';
   import { hasPress, holdFor } from '../../lib/model/actions';
   import { actionLabel } from '../../lib/model/labels';
@@ -11,22 +13,47 @@
   import type { Action, Press } from '../../lib/types';
   import Select from '../ui/Select.svelte';
   import ActionParams from './ActionParams.svelte';
+  import ActionPicker from './ActionPicker.svelte';
+
+  /** Steps the add buttons offer besides an action from the picker. */
+  type Extra = 'pause' | 'rumble' | 'break';
 
   let {
     steps,
     disabled = false,
     narrow = false,
     empty,
+    adds = ['pause'],
+    busy = false,
+    before,
+    after,
     onchange,
   }: {
     steps: Action[];
+    /** Read-only: nothing can be changed or added. */
     disabled?: boolean;
     /** Rows wrap, for the side panel. */
     narrow?: boolean;
     /** Shown while there are no steps. */
     empty: string;
+    /** The steps the add buttons offer besides an action. */
+    adds?: Extra[];
+    /** Something else adds steps now (a recording): the add buttons wait. */
+    busy?: boolean;
+    /** More buttons in the row, before and after the add buttons. */
+    before?: Snippet;
+    after?: Snippet;
     onchange: (steps: Action[]) => void;
   } = $props();
+
+  /** The action picker is open. */
+  let picking = $state(false);
+
+  const EXTRAS: Record<Extra, { step: Action; icon: typeof Timer; label: string }> = {
+    pause: { step: { pause: 100 }, icon: Timer, label: 'macro.add_pause' },
+    rumble: { step: { rumble: 200 }, icon: Vibrate, label: 'macro.add_rumble' },
+    break: { step: { break: true }, icon: SeparatorHorizontal, label: 'macro.add_break' },
+  };
 
   const PRESSES = $derived([
     { value: 'auto', label: t('macro.step_auto') },
@@ -47,7 +74,7 @@
 
   function setPress(i: number, press: Press | 'hold') {
     if (press === 'hold') onchange(holdFor(steps, i));
-    else onchange(steps.map((s, j) => (j === i ? ({ ...s, action: press } as Action) : s)));
+    else onchange(steps.map((s, j) => (j === i && hasPress(s) ? { ...s, action: press } : s)));
   }
 
   function setPause(i: number, v: string) {
@@ -110,7 +137,39 @@
   {/each}
 </div>
 
+{#if !disabled}
+  <div class="add">
+    {@render before?.()}
+    <button class="btn" class:on={picking && !busy} aria-expanded={picking && !busy} disabled={busy} onclick={() => (picking = !picking)}>
+      <Plus size={14} />
+      {t('binding.add_action')}
+    </button>
+    {#each adds as extra (extra)}
+      {@const x = EXTRAS[extra]}
+      <button class="btn" disabled={busy} onclick={() => onchange([...steps, x.step])}><x.icon size={14} /> {t(x.label)}</button>
+    {/each}
+    {@render after?.()}
+  </div>
+  {#if picking && !busy}
+    <div class="picker" class:narrow>
+      <ActionPicker onpick={(a) => onchange([...steps, a])} onclose={() => (picking = false)} />
+    </div>
+  {/if}
+{/if}
+
 <style>
+  .add {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .add .on {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .picker:not(.narrow) {
+    max-width: 420px;
+  }
   .steps {
     display: flex;
     flex-direction: column;

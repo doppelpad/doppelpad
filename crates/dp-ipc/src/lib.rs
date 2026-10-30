@@ -1,21 +1,30 @@
 //! Control protocol between the Doppelpad daemon and its clients (CLI, GUI).
 //!
-//! Transport: a local socket (a named pipe `\\.\pipe\doppelpad.sock` on Windows, an
-//! abstract socket on Linux, a file socket in the user's temporary folder on macOS). Each
+//! Transport: a local socket (a named pipe `\\.\pipe\doppelpad.sock` on Windows; a file socket
+//! in the user's runtime folder, `$XDG_RUNTIME_DIR`, on Linux and in the user's temporary
+//! folder on macOS, where the daemon also answers only processes of its own user). Each
 //! connection carries exactly one request and one response, each a single line of JSON.
+//!
+//! The command-line tool and the app can be of different versions, so the protocol only
+//! grows: new reply fields get a default, new requests are new variants (an older daemon
+//! answers those with "bad request"), and nothing is renamed.
 
-use std::io::{BufRead, BufReader, Write};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::io::{BufRead, BufReader, Read, Write};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, mpsc};
 use std::time::Duration;
 
 use interprocess::local_socket::prelude::*;
-use interprocess::local_socket::{
-    GenericFilePath, GenericNamespaced, ListenerOptions, Name, Stream,
-};
+use interprocess::local_socket::{ListenerOptions, Name, Stream};
 use serde::{Deserialize, Serialize};
 
 const SOCKET_NAME: &str = "doppelpad.sock";
+/// Longest request line the daemon reads.
+const MAX_REQUEST: u64 = 64 * 1024;
+/// Connections the daemon reads requests from at once; more are turned away.
+const MAX_PENDING: usize = 16;
+/// How long the daemon waits for a request line (where the platform has read timeouts).
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "cmd", rename_all = "snake_case")]
@@ -137,19 +146,24 @@ pub enum IpcError {
 const CALL_TIMEOUT: Duration = Duration::from_secs(15);
 
 fn name(socket: &str) -> std::io::Result<Name<'static>> {
-    // macOS has no abstract sockets: interprocess would put a namespaced name in `/tmp`.
-    if GenericNamespaced::is_supported() && !cfg!(target_os = "macos") {
+    #[cfg(windows)]
+    {
+        use interprocess::local_socket::GenericNamespaced;
         socket.to_owned().to_ns_name::<GenericNamespaced>()
-    } else {
-        socket_dir().join(socket).to_fs_name::<GenericFilePath>()
+    }
+    #[cfg(unix)]
+    {
+        use interprocess::local_socket::GenericFilePath;
+        socket_dir()?.join(socket).to_fs_name::<GenericFilePath>()
     }
 }
 
-/// Where file sockets go: on macOS the user's own temporary folder rather than `/tmp`, which
-/// all users share (a socket another user left there could not be replaced). Asked of the
-/// system rather than read from `TMPDIR`, so a shell that changes `TMPDIR` still finds the
-/// app's socket.
-fn socket_dir() -> std::path::PathBuf {
+/// Where the socket file goes: a folder only its user can enter. Not an abstract socket on
+/// Linux (anyone could connect to it) and not `/tmp` itself, which all users share.
+#[cfg(unix)]
+fn socket_dir() -> std::io::Result<std::path::PathBuf> {
+    // Asked of the system rather than read from `TMPDIR`, so a shell that changes `TMPDIR`
+    // still finds the app's socket.
     #[cfg(target_os = "macos")]
     {
         let mut buf = [0u8; 1024];
@@ -164,10 +178,59 @@ fn socket_dir() -> std::path::PathBuf {
         };
         if n > 0 && n <= buf.len() {
             let dir = std::ffi::CStr::from_bytes_until_nul(&buf).unwrap_or_default();
-            return std::path::PathBuf::from(dir.to_string_lossy().into_owned());
+            return Ok(std::path::PathBuf::from(dir.to_string_lossy().into_owned()));
         }
     }
-    std::path::PathBuf::from("/tmp")
+    // The session's runtime folder (0700), else one of our own in `/tmp`.
+    if let Some(dir) = std::env::var_os("XDG_RUNTIME_DIR").map(std::path::PathBuf::from)
+        && dir.is_absolute()
+    {
+        return Ok(dir);
+    }
+    private_dir(std::path::Path::new(&format!(
+        "/tmp/doppelpad-{}",
+        own_uid()
+    )))
+}
+
+/// `dir`, made if missing, that only we can enter; refused when someone else owns it or can
+/// get in.
+#[cfg(unix)]
+fn private_dir(dir: &std::path::Path) -> std::io::Result<std::path::PathBuf> {
+    use std::os::unix::fs::{DirBuilderExt, MetadataExt};
+    match std::fs::DirBuilder::new().mode(0o700).create(dir) {
+        Ok(()) => {}
+        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {}
+        Err(e) => return Err(e),
+    }
+    let meta = std::fs::symlink_metadata(dir)?;
+    if !meta.is_dir() || meta.uid() != own_uid() || meta.mode() & 0o077 != 0 {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::PermissionDenied,
+            format!("{} is not a private folder of this user", dir.display()),
+        ));
+    }
+    Ok(dir.to_path_buf())
+}
+
+#[cfg(unix)]
+fn own_uid() -> u32 {
+    // SAFETY: geteuid cannot fail and has no preconditions.
+    unsafe { libc::geteuid() }
+}
+
+/// Whether the peer of `conn` runs as our user (always on Windows, where the pipe's default
+/// security already keeps other users out).
+fn same_user(conn: &Stream) -> bool {
+    #[cfg(unix)]
+    {
+        conn.peer_creds().is_ok_and(|c| c.euid() == Some(own_uid()))
+    }
+    #[cfg(windows)]
+    {
+        let _ = conn;
+        true
+    }
 }
 
 /// Send one request to the daemon and wait for its response.
@@ -175,8 +238,29 @@ pub fn call(req: &Request) -> Result<Response, IpcError> {
     call_on(SOCKET_NAME, req, CALL_TIMEOUT)
 }
 
+/// Whether a daemon answers at all, whatever its version: even a reply this client cannot
+/// read means one runs (a check for one to take over must not start a second one).
+pub fn is_running() -> bool {
+    running_on(SOCKET_NAME)
+}
+
+fn running_on(socket: &str) -> bool {
+    // Once connected, something listens, whether it answers in time or understandably.
+    !matches!(
+        call_on(socket, &Request::Status, CALL_TIMEOUT),
+        Err(IpcError::NotRunning(_))
+    )
+}
+
 fn call_on(socket: &str, req: &Request, timeout: Duration) -> Result<Response, IpcError> {
-    let stream = Stream::connect(name(socket)?).map_err(IpcError::NotRunning)?;
+    let name = name(socket).map_err(IpcError::NotRunning)?;
+    let stream = Stream::connect(name).map_err(IpcError::NotRunning)?;
+    if !same_user(&stream) {
+        return Err(IpcError::NotRunning(std::io::Error::new(
+            std::io::ErrorKind::PermissionDenied,
+            "the socket belongs to another user",
+        )));
+    }
     let line = json_line(req)?;
     // Named pipes have no timeouts on Windows: the exchange runs on a helper thread, and a
     // daemon that does not answer in time is given up on.
@@ -193,11 +277,24 @@ fn call_on(socket: &str, req: &Request, timeout: Duration) -> Result<Response, I
                 .map(|_| reply);
             let _ = tx.send(result);
         })?;
-    let reply = rx
-        .recv_timeout(timeout)
-        .map_err(|_| std::io::Error::from(std::io::ErrorKind::TimedOut))??;
-    Ok(serde_json::from_str(reply.trim_end())?)
+    let reply = rx.recv_timeout(timeout).map_err(|_| {
+        std::io::Error::new(
+            std::io::ErrorKind::TimedOut,
+            format!("the daemon did not answer within {} s", timeout.as_secs()),
+        )
+    })??;
+    let response: Response = serde_json::from_str(reply.trim_end())?;
+    Ok(match response {
+        // A request this daemon does not know: it is older than this client.
+        Response::Error { message } if message.starts_with(BAD_REQUEST) => Response::error(
+            format!("{message} (the running daemon is of another Doppelpad version; restart it)"),
+        ),
+        r => r,
+    })
 }
+
+/// How the daemon's answer to a request it cannot read starts.
+const BAD_REQUEST: &str = "bad request: ";
 
 /// Serve requests, answering each with `handler`, until a `shutdown` the handler accepts (one
 /// it answers with an error keeps the server running). Blocks the calling thread.
@@ -214,6 +311,7 @@ fn serve_on(socket: &str, mut handler: impl FnMut(Request) -> Response) -> Resul
     let (tx, requests) = mpsc::channel::<(String, Stream)>();
     let accept = {
         let stop = stop.clone();
+        let pending = Arc::new(AtomicUsize::new(0));
         std::thread::Builder::new()
             .name("dp-ipc-accept".into())
             .spawn(move || {
@@ -222,19 +320,31 @@ fn serve_on(socket: &str, mut handler: impl FnMut(Request) -> Response) -> Resul
                         break;
                     }
                     let Ok(conn) = conn else { continue };
-                    let tx = tx.clone();
+                    if !same_user(&conn) || pending.load(Ordering::Relaxed) >= MAX_PENDING {
+                        continue; // dropped: closed without an answer
+                    }
+                    // Where reads can time out, a silent client lets go of its slot.
+                    let _ = conn.set_recv_timeout(Some(REQUEST_TIMEOUT));
+                    pending.fetch_add(1, Ordering::Relaxed);
+                    let (tx, slot) = (tx.clone(), pending.clone());
                     // Each request is read on a thread of its own, so a client that connects
                     // and sends nothing cannot hold up the others (named pipes have no read
                     // timeouts on Windows).
-                    let _ = std::thread::Builder::new()
+                    let spawned = std::thread::Builder::new()
                         .name("dp-ipc-conn".into())
                         .spawn(move || {
                             let mut conn = BufReader::new(conn);
                             let mut line = String::new();
-                            if conn.read_line(&mut line).is_ok() {
+                            let read = (&mut conn).take(MAX_REQUEST).read_line(&mut line);
+                            slot.fetch_sub(1, Ordering::Relaxed);
+                            // A line cut at the limit is not read as a request.
+                            if read.is_ok_and(|n| (n as u64) < MAX_REQUEST) {
                                 let _ = tx.send((line, conn.into_inner()));
                             }
                         });
+                    if spawned.is_err() {
+                        pending.fetch_sub(1, Ordering::Relaxed);
+                    }
                 }
             })?
     };
@@ -255,9 +365,7 @@ fn serve_on(socket: &str, mut handler: impl FnMut(Request) -> Response) -> Resul
                 }
                 r
             }
-            Err(e) => Response::Error {
-                message: format!("bad request: {e}"),
-            },
+            Err(e) => Response::error(format!("{BAD_REQUEST}{e}")),
         };
         let _ = write_line(&mut conn, &response);
     }
@@ -423,6 +531,54 @@ mod tests {
         assert_eq!(r, Response::ok("Status"));
         call_on(&socket, &Request::Shutdown, Duration::from_secs(3)).unwrap();
         server.join().unwrap().unwrap();
+    }
+
+    /// Over-long requests are not read, unknown ones get a hint at another version, and any
+    /// answer counts as a running daemon.
+    #[test]
+    fn long_and_unknown_requests() {
+        let socket = format!("doppelpad-test-long-{}.sock", std::process::id());
+        assert!(!running_on(&socket), "nothing listens yet");
+        let server = {
+            let socket = socket.clone();
+            std::thread::spawn(move || serve_on(&socket, |req| Response::ok(format!("{req:?}"))))
+        };
+        let start = std::time::Instant::now();
+        while !running_on(&socket) {
+            assert!(start.elapsed() < Duration::from_secs(5), "never listened");
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        let mut long = Stream::connect(name(&socket).unwrap()).unwrap();
+        let huge = format!(
+            "{{\"cmd\":\"apply\",\"path\":\"{}\"}}\n",
+            "x".repeat(70_000)
+        );
+        let _ = long.write_all(huge.as_bytes());
+        let mut reply = String::new();
+        let _ = BufReader::new(&mut long).read_line(&mut reply);
+        assert_eq!(reply, "", "closed without an answer");
+
+        let mut newer = Stream::connect(name(&socket).unwrap()).unwrap();
+        newer.write_all(b"{\"cmd\":\"teleport\"}\n").unwrap();
+        let mut reply = String::new();
+        BufReader::new(&mut newer).read_line(&mut reply).unwrap();
+        assert!(reply.contains("bad request: unknown variant"), "{reply}");
+
+        call_on(&socket, &Request::Shutdown, Duration::from_secs(3)).unwrap();
+        server.join().unwrap().unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn the_socket_folder_is_private() {
+        use std::os::unix::fs::PermissionsExt;
+        let base = std::env::temp_dir().join(format!("dp-ipc-private-{}", std::process::id()));
+        let dir = private_dir(&base).unwrap();
+        let mode = std::fs::metadata(&dir).unwrap().permissions().mode();
+        assert_eq!(mode & 0o777, 0o700);
+        std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o755)).unwrap();
+        assert!(private_dir(&base).is_err(), "others could get in");
+        std::fs::remove_dir(&base).unwrap();
     }
 
     #[test]

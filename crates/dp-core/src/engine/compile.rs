@@ -3,7 +3,7 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use super::recognizer::RecConfig;
-use crate::control::{Control, Dir, TouchGesture};
+use crate::control::{Control, Dir, Half, TouchGesture, TrackpadPart};
 use crate::keys::{Key, MouseButton, WheelDir};
 use crate::pad::{PadButton, Stick, Trigger};
 use crate::profile::{
@@ -238,6 +238,51 @@ pub(super) struct LayerTable {
     pub(super) muted: HashSet<Control>,
     /// Effective analog routes (indices into the profile's).
     pub(super) routes: Vec<usize>,
+    /// What this layer's mappings and routes take from the physical pad for good, worked out
+    /// once: passthrough asks every tick.
+    pub(super) taken: Taken,
+}
+
+/// Physical inputs a layer keeps from the virtual pad whatever happens (see
+/// `Engine::passthrough`, which adds what pending and consumed presses hide).
+#[derive(Clone, Copy, Debug, Default)]
+pub(super) struct Taken {
+    /// Mapped buttons, a bitset over `PadButton::bit`.
+    pub(super) buttons: u32,
+    /// A trackpad click is mapped (it comes from the touchpad button).
+    pub(super) clicks: bool,
+    /// By `Stick as usize`: a stick control is mapped or a route consumes the stick.
+    pub(super) sticks: [bool; 2],
+    /// By `Trigger as usize`: a trigger control is mapped.
+    pub(super) triggers: [bool; 2],
+    pub(super) touchpad: bool,
+    pub(super) gyro: bool,
+}
+
+impl Taken {
+    fn of(table: &LayerTable, p: &Profile) -> Taken {
+        let mapped = |c: Control| table.mapped.contains(&c);
+        let consumes = |src: AnalogSource| {
+            table
+                .routes
+                .iter()
+                .any(|&i| p.analog[i].source == src && p.analog[i].consume)
+        };
+        Taken {
+            buttons: PadButton::ALL
+                .into_iter()
+                .filter(|b| mapped(Control::Button(*b)))
+                .fold(0, |bits, b| bits | b.bit()),
+            clicks: Half::ALL
+                .into_iter()
+                .any(|h| mapped(Control::Trackpad(h, TrackpadPart::Click))),
+            sticks: Stick::ALL
+                .map(|s| Control::of_stick(s).any(mapped) || consumes(AnalogSource::from(s))),
+            triggers: Trigger::ALL.map(|t| Control::of_trigger(t).any(mapped)),
+            touchpad: Control::of_touchpad().any(mapped) || consumes(AnalogSource::Touchpad),
+            gyro: Control::of_gyro().any(mapped) || consumes(AnalogSource::Gyro),
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -481,7 +526,7 @@ fn expand_jumps(mappings: &[Mapping]) -> Vec<(Mapping, Option<JumpTarget>)> {
 const MOUSE_MOTION: Control = Control::MouseMove(Dir::Up);
 
 /// Pulse length of decided-after-the-fact activations.
-const PULSE_PAD_MS: u64 = 20;
+pub(super) const PULSE_PAD_MS: u64 = 20;
 const PULSE_KEY_MS: u64 = 10;
 /// Shortest turbo period.
 const MIN_TURBO_MS: u32 = 10;
@@ -498,9 +543,7 @@ struct MaskTable {
 
 impl MaskTable {
     fn id(&mut self, combo: &[Control]) -> MaskId {
-        let mut key = combo.to_vec();
-        key.sort();
-        key.dedup();
+        let key = Combo(combo.to_vec()).normalized().0;
         if let Some(&id) = self.ids.get(&key) {
             return id;
         }
@@ -592,9 +635,6 @@ pub(super) fn compile(p: &Profile) -> Compiled {
         // the base layer's keyboard/mouse mappings stay behind.
         let unlock = decl.and_then(|l| l.unlock);
         let unlocked = |c: Control| unlock.is_some_and(|u| u.covers(c));
-        let not_inherited: HashSet<MaskId> = decl
-            .map(|l| l.not_inherited.iter().map(|c| mt.id(&c.0)).collect())
-            .unwrap_or_default();
 
         let mut table = LayerTable::default();
         for (bid, b) in bindings.iter().enumerate() {
@@ -602,27 +642,17 @@ pub(super) fn compile(p: &Profile) -> Compiled {
                 table.bindings.entry(b.mask).or_default().push(bid);
             }
         }
-        if inherit {
-            for (bid, b) in bindings.iter().enumerate() {
-                if b.layer == 0
-                    && !not_inherited.contains(&b.mask)
-                    && !mt.masks[b.mask].iter().any(|&c| unlocked(c))
-                    && !bindings.iter().any(|o| o.layer == lid && o.mask == b.mask)
-                {
-                    table.bindings.entry(b.mask).or_default().push(bid);
-                }
+        // The base layer's bindings the layer takes over (the rule dp-config checks with
+        // `Profile::applies_on`; the bindings include the ways back of jumps).
+        let own: HashSet<MaskId> = table.bindings.keys().copied().collect();
+        for (bid, b) in bindings.iter().enumerate() {
+            if b.layer == 0 && !own.contains(&b.mask) && p.inherits(lid, &mt.masks[b.mask]) {
+                table.bindings.entry(b.mask).or_default().push(bid);
             }
         }
 
         for (&mask, bids) in &table.bindings {
-            let mut rec = RecConfig {
-                single: false,
-                t_long: u64::from(p.timing.long_press_ms),
-                t_double: u64::from(p.timing.double_tap_ms),
-                t_triple: u64::from(p.timing.triple_tap_ms),
-                t_pulse: PULSE_KEY_MS,
-                ..Default::default()
-            };
+            let mut rec = RecConfig::new(&p.timing, PULSE_KEY_MS);
             for &bid in bids {
                 let b = &bindings[bid];
                 match b.activator {
@@ -686,6 +716,7 @@ pub(super) fn compile(p: &Profile) -> Compiled {
                 }
             }
         }
+        table.taken = Taken::of(&table, p);
         layers.insert(lid, table);
     }
 
@@ -724,6 +755,96 @@ mod tests {
 
     fn btn(b: PadButton) -> Control {
         Control::Button(b)
+    }
+
+    #[test]
+    fn inheritance_agrees_with_profile_applies_on() {
+        use crate::profile::Unlock;
+        let key = |k| {
+            vec![Action::Key {
+                key: k,
+                action: Press::Auto,
+            }]
+        };
+        let jump = |layer, mode| Jump {
+            layer,
+            mode,
+            delay_ms: None,
+            postpone: false,
+        };
+        let mut p = Profile::default();
+        let mut m = Mapping::new(btn(PadButton::LB), vec![]);
+        m.jump = Some(jump(1, JumpMode::Hold));
+        p.mappings.push(m);
+        let mut m = Mapping::new(btn(PadButton::RB), vec![]);
+        m.jump = Some(jump(2, JumpMode::Toggle));
+        p.mappings.push(m);
+        let mut m = Mapping::new(btn(PadButton::Back), vec![]);
+        m.jump = Some(jump(3, JumpMode::Switch));
+        p.mappings.push(m);
+        p.mappings
+            .push(Mapping::new(btn(PadButton::A), key(Key::A)));
+        let mut m = Mapping::new(btn(PadButton::A), key(Key::B));
+        m.activator = Activator::Long;
+        p.mappings.push(m);
+        p.mappings
+            .push(Mapping::new(btn(PadButton::B), key(Key::C)));
+        p.mappings
+            .push(Mapping::new(Control::Key(Key::Q), key(Key::D)));
+        // A base mapping on the hold jump's trigger: the way back takes it over on layer 1.
+        let mut m = Mapping::new(btn(PadButton::LB), key(Key::E));
+        m.activator = Activator::Double;
+        p.mappings.push(m);
+        let mut m = Mapping::new(btn(PadButton::X), key(Key::F));
+        m.layer = 1;
+        p.mappings.push(m);
+        p.mappings
+            .push(Mapping::new(btn(PadButton::X), key(Key::G)));
+        p.layers = vec![
+            Layer {
+                id: 1,
+                not_inherited: vec![Combo::single(btn(PadButton::B))],
+                ..Layer::default()
+            },
+            Layer {
+                id: 2,
+                inherit: false,
+                ..Layer::default()
+            },
+            Layer {
+                id: 3,
+                unlock: Some(Unlock::Keyboard),
+                ..Layer::default()
+            },
+        ];
+        let c = compile(&p);
+        // The binding of each mapping (expand_jumps adds a way back after hold and toggle
+        // jumps).
+        let mut bid = 0;
+        let mut of_mapping = Vec::new();
+        for m in &p.mappings {
+            of_mapping.push(bid);
+            bid += 1;
+            if m.jump.as_ref().is_some_and(|j| j.mode != JumpMode::Switch) {
+                bid += 1;
+            }
+        }
+        for l in 1..=3u8 {
+            let table = &c.layers[&l];
+            for (i, m) in p.mappings.iter().enumerate() {
+                let compiled = table
+                    .bindings
+                    .values()
+                    .any(|bids| bids.contains(&of_mapping[i]));
+                assert_eq!(compiled, p.applies_on(m, l), "mapping {i} on layer {l}");
+            }
+        }
+        assert!(!p.applies_on(&p.mappings[7], 1), "shadowed by the way back");
+        assert!(p.applies_on(&p.mappings[3], 1) && !p.applies_on(&p.mappings[5], 1));
+        assert!(
+            !p.applies_on(&p.mappings[6], 3),
+            "the keyboard is given back"
+        );
     }
 
     #[test]

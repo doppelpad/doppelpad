@@ -52,10 +52,15 @@ impl SlotSet {
     /// Point slots holding files of the library moved from `from` at their new place.
     fn library_moved(&mut self, from: &Path, to: &Path) {
         for slot in self.slots.iter_mut().flatten() {
-            if let Some(p) = dp_config::relocate::moved_path(slot, from, to) {
-                *slot = p;
-            }
+            follow_move(slot, from, to);
         }
+    }
+}
+
+/// Point `path` at its new place if it is in the library that moved from `from` to `to`.
+pub(crate) fn follow_move(path: &mut PathBuf, from: &Path, to: &Path) {
+    if let Some(p) = dp_config::relocate::moved_path(path, from, to) {
+        *path = p;
     }
 }
 

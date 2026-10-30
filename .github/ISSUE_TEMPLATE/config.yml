@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Desktop app handbook
+    url: https://doppelpad.github.io/doppelpad/handbook/desktop-app/
+    about: How the app works and where its files and logs are, with the Linux and macOS setup next to it.
+  - name: Profile reference
+    url: https://doppelpad.github.io/doppelpad/handbook/profiles/
+    about: Every setting a profile can hold, for writing configs by hand.

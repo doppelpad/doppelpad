@@ -1,10 +1,11 @@
 //! Short rumble patterns that confirm a controller hotkey on the controller it was pressed on,
 //! so the player knows what happened without looking (also in exclusive full-screen games,
-//! where on-screen notifications cannot draw): as many short pulses as the slot number, one
-//! long pulse for remapping on, two for off.
+//! where on-screen notifications cannot draw). [`Confirm::for_action`] says which pattern
+//! each hotkey plays.
 
 use std::collections::HashMap;
 
+use dp_core::hotkeys::HotkeyAction;
 use dp_core::pad::Rumble;
 use dp_platform::{DeviceId, GamepadBackend};
 
@@ -13,6 +14,27 @@ use dp_platform::{DeviceId, GamepadBackend};
 pub enum Confirm {
     Short(u8),
     Long(u8),
+}
+
+impl Confirm {
+    /// The pattern for `action`, with remapping on (`remap_on`) or off afterwards: as many
+    /// short pulses as the slot number; one long pulse when remapping is (still) on, two
+    /// when it went off; one short pulse for the overlay and navigation switches, which
+    /// show for themselves.
+    pub(crate) fn for_action(action: HotkeyAction, remap_on: bool) -> Confirm {
+        let on_off = Confirm::Long(if remap_on { 1 } else { 2 });
+        match action {
+            HotkeyAction::Slot1
+            | HotkeyAction::PadOverlay
+            | HotkeyAction::MappingsOverlay
+            | HotkeyAction::AppNavigation => Confirm::Short(1),
+            HotkeyAction::Slot2 => Confirm::Short(2),
+            HotkeyAction::Slot3 => Confirm::Short(3),
+            HotkeyAction::Slot4 => Confirm::Short(4),
+            HotkeyAction::ToggleRemap | HotkeyAction::StopMacros => on_off,
+            HotkeyAction::EmergencyStop => Confirm::Long(2),
+        }
+    }
 }
 
 /// Pulse lengths and the pause between pulses, in ms.
@@ -122,6 +144,34 @@ mod tests {
         );
         assert_eq!(Confirm::Long(1).intervals(), [(0, 260)]);
         assert_eq!(Confirm::Long(0).intervals().len(), 1, "at least one pulse");
+    }
+
+    #[test]
+    fn every_hotkey_has_its_pattern() {
+        let on: Vec<Confirm> = HotkeyAction::ALL
+            .into_iter()
+            .map(|a| Confirm::for_action(a, true))
+            .collect();
+        use Confirm::*;
+        assert_eq!(
+            on,
+            [
+                Short(1),
+                Short(2),
+                Short(3),
+                Short(4),
+                Long(1),
+                Long(1),
+                Long(2),
+                Short(1),
+                Short(1),
+                Short(1)
+            ]
+        );
+        assert_eq!(
+            Confirm::for_action(HotkeyAction::ToggleRemap, false),
+            Long(2)
+        );
     }
 
     #[test]

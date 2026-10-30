@@ -26,7 +26,7 @@ use super::{CAL_MAGIC, FIRST_PLAYER, NINTENDO_VID, PlayerLights, pid};
 use crate::padio::{
     Every, Identity, InitError, PadDriver, ReportIo, RumblePacer, Seq4, earliest, pause, read_until,
 };
-use crate::{Battery, JoyConSide, Leds, PadFamily};
+use crate::{Battery, JoyConSide, Leds, PadFamily, Transport};
 
 /// Rumble data for "no vibration" (320 Hz / 160 Hz at amplitude 0).
 const NEUTRAL_RUMBLE: [u8; 4] = [0x00, 0x01, 0x40, 0x40];
@@ -168,7 +168,7 @@ impl ControllerType {
 /// How the pad is connected and what the host knows about it.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct Link {
-    pub bluetooth: bool,
+    pub transport: Transport,
     pub vid: u16,
     pub pid: u16,
     /// Charging-grip slot of this HID interface.
@@ -176,6 +176,10 @@ pub struct Link {
 }
 
 impl Link {
+    fn bluetooth(&self) -> bool {
+        self.transport == Transport::Bluetooth
+    }
+
     fn is_grip(&self) -> bool {
         (self.vid, self.pid) == (NINTENDO_VID, pid::CHARGING_GRIP)
     }
@@ -242,12 +246,12 @@ impl Switch1Driver {
 
     /// Minimum spacing between subcommands.
     fn gap(&self) -> Duration {
-        Duration::from_millis(if self.link.bluetooth { 60 } else { 20 })
+        Duration::from_millis(if self.link.bluetooth() { 60 } else { 20 })
     }
 
     /// Wired pads other than the charging grip need keep-alives and, when silent, a restart.
     fn usb_watchdog(&self) -> bool {
-        !self.link.bluetooth && !self.link.is_grip()
+        !self.link.bluetooth() && !self.link.is_grip()
     }
 
     /// Read reports until `want` accepts one or the reply timeout passes.
@@ -340,7 +344,7 @@ impl Switch1Driver {
     }
 
     fn read_type(&mut self, io: &mut dyn ReportIo) -> io::Result<()> {
-        let byte = if self.link.bluetooth {
+        let byte = if self.link.bluetooth() {
             self.subcommand(io, SUB_DEVICE_INFO, &[])?
                 .and_then(|d| d.get(2).copied())
         } else {
@@ -423,7 +427,7 @@ impl Switch1Driver {
         {
             tracing::debug!("no reply to the full-report request");
         }
-        if !self.link.bluetooth {
+        if !self.link.bluetooth() {
             self.usb(io, USB_FORCE, false)?;
         }
         Ok(())
@@ -450,14 +454,14 @@ impl Switch1Driver {
 impl PadDriver for Switch1Driver {
     fn init(&mut self, io: &mut dyn ReportIo) -> Result<Identity, InitError> {
         self.rumble = NEUTRAL_RUMBLE8;
-        if !self.link.bluetooth && !self.usb_handshake(io)? {
+        if !self.link.bluetooth() && !self.usb_handshake(io)? {
             return Err(InitError::NoResponse);
         }
         self.read_type(io)?;
         let ty = self.ty;
         tracing::debug!(
             ?ty,
-            bluetooth = self.link.bluetooth,
+            bluetooth = self.link.bluetooth(),
             "Switch controller type"
         );
         self.load_stick_calibration(io)?;
@@ -523,13 +527,14 @@ impl PadDriver for Switch1Driver {
         self.lights.set(leds.player);
     }
 
-    fn power_off(&mut self, io: &mut dyn ReportIo) -> io::Result<bool> {
-        if !self.link.bluetooth {
-            return Ok(false);
-        }
+    /// Only over Bluetooth: on USB (or in the charging grip) it has nothing to drop.
+    fn can_power_off(&self) -> bool {
+        self.link.bluetooth()
+    }
+
+    fn power_off(&mut self, io: &mut dyn ReportIo) -> io::Result<()> {
         // Set HCI state: disconnect. The controller drops the link and sleeps.
-        self.send_subcommand(io, SUB_HCI_STATE, &[0x00])?;
-        Ok(true)
+        self.send_subcommand(io, SUB_HCI_STATE, &[0x00])
     }
 
     fn service(&mut self, io: &mut dyn ReportIo, rumble: Rumble) -> io::Result<()> {
@@ -595,7 +600,7 @@ impl PadDriver for Switch1Driver {
             let _ = io.write(&report);
         }
         // Wired pads stop reporting in simple mode, so only Bluetooth goes back to it.
-        if self.link.bluetooth && self.initial_mode.is_none_or(|m| m == MODE_SIMPLE) {
+        if self.link.bluetooth() && self.initial_mode.is_none_or(|m| m == MODE_SIMPLE) {
             let _ = self.send_subcommand(io, SUB_REPORT_MODE, &[MODE_SIMPLE]);
         }
     }

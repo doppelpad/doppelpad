@@ -1,20 +1,3 @@
-<script module lang="ts">
-  import { platform } from '../../lib/state/window.svelte';
-  import type { LiveState } from '../../lib/types';
-
-  /** The drivers Doppelpad uses and whether each is installed (none before the first live state). On macOS
-   * also the permission keyboard and mouse need, while virtual controllers do not count: macOS has none
-   * to install. */
-  export function driverStates(live: LiveState | null) {
-    if (!live) return [];
-    const drivers = [
-      { key: 'virtual_pads' as const, state: live.drivers.virtual_pads },
-      { key: 'device_hiding' as const, state: live.drivers.device_hiding },
-    ];
-    return platform === 'macos' ? [...drivers.slice(1), { key: 'input_access' as const, state: live.drivers.input_access }] : drivers;
-  }
-</script>
-
 <script lang="ts">
   // The drivers and whether they are installed. `icon` (settings): a green or warning icon,
   // "missing" at the right and the error as tooltip; `row` (welcome guide): a missing driver's
@@ -27,14 +10,16 @@
   import { CircleAlert, CircleCheck } from '@lucide/svelte';
   import { api } from '../../lib/api';
   import { t } from '../../lib/i18n/index.svelte';
+  import { driverStates } from '../../lib/model/drivers';
   import { app } from '../../lib/state/app.svelte';
+  import { platform } from '../../lib/state/window.svelte';
   import { tip } from '../../lib/tooltip.svelte';
   import type { Driver } from '../../lib/types';
 
   let { tone }: { tone: 'icon' | 'row' } = $props();
 
-  const drivers = $derived(driverStates(app.live));
   const mac = platform === 'macos';
+  const drivers = $derived(driverStates(app.live, mac));
   // Shown in the settings, where virtual controllers stay listed on macOS too.
   const macPads = $derived(
     mac && tone === 'icon' && app.live ? [{ key: 'virtual_pads' as const, state: app.live.drivers.virtual_pads }] : [],

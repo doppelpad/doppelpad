@@ -44,18 +44,20 @@ fn pulse(phase: f32, at: f32, width: f32) -> f32 {
     }
 }
 
-/// The colour `light` shows `t_ms` after it started (black when it is off).
+/// The colour `light` shows `t_ms` after it started (black when it is off; white for no
+/// colour or one that is not `#rrggbb`, which the validator reports). Runs every tick, so it
+/// reads only the colour it shows.
 pub fn color_at(light: &Light, t_ms: u64) -> Rgb {
-    let colors = || light.colors.iter().filter_map(|c| Rgb::from_hex(c));
     let period = u64::from(light.period_ms.max(*Light::PERIOD_MS.start()));
     let cycle = (t_ms / period) as usize;
     let phase = (t_ms % period) as f32 / period as f32;
-    let base = match colors().count() {
-        0 => Rgb::WHITE,
-        n => colors()
-            .nth(if light.cycle { cycle % n } else { 0 })
-            .unwrap_or(Rgb::WHITE),
-    };
+    let n = light.colors.len();
+    let base = match n {
+        0 => None,
+        _ => Some(light.colors[if light.cycle { cycle % n } else { 0 }].as_str()),
+    }
+    .and_then(Rgb::from_hex)
+    .unwrap_or(Rgb::WHITE);
     match light.mode {
         LightMode::Off => Rgb::BLACK,
         LightMode::Solid => base,

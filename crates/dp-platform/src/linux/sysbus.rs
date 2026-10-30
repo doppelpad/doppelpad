@@ -1,10 +1,9 @@
-//! The system bus: one connection for BlueZ ([`super::ble`]), and a check that tells the user
-//! when the bus is out of reach. Keeping the computer awake, the lock-screen pause and turning
-//! controllers off need it too (through `systemd-inhibit` and `busctl`), and would fail without
-//! a word: a container may not share the bus, as the Arch Distrobox container on SteamOS
-//! does not.
+//! The system bus: one connection for BlueZ ([`super::bluez`]) and logind ([`super::logind`]),
+//! and a check that tells the user when the bus is out of reach. Keeping the computer awake,
+//! the lock-screen pause and turning controllers off need it, and would fail without a word: a
+//! container may not share the bus, as the Arch Distrobox container on SteamOS does not.
 
-use std::sync::Mutex;
+use std::sync::{Mutex, MutexGuard, PoisonError};
 use std::time::Duration;
 
 use zbus::blocking::Connection;
@@ -16,20 +15,24 @@ static BUS: Mutex<Option<Connection>> = Mutex::new(None);
 
 /// The system bus, connected on first use and again after [`reset`].
 pub(super) fn connection() -> zbus::Result<Connection> {
-    let mut bus = BUS.lock().unwrap();
-    if let Some(bus) = &*bus {
+    if let Some(bus) = &*bus() {
         return Ok(bus.clone());
     }
+    // Not under the lock: connecting may take a while. Should two threads connect at once, the
+    // first connection stays.
     let connected = zbus::blocking::connection::Builder::system()?
         .method_timeout(CALL_TIMEOUT)
         .build()?;
-    *bus = Some(connected.clone());
-    Ok(connected)
+    Ok(bus().get_or_insert(connected).clone())
+}
+
+fn bus() -> MutexGuard<'static, Option<Connection>> {
+    BUS.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
 /// The connection broke: the next [`connection`] makes a new one.
 pub(super) fn reset() {
-    BUS.lock().unwrap().take();
+    bus().take();
 }
 
 /// What the system bus cannot do for Doppelpad, for the user: nothing when logind answers.

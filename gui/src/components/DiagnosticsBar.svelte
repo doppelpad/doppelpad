@@ -18,16 +18,7 @@
 
   function go(d: DiagMsg) {
     const target = targetOf(d);
-    if (!target) return;
-    if (target.kind === 'radial') {
-      app.view = 'radial';
-      app.radialMenu = target.menu;
-      app.radialSector = target.sector;
-      return;
-    }
-    if (app.view === 'macro' || app.view === 'output' || app.view === 'analog' || app.view === 'radial') app.view = 'front';
-    app.layer = target.layer;
-    if (target.kind === 'mapping') app.select(target.trigger);
+    if (target) app.reveal(target);
   }
 </script>
 

@@ -146,22 +146,37 @@ pub fn fetch<T>(fd: RawFd, fetch: impl FnOnce() -> io::Result<T>) -> Fetch<T> {
 /// Wait up to `timeout_ms` for `fd` to have data (or an error / hangup, which the next read
 /// then reports).
 fn wait_readable(fd: RawFd, timeout_ms: i32) -> io::Result<bool> {
-    let mut p = libc::pollfd {
+    let mut p = [pollfd(fd, libc::POLLIN)];
+    let until = Instant::now() + Duration::from_millis(u64::try_from(timeout_ms).unwrap_or(0));
+    Ok(poll_until(&mut p, until)? > 0)
+}
+
+/// A `pollfd` waiting for `events` on `fd`.
+pub fn pollfd(fd: RawFd, events: libc::c_short) -> libc::pollfd {
+    libc::pollfd {
         fd,
-        events: libc::POLLIN,
+        events,
         revents: 0,
-    };
-    // SAFETY: a single valid pollfd; the descriptor is owned by the caller.
-    let n = unsafe { libc::poll(&mut p, 1, timeout_ms) };
-    if n < 0 {
-        let e = io::Error::last_os_error();
-        return if e.kind() == io::ErrorKind::Interrupted {
-            Ok(false)
-        } else {
-            Err(e)
-        };
     }
-    Ok(n > 0)
+}
+
+/// Wait until one of `fds` is ready (see their `revents`) or `until` passes: the number that
+/// are, 0 once the time is up. A wait a signal interrupts goes on until `until`.
+pub fn poll_until(fds: &mut [libc::pollfd], until: Instant) -> io::Result<usize> {
+    loop {
+        let left = until.saturating_duration_since(Instant::now());
+        // Round up, so a wait of less than a millisecond still waits.
+        let ms = left.as_micros().div_ceil(1000).min(i32::MAX as u128) as libc::c_int;
+        // SAFETY: `fds.len()` valid pollfd entries that live through the call.
+        let n = unsafe { libc::poll(fds.as_mut_ptr(), fds.len() as libc::nfds_t, ms) };
+        if let Ok(n) = usize::try_from(n) {
+            return Ok(n);
+        }
+        let e = io::Error::last_os_error();
+        if e.kind() != io::ErrorKind::Interrupted {
+            return Err(e);
+        }
+    }
 }
 
 const EVIOCGRAB: libc::Ioctl = libc::_IOW::<libc::c_int>(b'E' as u32, 0x90);

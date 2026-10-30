@@ -28,7 +28,8 @@ impl Engine {
     pub(super) fn apply_kbm(&mut self, events: &[KbmEvent]) {
         // Controls that went down during this tick; if they also go up again before the
         // tick ends, they become a press + release "tap" instead of being lost.
-        let mut downs: HashSet<Control> = HashSet::new();
+        let mut downs = std::mem::take(&mut self.scratch.downs);
+        downs.clear();
         for e in events {
             match *e {
                 KbmEvent::Key { key, down } => self.kbm_edge(Control::Key(key), down, &mut downs),
@@ -44,6 +45,7 @@ impl Engine {
                 }
             }
         }
+        self.scratch.downs = downs;
         self.taps.sort();
         self.taps.dedup();
     }
@@ -104,7 +106,8 @@ impl Engine {
             let cfg = &self.profile.touchpad;
             let clicked = pad.pressed(PadButton::Touchpad);
             let regions_on = !cfg.click_required || clicked;
-            let mut regions = Vec::new();
+            let mut regions = std::mem::take(&mut self.scratch.regions);
+            regions.clear();
             if cfg.split {
                 for p in pad.touch.into_iter().flatten() {
                     let (half, at) = touch::half_of(p);
@@ -125,8 +128,9 @@ impl Engine {
                 && regions_on
             {
                 touch::regions((p.x, p.y), cfg, self.touch_diagonals, &mut regions);
-                set.extend(regions.into_iter().map(Control::Touch));
+                set.extend(regions.iter().copied().map(Control::Touch));
             }
+            self.scratch.regions = regions;
         }
         // Gestures: short presses after the tracker recognises them.
         if let Some(pad) = self.pad {
@@ -149,12 +153,7 @@ impl Engine {
         }
         set.extend(self.kbm_down.iter().copied());
 
-        for dir in [
-            WheelDir::Up,
-            WheelDir::Down,
-            WheelDir::Left,
-            WheelDir::Right,
-        ] {
+        for dir in WheelDir::ALL {
             let w = &mut self.wheel[dir as usize];
             match w.active_until {
                 Some(t) if now < t => {
@@ -176,29 +175,16 @@ impl Engine {
         }
         let (vx, vy) = self.mouse_vel;
         let [low, med, high] = self.profile.mouse.zones;
-        let mut dirs = Vec::new();
-        if self.mouse_diagonals {
-            // Screen y grows downwards; directions are y up.
-            let d = directions((vx, -vy), low, DIRECTION_SECTOR, true);
-            dirs.extend(Dir::ALL.into_iter().filter(|d8| d[*d8 as usize]));
-        } else {
-            if vx > low {
-                dirs.push(Dir::Right);
-            } else if vx < -low {
-                dirs.push(Dir::Left);
-            }
-            if vy > low {
-                dirs.push(Dir::Down);
-            } else if vy < -low {
-                dirs.push(Dir::Up);
-            }
-        }
+        // By speed and sector, as for sticks and the touchpad (screen y grows downwards;
+        // directions are y up).
+        let d = directions((vx, -vy), low, DIRECTION_SECTOR, self.mouse_diagonals);
+        let dirs = Dir::ALL.into_iter().filter(|dir| d[*dir as usize]);
         // Zones by speed, in any direction and in each direction it moves.
         let speed = vx.hypot(vy);
         if let Some(z) = zone_at(speed, [low, med, high]) {
             set.insert(Control::MouseZone(None, z));
-            set.extend(dirs.iter().map(|d| Control::MouseZone(Some(*d), z)));
+            set.extend(dirs.clone().map(|d| Control::MouseZone(Some(d), z)));
         }
-        set.extend(dirs.into_iter().map(Control::MouseMove));
+        set.extend(dirs.map(Control::MouseMove));
     }
 }

@@ -2,7 +2,7 @@
 //! a position on the ANSI keyboard, the modifier flags of keyboard events, and the media keys,
 //! which are system events of their own (`NX_KEYTYPE_*` in IOKit's `ev_keymap.h`).
 
-use dp_core::keys::Key;
+use dp_core::keys::{Key, MouseButton};
 
 /// The virtual key code of a key; `None` for keys a Mac keyboard does not have (Print Screen,
 /// Scroll Lock, Pause, the launch and browser keys) or that are not plain keys on macOS (the
@@ -236,9 +236,43 @@ pub fn modifier_down(key: Key, flags: u64) -> Option<bool> {
     Some(flags & bits & !(flag::SHIFT | flag::CONTROL | flag::OPTION | flag::COMMAND) != 0)
 }
 
+/// The mouse buttons besides left and right, by the number "other" mouse events carry: what the
+/// event tap reads and the output writes.
+const OTHER_BUTTONS: [(MouseButton, i64); 3] = [
+    (MouseButton::Middle, 2),
+    (MouseButton::X1, 3),
+    (MouseButton::X2, 4),
+];
+
+/// The button of an "other" mouse event's button number.
+pub fn other_button(number: i64) -> Option<MouseButton> {
+    OTHER_BUTTONS
+        .iter()
+        .find(|(_, n)| *n == number)
+        .map(|(b, _)| *b)
+}
+
+/// The button number of a button other than left and right (the middle one's for those).
+pub fn other_number(button: MouseButton) -> i64 {
+    OTHER_BUTTONS
+        .iter()
+        .find(|(b, _)| *b == button)
+        .map_or(2, |(_, n)| *n)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn other_buttons_round_trip() {
+        for (b, n) in OTHER_BUTTONS {
+            assert_eq!(other_button(other_number(b)), Some(b));
+            assert_eq!(other_number(other_button(n).unwrap()), n);
+        }
+        assert_eq!(other_button(7), None);
+        assert_eq!(other_button(0), None, "left has a type of its own");
+    }
 
     #[test]
     fn codes_are_unique_and_round_trip() {

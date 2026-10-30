@@ -6,7 +6,7 @@
 //! the accessibility API (the Accessibility permission). Screenshots go through `screencapture`,
 //! which shows other programs' windows only with the Screen Recording permission.
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use objc2_application_services::{AXError, AXUIElement};
 use objc2_core_foundation::{CFBoolean, CFDictionary, CFRetained, CFString, CFType, CGPoint};
@@ -20,31 +20,13 @@ use objc2_io_kit::{
 };
 
 use super::{process, windows};
+use crate::tools::{run, screenshot_file};
 use crate::{PlatformError, PowerAction, Result, SystemControl};
 
 #[derive(Default)]
 pub struct MacSystem {
     /// The power assertion that keeps the Mac awake, while one is held.
     awake: Option<IOPMAssertionID>,
-}
-
-/// Run a system tool and wait for it.
-fn run(program: &str, args: &[&str]) -> Result<()> {
-    let status = std::process::Command::new(program)
-        .args(args)
-        .status()
-        .map_err(|source| PlatformError::Os {
-            context: "starting a system tool",
-            source,
-        })?;
-    if status.success() {
-        Ok(())
-    } else {
-        Err(PlatformError::Other(format!(
-            "`{program} {}` failed",
-            args.join(" ")
-        )))
-    }
 }
 
 /// Send `loginwindow` one of its Apple events (`shut`, `rest`, `rlgo`).
@@ -83,21 +65,6 @@ fn stamp() -> String {
         tm.tm_min,
         tm.tm_sec
     )
-}
-
-/// `<app> <stamp>.png` in `dir`, numbered if that exists already.
-fn screenshot_path(dir: &Path, app: Option<&str>, stamp: &str) -> PathBuf {
-    let app = app
-        .map(|a| a.trim_end_matches(".exe").trim_end_matches(".EXE"))
-        .filter(|a| !a.is_empty())
-        .unwrap_or("Screenshot");
-    let mut path = dir.join(format!("{app} {stamp}.png"));
-    let mut n = 2;
-    while path.exists() {
-        path = dir.join(format!("{app} {stamp} ({n}).png"));
-        n += 1;
-    }
-    path
 }
 
 /// The display that shows `point`, else the main one.
@@ -145,32 +112,34 @@ impl SystemControl for MacSystem {
         }
     }
 
-    fn screenshot(&mut self) -> Result<PathBuf> {
-        let front = windows::front();
-        let app = front.as_ref().and_then(|w| process::process_name(w.pid));
-        let path = screenshot_path(&screenshot_dir()?, app.as_deref(), &stamp());
-        let centre = front.map_or(CGPoint { x: 0.0, y: 0.0 }, |w| CGPoint {
-            x: w.bounds.origin.x + w.bounds.size.width / 2.0,
-            y: w.bounds.origin.y + w.bounds.size.height / 2.0,
-        });
-        let r = CGDisplayBounds(display_at(centre));
-        let rect = format!(
-            "{},{},{},{}",
-            r.origin.x, r.origin.y, r.size.width, r.size.height
-        );
-        // Without the permission screencapture fails, or saves the desktop without windows.
-        let taken = run(
-            "/usr/sbin/screencapture",
-            &["-x", "-t", "png", "-R", &rect, &path.display().to_string()],
-        );
-        match taken {
-            Ok(()) if path.exists() => Ok(path),
-            _ => Err(PlatformError::Other(
-                "no screenshot was taken: Doppelpad needs the Screen Recording permission \
+    fn screenshot(&mut self) -> crate::Screenshot {
+        Box::new(|| {
+            let front = windows::front();
+            let app = front.as_ref().and_then(|w| process::process_name(w.pid));
+            let path = screenshot_file(&screenshot_dir()?, app.as_deref(), &stamp());
+            let centre = front.map_or(CGPoint { x: 0.0, y: 0.0 }, |w| CGPoint {
+                x: w.bounds.origin.x + w.bounds.size.width / 2.0,
+                y: w.bounds.origin.y + w.bounds.size.height / 2.0,
+            });
+            let r = CGDisplayBounds(display_at(centre));
+            let rect = format!(
+                "{},{},{},{}",
+                r.origin.x, r.origin.y, r.size.width, r.size.height
+            );
+            // Without the permission screencapture fails, or saves the desktop without windows.
+            let taken = run(
+                "/usr/sbin/screencapture",
+                &["-x", "-t", "png", "-R", &rect, &path.display().to_string()],
+            );
+            match taken {
+                Ok(()) if path.exists() => Ok(path),
+                _ => Err(PlatformError::Other(
+                    "no screenshot was taken: Doppelpad needs the Screen Recording permission \
                  (System Settings › Privacy & Security › Screen & System Audio Recording)"
-                    .into(),
-            )),
-        }
+                        .into(),
+                )),
+            }
+        })
     }
 
     fn close_foreground_window(&mut self) -> Result<()> {
@@ -256,20 +225,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn screenshot_names() {
-        let dir = tempfile::tempdir().unwrap();
-        let stamp = "2026-10-20 17-30-05";
-        let first = screenshot_path(dir.path(), Some("Game.exe"), stamp);
-        assert_eq!(first, dir.path().join("Game 2026-10-20 17-30-05.png"));
-        std::fs::write(&first, b"").unwrap();
-        assert_eq!(
-            screenshot_path(dir.path(), Some("Game.exe"), stamp),
-            dir.path().join("Game 2026-10-20 17-30-05 (2).png")
-        );
-        assert_eq!(
-            screenshot_path(dir.path(), None, stamp),
-            dir.path().join("Screenshot 2026-10-20 17-30-05.png")
-        );
-        assert_eq!(stamp.len(), super::stamp().len());
+    fn screenshot_stamps() {
+        assert_eq!("2026-10-20 17-30-05".len(), stamp().len());
     }
 }

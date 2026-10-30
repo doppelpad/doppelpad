@@ -61,27 +61,44 @@ pub(crate) fn image_path(pid: u32) -> Option<String> {
     (ok != 0).then(|| String::from_utf16_lossy(&buf[..len as usize]))
 }
 
-/// Executable file name and window title of each program with a visible main window (one per
-/// program, the first window found), without this process.
-pub(crate) fn windowed() -> Vec<(String, String)> {
+/// The executable file name (e.g. `game.exe`) a process runs.
+pub(crate) fn exe_name(pid: u32) -> Option<String> {
+    image_path(pid)?
+        .rsplit(['\\', '/'])
+        .next()
+        .map(str::to_owned)
+}
+
+/// Every top-level window, in z order.
+pub(crate) fn top_level_windows() -> Vec<HWND> {
     let mut windows: Vec<HWND> = Vec::new();
     // SAFETY: the callback only pushes into `windows`, which outlives the call.
     unsafe { EnumWindows(Some(collect_window), (&raw mut windows) as LPARAM) };
+    windows
+}
+
+/// The process a window belongs to.
+pub(crate) fn window_pid(hwnd: HWND) -> Option<u32> {
+    let mut pid = 0u32;
+    // SAFETY: a window handle Windows gave out and a valid out-pointer; an invalid handle
+    // leaves `pid` at 0.
+    unsafe { GetWindowThreadProcessId(hwnd, &mut pid) };
+    (pid != 0).then_some(pid)
+}
+
+/// Executable file name and window title of each program with a visible main window (one per
+/// program, the first window found), without this process.
+pub(crate) fn windowed() -> Vec<(String, String)> {
     let own = std::process::id();
     let mut out: Vec<(String, String)> = Vec::new();
-    for hwnd in windows {
+    for hwnd in top_level_windows() {
         if !is_main_window(hwnd) {
             continue;
         }
-        let mut pid = 0u32;
-        // SAFETY: a window handle from EnumWindows and a valid out-pointer.
-        unsafe { GetWindowThreadProcessId(hwnd, &mut pid) };
-        if pid == 0 || pid == own {
+        let Some(pid) = window_pid(hwnd).filter(|&p| p != own) else {
             continue;
-        }
-        let Some(exe) =
-            image_path(pid).and_then(|p| p.rsplit(['\\', '/']).next().map(str::to_owned))
-        else {
+        };
+        let Some(exe) = exe_name(pid) else {
             continue;
         };
         if out.iter().any(|(e, _)| e.eq_ignore_ascii_case(&exe)) {
@@ -112,7 +129,7 @@ fn window_title(hwnd: HWND) -> String {
 
 /// `EnumWindows` callback: collect every top-level window.
 unsafe extern "system" fn collect_window(hwnd: HWND, lparam: LPARAM) -> BOOL {
-    // SAFETY: `lparam` is the `&mut Vec<HWND>` passed by `windowed`.
+    // SAFETY: `lparam` is the `&mut Vec<HWND>` passed by `top_level_windows`.
     let windows = unsafe { &mut *(lparam as *mut Vec<HWND>) };
     windows.push(hwnd);
     1

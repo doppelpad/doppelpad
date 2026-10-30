@@ -106,8 +106,33 @@ fn quick_key_tap_within_one_tick_is_not_lost() {
             down: false,
         },
     ]);
-    // The tap pressed and released A within the tick; outputs were emitted and cleared.
-    assert!(!h.virtual_pad().pressed(PadButton::A));
+    // The tap pressed and released A within the tick: A shows for a pulse, then goes up.
+    let t0 = h.t;
+    assert!(
+        h.virtual_pad().pressed(PadButton::A),
+        "the game sees the tap"
+    );
+    h.until(t0 + 10);
+    assert!(h.virtual_pad().pressed(PadButton::A));
+    h.until(t0 + 30);
+    assert!(!h.virtual_pad().pressed(PadButton::A), "and its release");
+}
+
+#[test]
+fn a_pad_button_held_across_ticks_gets_no_extra_pulse() {
+    let mut p = Profile::default();
+    p.mappings.push(map(
+        Control::Key(Key::Q),
+        vec![Action::Pad {
+            pad: PadButton::A,
+            action: Press::Auto,
+        }],
+    ));
+    let mut h = Harness::new(p);
+    h.key(Key::Q, true);
+    h.until(h.t + 5);
+    h.key(Key::Q, false);
+    assert!(!h.virtual_pad().pressed(PadButton::A), "released on time");
 }
 
 #[test]

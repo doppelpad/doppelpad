@@ -12,13 +12,8 @@ use tauri::ipc::Channel;
 use tauri::{AppHandle, Manager, State};
 use tauri_plugin_updater::{Error as UpdaterError, Update, UpdaterExt};
 
-use crate::commands::AppState;
-
-type CmdResult<T> = Result<T, String>;
-
-fn err(e: impl std::fmt::Display) -> String {
-    e.to_string()
-}
+use crate::error::{CmdError, CmdResult, ErrorCode, err};
+use crate::state::{AppState, lock};
 
 /// The update the last check found, for `update_install`.
 #[derive(Default)]
@@ -27,16 +22,17 @@ pub struct PendingUpdate(Mutex<Option<Update>>);
 /// A newer version, as the window shows it.
 #[derive(Serialize)]
 pub struct UpdateInfo {
-    version: String,
+    pub version: String,
     /// The running version.
-    current: String,
+    pub current: String,
     /// The release notes, as plain text.
-    notes: Option<String>,
+    pub notes: Option<String>,
 }
 
 /// Ask the update endpoints whether a newer version is out; `None` when this one is the newest.
 /// On Linux only the AppImage updates itself (it replaces its own file), on macOS only the app
-/// bundle (it replaces the bundle); a build from source asks for nothing.
+/// bundle (it replaces the bundle), on Windows only an installed copy (the setup installs into
+/// Program Files, not beside a portable one); a build from source asks for nothing.
 #[tauri::command]
 pub async fn update_check(
     app: AppHandle,
@@ -48,6 +44,10 @@ pub async fn update_check(
     }
     if cfg!(target_os = "macos") && !in_app_bundle() {
         tracing::debug!("not in an app bundle: no update check");
+        return Ok(None);
+    }
+    if dp_config::portable_dir().is_some() {
+        tracing::debug!("a portable copy: no update check");
         return Ok(None);
     }
     let handle = app.clone();
@@ -86,7 +86,7 @@ pub async fn update_check(
             notes: u.body.clone().filter(|n| !n.trim().is_empty()),
         }
     });
-    *pending.0.lock().unwrap() = update;
+    *lock(&pending.0) = update;
     Ok(info)
 }
 
@@ -109,18 +109,11 @@ pub async fn update_install(
 ) -> CmdResult<()> {
     // The setup installs into Program Files, not into a portable copy's folder.
     if dp_config::portable_dir().is_some() {
-        return Err(
-            "this is a portable copy: replace its files with the new version from the \
-                    releases page"
-                .into(),
-        );
+        return Err(CmdError::new(ErrorCode::PortableUpdate));
     }
-    let update = pending
-        .0
-        .lock()
-        .unwrap()
+    let update = lock(&pending.0)
         .clone()
-        .ok_or("no update to install: check for one first")?;
+        .ok_or(CmdError::new(ErrorCode::NoUpdate))?;
     let mut received: u64 = 0;
     let mut shown = None;
     let bytes = update

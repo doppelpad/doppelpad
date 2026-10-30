@@ -63,11 +63,20 @@ export const gyroControls = (): ControlName[] => GYRO_DIRS.map((d) => `Gyro${d}`
 export const ZONES = ['Low', 'Med', 'High'] as const;
 export type ZoneName = (typeof ZONES)[number];
 
+/**
+ * The parts of a direction control with zones (a stick, the gyro, mouse motion) after its
+ * prefix: the directions, the zones in any direction, and every direction in every zone.
+ */
+export const zonedParts = (dirs: readonly string[]): string[] => [...dirs, ...ZONES, ...dirs.flatMap((d) => ZONES.map((z) => d + z))];
+
+/** A trackpad half's parts: the directions, its centre, a tap and a click (`TrackpadLeftTap`). */
+export const TRACKPAD_PARTS = [...DIRS8, 'Center', 'Tap', 'Click'] as const;
+
 export type Dir8 = (typeof DIRS8)[number];
 export type GyroDir = (typeof GYRO_DIRS)[number];
 export type TouchRegion = (typeof TOUCH_REGIONS)[number] | (typeof DIAGONALS)[number];
 export type TouchGesture = (typeof TOUCH_GESTURES)[number];
-export type TrackpadPart = Dir8 | 'Center' | 'Tap' | 'Click';
+export type TrackpadPart = (typeof TRACKPAD_PARTS)[number];
 
 /** A control name split into its parts, as the engine's `Control` enum has them (`dp-core`). */
 export type ParsedControl =
@@ -98,7 +107,7 @@ const TRIGGER = new RegExp(`^(LT|RT)(Full|${ZONE})?$`);
 const GYRO = new RegExp(`^Gyro(${alt(GYRO_DIRS)})?(${ZONE})?$`);
 const TOUCH = new RegExp(`^Touch(${alt([...TOUCH_REGIONS, ...DIAGONALS])})$`);
 const GESTURE = new RegExp(`^Touch(${alt(TOUCH_GESTURES)})$`);
-const TRACKPAD = new RegExp(`^Trackpad(Left|Right)(${alt([...DIRS8, 'Center', 'Tap', 'Click'])})$`);
+const TRACKPAD = new RegExp(`^Trackpad(Left|Right)(${alt(TRACKPAD_PARTS)})$`);
 const MOUSE_MOVE = new RegExp(`^MouseMove:(${DIR8})?(${ZONE})?$`);
 
 const sideOf = (s: string): Side => (s === 'Left' || s === 'LT' ? 'left' : 'right');

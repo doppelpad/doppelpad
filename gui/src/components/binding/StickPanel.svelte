@@ -42,7 +42,7 @@
   /** The stick's deflection right now, for the dot on the graph. */
   const deflection = $derived.by(() => {
     if (!app.primary) return null;
-    const [x, y] = stickAxes(app.primary, side);
+    const [x, y] = stickAxes(app.primary.state, side);
     return Math.min(Math.hypot(x, y), 1);
   });
 

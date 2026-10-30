@@ -3,7 +3,8 @@
 
 import { t } from '../i18n/index.svelte';
 import type { ControlName, Mapping, Profile, RadialMenu, RadialPosition, RadialSector } from '../types';
-import { addLayer, editMappingIn, layerOf, modeOf, removeLayer, renameLayer, tidyMapping } from './profile';
+import { jumpsTo, layerOf, modeOf } from './mapping';
+import { addLayer, editMappingIn, removeLayer, renameLayer, tidyMapping } from './profile';
 import { routeLayer } from './routes';
 import { dropUndefined, nonEmpty, setOrDrop } from './util';
 
@@ -77,6 +78,17 @@ export function ringCentre(
   return [x + offset[0], y + offset[1]];
 }
 
+/**
+ * A change of where a menu sits, as the menu stores it: the defaults (the centre of the
+ * screen, no offset) are left out.
+ */
+export function placePatch(patch: { position?: RadialPosition; offset?: [number, number] }): Partial<RadialMenu> {
+  return {
+    ...(patch.position ? { position: patch.position === 'center' ? undefined : patch.position } : {}),
+    ...(patch.offset ? { offset: patch.offset[0] || patch.offset[1] ? patch.offset : undefined } : {}),
+  };
+}
+
 export function updateMenu(p: Profile, i: number, patch: Partial<RadialMenu>): Profile {
   const all = [...(p.radial_menus ?? [])];
   all[i] = dropUndefined({ ...all[i], ...patch });
@@ -89,11 +101,13 @@ export function updateSector(p: Profile, i: number, k: number, patch: Partial<Ra
   return updateMenu(p, i, { sectors });
 }
 
+/** The name a new menu gets: "Menu 3" for the third. */
+const newMenuName = (p: Profile) => t('radial.default_name', { n: (p.radial_menus ?? []).length + 1 });
+
 /** A new menu with four sectors, opened by layer `layer`. */
 export function addMenu(p: Profile, layer: number): Profile {
-  const all = p.radial_menus ?? [];
   const sectors: RadialSector[] = [{ label: '1' }, { label: '2' }, { label: '3' }, { label: '4' }];
-  return { ...p, radial_menus: [...all, { name: t('radial.default_name', { n: all.length + 1 }), layer, sectors }] };
+  return { ...p, radial_menus: [...(p.radial_menus ?? []), { name: newMenuName(p), layer, sectors }] };
 }
 
 /**
@@ -103,9 +117,7 @@ export function addMenu(p: Profile, layer: number): Profile {
 export function createMenu(p: Profile): { profile: Profile; index: number; layer: number } {
   const { profile, id } = addLayer(p);
   const index = (p.radial_menus ?? []).length;
-  const withMenu = addMenu(profile, id);
-  const name = withMenu.radial_menus![index]!.name!;
-  return { profile: renameLayer(withMenu, id, name), index, layer: id };
+  return { profile: renameLayer(addMenu(profile, id), id, newMenuName(p)), index, layer: id };
 }
 
 /** A new menu that only opens from sector `k` of menu `i`. Returns the new menu's index. */
@@ -126,19 +138,16 @@ export function parentsOf(p: Profile, i: number): { menu: number; sector: number
   return (p.radial_menus ?? []).flatMap((m, j) => m.sectors.flatMap((s, k) => (s.submenu === i + 1 ? [{ menu: j, sector: k }] : [])));
 }
 
-/** Whether mapping `m` changes to layer `layer` from another layer. */
-const opens = (m: Mapping, layer: number) => m.jump?.layer === layer && layerOf(m) !== layer;
-
 /** The mappings that change to `layer` (so open its menu). */
 export function openers(p: Profile, layer: number): Mapping[] {
-  return layer === 0 ? [] : p.mappings.filter((m) => opens(m, layer));
+  return layer === 0 ? [] : p.mappings.filter((m) => jumpsTo(m, layer));
 }
 
 /** `p` without what changes to `layer`: mappings that did nothing else go, the others lose their jump. */
 export function removeOpeners(p: Profile, layer: number): Profile {
   const mappings = p.mappings
-    .map((m) => (opens(m, layer) ? tidyMapping({ ...m, jump: undefined }) : m))
-    .filter((m, i) => !opens(p.mappings[i]!, layer) || (m.actions ?? []).length > 0 || !!m.description || modeOf(m) !== 'hold');
+    .map((m) => (jumpsTo(m, layer) ? tidyMapping({ ...m, jump: undefined }) : m))
+    .filter((m, i) => !jumpsTo(p.mappings[i]!, layer) || (m.actions ?? []).length > 0 || !!m.description || modeOf(m) !== 'hold');
   return { ...p, mappings };
 }
 

@@ -33,6 +33,10 @@ pub struct RadialMenu {
 
 impl RadialMenu {
     pub const SCALE: RangeInclusive<f32> = 0.5..=2.0;
+    /// Sectors in one menu.
+    pub const MAX_SECTORS: usize = 12;
+    /// Longest wait before a menu opens.
+    pub const MAX_DELAY_MS: u32 = 5000;
 }
 
 impl Default for RadialMenu {
@@ -175,6 +179,8 @@ impl Crosshair {
     pub const THICKNESS: RangeInclusive<u8> = 10..=100;
     /// Pixels.
     pub const MAX_OUTLINE: u8 = 10;
+    /// Crosshairs in one profile.
+    pub const MAX_PER_PROFILE: usize = 10;
 }
 
 impl Default for Crosshair {

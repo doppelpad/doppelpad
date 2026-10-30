@@ -286,6 +286,10 @@ Contributions are welcome. Do not submit code, assets or text taken from proprie
 software. Base changes on public documentation, open-source drivers and your own
 observations.
 
+Reports help as much as code: [report a bug](https://github.com/doppelpad/doppelpad/issues/new?template=bug_report.yml),
+or [tell how Doppelpad did on your hardware](https://github.com/doppelpad/doppelpad/issues/new?template=hardware_report.yml),
+which helps even when everything worked.
+
 ## License
 
 Licensed under either of [Apache License 2.0](LICENSE-APACHE) or [MIT](LICENSE-MIT) at your

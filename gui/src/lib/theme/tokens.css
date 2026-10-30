@@ -11,7 +11,7 @@
   --text-faint: #6b7483;
   --accent: #14b8a6;
   --accent-hover: #2dd4bf;
-  --accent-soft: rgba(20, 184, 166, 0.14);
+  --accent-soft: color-mix(in srgb, var(--accent) 14%, transparent);
   /* Text and marks on an accent background. */
   --on-accent: #04221f;
   /* Text on a danger background. */
@@ -41,7 +41,11 @@
 
   /* Behind dialogs. */
   --backdrop: rgba(5, 7, 10, 0.6);
-  /* Stacking order: menus, the welcome guide, dialogs, the window caption, toasts, tooltips on top. */
+  /* Stacking order: within a view, what floats over it (its tools, the live output) and the
+     drawing's direction menu; then menus, the welcome guide, dialogs, the window caption,
+     toasts, tooltips on top. */
+  --z-float: 5;
+  --z-popover: 10;
   --z-menu: 50;
   --z-guide: 90;
   --z-dialog: 100;

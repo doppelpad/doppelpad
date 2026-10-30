@@ -35,8 +35,11 @@ export function hasParameters(a: Action): boolean {
   );
 }
 
+/** An action that presses something: a key, a button, a stick or a trigger. */
+export type PressAction = Extract<Action, { action?: unknown }>;
+
 /** Whether an action presses something, so a step can press, release or tap it (`action`). */
-export function hasPress(a: Action): boolean {
+export function hasPress(a: Action): a is PressAction {
   return 'key' in a || 'mouse' in a || 'pad' in a || 'stick' in a || 'trigger' in a;
 }
 
@@ -50,8 +53,8 @@ export const HOLD_MS = 500;
 export function holdFor(steps: Action[], i: number, ms = HOLD_MS): Action[] {
   const s = steps[i];
   if (!s || !hasPress(s)) return steps;
-  const down = { ...s, action: 'down' } as Action;
-  const up = { ...s, action: 'up' } as Action;
+  const down: Action = { ...s, action: 'down' };
+  const up: Action = { ...s, action: 'up' };
   return [...steps.slice(0, i), down, { pause: ms }, up, ...steps.slice(i + 1)];
 }
 
@@ -62,7 +65,12 @@ export const RECORD_MIN_PAUSE_MS = 10;
  * Steps for a recorded change of held controls: releases first, then presses, preceded
  * by the pause since the previous change when it is long enough to matter.
  */
-export function recordedSteps(before: Set<ControlName>, after: Set<ControlName>, gapMs: number | null, keyDelay: number): Action[] {
+export function recordedSteps(
+  before: ReadonlySet<ControlName>,
+  after: ReadonlySet<ControlName>,
+  gapMs: number | null,
+  keyDelay: number,
+): Action[] {
   const out: Action[] = [];
   const ups = [...before].filter((c) => !after.has(c)).sort();
   const downs = [...after].filter((c) => !before.has(c)).sort();

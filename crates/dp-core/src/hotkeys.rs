@@ -16,101 +16,111 @@ pub const HOLD_MS_RANGE: std::ops::RangeInclusive<u32> = 50..=2500;
 /// Most buttons in one hotkey.
 pub const MAX_BUTTONS: usize = 4;
 
-/// What a hotkey does.
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum HotkeyAction {
-    /// Select slot `n` (0-based) and turn remapping on.
-    Slot(u8),
+/// Writes [`HotkeyAction`], its [`Hotkeys`] entries and their defaults from one table, so
+/// a new hotkey cannot miss one of them.
+macro_rules! hotkey_table {
+    ($(
+        $(#[doc = $doc:literal])*
+        $variant:ident => $field:ident = [$($button:ident),*];
+    )+) => {
+        /// What a hotkey does.
+        #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+        pub enum HotkeyAction {
+            $( $(#[doc = $doc])* $variant ),+
+        }
+
+        impl HotkeyAction {
+            /// Every action, in the order of their entries in [`Hotkeys`].
+            pub const ALL: [HotkeyAction; [$(stringify!($variant)),+].len()] =
+                [$(HotkeyAction::$variant),+];
+
+            /// The name of the action's entry in the hotkey settings (`slot1`, `remap`, …).
+            pub const fn setting(self) -> &'static str {
+                match self {
+                    $( HotkeyAction::$variant => stringify!($field) ),+
+                }
+            }
+        }
+
+        /// The hotkey settings. An empty button list disables that hotkey.
+        #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+        #[serde(default, deny_unknown_fields)]
+        pub struct Hotkeys {
+            /// How long all buttons of a hotkey must be held.
+            pub hold_ms: u32,
+            $( $(#[doc = $doc])* pub $field: Vec<PadButton>, )+
+            /// Confirm each hotkey with a short rumble pattern on the controller.
+            pub rumble: bool,
+        }
+
+        impl Default for Hotkeys {
+            fn default() -> Self {
+                #[allow(unused_imports)]
+                use PadButton::*;
+                Hotkeys {
+                    hold_ms: 500,
+                    $( $field: vec![$($button),*], )+
+                    rumble: false,
+                }
+            }
+        }
+
+        impl Hotkeys {
+            /// The buttons of `action`'s hotkey (none when it is off).
+            pub fn buttons(&self, action: HotkeyAction) -> &[PadButton] {
+                match action {
+                    $( HotkeyAction::$variant => &self.$field ),+
+                }
+            }
+
+            /// Every hotkey off; the hold time and the rumble setting as by default.
+            pub fn none() -> Self {
+                Hotkeys {
+                    $( $field: Vec::new(), )+
+                    ..Self::default()
+                }
+            }
+        }
+    };
+}
+
+hotkey_table! {
+    /// Select slot 1 and turn remapping on.
+    Slot1 => slot1 = [LB, RB, X];
+    /// Select slot 2 and turn remapping on.
+    Slot2 => slot2 = [LB, RB, Y];
+    /// Select slot 3 and turn remapping on.
+    Slot3 => slot3 = [LB, RB, B];
+    /// Select slot 4 and turn remapping on.
+    Slot4 => slot4 = [LB, RB, A];
     /// Turn remapping off, or on again.
-    ToggleRemap,
+    ToggleRemap => remap = [];
     /// Stop running macros, turbo and toggle latches; remapping continues.
-    StopMacros,
-    /// Stop everything like [`HotkeyAction::StopMacros`], then turn remapping off.
-    EmergencyStop,
+    StopMacros => stop_macros = [];
+    /// Stop everything like `stop_macros`, then turn remapping off.
+    EmergencyStop => emergency_stop = [Back, Start, LB, RB];
     /// Show or hide the live controller overlay.
-    PadOverlay,
+    PadOverlay => pad_overlay = [];
     /// Show or hide the overlay listing the current layer's mappings.
-    MappingsOverlay,
-    /// Turn the app's controller navigation on or off (the app follows the live state).
-    AppNavigation,
+    MappingsOverlay => mappings_overlay = [];
+    /// Drive the app with the controller (focus, activate, back), or stop.
+    AppNavigation => app_navigation = [];
 }
 
 impl HotkeyAction {
-    /// Every action with an entry in [`Hotkeys`], in its order.
-    pub const ALL: [HotkeyAction; 10] = [
-        HotkeyAction::Slot(0),
-        HotkeyAction::Slot(1),
-        HotkeyAction::Slot(2),
-        HotkeyAction::Slot(3),
-        HotkeyAction::ToggleRemap,
-        HotkeyAction::StopMacros,
-        HotkeyAction::EmergencyStop,
-        HotkeyAction::PadOverlay,
-        HotkeyAction::MappingsOverlay,
-        HotkeyAction::AppNavigation,
-    ];
-}
-
-/// The hotkey settings. An empty button list disables that hotkey.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(default, deny_unknown_fields)]
-pub struct Hotkeys {
-    /// How long all buttons of a hotkey must be held.
-    pub hold_ms: u32,
-    pub slot1: Vec<PadButton>,
-    pub slot2: Vec<PadButton>,
-    pub slot3: Vec<PadButton>,
-    pub slot4: Vec<PadButton>,
-    pub remap: Vec<PadButton>,
-    pub stop_macros: Vec<PadButton>,
-    pub emergency_stop: Vec<PadButton>,
-    pub pad_overlay: Vec<PadButton>,
-    pub mappings_overlay: Vec<PadButton>,
-    /// Drive the app with the controller (focus, activate, back), or stop.
-    pub app_navigation: Vec<PadButton>,
-    /// Confirm each hotkey with a short rumble pattern on the controller.
-    pub rumble: bool,
-}
-
-impl Default for Hotkeys {
-    fn default() -> Self {
-        use PadButton::*;
-        Hotkeys {
-            hold_ms: 500,
-            slot1: vec![LB, RB, X],
-            slot2: vec![LB, RB, Y],
-            slot3: vec![LB, RB, B],
-            slot4: vec![LB, RB, A],
-            remap: Vec::new(),
-            stop_macros: Vec::new(),
-            emergency_stop: vec![Back, Start, LB, RB],
-            pad_overlay: Vec::new(),
-            mappings_overlay: Vec::new(),
-            app_navigation: Vec::new(),
-            rumble: false,
+    /// The slot (0-based) a slot hotkey selects.
+    pub const fn slot(self) -> Option<u8> {
+        match self {
+            HotkeyAction::Slot1 => Some(0),
+            HotkeyAction::Slot2 => Some(1),
+            HotkeyAction::Slot3 => Some(2),
+            HotkeyAction::Slot4 => Some(3),
+            _ => None,
         }
     }
 }
 
 impl Hotkeys {
-    /// The buttons of `action`'s hotkey (none when it is off or has no entry).
-    pub fn buttons(&self, action: HotkeyAction) -> &[PadButton] {
-        match action {
-            HotkeyAction::Slot(0) => &self.slot1,
-            HotkeyAction::Slot(1) => &self.slot2,
-            HotkeyAction::Slot(2) => &self.slot3,
-            HotkeyAction::Slot(3) => &self.slot4,
-            HotkeyAction::Slot(_) => &[],
-            HotkeyAction::ToggleRemap => &self.remap,
-            HotkeyAction::StopMacros => &self.stop_macros,
-            HotkeyAction::EmergencyStop => &self.emergency_stop,
-            HotkeyAction::PadOverlay => &self.pad_overlay,
-            HotkeyAction::MappingsOverlay => &self.mappings_overlay,
-            HotkeyAction::AppNavigation => &self.app_navigation,
-        }
-    }
-
     /// Every configured hotkey with its button mask.
     pub fn entries(&self) -> impl Iterator<Item = (HotkeyAction, u32)> + '_ {
         HotkeyAction::ALL
@@ -132,12 +142,13 @@ impl Hotkeys {
         }
         let entries: Vec<_> = self.entries().collect();
         for (i, (a, mask)) in entries.iter().enumerate() {
+            let name = a.setting();
             if mask.count_ones() as usize > MAX_BUTTONS {
-                out.push(format!("{a:?}: at most {MAX_BUTTONS} buttons"));
+                out.push(format!("{name}: at most {MAX_BUTTONS} buttons"));
             }
             if entries[..i].iter().any(|(_, m)| m == mask) {
                 out.push(format!(
-                    "{a:?}: the same buttons are used by another hotkey"
+                    "{name}: the same buttons are used by another hotkey"
                 ));
             }
         }
@@ -222,7 +233,7 @@ mod tests {
         assert_eq!(d.update(&hk, combo, 10), None);
         assert_eq!(d.withheld(), combo, "complete: withheld at once");
         assert_eq!(d.update(&hk, combo, 509), None);
-        assert_eq!(d.update(&hk, combo, 510), Some(HotkeyAction::Slot(0)));
+        assert_eq!(d.update(&hk, combo, 510), Some(HotkeyAction::Slot1));
         assert_eq!(d.update(&hk, combo, 2000), None, "only once per hold");
         // Releasing X keeps LB and RB withheld until they are released too.
         assert_eq!(d.update(&hk, mask(&[LB, RB]), 2001), None);
@@ -233,28 +244,16 @@ mod tests {
 
     #[test]
     fn hotkeys_due_together_fire_one_after_the_other() {
-        let off = Hotkeys {
-            slot1: vec![],
-            slot2: vec![],
-            slot3: vec![],
-            slot4: vec![],
-            remap: vec![],
-            stop_macros: vec![],
-            emergency_stop: vec![],
-            pad_overlay: vec![],
-            mappings_overlay: vec![],
-            ..Default::default()
-        };
         let hk = Hotkeys {
             slot1: vec![LB, X],
             slot2: vec![RB, Y],
-            ..off
+            ..Hotkeys::none()
         };
         let mut d = HotkeyDetector::new();
         let both = mask(&[LB, X, RB, Y]);
         assert_eq!(d.update(&hk, both, 0), None);
-        assert_eq!(d.update(&hk, both, 500), Some(HotkeyAction::Slot(0)));
-        assert_eq!(d.update(&hk, both, 501), Some(HotkeyAction::Slot(1)));
+        assert_eq!(d.update(&hk, both, 500), Some(HotkeyAction::Slot1));
+        assert_eq!(d.update(&hk, both, 501), Some(HotkeyAction::Slot2));
         assert_eq!(d.update(&hk, both, 502), None, "each fires once");
     }
 
@@ -267,7 +266,7 @@ mod tests {
         d.update(&hk, mask(&[LB, RB]), 300);
         assert_eq!(d.update(&hk, combo, 400), None, "timer restarted");
         assert_eq!(d.update(&hk, combo, 899), None);
-        assert_eq!(d.update(&hk, combo, 900), Some(HotkeyAction::Slot(1)));
+        assert_eq!(d.update(&hk, combo, 900), Some(HotkeyAction::Slot2));
     }
 
     #[test]
@@ -287,7 +286,7 @@ mod tests {
         );
         assert_eq!(
             d.update(&hk, mask(&[LB, RB, X]), 700),
-            Some(HotkeyAction::Slot(0))
+            Some(HotkeyAction::Slot1)
         );
         // On its own, the smaller one works.
         let mut d = HotkeyDetector::new();
@@ -328,20 +327,45 @@ mod tests {
             stop_macros: vec![A, B, X, Y, LB],
             ..Default::default()
         };
-        let p = bad.problems();
-        assert_eq!(p.len(), 3, "{p:?}");
+        assert_eq!(
+            bad.problems(),
+            [
+                "hotkey hold time must be 50–2500 ms",
+                "remap: the same buttons are used by another hotkey",
+                "stop_macros: at most 4 buttons",
+            ]
+        );
         let off = Hotkeys {
             slot1: Vec::new(),
             ..Default::default()
         };
-        assert!(!off.entries().any(|(a, _)| a == HotkeyAction::Slot(0)));
+        assert!(!off.entries().any(|(a, _)| a == HotkeyAction::Slot1));
         assert_eq!(hk.entries().count(), 5, "four slots and the emergency stop");
+        assert_eq!(Hotkeys::none().entries().count(), 0);
+    }
+
+    #[test]
+    fn every_action_names_its_settings_entry() {
+        let full = Hotkeys {
+            remap: vec![A],
+            stop_macros: vec![B],
+            pad_overlay: vec![X],
+            mappings_overlay: vec![Y],
+            app_navigation: vec![Start],
+            ..Default::default()
+        };
+        let table = toml::Table::try_from(&full).unwrap();
         for a in HotkeyAction::ALL {
-            assert_eq!(
-                hk.buttons(a).is_empty(),
-                !hk.entries().any(|(e, _)| e == a),
-                "{a:?}"
-            );
+            let entry = table.get(a.setting()).unwrap_or_else(|| panic!("{a:?}"));
+            let names: Vec<&str> = full.buttons(a).iter().map(|b| b.name()).collect();
+            assert_eq!(entry, &toml::Value::try_from(names).unwrap(), "{a:?}");
         }
+        assert_eq!(
+            table.len(),
+            HotkeyAction::ALL.len() + 2,
+            "one entry per action, plus hold_ms and rumble"
+        );
+        let slots: Vec<u8> = HotkeyAction::ALL.iter().filter_map(|a| a.slot()).collect();
+        assert_eq!(slots, [0, 1, 2, 3]);
     }
 }

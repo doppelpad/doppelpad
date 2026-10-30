@@ -13,6 +13,7 @@
 <script lang="ts" generics="T extends string | null">
   // One choice out of a few, as a row of radio buttons. `inline` and `fill` join the buttons in
   // one frame (as wide as their labels, or sharing the width); `chips` are separate buttons.
+  import { arrowKeys } from '../../lib/dom';
   import { tip } from '../../lib/tooltip.svelte';
 
   let {
@@ -39,13 +40,21 @@
   } = $props();
 
   const marks = $derived(options.some((o) => o.marked !== undefined));
+  /** The option Tab stops at: the chosen one, else the first. */
+  const tabStop = $derived(
+    Math.max(
+      0,
+      options.findIndex((o) => o.value === value),
+    ),
+  );
 </script>
 
-<div class={['seg', variant, size, cls, { joined: variant !== 'chips', marks }]} role="radiogroup" aria-label={label}>
-  {#each options as o (o.value)}
+<div class={['seg', variant, size, cls, { joined: variant !== 'chips', marks }]} role="radiogroup" aria-label={label} use:arrowKeys>
+  {#each options as o, i (o.value)}
     <button
       role="radio"
       aria-checked={value === o.value}
+      tabindex={i === tabStop ? 0 : -1}
       class:btn={variant === 'chips' && size === 'm'}
       class:on={value === o.value}
       class:marked={o.marked}

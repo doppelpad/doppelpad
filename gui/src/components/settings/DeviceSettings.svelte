@@ -80,7 +80,7 @@
   {/each}
   {#if free.length >= 2}
     <div class="new">
-      <input placeholder={t('devices.settings.group_name')} bind:value={name} />
+      <input placeholder={t('devices.settings.group_name')} aria-label={t('devices.settings.group_name')} bind:value={name} />
       {#each free as d (d.id)}
         <label class="pick">
           <input

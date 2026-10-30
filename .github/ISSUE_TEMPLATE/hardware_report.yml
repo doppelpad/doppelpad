@@ -1,0 +1,114 @@
+name: Tried it on my hardware
+description: Tell us how Doppelpad did with your controller and PC, what worked and what didn't.
+title: "Hardware report: "
+labels: ["hardware report"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for trying Doppelpad! So far it has run on only a few controllers and PCs, so a report helps even when everything worked. Features that still wait for a real device are marked "⏳ hardware testing" in the [roadmap](https://github.com/doppelpad/doppelpad/blob/main/docs/ROADMAP.md); Linux results are collected in [LINUX-TESTING.md](https://github.com/doppelpad/doppelpad/blob/main/docs/LINUX-TESTING.md). A clear bug is easier to follow up in a bug report of its own.
+
+        Please describe things in your own words and don't paste code, screenshots or text from reWASD or other proprietary tools.
+
+  - type: input
+    id: controller
+    attributes:
+      label: Controller
+      description: The model, as exactly as you know it (the model number is on the back or in the battery compartment).
+      placeholder: DualShock 4, second version (CUH-ZCT2)
+    validations:
+      required: true
+  - type: dropdown
+    id: connection
+    attributes:
+      label: Connection
+      multiple: true
+      options:
+        - USB cable
+        - Bluetooth
+        - Wireless receiver or dongle
+        - Built in (Steam Deck, handheld PC)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Windows 11
+        - Windows 10
+        - Linux
+        - SteamOS (Steam Deck)
+        - macOS
+    validations:
+      required: true
+  - type: input
+    id: os-version
+    attributes:
+      label: OS version and PC
+      description: >
+        The version, and the PC or handheld if it matters. Linux: the distribution and desktop,
+        and X11 or Wayland. SteamOS: desktop mode or Game Mode. macOS: Apple silicon or Intel.
+      placeholder: Windows 11 24H2 on a ROG Ally
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Doppelpad version
+      description: >
+        Under *Settings* (the gear at the top right) › *General* › *Updates* in the app, or
+        `doppelpad --version`.
+      placeholder: 0.7.0
+    validations:
+      required: true
+  - type: dropdown
+    id: used
+    attributes:
+      label: What you used
+      multiple: true
+      options:
+        - The desktop app
+        - The command-line tool (doppelpad run, daemon, monitor)
+
+  - type: textarea
+    id: worked
+    attributes:
+      label: What worked
+      description: >
+        Anything you tried, for example: buttons and sticks, gyro, touchpad, rumble, light bar
+        and player lights, adaptive triggers, battery level, hiding the controller from games,
+        the virtual Xbox or DualShock 4 controller in a game, turning the controller off,
+        several controllers at once, overlays, the DSU server in an emulator.
+    validations:
+      required: true
+  - type: textarea
+    id: did-not-work
+    attributes:
+      label: What didn't work, or only partly
+      description: What you did, what happened and what you expected. Leave it empty if everything worked.
+  - type: textarea
+    id: games
+    attributes:
+      label: Games and programs
+      description: The games or emulators you tried it with, and whether Steam was running.
+
+  - type: textarea
+    id: doctor
+    attributes:
+      label: Output of `doppelpad doctor`
+      description: |
+        It lists the drivers and the controllers Doppelpad finds, with their ids.
+        - **Windows** (PowerShell): `& "C:\Program Files\Doppelpad\doppelpad.exe" doctor`
+        - **Linux, macOS**: `./doppelpad doctor`, with the tool from the release's `.tar.gz`
+        - **Built from source**: `cargo run --release -p doppelpad -- doctor`
+      render: text
+  - type: textarea
+    id: log
+    attributes:
+      label: Log file
+      description: >
+        If something didn't work, drag `doppelpad-gui.log` into this box. *Settings › Files ›
+        Open log folder* in the app shows it.

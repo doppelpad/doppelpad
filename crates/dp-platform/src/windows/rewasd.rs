@@ -15,7 +15,7 @@ use std::time::{Duration, Instant};
 use serde::Serialize;
 use windows_sys::Win32::Foundation::{
     ERROR_ACCESS_DENIED, ERROR_CANCELLED, ERROR_SERVICE_DOES_NOT_EXIST, ERROR_SERVICE_NOT_ACTIVE,
-    HWND, LPARAM, WAIT_OBJECT_0,
+    HWND, WAIT_OBJECT_0,
 };
 use windows_sys::Win32::System::Com::{
     COINIT_APARTMENTTHREADED, COINIT_DISABLE_OLE1DDE, CoInitializeEx, CoUninitialize,
@@ -33,18 +33,17 @@ use windows_sys::Win32::System::Threading::{
 use windows_sys::Win32::UI::Shell::{
     SEE_MASK_NOASYNC, SEE_MASK_NOCLOSEPROCESS, SHELLEXECUTEINFOW, ShellExecuteExW,
 };
-use windows_sys::Win32::UI::WindowsAndMessaging::{
-    EnumWindows, GetWindowThreadProcessId, PostMessageW, SW_HIDE, WM_CLOSE,
-};
-use windows_sys::core::BOOL;
+use windows_sys::Win32::UI::WindowsAndMessaging::{PostMessageW, SW_HIDE, WM_CLOSE};
 
-use super::{OwnedHandle, from_wide_ptr, process, wide};
+use super::{OwnedHandle, from_wide_ptr, process, wide, win_ms};
 
 const SERVICE: &str = "jlserv";
 /// How long the service gets to stop.
 const SERVICE_TIMEOUT: Duration = Duration::from_secs(20);
 /// How long the programs get to close on their own before they are terminated.
 const CLOSE_TIMEOUT: Duration = Duration::from_secs(2);
+/// How long a terminated program gets to end.
+const KILL_TIMEOUT: Duration = Duration::from_secs(2);
 
 /// What of reWASD is running.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -131,20 +130,19 @@ impl Drop for ScHandle {
 }
 
 fn open_service(access: u32) -> io::Result<ScHandle> {
-    // SAFETY: plain calls; the handles are owned and closed on return.
-    unsafe {
-        let scm = OpenSCManagerW(null(), null(), SC_MANAGER_CONNECT);
-        if scm.is_null() {
-            return Err(io::Error::last_os_error());
-        }
-        let scm = ScHandle(scm);
-        let name = wide(SERVICE);
-        let svc = OpenServiceW(scm.0, name.as_ptr(), access);
-        if svc.is_null() {
-            return Err(io::Error::last_os_error());
-        }
-        Ok(ScHandle(svc))
+    // SAFETY: plain call; the handle is owned and closed on return.
+    let scm = unsafe { OpenSCManagerW(null(), null(), SC_MANAGER_CONNECT) };
+    if scm.is_null() {
+        return Err(io::Error::last_os_error());
     }
+    let scm = ScHandle(scm);
+    let name = wide(SERVICE);
+    // SAFETY: the service manager's handle and a NUL-terminated name.
+    let svc = unsafe { OpenServiceW(scm.0, name.as_ptr(), access) };
+    if svc.is_null() {
+        return Err(io::Error::last_os_error());
+    }
+    Ok(ScHandle(svc))
 }
 
 fn status(svc: &ScHandle) -> io::Result<SERVICE_STATUS_PROCESS> {
@@ -301,11 +299,19 @@ fn stop_service_elevated(parent: HWND) -> Result<(), StopError> {
         return Ok(()); // the caller still waits for the service to stop
     }
     let process = OwnedHandle::new(info.hProcess);
+    // SAFETY: a valid process handle.
+    if unsafe { WaitForSingleObject(process.raw(), win_ms(SERVICE_TIMEOUT)) } != WAIT_OBJECT_0 {
+        // sc.exe has not finished: whether the service stops tells.
+        tracing::debug!("sc.exe did not finish in time");
+        return Ok(());
+    }
     let mut code = 0u32;
     // SAFETY: valid process handle and out-pointer.
-    unsafe {
-        WaitForSingleObject(process.raw(), SERVICE_TIMEOUT.as_millis() as u32);
-        GetExitCodeProcess(process.raw(), &mut code);
+    if unsafe { GetExitCodeProcess(process.raw(), &mut code) } == 0 {
+        return Err(StopError::Failed(format!(
+            "cannot tell whether sc.exe stopped the reWASD service: {}",
+            io::Error::last_os_error()
+        )));
     }
     match code {
         0 => Ok(()),
@@ -337,41 +343,31 @@ fn close_processes(processes: &[Process]) -> Vec<String> {
     if open.is_empty() {
         return failed;
     }
+    // Ask each of their top-level windows to close.
     let pids: Vec<u32> = open.iter().map(|(p, _)| p.pid).collect();
-    // SAFETY: the callback only reads `pids`, which outlives the call.
-    unsafe { EnumWindows(Some(post_close), (&raw const pids) as LPARAM) };
+    for hwnd in process::top_level_windows() {
+        if process::window_pid(hwnd).is_some_and(|pid| pids.contains(&pid)) {
+            // SAFETY: posting a message has no memory-safety requirements.
+            unsafe { PostMessageW(hwnd, WM_CLOSE, 0, 0) };
+        }
+    }
     let deadline = Instant::now() + CLOSE_TIMEOUT;
     for (p, h) in &open {
         let left = deadline.saturating_duration_since(Instant::now());
         // SAFETY: valid process handles.
-        let exited =
-            unsafe { WaitForSingleObject(h.raw(), left.as_millis() as u32) } == WAIT_OBJECT_0;
+        let exited = unsafe { WaitForSingleObject(h.raw(), win_ms(left)) } == WAIT_OBJECT_0;
         if exited {
             continue;
         }
         // SAFETY: as above.
         let killed = unsafe { TerminateProcess(h.raw(), 1) } != 0
-            && unsafe { WaitForSingleObject(h.raw(), 2000) } == WAIT_OBJECT_0;
+            && unsafe { WaitForSingleObject(h.raw(), win_ms(KILL_TIMEOUT)) } == WAIT_OBJECT_0;
         if !killed {
             tracing::warn!(name = %p.name, "cannot terminate reWASD program");
             failed.push(p.name.clone());
         }
     }
     failed
-}
-
-/// `EnumWindows` callback: post `WM_CLOSE` to top-level windows of the given processes.
-unsafe extern "system" fn post_close(hwnd: HWND, lparam: LPARAM) -> BOOL {
-    // SAFETY: `lparam` is the `&Vec<u32>` passed by `close_processes`.
-    let pids = unsafe { &*(lparam as *const Vec<u32>) };
-    let mut pid = 0u32;
-    // SAFETY: valid window handle from EnumWindows and out-pointer.
-    unsafe { GetWindowThreadProcessId(hwnd, &mut pid) };
-    if pids.contains(&pid) {
-        // SAFETY: posting a message has no memory-safety requirements.
-        unsafe { PostMessageW(hwnd, WM_CLOSE, 0, 0) };
-    }
-    1
 }
 
 #[cfg(test)]

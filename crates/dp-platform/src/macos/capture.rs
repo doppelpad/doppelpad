@@ -77,16 +77,6 @@ fn mask() -> CGEventMask {
     .fold(0, |m, t| m | (1 << t.0))
 }
 
-/// The button of an "other" mouse event's button number.
-fn other_button(number: i64) -> Option<MouseButton> {
-    match number {
-        2 => Some(MouseButton::Middle),
-        3 => Some(MouseButton::X1),
-        4 => Some(MouseButton::X2),
-        _ => None,
-    }
-}
-
 /// Wheel motion as events, in lines (fractions from trackpads included); positive is up and
 /// left.
 fn wheel_events(vertical: f64, horizontal: f64) -> impl Iterator<Item = KbmEvent> {
@@ -151,7 +141,7 @@ fn events_of(kind: CGEventType, event: &CGEvent) -> Vec<KbmEvent> {
         CGEventType::RightMouseDown => button(MouseButton::Right, true),
         CGEventType::RightMouseUp => button(MouseButton::Right, false),
         CGEventType::OtherMouseDown | CGEventType::OtherMouseUp => {
-            match other_button(field(CGEventField::MouseEventButtonNumber)) {
+            match keycodes::other_button(field(CGEventField::MouseEventButtonNumber)) {
                 Some(b) => button(b, kind == CGEventType::OtherMouseDown),
                 None => Vec::new(),
             }
@@ -244,14 +234,14 @@ fn tap_thread(
     filter: Arc<CaptureFilter>,
     ready: &Sender<std::result::Result<LoopRef, String>>,
 ) {
-    let mut ctx = Box::new(TapCtx {
+    let ctx = Ctx::new(TapCtx {
         tx,
         filter,
         port: None,
         detached: false,
     });
-    let info: *mut TapCtx = &mut *ctx;
-    // SAFETY: the callback matches, and `info` stays valid until the tap is invalidated below.
+    // SAFETY: the callback matches, and the context stays valid until the tap is invalidated
+    // below (`ctx` is dropped after that).
     let port = unsafe {
         CGEvent::tap_create(
             CGEventTapLocation::HIDEventTap,
@@ -259,7 +249,7 @@ fn tap_thread(
             CGEventTapOptions::Default,
             mask(),
             Some(tap_callback),
-            info.cast(),
+            ctx.0.as_ptr().cast(),
         )
     };
     let Some(port) = port else {
@@ -272,20 +262,42 @@ fn tap_thread(
     };
     let source = CFMachPort::new_run_loop_source(None, Some(&port), 0);
     let Some(run_loop) = CFRunLoop::current() else {
+        port.invalidate();
         let _ = ready.send(Err("no run loop for the event tap".into()));
         return;
     };
     // SAFETY: the common modes are a constant CoreFoundation provides.
     run_loop.add_source(source.as_deref(), unsafe { kCFRunLoopCommonModes });
     CGEvent::tap_enable(&port, true);
-    ctx.port = Some(port.clone());
+    // SAFETY: the callback runs only inside the run loop below, on this thread.
+    unsafe { (*ctx.0.as_ptr()).port = Some(port.clone()) };
     let _ = ready.send(Ok(LoopRef(run_loop)));
     CFRunLoop::run();
 
     CGEvent::tap_enable(&port, false);
     port.invalidate();
-    if ctx.detached {
+    // SAFETY: the tap is invalidated: no callback runs any more.
+    if unsafe { (*ctx.0.as_ptr()).detached } {
         CGAssociateMouseAndMouseCursorPosition(true);
+    }
+}
+
+/// The tap's context, owned through this pointer alone: the tap's callback reaches it through
+/// the same pointer while the run loop runs, so no `Box` or `&mut` may stand for it meanwhile.
+/// Freed on drop, which the tap thread does only once its tap is invalidated (or was never
+/// added to a run loop).
+struct Ctx(NonNull<TapCtx>);
+
+impl Ctx {
+    fn new(ctx: TapCtx) -> Ctx {
+        Ctx(NonNull::from(Box::leak(Box::new(ctx))))
+    }
+}
+
+impl Drop for Ctx {
+    fn drop(&mut self) {
+        // SAFETY: made from a `Box` in `Ctx::new`, and no callback reaches it any more.
+        drop(unsafe { Box::from_raw(self.0.as_ptr()) });
     }
 }
 
@@ -349,13 +361,6 @@ mod tests {
             ]
         );
         assert_eq!(wheel_events(0.0, 0.0).count(), 0);
-    }
-
-    #[test]
-    fn other_buttons() {
-        assert_eq!(other_button(2), Some(MouseButton::Middle));
-        assert_eq!(other_button(4), Some(MouseButton::X2));
-        assert_eq!(other_button(7), None);
     }
 
     #[test]

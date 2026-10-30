@@ -73,10 +73,10 @@
     const dev = app.primary;
     if (!dev) return null;
     if (isStick) {
-      const [x, y] = stickAxes(dev, source.side);
+      const [x, y] = stickAxes(dev.state, source.side);
       return { x: Math.abs(x), y: Math.abs(y), mag: Math.hypot(x, y), zone: stickZoneAt(x, y, th) };
     }
-    const v = triggerAxis(dev, source.side);
+    const v = triggerAxis(dev.state, source.side);
     return { x: v, y: v, mag: v, zone: triggerZoneAt(v, th.x) };
   });
 

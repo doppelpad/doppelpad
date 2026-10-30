@@ -39,7 +39,8 @@ impl<'a> Importer<'a> {
                 ..Default::default()
             };
             if boolean(c, "isDelayBeforeOpening") {
-                menu.delay_ms = int(c, "delayBeforeOpening").unwrap_or(500).clamp(0, 5000) as u32;
+                let max = i64::from(RadialMenu::MAX_DELAY_MS);
+                menu.delay_ms = int(c, "delayBeforeOpening").unwrap_or(500).clamp(0, max) as u32;
             }
             menu.position = position(
                 enum_str(c, "horizontalAlignment").as_deref(),
@@ -146,18 +147,24 @@ impl<'a> Importer<'a> {
         let num = |c: &Value, key: &str| get(c, key).and_then(Value::as_f64);
         let mut shapes = false;
         for (i, c) in items.into_iter().enumerate() {
-            if i == 10 {
-                self.diags
-                    .warn("crosshairs", "only the first ten crosshairs were kept");
+            if i == Crosshair::MAX_PER_PROFILE {
+                self.diags.warn(
+                    "crosshairs",
+                    format!(
+                        "only the first {} crosshairs were kept",
+                        Crosshair::MAX_PER_PROFILE
+                    ),
+                );
                 break;
             }
             let d = Crosshair::default();
             shapes |= get(c, "crosshairType").is_some();
             let magnifier = boolean(c, "useMagnifier").then(|| Magnifier {
-                zoom: num(c, "magnification").unwrap_or(2.0).clamp(1.0, 16.0) as f32,
-                size: num(c, "magnificationSizePercents")
-                    .map_or(0.2, |v| v / 100.0)
-                    .clamp(0.1, 1.0) as f32,
+                zoom: within(num(c, "magnification").unwrap_or(2.0), &Magnifier::ZOOM),
+                size: within(
+                    num(c, "magnificationSizePercents").map_or(0.2, |v| v / 100.0),
+                    &Magnifier::SIZE,
+                ),
             });
             let delta = |key| int(c, key).unwrap_or(0).clamp(-10_000, 10_000) as i16;
             p.crosshairs.push(Crosshair {
@@ -165,10 +172,19 @@ impl<'a> Importer<'a> {
                 shape: CrosshairShape::Cross,
                 color: get(c, "color").and_then(rgb).unwrap_or(d.color),
                 opacity: num(c, "opacity").map_or(1.0, |v| (v / 100.0).clamp(0.0, 1.0) as f32),
-                size: int(c, "size").map_or(d.size, |v| v.clamp(10, 200) as u16),
-                thickness: int(c, "thickness").map_or(d.thickness, |v| v.clamp(10, 100) as u8),
-                outline: num(c, "edgingThickness")
-                    .map_or(0, |v| (v / 5.0).round().clamp(0.0, 10.0) as u8),
+                size: int(c, "size").map_or(d.size, |v| {
+                    let [lo, hi] = [Crosshair::SIZE.start(), Crosshair::SIZE.end()];
+                    v.clamp(i64::from(*lo), i64::from(*hi)) as u16
+                }),
+                thickness: int(c, "thickness").map_or(d.thickness, |v| {
+                    let [lo, hi] = [Crosshair::THICKNESS.start(), Crosshair::THICKNESS.end()];
+                    v.clamp(i64::from(*lo), i64::from(*hi)) as u8
+                }),
+                outline: num(c, "edgingThickness").map_or(0, |v| {
+                    (v / 5.0)
+                        .round()
+                        .clamp(0.0, f64::from(Crosshair::MAX_OUTLINE)) as u8
+                }),
                 outline_color: get(c, "edgingColor")
                     .and_then(rgb)
                     .unwrap_or(d.outline_color),
@@ -208,4 +224,9 @@ fn position(horizontal: Option<&str>, vertical: Option<&str>) -> RadialPosition 
         (_, Some("bottom")) => P::Bottom,
         _ => P::Center,
     }
+}
+
+/// `v` as an `f32` clamped into `range`.
+fn within(v: f64, range: &std::ops::RangeInclusive<f32>) -> f32 {
+    (v as f32).clamp(*range.start(), *range.end())
 }

@@ -132,25 +132,22 @@ impl KbmOutput for SendInputOutput {
     }
 
     fn clip(&mut self, rect: Option<[f32; 4]>) {
-        // SAFETY: plain Win32 calls; the RECT outlives the call.
-        unsafe {
-            match rect {
-                None => {
-                    ClipCursor(std::ptr::null());
-                }
-                Some([x1, y1, x2, y2]) => {
-                    let (w, h) = (GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN));
-                    let px = |v: f32, size: i32| (v.clamp(0.0, 1.0) * size as f32).round() as i32;
-                    let r = RECT {
-                        left: px(x1.min(x2), w),
-                        top: px(y1.min(y2), h),
-                        right: px(x1.max(x2), w).max(px(x1.min(x2), w) + 1),
-                        bottom: px(y1.max(y2), h).max(px(y1.min(y2), h) + 1),
-                    };
-                    ClipCursor(&r);
-                }
-            }
-        }
+        let Some([x1, y1, x2, y2]) = rect else {
+            // SAFETY: a null rectangle lets the cursor go.
+            unsafe { ClipCursor(std::ptr::null()) };
+            return;
+        };
+        // SAFETY: plain queries.
+        let (w, h) = unsafe { (GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN)) };
+        let px = |v: f32, size: i32| (v.clamp(0.0, 1.0) * size as f32).round() as i32;
+        let r = RECT {
+            left: px(x1.min(x2), w),
+            top: px(y1.min(y2), h),
+            right: px(x1.max(x2), w).max(px(x1.min(x2), w) + 1),
+            bottom: px(y1.max(y2), h).max(px(y1.min(y2), h) + 1),
+        };
+        // SAFETY: a RECT that outlives the call.
+        unsafe { ClipCursor(&r) };
     }
 
     fn wheel(&mut self, dir: WheelDir, detents: f32) {

@@ -32,6 +32,7 @@ pub mod linux;
 #[cfg(any(target_os = "macos", test))]
 pub mod macos;
 
+pub(crate) mod bdaddr;
 pub mod generic;
 pub mod groups;
 #[cfg(any(target_os = "macos", test))]
@@ -62,6 +63,7 @@ pub(crate) mod switch2gatt;
 #[cfg(any(windows, target_os = "linux", target_os = "macos"))]
 pub(crate) mod switch2usb;
 pub mod timer;
+pub(crate) mod tools;
 #[cfg(any(windows, target_os = "linux", target_os = "macos"))]
 pub(crate) mod usb;
 #[cfg(any(target_os = "linux", target_os = "macos", test))]
@@ -116,6 +118,46 @@ pub fn spawn_detached(cmd: &mut std::process::Command) -> std::io::Result<()> {
     Ok(())
 }
 
+/// Open `url` (a web page, or a page of the system's settings) with the system's handler.
+pub fn open_url(url: &str) -> std::io::Result<()> {
+    #[cfg(windows)]
+    let opener = "explorer";
+    #[cfg(target_os = "macos")]
+    let opener = "open";
+    #[cfg(not(any(windows, target_os = "macos")))]
+    let opener = "xdg-open";
+    spawn_detached(host_command(opener).arg(url))
+}
+
+/// Show `path` in the file manager: a folder as it is, a file selected in its folder (on
+/// Linux, where file managers differ, its folder).
+pub fn reveal(path: &std::path::Path) -> std::io::Result<()> {
+    #[cfg(windows)]
+    {
+        let arg = if path.is_dir() {
+            path.as_os_str().to_owned()
+        } else {
+            let mut arg = std::ffi::OsString::from("/select,");
+            arg.push(path);
+            arg
+        };
+        spawn_detached(host_command("explorer").arg(arg))
+    }
+    #[cfg(target_os = "macos")]
+    {
+        spawn_detached(host_command("open").arg("-R").arg(path))
+    }
+    #[cfg(not(any(windows, target_os = "macos")))]
+    {
+        let dir = if path.is_dir() {
+            path
+        } else {
+            path.parent().unwrap_or(path)
+        };
+        spawn_detached(host_command("xdg-open").arg(dir))
+    }
+}
+
 /// Stable identifier of a physical device, unique while it is connected.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct DeviceId(pub String);
@@ -162,6 +204,17 @@ pub enum JoyConSide {
     Right,
 }
 
+/// How a controller is connected to the computer.
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Transport {
+    Usb,
+    Bluetooth,
+    /// Built in, through a receiver of its own, or not known (XInput does not tell).
+    #[default]
+    Other,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DeviceInfo {
     pub id: DeviceId,
@@ -169,6 +222,9 @@ pub struct DeviceInfo {
     pub family: PadFamily,
     pub vendor_id: u16,
     pub product_id: u16,
+    /// How it is connected; the name may say more ("wireless", "USB grip").
+    #[serde(default)]
+    pub transport: Transport,
     /// Which backend produced it (`xinput`, `hid`, `evdev`, ...).
     pub backend: String,
     /// OS device-instance paths used to hide the device (HidHide blacklist entries on
@@ -233,37 +289,37 @@ impl Battery {
 }
 
 /// Source of physical gamepads.
+///
+/// No method has a default: backends that wrap others (groups, Joy-Con pairs) pass every
+/// setting on, and one that forgot a method would otherwise still compile. A backend without
+/// a feature says so with an empty method.
 pub trait GamepadBackend: Send {
     fn name(&self) -> &'static str;
     /// Enumerate connected devices and return their latest state. Must not block for long;
     /// backends with blocking reads run their own threads and return cached state here.
     fn poll(&mut self, out: &mut Vec<PadSnapshot>);
     /// Forward rumble to a physical device (if it supports it).
-    fn set_rumble(&mut self, _id: &DeviceId, _rumble: Rumble) {}
+    fn set_rumble(&mut self, id: &DeviceId, rumble: Rumble);
     /// Show a light bar colour on a physical device (if it has one); `None` stops setting
     /// it and leaves the light bar as it is.
-    fn set_lightbar(&mut self, _id: &DeviceId, _color: Option<Rgb>) {}
+    fn set_lightbar(&mut self, id: &DeviceId, color: Option<Rgb>);
     /// Show player lights and the microphone LED (if the device has them).
-    fn set_leds(&mut self, _id: &DeviceId, _leds: Leds) {}
+    fn set_leds(&mut self, id: &DeviceId, leds: Leds);
     /// Play trigger effects, left then right (DualSense); `None` leaves a trigger as it is.
-    fn set_trigger_effects(&mut self, _id: &DeviceId, _effects: TriggerEffects) {}
+    fn set_trigger_effects(&mut self, id: &DeviceId, effects: TriggerEffects);
     /// Turn a wireless controller off. `false` when this backend cannot (wired, unknown).
-    fn power_off(&mut self, _id: &DeviceId) -> bool {
-        false
-    }
+    fn power_off(&mut self, id: &DeviceId) -> bool;
     /// Tell the backend which XInput slots / device paths belong to our own virtual pads
     /// so it does not read them back as physical input.
-    fn ignore_virtual(&mut self, _ignored: &VirtualIgnoreList) {}
+    fn ignore_virtual(&mut self, ignored: &VirtualIgnoreList);
     /// How generic pads' inputs map to pad controls, by model.
-    fn set_layouts(&mut self, _layouts: Arc<Vec<generic::GenericLayout>>) {}
+    fn set_layouts(&mut self, layouts: Arc<Vec<generic::GenericLayout>>);
     /// Devices the backend found but cannot use, as user-facing explanations
     /// (e.g. "another program is using the controller").
-    fn problems(&self) -> Vec<String> {
-        Vec::new()
-    }
+    fn problems(&self) -> Vec<String>;
     /// Look for devices now rather than at the next scheduled scan, and retry the ones
     /// that could not be opened (e.g. because another program has just released them).
-    fn rescan(&mut self) {}
+    fn rescan(&mut self);
 }
 
 /// Devices created by Doppelpad itself, which input backends must skip.
@@ -312,6 +368,11 @@ pub trait VirtualPadFactory: Send {
     /// Whether the platform has virtual controllers at all, installed or not. Where it has none
     /// (macOS, for now), every config runs with keyboard and mouse only, whichever virtual
     /// controller it names for Windows and Linux.
+    ///
+    /// It also decides when a config's controller is hidden: where virtual controllers exist,
+    /// hiding waits for one, so a game keeps the controller under a config that has none; where
+    /// none exist, a config that asks hides it all the same, so the game does not see input a
+    /// mapping turned into keys.
     fn exist(&self) -> bool {
         true
     }
@@ -482,13 +543,6 @@ pub trait DeviceHider: Send {
     fn hide(&mut self, instance_paths: &[String]) -> Result<()>;
     /// Undo everything this hider changed.
     fn restore(&mut self) -> Result<()>;
-    /// Whether a config's controller is hidden even without a virtual controller standing in
-    /// for it. Where virtual controllers exist (Windows, Linux) hiding waits for one, so a game
-    /// keeps the controller under a config that has none; macOS has none yet and hides whenever
-    /// a config asks, so the game does not see input that a mapping turned into keys.
-    fn hides_without_virtual_pad(&self) -> bool {
-        false
-    }
     /// Connected devices the hiding driver hides from Doppelpad itself (set up for another
     /// tool, or left by an older install), as user-facing explanations. Asks the driver,
     /// so call it now and then rather than every tick.
@@ -518,11 +572,15 @@ pub enum PowerAction {
 }
 
 /// Desktop actions that mappings can trigger.
+/// A screenshot to take; see [`SystemControl::screenshot`].
+pub type Screenshot = Box<dyn FnOnce() -> Result<std::path::PathBuf> + Send>;
+
 pub trait SystemControl: Send {
     /// Applications are asked to close as usual; nothing is forced.
     fn power(&mut self, action: PowerAction) -> Result<()>;
-    /// Save a picture of the monitor showing the focused window; returns the file.
-    fn screenshot(&mut self) -> Result<std::path::PathBuf>;
+    /// The work of saving a picture of the monitor showing the focused window, which returns
+    /// the file. It runs on a thread of its own: capturing, encoding and writing take a while.
+    fn screenshot(&mut self) -> Screenshot;
     /// Ask the focused window to close, as its close button does.
     fn close_foreground_window(&mut self) -> Result<()>;
     /// Keep the computer from going to sleep while `on` (played-back input is not user
@@ -535,7 +593,6 @@ pub trait SystemControl: Send {
     }
 }
 
-/// All backends for the current OS.
 /// What a driver probe found (see [`Platform::probe_drivers`]).
 #[derive(Debug)]
 pub struct DriverReport {
@@ -557,6 +614,31 @@ pub struct DriverReport {
     pub system_problems: Vec<String>,
 }
 
+/// Whether the Bluetooth backends look for Switch 2 controllers in pairing mode: the Windows
+/// watcher, the BlueZ discovery and the CoreBluetooth scan run only while it is on (on until
+/// turned off). Controllers already connected stay. Clones share the switch.
+#[derive(Clone, Debug)]
+pub struct Switch2Search(Arc<AtomicBool>);
+
+impl Default for Switch2Search {
+    fn default() -> Self {
+        Switch2Search(Arc::new(AtomicBool::new(true)))
+    }
+}
+
+impl Switch2Search {
+    /// Look for controllers, or stop looking.
+    pub fn set(&self, on: bool) {
+        self.0.store(on, Ordering::Relaxed);
+    }
+
+    /// Whether to look for controllers now.
+    pub fn on(&self) -> bool {
+        self.0.load(Ordering::Relaxed)
+    }
+}
+
+/// All backends for the current OS.
 pub struct Platform {
     /// Check the drivers the backends need. It keeps no state, so it can run on a thread of
     /// its own while the backends serve the engine loop.
@@ -568,6 +650,8 @@ pub struct Platform {
     pub hider: Box<dyn DeviceHider>,
     pub foreground: Box<dyn ForegroundWatcher>,
     pub system: Box<dyn SystemControl>,
+    /// The Switch 2 search of the Bluetooth backends; set it to turn the search on or off.
+    pub switch2_search: Switch2Search,
 }
 
 impl Platform {
@@ -593,7 +677,7 @@ impl Platform {
 }
 
 /// A program with a visible window, offered when choosing the programs of a game.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 pub struct WindowedProgram {
     /// Executable file name, e.g. `Game.exe`.
     pub exe: String,
@@ -649,21 +733,6 @@ pub fn foreground_program() -> Option<String> {
     {
         None
     }
-}
-
-/// Whether the Bluetooth backends look for Switch 2 controllers in pairing mode.
-static SWITCH2_SEARCH: AtomicBool = AtomicBool::new(true);
-
-/// Look for Switch 2 controllers in pairing mode over Bluetooth LE, or stop looking: the
-/// Windows watcher, the BlueZ discovery and the CoreBluetooth scan run only while it is on (on
-/// until turned off). Controllers already connected stay.
-pub fn set_switch2_search(on: bool) {
-    SWITCH2_SEARCH.store(on, Ordering::Relaxed);
-}
-
-/// Whether to look for Switch 2 controllers over Bluetooth LE now.
-pub(crate) fn switch2_search() -> bool {
-    SWITCH2_SEARCH.load(Ordering::Relaxed)
 }
 
 /// Whether Steam runs: its Steam Input may take a virtual controller and remap it again

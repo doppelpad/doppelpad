@@ -47,44 +47,22 @@ const PRIMARY_SERVICE: u16 = 0x2800;
 const CHARACTERISTIC: u16 = 0x2803;
 const CLIENT_CONFIGURATION: u16 = 0x2902;
 
-/// A UUID in its usual (big-endian) byte order.
-pub type Uuid = [u8; 16];
+/// A UUID as a number, read as its text form reads (see
+/// [`crate::nintendo::switch2ble::parse_uuid`]).
+pub type Uuid = u128;
 
 /// The Bluetooth base UUID, which 16-bit UUIDs stand in for.
-const BASE: Uuid = [
-    0, 0, 0, 0, 0x00, 0x00, 0x10, 0x00, 0x80, 0x00, 0x00, 0x80, 0x5F, 0x9B, 0x34, 0xFB,
-];
-
-/// A UUID from its text form (`AB7DE9BE-89FE-…`).
-pub fn uuid(text: &str) -> Option<Uuid> {
-    let hex: Vec<u8> = text.bytes().filter(|b| *b != b'-').collect();
-    if hex.len() != 32 {
-        return None;
-    }
-    let mut out = [0u8; 16];
-    for (byte, pair) in out.iter_mut().zip(hex.chunks(2)) {
-        *byte = u8::from_str_radix(std::str::from_utf8(pair).ok()?, 16).ok()?;
-    }
-    Some(out)
-}
+const BASE: Uuid = 0x0000_0000_0000_1000_8000_0080_5F9B_34FB;
 
 fn short_uuid(u: u16) -> Uuid {
-    let mut out = BASE;
-    out[2..4].copy_from_slice(&u.to_be_bytes());
-    out
+    BASE | Uuid::from(u) << 96
 }
 
 /// A UUID as ATT carries it: 2 or 16 bytes, little-endian.
 fn read_uuid(le: &[u8]) -> Option<Uuid> {
     match le.len() {
         2 => Some(short_uuid(u16::from_le_bytes([le[0], le[1]]))),
-        16 => {
-            let mut out = [0u8; 16];
-            for (o, b) in out.iter_mut().zip(le.iter().rev()) {
-                *o = *b;
-            }
-            Some(out)
-        }
+        16 => Some(Uuid::from_le_bytes(le.try_into().ok()?)),
         _ => None,
     }
 }
@@ -406,6 +384,10 @@ mod tests {
         Instant::now() + Duration::from_secs(1)
     }
 
+    fn uuid(text: &str) -> Option<Uuid> {
+        crate::nintendo::switch2ble::parse_uuid(text)
+    }
+
     fn hex(s: &str) -> Vec<u8> {
         (0..s.len())
             .step_by(2)
@@ -416,18 +398,14 @@ mod tests {
     #[test]
     fn uuids() {
         let service = uuid("AB7DE9BE-89FE-49AD-828F-118F09DF7FD0").unwrap();
-        assert_eq!(service[0], 0xAB);
-        assert_eq!(service[15], 0xD0);
-        assert_eq!(uuid("ab7de9be89fe49ad828f118f09df7fd0"), Some(service));
-        assert_eq!(uuid("AB7DE9BE"), None);
-        assert_eq!(uuid("XB7DE9BE-89FE-49AD-828F-118F09DF7FD0"), None);
-        let mut le = service;
-        le.reverse();
+        let le = service.to_le_bytes();
+        assert_eq!((le[15], le[0]), (0xAB, 0xD0), "on the air backwards");
         assert_eq!(read_uuid(&le), Some(service));
         assert_eq!(
             read_uuid(&[0x00, 0x18]),
             uuid("00001800-0000-1000-8000-00805F9B34FB")
         );
+        assert_eq!(read_uuid(&[0x00]), None);
     }
 
     #[test]
@@ -478,7 +456,7 @@ mod tests {
     fn group(entries: &[(u16, u16, &str)]) -> Vec<u8> {
         let uuid_le = |u: &str| match u16::from_str_radix(u, 16) {
             Ok(short) => short.to_le_bytes().to_vec(),
-            Err(_) => uuid(u).unwrap().into_iter().rev().collect(),
+            Err(_) => uuid(u).unwrap().to_le_bytes().to_vec(),
         };
         let mut a = vec![0x11, (4 + uuid_le(entries[0].2).len()) as u8];
         for (s, e, u) in entries {
@@ -524,9 +502,7 @@ mod tests {
         let mut e = decl.to_le_bytes().to_vec();
         e.push(props);
         e.extend(value.to_le_bytes());
-        let mut u = uuid(uuid_text).unwrap();
-        u.reverse();
-        e.extend(u);
+        e.extend(uuid(uuid_text).unwrap().to_le_bytes());
         e
     }
 

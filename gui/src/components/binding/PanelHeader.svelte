@@ -4,7 +4,8 @@
   import { Ellipsis, X } from '@lucide/svelte';
   import { t } from '../../lib/i18n/index.svelte';
   import LayerBadge from '../ui/LayerBadge.svelte';
-  import Menu, { type MenuItem } from '../ui/Menu.svelte';
+  import type { MenuItem } from '../../lib/menu';
+  import Menu from '../ui/Menu.svelte';
   import { tip } from '../../lib/tooltip.svelte';
 
   let { title, layer, menu, onclose }: { title: string; layer: number; menu?: MenuItem[]; onclose: () => void } = $props();

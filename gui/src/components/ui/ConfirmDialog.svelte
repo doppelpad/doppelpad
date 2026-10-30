@@ -1,65 +1,66 @@
 <script lang="ts">
-  // The app's questions (`app.confirmAsk`, `app.choose`) and hints with OK only (`app.inform`);
-  // the system's message box is never used. Those with an id offer "Don't ask (show) again",
-  // which takes effect with OK.
+  // The app's questions (`app.confirmAsk`, `app.choose`) and hints with OK only (`app.inform`),
+  // one at a time from the queue in `lib/state/dialogs.svelte.ts`; the system's message box is
+  // never used. Those with an id offer "Don't ask (show) again", which takes effect with OK.
   import { CircleArrowDown, Info, TriangleAlert } from '@lucide/svelte';
   import { t } from '../../lib/i18n/index.svelte';
-  import { app, type Answer } from '../../lib/state/app.svelte';
+  import { app } from '../../lib/state/app.svelte';
+  import type { Answer } from '../../lib/state/dialogs.svelte';
   import Dialog from './Dialog.svelte';
 
   let silence = $state(false);
 
   function finish(answer: Answer) {
-    const q = app.question;
-    app.question = null;
-    if (answer === 'ok' && silence && q?.id) app.silence(q.id);
+    const silenced = silence;
     silence = false;
-    q?.resolve(answer);
+    app.dialogs.answerQuestion(answer, silenced);
   }
 </script>
 
-{#if app.question}
-  {@const q = app.question}
-  <Dialog
-    title={q.title ?? t(q.info ? 'common.hint' : 'common.confirm')}
-    onclose={() => finish(q.info ? 'ok' : null)}
-    width={q.items ? 540 : q.details ? 520 : 420}
-    gap={14}
-    showClose={false}
-  >
-    {#snippet icon()}
-      {#if q.kind === 'update'}
-        <span class="accent"><CircleArrowDown size={17} /></span>
-      {:else if q.info}
-        <span class="accent"><Info size={17} /></span>
-      {:else}
-        <span class="warn"><TriangleAlert size={17} /></span>
+{#if app.dialogs.question}
+  {@const q = app.dialogs.question}
+  {#key q}
+    <Dialog
+      title={q.title ?? t(q.info ? 'common.hint' : 'common.confirm')}
+      onclose={() => finish(q.info ? 'ok' : null)}
+      width={q.items ? 540 : q.details ? 520 : 420}
+      gap={14}
+      showClose={false}
+    >
+      {#snippet icon()}
+        {#if q.kind === 'update'}
+          <span class="accent"><CircleArrowDown size={17} /></span>
+        {:else if q.info}
+          <span class="accent"><Info size={17} /></span>
+        {:else}
+          <span class="warn"><TriangleAlert size={17} /></span>
+        {/if}
+      {/snippet}
+      <p>{q.message}</p>
+      {#if q.details}<div class="details">{q.details}</div>{/if}
+      {#if q.items?.length}
+        <ul class="items">
+          {#each q.items as item, i (i)}
+            <li>
+              <code>{item.code}</code>
+              {#each item.notes as note, j (j)}<span class="note">{note}</span>{/each}
+            </li>
+          {/each}
+        </ul>
       {/if}
-    {/snippet}
-    <p>{q.message}</p>
-    {#if q.details}<div class="details">{q.details}</div>{/if}
-    {#if q.items?.length}
-      <ul class="items">
-        {#each q.items as item, i (i)}
-          <li>
-            <code>{item.code}</code>
-            {#each item.notes as note, j (j)}<span class="note">{note}</span>{/each}
-          </li>
-        {/each}
-      </ul>
-    {/if}
-    {#if q.id}
-      <label class="silence"
-        ><input type="checkbox" bind:checked={silence} /> {t(q.info ? 'questions.dont_show' : 'questions.dont_ask')}</label
-      >
-    {/if}
-    {#snippet footer()}
-      {#if !q.info}<button class="btn" onclick={() => finish(null)}>{q.cancel ?? t('common.cancel')}</button>{/if}
-      {#if q.alt}<button class="btn" onclick={() => finish('alt')}>{q.alt}</button>{/if}
-      <!-- svelte-ignore a11y_autofocus -->
-      <button class="btn primary" onclick={() => finish('ok')} autofocus>{q.ok ?? t('common.ok')}</button>
-    {/snippet}
-  </Dialog>
+      {#if q.id}
+        <label class="silence"
+          ><input type="checkbox" bind:checked={silence} /> {t(q.info ? 'questions.dont_show' : 'questions.dont_ask')}</label
+        >
+      {/if}
+      {#snippet footer()}
+        {#if !q.info}<button class="btn" onclick={() => finish(null)}>{q.cancel ?? t('common.cancel')}</button>{/if}
+        {#if q.alt}<button class="btn" onclick={() => finish('alt')}>{q.alt}</button>{/if}
+        <!-- svelte-ignore a11y_autofocus -->
+        <button class="btn primary" onclick={() => finish('ok')} autofocus>{q.ok ?? t('common.ok')}</button>
+      {/snippet}
+    </Dialog>
+  {/key}
 {/if}
 
 <style>

@@ -45,7 +45,7 @@ impl fmt::Display for Diagnostic {
 }
 
 #[derive(Default, Debug)]
-pub struct Diagnostics(pub Vec<Diagnostic>);
+pub struct Diagnostics(pub(crate) Vec<Diagnostic>);
 
 impl Diagnostics {
     pub(crate) fn push(
@@ -73,6 +73,41 @@ impl Diagnostics {
         self.0.iter().any(|d| d.severity == Severity::Error)
     }
     pub fn iter(&self) -> impl Iterator<Item = &Diagnostic> {
+        self.0.iter()
+    }
+}
+
+/// The list as the window and the API get it.
+impl Diagnostics {
+    pub fn into_vec(self) -> Vec<Diagnostic> {
+        self.0
+    }
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl Extend<Diagnostic> for Diagnostics {
+    fn extend<I: IntoIterator<Item = Diagnostic>>(&mut self, iter: I) {
+        self.0.extend(iter);
+    }
+}
+
+impl IntoIterator for Diagnostics {
+    type Item = Diagnostic;
+    type IntoIter = std::vec::IntoIter<Diagnostic>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+
+impl<'a> IntoIterator for &'a Diagnostics {
+    type Item = &'a Diagnostic;
+    type IntoIter = std::slice::Iter<'a, Diagnostic>;
+    fn into_iter(self) -> Self::IntoIter {
         self.0.iter()
     }
 }

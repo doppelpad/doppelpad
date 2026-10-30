@@ -14,23 +14,70 @@ use crate::nintendo::Model;
 /// Nintendo's Bluetooth company identifier, first in the manufacturer data.
 pub const COMPANY_ID: u16 = 0x0553;
 
+// UUIDs are numbers here, read as their text form reads: `AB7DE9BE-89FE-…` is
+// `0xAB7DE9BE_89FE_…`. Each OS's Bluetooth interface turns them into its own type, so none
+// compares text (CoreBluetooth writes it in upper case, others in lower).
+
 /// The service with every characteristic below.
-pub const SERVICE: &str = "AB7DE9BE-89FE-49AD-828F-118F09DF7FD0";
+pub const SERVICE: u128 = 0xAB7D_E9BE_89FE_49AD_828F_118F_09DF_7FD0;
 /// Input report 0x05 (the USB report without its ID), on every model.
-pub const INPUT: &str = "AB7DE9BE-89FE-49AD-828F-118F09DF7FD2";
+pub const INPUT: u128 = 0xAB7D_E9BE_89FE_49AD_828F_118F_09DF_7FD2;
 /// Commands (the vendor commands of USB), written without response.
-pub const COMMAND: &str = "649D4AC9-8EB7-4E6C-AF44-1EA54FE5F005";
+pub const COMMAND: u128 = 0x649D_4AC9_8EB7_4E6C_AF44_1EA5_4FE5_F005;
 /// Command replies, as notifications.
-pub const REPLY: &str = "C765A961-D9D8-4D36-A20A-5315B111836A";
+pub const REPLY: u128 = 0xC765_A961_D9D8_4D36_A20A_5315_B111_836A;
 
 /// The characteristic that takes a model's rumble output report.
-pub fn vibration(model: Switch2Model) -> &'static str {
+pub fn vibration(model: Switch2Model) -> u128 {
     match model {
-        Switch2Model::Pro => "CC483F51-9258-427D-A939-630C31F72B05",
-        Switch2Model::JoyConLeft => "289326CB-A471-485D-A8F4-240C14F18241",
-        Switch2Model::JoyConRight => "FA19B0FB-CD1F-46A7-84A1-BBB09E00C149",
-        Switch2Model::GameCube => "3F8FB670-AB25-45BF-B540-38C72834D064",
+        Switch2Model::Pro => 0xCC48_3F51_9258_427D_A939_630C_31F7_2B05,
+        Switch2Model::JoyConLeft => 0x2893_26CB_A471_485D_A8F4_240C_14F1_8241,
+        Switch2Model::JoyConRight => 0xFA19_B0FB_CD1F_46A7_84A1_BBB0_9E00_C149,
+        Switch2Model::GameCube => 0x3F8F_B670_AB25_45BF_B540_38C7_2834_D064,
     }
+}
+
+/// What a characteristic of the [`SERVICE`] carries.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Role {
+    Input,
+    Command,
+    Reply,
+    Vibration,
+}
+
+/// The role of the characteristic `uuid` on a controller of `model`; `None` for the ones
+/// Doppelpad does not use.
+pub fn role(uuid: u128, model: Switch2Model) -> Option<Role> {
+    match uuid {
+        INPUT => Some(Role::Input),
+        COMMAND => Some(Role::Command),
+        REPLY => Some(Role::Reply),
+        u if u == vibration(model) => Some(Role::Vibration),
+        _ => None,
+    }
+}
+
+/// A UUID from its text form (`AB7DE9BE-89FE-…`, in either case, the hyphens optional).
+pub fn parse_uuid(text: &str) -> Option<u128> {
+    let hex: String = text.chars().filter(|&c| c != '-').collect();
+    if hex.len() != 32 || !hex.chars().all(|c| c.is_ascii_hexdigit()) {
+        return None;
+    }
+    u128::from_str_radix(&hex, 16).ok()
+}
+
+/// A UUID's text form (`AB7DE9BE-89FE-49AD-828F-118F09DF7FD0`).
+pub fn uuid_text(uuid: u128) -> String {
+    let h = format!("{uuid:032X}");
+    format!(
+        "{}-{}-{}-{}-{}",
+        &h[..8],
+        &h[8..12],
+        &h[12..16],
+        &h[16..20],
+        &h[20..]
+    )
 }
 
 /// Length of the rumble output reports over Bluetooth.
@@ -124,6 +171,35 @@ mod tests {
             None,
             "someone else"
         );
+    }
+
+    #[test]
+    fn characteristics_by_uuid() {
+        assert_eq!(role(INPUT, Switch2Model::Pro), Some(Role::Input));
+        assert_eq!(role(REPLY, Switch2Model::GameCube), Some(Role::Reply));
+        let pro = vibration(Switch2Model::Pro);
+        assert_eq!(role(pro, Switch2Model::Pro), Some(Role::Vibration));
+        assert_eq!(role(pro, Switch2Model::JoyConLeft), None, "another model's");
+        assert_eq!(role(SERVICE, Switch2Model::Pro), None);
+        assert_eq!(role(0, Switch2Model::Pro), None, "no wildcard");
+    }
+
+    #[test]
+    fn uuid_texts() {
+        let text = "AB7DE9BE-89FE-49AD-828F-118F09DF7FD0";
+        assert_eq!(parse_uuid(text), Some(SERVICE));
+        assert_eq!(parse_uuid(&text.to_ascii_lowercase()), Some(SERVICE));
+        assert_eq!(
+            parse_uuid("ab7de9be89fe49ad828f118f09df7fd0"),
+            Some(SERVICE)
+        );
+        assert_eq!(parse_uuid("AB7DE9BE"), None);
+        assert_eq!(parse_uuid("XB7DE9BE-89FE-49AD-828F-118F09DF7FD0"), None);
+        assert_eq!(parse_uuid("+B7DE9BE-89FE-49AD-828F-118F09DF7FD0"), None);
+        assert_eq!(uuid_text(SERVICE), text);
+        for u in [INPUT, COMMAND, REPLY, vibration(Switch2Model::JoyConRight)] {
+            assert_eq!(parse_uuid(&uuid_text(u)), Some(u));
+        }
     }
 
     #[test]

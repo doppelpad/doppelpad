@@ -1,5 +1,6 @@
 <script lang="ts">
   // The activators as icon tabs (a dot on those with a mapping) and what the chosen one means.
+  import { arrowKeys } from '../../lib/dom';
   import { t } from '../../lib/i18n/index.svelte';
   import { ACTIVATORS, activatorOf, effectiveMappings } from '../../lib/model/profile';
   import { app } from '../../lib/state/app.svelte';
@@ -13,11 +14,12 @@
   const used = $derived(new Set((app.profile ? effectiveMappings(app.profile, app.layer, combo).mappings : []).map(activatorOf)));
 </script>
 
-<div class="activators" role="radiogroup" aria-label={t('activators.title')}>
+<div class="activators" role="radiogroup" aria-label={t('activators.title')} use:arrowKeys>
   {#each ACTIVATORS as a (a)}
     <button
       role="radio"
       aria-checked={app.activator === a}
+      tabindex={app.activator === a ? 0 : -1}
       class="act"
       class:active={app.activator === a}
       class:used={used.has(a)}

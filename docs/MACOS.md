@@ -122,6 +122,8 @@ nearby.
   nothing to hide.
 - The battery level is worked out from the voltage the controller reports, as it reports no
   level of its own in the report Doppelpad reads; it reads high while charging.
+- A controller whose input stops for 3 s is let go, as on Windows and Linux, and so are all of
+  them when Doppelpad stops.
 
 macOS 14 and later make a stand-in Xbox 360 pad for each controller they support
 (`GCSyntheticDevice`), for older games. Doppelpad leaves those out, so no controller is read
@@ -205,12 +207,14 @@ login items in System Settings › General.
 Overlays (notifications, crosshairs, radial menus, the controller overlay) float above every
 window, on every Space and over games in full screen, without taking the focus from the game.
 They are non-activating panels: an ordinary window, even one that joins every Space, stays out
-of another program's full-screen Space.
+of another program's full-screen Space. Should a later version of the window library lay out
+its windows differently, the overlays stay ordinary windows (the log says so) and do not show
+over full-screen games.
 The crosshair's magnifier is not available on macOS.
 
 Settings, configs, logs and the history of configs are in
-`~/Library/Application Support/doppelpad` (under `$XDG_CONFIG_HOME` and `$XDG_STATE_HOME`
-when those are set).
+`~/Library/Application Support/doppelpad`, for the app and the command-line tool alike (a
+shell's XDG variables do not move them: the app, started from the Finder, never sees those).
 
 ## Command-line tool
 

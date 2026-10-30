@@ -34,7 +34,7 @@ deterministic.
 | Crate | Responsibility | OS code |
 |---|---|---|
 | `dp-core` | `PadState`, `Key`, `Control` names, `Profile` model, and the engine | none |
-| `dp-config` | TOML (de)serialization, validation, JSON profile import, profile directories | none |
+| `dp-config` | TOML (de)serialization, validation, JSON profile import, profile directories, and the library on disk the app works on (games, bundles, presets, earlier versions, moving it) | none |
 | `dp-platform` | Backend traits; Windows, Linux and macOS implementations; null backends elsewhere | yes |
 | `dp-ipc` | `Request`/`Response` protocol and a tiny blocking client/server | local sockets |
 | `dp-service` | The runtime loop, slots, auto-switching, IPC handling, live snapshots, HTTP API and DSU server; shared by the daemon and the GUI | none |
@@ -90,7 +90,9 @@ the runtime:
 
 When the layer changes, it updates the capture filter, which decides which keys or buttons
 are swallowed. It hides each session's physical pad (HidHide on Windows, `EVIOCGRAB` on
-Linux) while its profile has a virtual pad. Everything is undone on `stop` and on drop.
+Linux, exclusive access on macOS) while its profile has a virtual pad; macOS, which has no
+virtual pads yet, hides it whenever the profile asks, so the game does not also see input that
+a mapping turned into keys. Everything is undone on `stop` and on drop.
 
 Joy-Cons are reported one by one and combined by `dp_platform::joycon::JoyConCombiner`, which
 wraps the HID backend on Windows and the evdev backend on Linux: a left and a right Joy-Con
@@ -123,11 +125,21 @@ On Windows:
 - **ViGEm notification thread** per virtual pad: rumble (and the DualShock 4 light bar)
   coming back from games.
 - **Bluetooth:** the advertisement watcher and the controllers' notifications call back on
-  the thread pool; a `dp-ble-connect` thread sets up each Switch 2 controller that is found.
+  the thread pool; a `dp-ble-connect` thread sets up each Switch 2 controller that is found,
+  and a `dp-ble-close` thread closes a link that ends inside one of its own callbacks.
 
 On Windows and macOS the HID controllers share one backend (`dp-platform/src/hidhost.rs`);
-each OS brings the scanner that finds and opens them. On Linux it runs only the Switch 2
-controllers, which no kernel driver starts: on USB through hidraw, and over Bluetooth.
+each OS brings the scanner that finds and opens them, and the scan pass (`scan_pass`) and the
+driver factory (`make_driver`) are shared. On Linux it runs only the Switch 2 controllers,
+which no kernel driver starts: on USB through hidraw, and over Bluetooth.
+
+Switch 2 controllers over Bluetooth LE come from one client per OS (`windows/ble.rs`,
+`linux/ble.rs`, `macos/ble.rs`), each with its own way of connecting them. What the clients do
+alike is in `switch2gatt.rs`: which controllers are connected (only a Pro Controller in pairing
+mode), their bookkeeping from discovery until they are let go (`Peers`, with an id per
+connection attempt, so that what is left of an old attempt cannot end a newer one), letting a
+controller go after 3 s without input, and the link that makes it look like a HID device to the
+backend. No other program sees such a controller, so nothing hides it.
 
 On Linux:
 
@@ -137,9 +149,10 @@ On Linux:
 - **uinput FF thread** per virtual pad: answers games' rumble uploads.
 - **capture scanner plus one thread per grabbed keyboard/mouse:** these re-inject
   unsuppressed events through a passthrough device.
-- **Bluetooth:** `dp-ble` follows BlueZ's D-Bus signals; a `dp-ble-connect` thread sets up
-  each Switch 2 controller that is found, a `dp-ble-input` thread reads it, and its device
-  thread runs in the HID backend as on Windows and macOS.
+- **Bluetooth:** `dp-ble-upkeep` keeps Doppelpad's discovery running (BlueZ calls may take
+  seconds, so not on the HID scanner), `dp-ble` follows BlueZ's D-Bus signals; a
+  `dp-ble-connect` thread sets up each Switch 2 controller that is found, a `dp-ble-input`
+  thread reads it, and its device thread runs in the HID backend as on Windows and macOS.
 
 On macOS:
 
@@ -148,6 +161,23 @@ On macOS:
 - **HID scanner:** device discovery every 2 s through an IOHIDManager.
 - **event tap thread:** the keyboard/mouse event tap on a run loop of its own, connected to
   the loop by the same lock-free filter and channel as the Windows hooks.
+
+## The desktop app (`gui/src-tauri`)
+
+The app runs the service in its own process and shows the editor. Its Rust side (`dp-gui`):
+
+- `commands/`: what the window invokes, by what it touches: `library` (games, configs,
+  presets, bundles, where the library is; paths outside the library are refused), `service`,
+  `settings` and `system` (names, defaults and limits, the OS around the app). A failed command
+  answers with an error code the window words in its language, and a detail (`error.rs`). The
+  work on the library itself (moving it, saving with history, unpacking bundles) is dp-config's.
+- `state.rs`: what the commands, the tray and the watchers share. The main thread runs the
+  windows and the tray and never waits for the service: the tray's commands run on a thread of
+  their own, focus changes and slow commands on Tauri's thread pool.
+- Watcher threads follow the service's live snapshot: the tray, the notifications (their rules
+  in `osd.rs`'s `Osd::step`), the Steam Input hint, the crosshair, the radial menu and the
+  controller and mappings overlays (`overlay.rs` keeps their windows).
+- `tests.rs`: the fixtures that the frontend's tests check their types against.
 
 ## Windows drivers
 
@@ -177,7 +207,8 @@ limitations in a future backend.
 |---|---|
 | Read controllers | evdev; hid-playstation / hid-nintendo motion and touchpad nodes merged in |
 | Switch 2 on USB | hidraw for the input, the USB command interface through `nusb` (usbfs; exclusive, so Steam may hold it); hiding grabs the generic input node `usbhid` makes for it (`linux/hidraw.rs`, `linux/hid.rs`) |
-| Switch 2 over Bluetooth | a BlueZ discovery (D-Bus, `zbus`) finds a pad in pairing mode; Doppelpad connects it on an L2CAP socket on its ATT channel and speaks ATT itself (`linux/att.rs`), as BlueZ's GATT client never finishes reading these pads; it runs in the HID backend like the Windows and macOS ones (`linux/ble.rs`, shared link in `switch2gatt.rs`) |
+| Switch 2 over Bluetooth | a BlueZ discovery (D-Bus, `zbus`: `linux/bluez.rs`) finds a pad in pairing mode; Doppelpad connects it on an L2CAP socket on its ATT channel (`linux/l2cap.rs`) and speaks ATT itself (`linux/att.rs`, `linux/gatt.rs`), as BlueZ's GATT client never finishes reading these pads; it runs in the HID backend like the Windows and macOS ones (`linux/ble.rs`, shared parts in `switch2gatt.rs`) |
+| Session and power | systemd-logind on the system bus (`zbus`): the session's `LockedHint`, the idle lock; `systemctl` and `loginctl` for the power commands |
 | Hide the physical pad | `EVIOCGRAB` through a duplicate of the reader's descriptor, so Doppelpad keeps reading |
 | Virtual controller | uinput Xbox 360 pad (`045e:028e`, xpad layout) with `FF_RUMBLE` fed back |
 | Keyboard/mouse capture | `EVIOCGRAB` per device + one uinput passthrough device each |
@@ -204,16 +235,21 @@ Setup (permissions) and limitations are in [MACOS.md](MACOS.md).
 
 ## Porting
 
-A new OS needs implementations of the six traits in `dp-platform`:
+A new OS needs, in `dp-platform`:
 
-- `GamepadBackend`
-- `VirtualPadFactory`
-- `KbmOutput`
-- `KbmCapture`
-- `DeviceHider`
-- `ForegroundWatcher`
+- the backends a `Platform` holds, one for each trait: `GamepadBackend` (one or more),
+  `VirtualPadFactory`, `KbmOutput`, `KbmCapture`, `DeviceHider`, `ForegroundWatcher` and
+  `SystemControl`; with its driver probe (`probe_drivers`, a `DriverReport`) and its
+  `Switch2Search`, that makes the OS's `platform()`, which `Platform::native()` picks;
+- an arm in each of the functions in `lib.rs` that ask the OS directly, outside any trait:
+  `host_command`, `windowed_programs`, `installed_games` (with `stores`),
+  `foreground_program`, `steam_running` and `os_version`. Each has a fallback for other OSes,
+  so a port may start without them;
+- for HID controllers, a scanner for the shared backend in `hidhost` (a `HidHandle` for its
+  devices, and a scan with `scan_pass`), and for Switch 2 controllers over Bluetooth LE a
+  client for `switch2gatt`. Both are optional.
 
-Plus one `Platform::native()` arm. Nothing else changes.
+The engine, the runtime, the config files and the GUI do not change.
 
 - **Linux:** done (`dp-platform/src/linux`, see above). evdev provides reading and
   `EVIOCGRAB` (exclusive grab), and uinput provides the virtual X360 pad and the

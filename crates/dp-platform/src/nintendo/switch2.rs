@@ -7,8 +7,9 @@
 //! as HID output reports.
 //!
 //! Over Bluetooth LE the same reports and commands travel through Nintendo's own GATT
-//! characteristics (see the macOS `ble` module). Input starts as soon as the host subscribes
-//! to it, as often as the host's connection interval allows (about 33 Hz on macOS).
+//! characteristics ([`super::switch2ble`], carried by [`crate::switch2gatt`]). Input starts as
+//! soon as the host subscribes to it, as often as the host's connection interval allows (about
+//! 33 Hz on macOS).
 
 use std::io;
 use std::time::{Duration, Instant};
@@ -524,7 +525,8 @@ impl Switch2Driver {
     }
 
     /// Read the calibration and (re)start output through a vendor interface that became
-    /// free while the pad was running. HID input continues meanwhile.
+    /// free while the pad was running. The device thread waits for the commands' answers
+    /// meanwhile, so no input is read for that time (a few round trips).
     fn adopt_late_bulk(&mut self) {
         let Vendor::Missing { late, .. } = &mut self.vendor else {
             return;

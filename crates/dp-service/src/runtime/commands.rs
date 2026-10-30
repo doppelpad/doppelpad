@@ -87,21 +87,7 @@ impl Runtime {
                     tracing::warn!("{action:?} failed: {e}");
                 }
             }
-            Command::Screenshot => {
-                let shot = &mut self.overlays.screenshot;
-                shot.count = shot.count.wrapping_add(1);
-                (shot.file, shot.error) = match self.platform.system.screenshot() {
-                    Ok(path) => {
-                        tracing::info!(path = %path.display(), "screenshot saved");
-                        let name = path.file_name().map(|n| n.to_string_lossy().into_owned());
-                        (name, None)
-                    }
-                    Err(e) => {
-                        tracing::warn!("screenshot failed: {e}");
-                        (None, Some(e.to_string()))
-                    }
-                };
-            }
+            Command::Screenshot => self.take_screenshot(),
             Command::CloseWindow => {
                 if let Err(e) = self.platform.system.close_foreground_window() {
                     tracing::warn!("cannot close the window: {e}");
@@ -146,6 +132,11 @@ impl Runtime {
         let mut fired = Vec::new();
         for (s, pad) in self.snapshots.iter().zip(&mut self.pad_buf) {
             let id = &s.info.id;
+            // A mirror repeats another controller's buttons, so its hotkeys would fire twice;
+            // it counts only when a session reads it (the user picked it).
+            if s.info.mirror && !self.sessions.iter().any(|x| x.device.as_ref() == Some(id)) {
+                continue;
+            }
             if !self.hotkeys.detectors.contains_key(id) {
                 self.hotkeys
                     .detectors
@@ -174,6 +165,44 @@ impl Runtime {
 
     /// Confirm a hotkey with a rumble pattern on the controller it was pressed on, if the
     /// hotkey settings ask for it.
+    /// Take a screenshot on a thread of its own: capturing, encoding and writing take long
+    /// enough to stall the controllers. The result arrives on a later tick.
+    fn take_screenshot(&mut self) {
+        let work = self.platform.system.screenshot();
+        let tx = self.screenshots.0.clone();
+        let spawned = std::thread::Builder::new()
+            .name("dp-screenshot".into())
+            .spawn(move || {
+                let _ = tx.send(work().map_err(|e| e.to_string()));
+            });
+        if let Err(e) = spawned {
+            self.report_screenshot(Err(format!("cannot start: {e}")));
+        }
+    }
+
+    /// Tell of the screenshots taken since the last tick.
+    pub(super) fn collect_screenshots(&mut self) {
+        while let Ok(result) = self.screenshots.1.try_recv() {
+            self.report_screenshot(result);
+        }
+    }
+
+    fn report_screenshot(&mut self, result: Result<std::path::PathBuf, String>) {
+        let shot = &mut self.overlays.screenshot;
+        shot.count = shot.count.wrapping_add(1);
+        (shot.file, shot.error) = match result {
+            Ok(path) => {
+                tracing::info!(path = %path.display(), "screenshot saved");
+                let name = path.file_name().map(|n| n.to_string_lossy().into_owned());
+                (name, None)
+            }
+            Err(e) => {
+                tracing::warn!("screenshot failed: {e}");
+                (None, Some(e))
+            }
+        };
+    }
+
     pub(crate) fn confirm_hotkey(&mut self, id: &DeviceId, c: super::confirm::Confirm) {
         if self.hotkeys.set.rumble {
             let now = self.now_ms();

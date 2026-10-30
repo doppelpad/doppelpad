@@ -22,16 +22,6 @@ export interface Found {
 /** Case and accents do not matter. */
 const fold = (s: string) => s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
 
-/** The view that shows a trigger: shortcuts for combos, the keyboard or mouse for theirs, else the controller (as it is shown). */
-export function viewFor(trigger: Combo, current: string): 'front' | 'back' | 'keyboard' | 'mouse' | 'shortcuts' {
-  const list = comboList(trigger);
-  if (list.length > 1) return 'shortcuts';
-  const c = list[0] ?? '';
-  if (c.startsWith('Key:')) return 'keyboard';
-  if (c.startsWith('Mouse:') || c.startsWith('Wheel:') || c.startsWith('MouseMove:')) return 'mouse';
-  return current === 'back' ? 'back' : 'front';
-}
-
 /** A mapping as a search result. */
 function result(p: Profile, index: number, layerLabel: (id: number) => string): Found {
   const m = p.mappings[index]!;

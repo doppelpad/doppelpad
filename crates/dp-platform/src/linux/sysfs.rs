@@ -1,11 +1,13 @@
-//! What sysfs tells about a controller's HID device besides its input: the battery under
-//! `power_supply/` and the lights under `leds/` (hid-playstation, hid-sony, hid-nintendo),
-//! and for a Bluetooth controller the adapter it is connected through. Names and values are
-//! the drivers' (see `docs/LINUX.md#sources`). No I/O, so it is unit-tested on every OS.
+//! What sysfs tells about a controller's HID device besides its input: its ids in `uevent`,
+//! the battery under `power_supply/` and the lights under `leds/` (hid-playstation, hid-sony,
+//! hid-nintendo), and for a Bluetooth controller the adapter it is connected through, with the
+//! object paths BlueZ gives such devices. Names and values are the drivers' (see
+//! `docs/LINUX.md#sources`). No I/O, so it is unit-tested on every OS.
 
 use dp_core::pad::Rgb;
 
 use crate::Battery;
+use crate::bdaddr::BdAddr;
 
 /// A battery from its `power_supply` attributes: `capacity` in percent (hid-playstation) or
 /// `capacity_level` (hid-nintendo), and `status`. Levels give the percentages the Windows
@@ -91,25 +93,57 @@ pub fn player_writes(leds: &[String], n: u8) -> Vec<LedWrite> {
         .collect()
 }
 
+/// What a HID device's `uevent` file says about it.
+#[derive(Debug, PartialEq, Eq)]
+pub struct Uevent {
+    /// The bus it is on (`BUS_USB` and so on, as for input devices).
+    pub bus: u16,
+    pub vid: u16,
+    pub pid: u16,
+    pub phys: String,
+}
+
+/// `HID_ID=0003:0000057E:00002069` and `HID_PHYS=…` from a HID device's `uevent` file.
+pub fn parse_uevent(text: &str) -> Option<Uevent> {
+    let field = |key: &str| {
+        text.lines()
+            .find_map(|l| l.strip_prefix(key)?.strip_prefix('='))
+    };
+    let mut ids = field("HID_ID")?.split(':');
+    let mut hex = || u32::from_str_radix(ids.next()?, 16).ok();
+    let (bus, vid, pid) = (hex()?, hex()?, hex()?);
+    Some(Uevent {
+        bus: u16::try_from(bus).ok()?,
+        vid: u16::try_from(vid).ok()?,
+        pid: u16::try_from(pid).ok()?,
+        phys: field("HID_PHYS").unwrap_or_default().to_owned(),
+    })
+}
+
 /// BlueZ's object path for the device with Bluetooth address `mac` whose HID device is
 /// `hid_device` (`/sys/devices/…/bluetooth/hci0/hci0:256/0005:054C:0CE6.0003`): the adapter
 /// comes from that path, else it is `hci0`.
 pub fn bluez_device_path(hid_device: &str, mac: &str) -> Option<String> {
-    let bytes: Vec<&str> = mac.trim().split(':').collect();
-    let valid = |b: &&str| b.len() == 2 && b.chars().all(|c| c.is_ascii_hexdigit());
-    if bytes.len() != 6 || !bytes.iter().all(valid) {
-        return None;
-    }
+    let address = BdAddr::parse(mac)?;
     let mut parts = hid_device.split('/');
     let adapter = parts
         .find(|&p| p == "bluetooth")
         .and_then(|_| parts.next())
         .filter(|a| a.starts_with("hci"))
         .unwrap_or("hci0");
-    Some(format!(
-        "/org/bluez/{adapter}/dev_{}",
-        bytes.join("_").to_ascii_uppercase()
-    ))
+    Some(format!("/org/bluez/{adapter}/dev_{}", address.upper('_')))
+}
+
+/// The address of the device at a BlueZ object path (`…/dev_98_B6_E9_12_34_56`).
+pub fn bluez_address(path: &str) -> Option<BdAddr> {
+    let name = path.rsplit('/').next()?.strip_prefix("dev_")?;
+    let well_formed = name.split('_').count() == 6 && name.split('_').all(|b| b.len() == 2);
+    well_formed.then(|| BdAddr::parse(name))?
+}
+
+/// The adapter a device's BlueZ object path is under (`/org/bluez/hci0`).
+pub fn bluez_adapter(path: &str) -> &str {
+    path.rsplit_once('/').map_or(path, |(adapter, _)| adapter)
 }
 
 #[cfg(test)]
@@ -230,6 +264,34 @@ mod tests {
     }
 
     #[test]
+    fn uevents() {
+        // A Pro Controller 2 as the Steam Deck's kernel lists it.
+        let pro = "DRIVER=hid-generic\nHID_ID=0003:0000057E:00002069\n\
+                   HID_NAME=Nintendo Switch 2 Pro Controller\n\
+                   HID_PHYS=usb-0000:04:00.3-1.3/input0\nHID_UNIQ=\n\
+                   MODALIAS=hid:b0003g0001v0000057Ep00002069\n";
+        assert_eq!(
+            parse_uevent(pro),
+            Some(Uevent {
+                bus: super::super::codes::BUS_USB,
+                vid: 0x057E,
+                pid: 0x2069,
+                phys: "usb-0000:04:00.3-1.3/input0".into(),
+            })
+        );
+        // The touchscreen on I2C.
+        let i2c = "HID_ID=0018:00002808:00001015\nHID_PHYS=i2c-FTS3528:00\n";
+        assert_eq!(parse_uevent(i2c).unwrap().bus, 0x18);
+        assert_eq!(parse_uevent("HID_NAME=no ids\n"), None);
+        assert_eq!(parse_uevent("HID_ID=0003:0000057E\n"), None, "cut short");
+        assert_eq!(
+            parse_uevent("HID_ID=0003:0001057E:00002069\n"),
+            None,
+            "no u16"
+        );
+    }
+
+    #[test]
     fn bluez_paths() {
         let hid = "/sys/devices/pci0000:00/0000:00:14.0/usb1/1-1/1-1:1.0/bluetooth/hci1/hci1:256/0005:054C:0CE6.0003";
         assert_eq!(
@@ -247,5 +309,13 @@ mod tests {
         );
         assert_eq!(bluez_device_path(hid, ""), None);
         assert_eq!(bluez_device_path(hid, "usb-0000:00:14.0-1/input0"), None);
+
+        let path = "/org/bluez/hci0/dev_98_B6_E9_12_34_56";
+        assert_eq!(bluez_address(path), BdAddr::new(0x98B6_E912_3456));
+        assert_eq!(bluez_address("/org/bluez/hci0"), None);
+        assert_eq!(bluez_address(&format!("{path}/service0010")), None);
+        assert_eq!(bluez_address("/org/bluez/hci0/dev_98_B6"), None);
+        assert_eq!(bluez_address("/org/bluez/hci0/dev_98B6E9123456"), None);
+        assert_eq!(bluez_adapter(path), "/org/bluez/hci0");
     }
 }

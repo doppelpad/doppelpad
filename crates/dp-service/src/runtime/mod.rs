@@ -23,11 +23,12 @@ mod tests;
 pub use self::drivers::{DriverState, DriverStatus};
 
 use std::collections::HashMap;
+use std::ops::ControlFlow;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
-use crossbeam_channel::Receiver;
+use crossbeam_channel::{Receiver, Sender};
 use dp_core::control::Control;
 use dp_core::engine::{Engine, Input};
 use dp_core::hotkeys::{HotkeyAction, HotkeyDetector, Hotkeys};
@@ -113,6 +114,8 @@ pub struct Runtime {
     snapshots: Vec<PadSnapshot>,
     /// The ids of `snapshots`, kept to notice a changed device list without allocating.
     device_ids: Vec<DeviceId>,
+    /// Goes up whenever `device_ids` changes.
+    device_generation: u64,
     /// The pad states of `snapshots` as the engines get them (hotkey buttons withheld).
     pad_buf: Vec<PadState>,
     /// Which controller the default session reads.
@@ -129,6 +132,8 @@ pub struct Runtime {
     /// Gyro bias per controller, taken off before anything reads the rates.
     calibration: Calibrator,
     overlays: Overlays,
+    /// Screenshots taken on their own threads report here.
+    screenshots: (Sender<Shot>, Receiver<Shot>),
     /// Player lights and microphone LED last sent, per controller.
     sent_leds: HashMap<DeviceId, Leds>,
     power: PowerState,
@@ -165,7 +170,11 @@ struct HotkeyState {
     actions: Vec<(DeviceId, HotkeyAction)>,
 }
 
-/// The live controller overlay and the mappings overlay, and the app's controller navigation.
+/// A screenshot's file, or why there is none.
+type Shot = Result<PathBuf, String>;
+
+/// What the app shows for the runtime: the live controller and mappings overlays, the
+/// controller navigation and the last screenshot.
 #[derive(Default)]
 struct Overlays {
     pad: bool,
@@ -232,6 +241,7 @@ impl Runtime {
             clock: Clock::new(),
             snapshots: Vec::new(),
             device_ids: Vec::new(),
+            device_generation: 0,
             pad_buf: Vec::new(),
             binding: DefaultBinding::default(),
             hidden: Vec::new(),
@@ -243,6 +253,7 @@ impl Runtime {
             test_turn: None,
             calibration: Calibrator::default(),
             overlays: Overlays::default(),
+            screenshots: crossbeam_channel::unbounded(),
             sent_leds: HashMap::new(),
             power: PowerState {
                 prevent_sleep: true,
@@ -346,11 +357,8 @@ impl Runtime {
     /// The library moved from `from` to `to`: sessions running one of its files name the file
     /// in its new place (the profile itself is unchanged, so nothing restarts).
     pub(crate) fn library_moved(&mut self, from: &Path, to: &Path) {
-        for s in &mut self.sessions {
-            let moved = s.path.as_ref();
-            if let Some(p) = moved.and_then(|p| dp_config::relocate::moved_path(p, from, to)) {
-                s.path = Some(p);
-            }
+        for path in self.sessions.iter_mut().filter_map(|s| s.path.as_mut()) {
+            crate::slots::follow_move(path, from, to);
         }
     }
 
@@ -429,6 +437,16 @@ impl Runtime {
         self.sessions.iter().map(Session::info).collect()
     }
 
+    /// The controllers that have sessions of their own.
+    pub(crate) fn session_owners(&self) -> impl Iterator<Item = &DeviceId> {
+        self.sessions.iter().filter_map(|s| s.owner.as_ref())
+    }
+
+    /// A number that changes whenever the list of connected controllers does.
+    pub(crate) fn device_generation(&self) -> u64 {
+        self.device_generation
+    }
+
     /// Virtual pad of the default session.
     pub(crate) fn virtual_pad(&self) -> Option<VirtualPadKind> {
         self.session(None)
@@ -503,7 +521,7 @@ impl Runtime {
         let session = Session {
             owner,
             hide_wanted: engine.profile().output.hide_physical
-                && (vpad.is_some() || self.platform.hider.hides_without_virtual_pad()),
+                && (vpad.is_some() || !self.platform.virtual_pads.exist()),
             needs_capture: capture,
             engine,
             path,
@@ -590,9 +608,12 @@ impl Runtime {
             match self.platform.kbm_capture.start(self.kbm.filter.clone()) {
                 Ok(rx) => self.kbm.rx = Some(rx),
                 Err(e) => {
-                    if let Some(s) = self.sessions.iter_mut().find(|s| s.needs_capture) {
-                        s.warnings
-                            .push(format!("keyboard/mouse capture unavailable: {e}"));
+                    // Retried on every change of sessions: warn once per session.
+                    let warning = format!("keyboard/mouse capture unavailable: {e}");
+                    if let Some(s) = self.sessions.iter_mut().find(|s| s.needs_capture)
+                        && !s.warnings.contains(&warning)
+                    {
+                        s.warnings.push(warning);
                     }
                 }
             }
@@ -640,6 +661,7 @@ impl Runtime {
     /// Run one engine step for every session. Call about once per millisecond.
     pub fn tick(&mut self) {
         let now = self.now_ms();
+        self.collect_screenshots();
         self.send_test_turn(now);
         self.poll_devices(now);
         self.watch_idle(now);
@@ -651,46 +673,62 @@ impl Runtime {
         self.pad_buf.clear();
         self.pad_buf.extend(self.snapshots.iter().map(|s| s.state));
         for (id, action) in self.detect_hotkeys(now) {
-            tracing::info!(device = %id, ?action, "hotkey");
-            if let Some(echo) = &mut self.echo {
-                echo.events.push(format!("hotkey      {action:?}"));
-            }
-            match action {
-                HotkeyAction::StopMacros => {
-                    self.confirm_hotkey(&id, Confirm::Long(1));
-                    for s in self
-                        .sessions
-                        .iter_mut()
-                        .filter(|s| s.device.as_ref() == Some(&id))
-                    {
-                        s.engine.stop_all();
-                    }
-                }
-                HotkeyAction::EmergencyStop => {
-                    self.confirm_hotkey(&id, Confirm::Long(2));
-                    self.drive_pulses(now);
-                    self.remap_off();
-                    return;
-                }
-                HotkeyAction::PadOverlay => {
-                    self.confirm_hotkey(&id, Confirm::Short(1));
-                    self.overlays.toggle_pad();
-                }
-                HotkeyAction::MappingsOverlay => {
-                    self.confirm_hotkey(&id, Confirm::Short(1));
-                    self.overlays.toggle_mappings();
-                }
-                HotkeyAction::AppNavigation => {
-                    self.confirm_hotkey(&id, Confirm::Short(1));
-                    self.overlays.navigation = self.overlays.navigation.wrapping_add(1);
-                }
-                other => self.hotkeys.actions.push((id, other)),
+            if self.run_hotkey(id, action, now).is_break() {
+                return;
             }
         }
         self.drive_pulses(now);
-        if self.suspended {
-            return;
+        if !self.suspended {
+            self.tick_sessions(now);
         }
+    }
+
+    /// Carry out a hotkey the runtime handles itself, or hand it to the service (slots and
+    /// the remap switch change the service's state). Breaks when remapping went off.
+    fn run_hotkey(&mut self, id: DeviceId, action: HotkeyAction, now: u64) -> ControlFlow<()> {
+        tracing::info!(device = %id, ?action, "hotkey");
+        if let Some(echo) = &mut self.echo {
+            echo.events.push(format!("hotkey      {action:?}"));
+        }
+        match action {
+            HotkeyAction::Slot1
+            | HotkeyAction::Slot2
+            | HotkeyAction::Slot3
+            | HotkeyAction::Slot4
+            | HotkeyAction::ToggleRemap => {
+                self.hotkeys.actions.push((id, action));
+                return ControlFlow::Continue(());
+            }
+            HotkeyAction::StopMacros => {
+                for s in self
+                    .sessions
+                    .iter_mut()
+                    .filter(|s| s.device.as_ref() == Some(&id))
+                {
+                    s.engine.stop_all();
+                }
+            }
+            HotkeyAction::EmergencyStop => {
+                // Off first: ending the sessions quiets the motors, which would cut the
+                // pattern's first pulse.
+                self.remap_off();
+                self.confirm_hotkey(&id, Confirm::for_action(action, false));
+                self.drive_pulses(now);
+                return ControlFlow::Break(());
+            }
+            HotkeyAction::PadOverlay => self.overlays.toggle_pad(),
+            HotkeyAction::MappingsOverlay => self.overlays.toggle_mappings(),
+            HotkeyAction::AppNavigation => {
+                self.overlays.navigation = self.overlays.navigation.wrapping_add(1);
+            }
+        }
+        self.confirm_hotkey(&id, Confirm::for_action(action, true));
+        ControlFlow::Continue(())
+    }
+
+    /// Run every session's engine, send its output and feedback, and carry out the commands
+    /// its mappings issued.
+    fn tick_sessions(&mut self, now: u64) {
         let mut commands = Vec::new();
         for i in 0..self.sessions.len() {
             let s = &mut self.sessions[i];

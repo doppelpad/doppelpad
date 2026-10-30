@@ -5,13 +5,11 @@
 //! request needs the token. Browsers are kept out: requests that carry an `Origin` (or a
 //! `Host` other than this computer) need the token too, and commands must be JSON.
 
-use std::collections::hash_map::RandomState;
-use std::hash::{BuildHasher, Hasher};
 use std::io::{self, BufRead, BufReader, Read, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use crossbeam_channel::{Receiver, Sender, bounded};
 use dp_ipc::{Request, Response};
@@ -38,25 +36,23 @@ impl Default for HttpSettings {
         HttpSettings {
             enabled: false,
             lan: false,
-            port: 26761,
+            port: DEFAULT_PORT,
             token: String::new(),
         }
     }
 }
 
-/// A new random token (128 bits from the OS-seeded hasher).
+/// A new random token: 128 bits from the operating system's random source.
 pub fn new_token() -> String {
-    let part = || {
-        let mut h = RandomState::new().build_hasher();
-        h.write_u128(
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_nanos(),
-        );
-        h.finish()
-    };
-    format!("{:016x}{:016x}", part(), part())
+    let mut bytes = [0u8; 16];
+    getrandom::fill(&mut bytes).expect("the system's random source works");
+    bytes.iter().map(|b| format!("{b:02x}")).collect()
+}
+
+/// Whether `given` is `token`, compared in time that does not depend on where they differ.
+fn token_matches(given: &str, token: &str) -> bool {
+    let (a, b) = (given.as_bytes(), token.as_bytes());
+    a.len() == b.len() && a.iter().zip(b).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
 }
 
 /// What the server asks the service for; answered on the service thread.
@@ -76,6 +72,10 @@ struct Link {
 
 /// Event streams served at once; each holds a connection thread.
 const MAX_EVENT_STREAMS: usize = 8;
+/// Connections served at once, event streams included; more are closed at once.
+const MAX_CONNECTIONS: usize = 32;
+/// How long a client may take to send a request's head and body, however slowly it trickles.
+const REQUEST_DEADLINE: Duration = Duration::from_secs(10);
 
 pub struct HttpApi {
     /// Stops first, before the job queue goes away.
@@ -139,18 +139,26 @@ struct Access {
 }
 
 fn accept_loop(listener: TcpListener, access: Access, link: Link, stop: Arc<AtomicBool>) {
+    let open = Arc::new(AtomicUsize::new(0));
     while !stop.load(Ordering::Relaxed) {
         match listener.accept() {
             Ok((stream, _)) => {
+                if open.load(Ordering::Relaxed) >= MAX_CONNECTIONS {
+                    continue; // closed: the client may try again
+                }
+                open.fetch_add(1, Ordering::Relaxed);
                 let (access, link, stop) = (access.clone(), link.clone(), stop.clone());
+                let slot = open.clone();
                 let spawned = std::thread::Builder::new()
                     .name("dp-http-conn".into())
                     .spawn(move || {
                         if let Err(e) = serve(stream, &access, &link, &stop) {
                             tracing::debug!("HTTP connection: {e}");
                         }
+                        slot.fetch_sub(1, Ordering::Relaxed);
                     });
                 if let Err(e) = spawned {
+                    open.fetch_sub(1, Ordering::Relaxed);
                     tracing::warn!("cannot serve an HTTP request: {e}");
                 }
             }
@@ -193,8 +201,30 @@ impl HttpRequest {
     }
 }
 
+/// A reader that fails once `until` has passed (each read is also bounded by the socket's
+/// timeout), so a client cannot hold a connection by sending a byte now and then.
+struct Deadline<R> {
+    inner: R,
+    until: Instant,
+}
+
+impl<R: Read> Read for Deadline<R> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        if Instant::now() > self.until {
+            return Err(io::Error::new(
+                io::ErrorKind::TimedOut,
+                "the request took too long",
+            ));
+        }
+        self.inner.read(buf)
+    }
+}
+
 fn read_request(stream: &mut impl Read) -> io::Result<HttpRequest> {
-    let mut reader = BufReader::new(stream);
+    let mut reader = BufReader::new(Deadline {
+        inner: stream,
+        until: Instant::now() + REQUEST_DEADLINE,
+    });
     let mut head = Vec::new();
     loop {
         let mut line = Vec::new();
@@ -251,7 +281,8 @@ fn read_request(stream: &mut impl Read) -> io::Result<HttpRequest> {
 
 /// Why a request is refused, if it is.
 fn refused(req: &HttpRequest, access: &Access) -> Option<(u16, &'static str)> {
-    let with_token = !access.token.is_empty() && req.token() == Some(access.token.as_str());
+    let with_token =
+        !access.token.is_empty() && req.token().is_some_and(|t| token_matches(t, &access.token));
     if with_token {
         return None;
     }
@@ -528,7 +559,19 @@ mod tests {
     fn tokens_differ() {
         let (a, b) = (new_token(), new_token());
         assert_eq!(a.len(), 32);
+        assert!(a.bytes().all(|c| c.is_ascii_hexdigit()));
         assert_ne!(a, b);
+        assert!(token_matches(&a, &a) && !token_matches(&a, &b) && !token_matches(&a, "x"));
+    }
+
+    #[test]
+    fn a_request_past_its_deadline_is_dropped() {
+        let mut late = Deadline {
+            inner: &b"GET / HTTP/1.1\r\n\r\n"[..],
+            until: Instant::now() - Duration::from_secs(1),
+        };
+        let e = read_request(&mut late).unwrap_err();
+        assert_eq!(e.kind(), io::ErrorKind::TimedOut);
     }
 
     #[test]

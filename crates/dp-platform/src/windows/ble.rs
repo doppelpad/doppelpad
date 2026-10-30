@@ -3,8 +3,8 @@
 //! Windows cannot pair them (see [`crate::nintendo::switch2ble`]), so Doppelpad watches the
 //! advertisements for one in pairing mode, connects it without pairing and subscribes to its
 //! input. The controller then runs in the HID backend like any other, over a
-//! [`crate::switch2gatt`] link. A controller that is looking for the console it is paired with
-//! is left alone. The watcher runs only while the search is on ([`crate::set_switch2_search`]).
+//! [`crate::switch2gatt`] link. The watcher runs only while the search is on
+//! ([`crate::Switch2Search`]).
 //!
 //! The pads never ask for a faster connection, so Doppelpad asks Windows for one. Windows 11
 //! can be asked; Windows 10 keeps its default, which in tests brought the reports unevenly:
@@ -13,9 +13,8 @@
 //! The watcher's events arrive on the thread pool. Each controller is set up on a thread of
 //! its own, as that waits for the controller's answers.
 
-use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError};
 use std::time::{Duration, Instant};
 
 use windows::Devices::Bluetooth::Advertisement::{
@@ -38,65 +37,77 @@ use windows::Storage::Streams::{DataReader, DataWriter, IBuffer};
 use windows::core::{GUID, IInspectable, RuntimeType};
 use windows_future::{AsyncOperationCompletedHandler, IAsyncOperation};
 
+use crate::bdaddr::{BdAddr, LeAddrType};
 use crate::nintendo::Switch2Model;
-use crate::nintendo::switch2ble::{self, Advert};
-use crate::switch2gatt::{self, Feed, Links, Poll, Ready, Target, Writer};
+use crate::nintendo::switch2ble::{self, Advert, Role};
+use crate::switch2gatt::{
+    self, Attempt, CONNECT_TIMEOUT, Feed, Gone, Peers, Poll, Ready, SILENCE, Target, WRITE_TIMEOUT,
+    Writer,
+};
 
 /// Start the watcher again this long after it stopped (Bluetooth was off, or taken away).
 const RESTART: Duration = Duration::from_secs(10);
-/// Give up on a controller that has not connected and answered by then.
-const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
-/// How long a command may take to go out.
-const WRITE_TIMEOUT: Duration = Duration::from_secs(1);
-/// A controller whose input stopped for this long is let go. It sends all the time (at the
-/// least about 17 reports a second, even with nothing touched), while Windows notices one
-/// that was turned off only about 10 s later.
-const SILENCE: Duration = Duration::from_secs(3);
+/// How long the driver check waits for Windows to tell about the Bluetooth adapter.
+const CHECK_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// Whether Switch 2 controllers can connect, as a driver check: a Bluetooth adapter that
-/// speaks Bluetooth LE, switched on.
+/// speaks Bluetooth LE, switched on. Every answer is waited for at most [`CHECK_TIMEOUT`].
 pub fn check() -> crate::Result<()> {
     let unusable = |why: String| Err(crate::PlatformError::Other(why));
-    let Ok(adapter) = BluetoothAdapter::GetDefaultAsync().and_then(|op| op.join()) else {
+    let until = Instant::now() + CHECK_TIMEOUT;
+    let Ok(adapter) = BluetoothAdapter::GetDefaultAsync()
+        .map_err(Failure::from)
+        .and_then(|op| wait(op, until))
+    else {
         return unusable("no Bluetooth adapter".into());
     };
     if !adapter.IsLowEnergySupported().unwrap_or(false) {
         return unusable("the Bluetooth adapter does not support Bluetooth LE".into());
     }
-    match adapter
+    let state = adapter
         .GetRadioAsync()
-        .and_then(|op| op.join())
-        .and_then(|radio| radio.State())
-    {
+        .map_err(Failure::from)
+        .and_then(|op| wait(op, until))
+        .and_then(|radio| Ok(radio.State()?));
+    match state {
         Ok(RadioState::On) => Ok(()),
         Ok(_) => unusable("Bluetooth is off".into()),
-        Err(e) => unusable(format!("cannot read the state of Bluetooth: {e}")),
+        Err(Failure(e)) => unusable(format!("cannot read the state of Bluetooth: {e}")),
     }
 }
 
-/// What changed since the last call. Watches for controllers from the first call on.
-pub(crate) fn poll() -> Poll {
+/// What changed since the last call, with the search on or off as `search` says. Watches for
+/// controllers from the first call on; controllers silent for too long are let go.
+pub(crate) fn poll(search: bool) -> Poll {
     let c = central();
-    keep_watching(&mut c.watcher.lock().unwrap());
-    let silent: Vec<u64> = c
-        .state
-        .lock()
-        .unwrap()
-        .peers
-        .iter()
-        .filter_map(|(address, peer)| match peer {
-            Peer::Up { feed, .. } if feed.silent_for() > SILENCE => Some(*address),
-            _ => None,
-        })
-        .collect();
+    c.searching.store(search, Ordering::Relaxed);
+    keep_watching(&mut lock(&c.watcher), search);
+    let silent = lock(&c.peers).silent();
     for address in silent {
         tracing::info!(
             "Bluetooth: no input from the Switch 2 controller for {} s, letting it go",
             SILENCE.as_secs()
         );
-        on_disconnect(address);
+        // Not in a handler: the connection may be closed right here, after the lock (closing
+        // it may call back).
+        let gone = lock(&c.peers).let_go(&address);
+        drop(gone);
     }
-    c.state.lock().unwrap().links.poll()
+    lock(&c.peers).poll()
+}
+
+/// Stop watching and let every controller go, when the backend stops: nothing else would end
+/// their links before Doppelpad ends.
+pub(crate) fn let_all_go() {
+    let Some(c) = CENTRAL.get() else {
+        return;
+    };
+    keep_watching(&mut lock(&c.watcher), false);
+    let addresses = lock(&c.peers).keys();
+    for address in addresses {
+        let gone = lock(&c.peers).let_go(&address);
+        drop(gone);
+    }
 }
 
 static CENTRAL: OnceLock<Central> = OnceLock::new();
@@ -108,7 +119,15 @@ fn central() -> &'static Central {
 #[derive(Default)]
 struct Central {
     watcher: Mutex<Watcher>,
-    state: Mutex<State>,
+    /// Whether the search is on, as the scanner last told.
+    searching: AtomicBool,
+    /// Controllers being connected or connected, by Bluetooth address.
+    peers: Mutex<Peers<BdAddr, Conn>>,
+}
+
+/// Lock the client's state even after a handler panicked.
+fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
+    m.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
 #[derive(Default)]
@@ -116,25 +135,6 @@ struct Watcher {
     watcher: Option<BluetoothLEAdvertisementWatcher>,
     /// When it was last started.
     started: Option<Instant>,
-}
-
-#[derive(Default)]
-struct State {
-    /// Controllers being connected or connected, by Bluetooth address.
-    peers: HashMap<u64, Peer>,
-    /// Controllers already logged as not wanted, by Bluetooth address.
-    passed: HashSet<u64>,
-    links: Links,
-}
-
-/// One controller, from discovery until it disconnects.
-enum Peer {
-    /// Being set up on its own thread.
-    Connecting,
-    Up {
-        feed: Feed,
-        conn: Conn,
-    },
 }
 
 /// What keeps a controller connected. Dropping it lets the link go.
@@ -180,8 +180,8 @@ impl From<windows::core::Error> for Failure {
 
 /// Start the watcher, and start it again after Windows stopped it; stop it while the search
 /// is off.
-fn keep_watching(w: &mut Watcher) {
-    if !crate::switch2_search() {
+fn keep_watching(w: &mut Watcher, search: bool) {
+    if !search {
         if let Some(x) = w.watcher.take() {
             let _ = x.Stop();
             tracing::info!("Bluetooth: no longer looking for Switch 2 controllers");
@@ -245,78 +245,52 @@ fn on_advert(args: &BluetoothLEAdvertisementReceivedEventArgs) -> windows::core:
     let sections = args
         .Advertisement()?
         .GetManufacturerDataByCompanyId(switch2ble::COMPANY_ID)?;
+    let Some(address) = BdAddr::new(args.BluetoothAddress()?) else {
+        return Ok(());
+    };
+    let kind = match args.BluetoothAddressType()? {
+        BluetoothAddressType::Random => LeAddrType::Random,
+        _ => LeAddrType::Public,
+    };
     for section in sections {
         // Windows takes the company identifier off the front.
         let mut data = switch2ble::COMPANY_ID.to_le_bytes().to_vec();
         data.extend(bytes(&section.Data()?)?);
         if let Some(advert) = switch2ble::parse_advert(&data) {
-            discovered(
-                args.BluetoothAddress()?,
-                args.BluetoothAddressType()?,
-                advert,
-            );
+            discovered(address, kind, advert);
         }
     }
     Ok(())
 }
 
-fn discovered(address: u64, kind: BluetoothAddressType, advert: Advert) {
-    let mut state = central().state.lock().unwrap();
-    // An advertisement can still come in just after the search was turned off.
-    if state.peers.contains_key(&address) || !crate::switch2_search() {
+fn discovered(address: BdAddr, kind: LeAddrType, advert: Advert) {
+    let c = central();
+    let mut peers = lock(&c.peers);
+    if !peers.admit(&address, &advert, c.searching.load(Ordering::Relaxed)) {
         return;
     }
-    if !advert.pairing || advert.model != Switch2Model::Pro {
-        if state.passed.insert(address) {
-            if advert.pairing {
-                tracing::info!(
-                    model = ?advert.model,
-                    "Bluetooth: only the Switch 2 Pro Controller is supported over Bluetooth yet"
-                );
-            } else {
-                tracing::debug!(model = ?advert.model, "Bluetooth: a Switch 2 controller looks for its console, left alone");
-            }
-        }
-        return;
-    }
-    tracing::info!("Bluetooth: Switch 2 Pro Controller in pairing mode, connecting");
+    let attempt = peers.connecting(address, ());
     let spawned = std::thread::Builder::new()
         .name("dp-ble-connect".into())
-        .spawn(move || connect(address, kind, advert));
-    match spawned {
-        Ok(_) => {
-            state.peers.insert(address, Peer::Connecting);
-        }
-        Err(e) => tracing::warn!("Bluetooth: cannot connect the controller: {e}"),
+        .spawn(move || connect(address, kind, advert, attempt));
+    if let Err(e) = spawned {
+        tracing::warn!("Bluetooth: cannot connect the controller: {e}");
+        peers.failed(&address, attempt);
     }
-}
-
-/// The name a controller is known by: its address, which stays.
-fn key(address: u64) -> String {
-    format!("{address:012x}")
 }
 
 /// Set a controller up and hand it to the scanner.
-fn connect(address: u64, kind: BluetoothAddressType, advert: Advert) {
-    let opened = open(address, kind, advert);
+fn connect(address: BdAddr, kind: LeAddrType, advert: Advert, attempt: Attempt) {
+    let opened = open(address, kind, advert, attempt);
     // Let a connection go only after the lock: closing it may call back.
     let unwanted = {
-        let mut state = central().state.lock().unwrap();
-        // Not when it disconnected while it was set up.
-        let wanted = matches!(state.peers.get(&address), Some(Peer::Connecting));
+        let mut peers = lock(&central().peers);
         match opened {
-            Ok((feed, conn, ready)) if wanted => {
-                tracing::info!("Bluetooth: Switch 2 Pro Controller connected");
-                state.links.add(ready);
-                state.peers.insert(address, Peer::Up { feed, conn });
-                None
-            }
-            Ok((_, conn, _)) => Some(conn),
+            // Not when it disconnected while it was set up.
+            Ok((feed, conn, ready)) => peers.up(&address, attempt, feed, conn, ready).err(),
             Err(Failure(e)) => {
                 tracing::info!("Bluetooth: connecting the controller failed: {e}");
-                if wanted {
-                    state.peers.remove(&address);
-                }
+                peers.failed(&address, attempt);
                 None
             }
         }
@@ -324,101 +298,55 @@ fn connect(address: u64, kind: BluetoothAddressType, advert: Advert) {
     drop(unwanted);
 }
 
+/// The controller of `attempt` is gone: Windows says so, or nothing reads it any more. Called
+/// in a handler of the connection, so the connection is closed on a thread of its own.
+fn on_disconnect(address: BdAddr, attempt: Attempt) {
+    let Some(Gone::Up(conn)) = lock(&central().peers).let_go_attempt(&address, attempt) else {
+        // Being set up: `connect` sees it is gone.
+        return;
+    };
+    tracing::info!("Bluetooth: Switch 2 controller disconnected");
+    close_elsewhere(conn);
+}
+
+/// Drop a connection on a thread of its own: not inside a handler of the connection it closes.
+/// Should no thread start, the connection is leaked rather than closed in the handler.
+fn close_elsewhere(conn: Conn) {
+    let conn = Arc::new(Mutex::new(Some(conn)));
+    let closing = conn.clone();
+    let spawned = std::thread::Builder::new()
+        .name("dp-ble-close".into())
+        .spawn(move || drop(lock(&closing).take()));
+    if let Err(e) = spawned {
+        tracing::warn!("Bluetooth: cannot close the link to the controller: {e}");
+        std::mem::forget(lock(&conn).take());
+    }
+}
+
 /// Connect a controller, find its characteristics and switch its notifications on.
 fn open(
-    address: u64,
-    kind: BluetoothAddressType,
+    address: BdAddr,
+    kind: LeAddrType,
     advert: Advert,
+    attempt: Attempt,
 ) -> Result<(Feed, Conn, Ready), Failure> {
     let until = Instant::now() + CONNECT_TIMEOUT;
-    let device = wait(
-        BluetoothLEDevice::FromBluetoothAddressWithBluetoothAddressTypeAsync(address, kind)?,
-        until,
-    )?;
-    let session = wait(
-        GattSession::FromDeviceIdAsync(&device.BluetoothDeviceId()?)?,
-        until,
-    )?;
-    let mut conn = Conn {
-        device,
-        session,
-        service: None,
-        notifying: Vec::new(),
-        status: None,
-        faster: None,
-    };
-    // Nothing paired the controller, so nothing else keeps the link up.
-    conn.session.SetMaintainConnection(true)?;
-
-    let services = wait(
-        conn.device.GetGattServicesForUuidWithCacheModeAsync(
-            guid(switch2ble::SERVICE),
-            BluetoothCacheMode::Uncached,
-        )?,
-        until,
-    )?;
-    succeeded(services.Status()?, "reading its services")?;
-    let Some(service) = services.Services()?.into_iter().next() else {
-        return Err(Failure("it lacks its input service".into()));
-    };
-    let found = wait(
-        service.GetCharacteristicsWithCacheModeAsync(BluetoothCacheMode::Uncached)?,
-        until,
-    )?;
-    conn.service = Some(service);
-    succeeded(found.Status()?, "reading its characteristics")?;
-    let (mut input, mut command, mut reply, mut vibration) = (None, None, None, None);
-    let vibration_uuid = guid(switch2ble::vibration(advert.model));
-    for ch in found.Characteristics()? {
-        let uuid = ch.Uuid()?;
-        let slot = if uuid == guid(switch2ble::INPUT) {
-            &mut input
-        } else if uuid == guid(switch2ble::COMMAND) {
-            &mut command
-        } else if uuid == guid(switch2ble::REPLY) {
-            &mut reply
-        } else if uuid == vibration_uuid {
-            &mut vibration
-        } else {
-            continue;
-        };
-        *slot = Some(ch);
-    }
-    let (Some(input), Some(command), Some(reply)) = (input, command, reply) else {
-        return Err(Failure("it lacks input or command characteristics".into()));
-    };
-
+    let mut conn = connect_device(address, kind, until)?;
+    let chars = characteristics(&mut conn, advert.model, until)?;
     let (feed, io, commands) = switch2gatt::link(Box::new(GattWriter {
-        command,
-        vibration,
+        command: chars.command,
+        vibration: chars.vibration,
         rumbling: Arc::default(),
     }));
-    for (ch, is_input) in [(input, true), (reply, false)] {
-        let feed = feed.clone();
-        let token = ch.ValueChanged(&TypedEventHandler::<
-            GattCharacteristic,
-            GattValueChangedEventArgs,
-        >::new(move |_, args| {
-            if let Some(args) = args.as_ref() {
-                let value = bytes(&args.CharacteristicValue()?)?;
-                if is_input {
-                    feed.input(value);
-                } else {
-                    feed.reply(value);
-                }
-            }
-            Ok(())
-        }))?;
-        conn.notifying.push((ch.clone(), token));
-        let status = wait(
-            ch.WriteClientCharacteristicConfigurationDescriptorAsync(
-                GattClientCharacteristicConfigurationDescriptorValue::Notify,
-            )?,
-            until,
-        )?;
-        succeeded(status, "switching its notifications on")?;
-    }
-
+    subscribe(
+        &mut conn,
+        &feed,
+        [chars.input, chars.reply],
+        until,
+        move || {
+            on_disconnect(address, attempt);
+        },
+    )?;
     conn.status = Some(conn.device.ConnectionStatusChanged(&TypedEventHandler::<
         BluetoothLEDevice,
         IInspectable,
@@ -426,7 +354,7 @@ fn open(
         if let Some(device) = device.as_ref()
             && device.ConnectionStatus()? == BluetoothConnectionStatus::Disconnected
         {
-            on_disconnect(address);
+            on_disconnect(address, attempt);
         }
         Ok(())
     }))?);
@@ -446,8 +374,126 @@ fn open(
             f32::from(interval) * 1.25
         );
     }
-    let ready = Ready::new(&key(address), advert, io, commands);
+    let ready = Ready::new(&address.to_string(), advert, io, commands);
     Ok((feed, conn, ready))
+}
+
+/// Connect the device and open a GATT session that keeps the link up.
+fn connect_device(address: BdAddr, kind: LeAddrType, until: Instant) -> Result<Conn, Failure> {
+    let kind = match kind {
+        LeAddrType::Public => BluetoothAddressType::Public,
+        LeAddrType::Random => BluetoothAddressType::Random,
+    };
+    let device = wait(
+        BluetoothLEDevice::FromBluetoothAddressWithBluetoothAddressTypeAsync(address.get(), kind)?,
+        until,
+    )?;
+    let session = wait(
+        GattSession::FromDeviceIdAsync(&device.BluetoothDeviceId()?)?,
+        until,
+    )?;
+    let conn = Conn {
+        device,
+        session,
+        service: None,
+        notifying: Vec::new(),
+        status: None,
+        faster: None,
+    };
+    // Nothing paired the controller, so nothing else keeps the link up.
+    conn.session.SetMaintainConnection(true)?;
+    Ok(conn)
+}
+
+/// A controller's characteristics.
+struct Characteristics {
+    input: GattCharacteristic,
+    command: GattCharacteristic,
+    reply: GattCharacteristic,
+    vibration: Option<GattCharacteristic>,
+}
+
+/// Find the controller's service and its characteristics; the service stays with `conn`.
+fn characteristics(
+    conn: &mut Conn,
+    model: Switch2Model,
+    until: Instant,
+) -> Result<Characteristics, Failure> {
+    let services = wait(
+        conn.device.GetGattServicesForUuidWithCacheModeAsync(
+            GUID::from_u128(switch2ble::SERVICE),
+            BluetoothCacheMode::Uncached,
+        )?,
+        until,
+    )?;
+    succeeded(services.Status()?, "reading its services")?;
+    let Some(service) = services.Services()?.into_iter().next() else {
+        return Err(Failure("it lacks its input service".into()));
+    };
+    let found = wait(
+        service.GetCharacteristicsWithCacheModeAsync(BluetoothCacheMode::Uncached)?,
+        until,
+    )?;
+    conn.service = Some(service);
+    succeeded(found.Status()?, "reading its characteristics")?;
+    let (mut input, mut command, mut reply, mut vibration) = (None, None, None, None);
+    for ch in found.Characteristics()? {
+        let slot = match switch2ble::role(ch.Uuid()?.to_u128(), model) {
+            Some(Role::Input) => &mut input,
+            Some(Role::Command) => &mut command,
+            Some(Role::Reply) => &mut reply,
+            Some(Role::Vibration) => &mut vibration,
+            None => continue,
+        };
+        *slot = Some(ch);
+    }
+    let (Some(input), Some(command), Some(reply)) = (input, command, reply) else {
+        return Err(Failure("it lacks input or command characteristics".into()));
+    };
+    Ok(Characteristics {
+        input,
+        command,
+        reply,
+        vibration,
+    })
+}
+
+/// Feed the input and the replies into `feed` and switch their notifications on. Input that
+/// nobody reads any more calls `gone`.
+fn subscribe(
+    conn: &mut Conn,
+    feed: &Feed,
+    [input, reply]: [GattCharacteristic; 2],
+    until: Instant,
+    gone: impl Fn() + Send + Sync + 'static,
+) -> Result<(), Failure> {
+    let gone = Arc::new(gone);
+    for (ch, is_input) in [(input, true), (reply, false)] {
+        let (feed, gone) = (feed.clone(), gone.clone());
+        let token = ch.ValueChanged(&TypedEventHandler::<
+            GattCharacteristic,
+            GattValueChangedEventArgs,
+        >::new(move |_, args| {
+            if let Some(args) = args.as_ref() {
+                let value = bytes(&args.CharacteristicValue()?)?;
+                if !is_input {
+                    feed.reply(value);
+                } else if !feed.input(value) {
+                    gone();
+                }
+            }
+            Ok(())
+        }))?;
+        conn.notifying.push((ch.clone(), token));
+        let status = wait(
+            ch.WriteClientCharacteristicConfigurationDescriptorAsync(
+                GattClientCharacteristicConfigurationDescriptorValue::Notify,
+            )?,
+            until,
+        )?;
+        succeeded(status, "switching its notifications on")?;
+    }
+    Ok(())
 }
 
 /// Ask for the shortest connection interval, which the pads never ask for themselves. Only
@@ -469,31 +515,6 @@ fn ask_faster(
             tracing::debug!("Bluetooth: this Windows cannot be asked for a faster connection: {e}");
             None
         }
-    }
-}
-
-/// The controller is gone: Windows says so, or its input stopped.
-fn on_disconnect(address: u64) {
-    let conn = {
-        let mut state = central().state.lock().unwrap();
-        // To find it again when it comes back in pairing mode.
-        state.passed.remove(&address);
-        match state.peers.remove(&address) {
-            Some(Peer::Up { feed, conn }) => {
-                feed.close();
-                state.links.remove(&switch2gatt::path(&key(address)));
-                Some(conn)
-            }
-            // Being set up: `connect` sees it is gone.
-            _ => None,
-        }
-    };
-    if let Some(conn) = conn {
-        tracing::info!("Bluetooth: Switch 2 controller disconnected");
-        // Not inside the handler of the connection it closes.
-        let _ = std::thread::Builder::new()
-            .name("dp-ble-close".into())
-            .spawn(move || drop(conn));
     }
 }
 
@@ -563,7 +584,7 @@ fn wait<T: RuntimeType + 'static>(op: IAsyncOperation<T>, until: Instant) -> Res
         .is_err()
     {
         let _ = op.Cancel();
-        return Err(Failure("the controller did not answer in time".into()));
+        return Err(Failure("no answer in time".into()));
     }
     Ok(op.GetResults()?)
 }
@@ -577,10 +598,6 @@ fn succeeded(status: GattCommunicationStatus, what: &str) -> Result<(), Failure>
         _ => "failed",
     };
     Err(Failure(format!("{what}: {why}")))
-}
-
-fn guid(uuid: &str) -> GUID {
-    GUID::try_from(uuid).unwrap_or(GUID::zeroed())
 }
 
 fn buffer(data: &[u8]) -> windows::core::Result<IBuffer> {
@@ -598,10 +615,10 @@ fn bytes(buffer: &IBuffer) -> windows::core::Result<Vec<u8>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::nintendo::Switch2Model;
 
+    /// The numbers are the GUIDs Windows names the characteristics by.
     #[test]
-    fn uuids_parse() {
+    fn uuids_are_windows_guids() {
         let models = [
             Switch2Model::Pro,
             Switch2Model::JoyConLeft,
@@ -617,9 +634,9 @@ mod tests {
         .into_iter()
         .chain(models.map(switch2ble::vibration));
         for uuid in uuids {
-            let g = guid(uuid);
-            assert_ne!(g, GUID::zeroed(), "{uuid}");
-            assert_eq!(format!("{g:?}"), uuid);
+            let g = GUID::from_u128(uuid);
+            assert_eq!(format!("{g:?}"), switch2ble::uuid_text(uuid));
+            assert_eq!(g.to_u128(), uuid);
         }
     }
 
@@ -683,8 +700,8 @@ mod tests {
                             _ => "other",
                         };
                         let what = format!(
-                            "{} ({kind}): {:?}",
-                            key(args.BluetoothAddress()?),
+                            "{:012x} ({kind}): {:?}",
+                            args.BluetoothAddress()?,
                             switch2ble::parse_advert(&data)
                         );
                         *log.1.entry(what).or_insert(0) += 1;
@@ -790,12 +807,7 @@ mod tests {
     #[test]
     #[ignore = "connects a Switch 2 Pro Controller in pairing mode near this PC"]
     fn switch2_pro_over_bluetooth() {
-        switch2gatt::drive_controller(poll);
-    }
-
-    #[test]
-    fn keys_are_addresses() {
-        assert_eq!(key(0x98B6_E912_3456), "98b6e9123456");
-        assert_eq!(key(0x12), "000000000012");
+        switch2gatt::drive_controller(|| poll(true));
+        let_all_go();
     }
 }

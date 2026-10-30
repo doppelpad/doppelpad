@@ -6,7 +6,8 @@
   import { analogTabOf } from '../../lib/model/controls';
   import { comboLabel } from '../../lib/model/labels';
   import { removeMapping, singleControl } from '../../lib/model/profile';
-  import { app, type AnalogTab } from '../../lib/state/app.svelte';
+  import type { AnalogTab } from '../../lib/model/views';
+  import { app } from '../../lib/state/app.svelte';
   import type { Mapping } from '../../lib/types';
   import LayerNote from '../ui/LayerNote.svelte';
   import ActionChips from './ActionChips.svelte';
