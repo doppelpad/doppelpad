@@ -1,5 +1,6 @@
 // State of the app window, for the title bar the app draws itself (see main.rs).
 
+import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 
 export type Platform = 'windows' | 'macos' | 'linux';
@@ -26,10 +27,18 @@ class WindowState {
     };
     await sync();
     await w.onResized(sync);
-    await w.onFocusChanged(({ payload }) => {
-      if (payload && !this.focused) this.onFocus();
-      this.focused = payload;
-    });
+    // Windows calls a window focused that was made hidden (started with the system) or hid
+    // to the tray, so showing it changes no focus: the app says when it shows and hides.
+    this.focused = (await w.isVisible()) && (await w.isFocused());
+    await listen('main-hidden', () => (this.focused = false));
+    await listen('main-shown', () => this.inFront());
+    await w.onFocusChanged(({ payload }) => (payload ? this.inFront() : (this.focused = false)));
+  }
+
+  /** The window is in front; the first time since it was away counts as coming back. */
+  private inFront() {
+    if (!this.focused) this.onFocus();
+    this.focused = true;
   }
 
   minimize() {

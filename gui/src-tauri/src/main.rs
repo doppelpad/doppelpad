@@ -25,7 +25,7 @@ mod updates;
 use std::time::{Duration, Instant};
 
 use dp_service::{HostOptions, Ipc, ServiceOptions};
-use tauri::{Manager, WindowEvent};
+use tauri::{Emitter, Manager, WindowEvent};
 
 use crate::commands::system::Notice;
 use crate::main_window::MAIN_WINDOW;
@@ -131,6 +131,7 @@ fn main() {
                         api.prevent_close();
                         if let Some(w) = app_handle.get_webview_window(MAIN_WINDOW) {
                             let _ = w.hide();
+                            let _ = w.emit(main_window::HIDDEN_EVENT, ());
                         }
                         main_window::show_in_dock(&app_handle, false);
                         // A hidden window has no focus, whether or not Windows reports it.

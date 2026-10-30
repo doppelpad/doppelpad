@@ -4,12 +4,18 @@
 use std::sync::atomic::Ordering;
 
 use tauri::utils::config::WindowConfig;
-use tauri::{AppHandle, Manager, WebviewWindow, WebviewWindowBuilder};
+use tauri::{AppHandle, Emitter, Manager, WebviewWindow, WebviewWindowBuilder};
 
 use crate::state::AppState;
 
 /// The label of the editor window.
 pub const MAIN_WINDOW: &str = "main";
+
+/// Told to the window's page when it shows and when it hides to the tray. A window made
+/// hidden (started with the system) counts as focused for Windows, so showing it brings no
+/// focus change of its own; the page lists the library again when the window comes back.
+pub const SHOWN_EVENT: &str = "main-shown";
+pub const HIDDEN_EVENT: &str = "main-hidden";
 
 /// Create the main window from its config entry, with the title bar drawn by the app:
 /// macOS keeps its native traffic lights over the app's header, Windows and Linux get
@@ -60,6 +66,7 @@ pub fn show_main(app: &AppHandle) {
         fit_to_screen(&w);
         let _ = w.show();
         let _ = w.set_focus();
+        let _ = w.emit(SHOWN_EVENT, ());
     }
 }
 
