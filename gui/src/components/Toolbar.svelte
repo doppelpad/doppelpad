@@ -304,12 +304,10 @@
     background: var(--bg-2);
     color: var(--text);
   }
-  /* The shown view: also a bar under it, for those who do not tell the colours apart. */
   .tile.active {
     color: var(--accent);
     background: var(--accent-soft);
     border-color: color-mix(in srgb, var(--accent) 30%, transparent);
-    box-shadow: inset 0 -2px 0 var(--accent);
   }
   .layers {
     position: relative;
