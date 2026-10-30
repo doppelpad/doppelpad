@@ -375,11 +375,9 @@
     border-color: var(--line-strong);
     color: var(--text);
   }
-  /* The current layer: also a thicker frame, for those who do not tell the colours apart. */
   .layer.active {
     border-color: var(--c);
     color: var(--text);
     background: color-mix(in srgb, var(--c) 14%, transparent);
-    box-shadow: inset 0 0 0 1px var(--c);
   }
 </style>
