@@ -137,27 +137,30 @@ pub enum Press {
 }
 
 /// Something a mapping does.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(untagged, deny_unknown_fields)]
+///
+/// Written untagged, but read by hand (`ActionFields`): that names the field or value at
+/// fault where an untagged derive only says that no variant matched.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[serde(untagged)]
 pub enum Action {
     Key {
         key: Key,
-        #[serde(default, skip_serializing_if = "is_default")]
+        #[serde(skip_serializing_if = "is_default")]
         action: Press,
     },
     Pad {
         pad: PadButton,
-        #[serde(default, skip_serializing_if = "is_default")]
+        #[serde(skip_serializing_if = "is_default")]
         action: Press,
     },
     Mouse {
         mouse: MouseButton,
-        #[serde(default, skip_serializing_if = "is_default")]
+        #[serde(skip_serializing_if = "is_default")]
         action: Press,
     },
     Wheel {
         wheel: WheelDir,
-        #[serde(default = "one", skip_serializing_if = "is_one")]
+        #[serde(skip_serializing_if = "is_one")]
         clicks: f32,
     },
     /// Deflect a virtual stick (`x`, `y` in `[-1, 1]`, up positive). Added to the physical
@@ -167,38 +170,31 @@ pub enum Action {
         stick: Stick,
         x: f32,
         y: f32,
-        #[serde(default, skip_serializing_if = "is_default")]
+        #[serde(skip_serializing_if = "is_default")]
         absolute: bool,
-        #[serde(default, skip_serializing_if = "is_default")]
+        #[serde(skip_serializing_if = "is_default")]
         action: Press,
     },
     /// Pull a virtual trigger.
     Trigger {
         trigger: Trigger,
-        #[serde(default = "one", skip_serializing_if = "is_one")]
+        #[serde(skip_serializing_if = "is_one")]
         value: f32,
-        #[serde(default, skip_serializing_if = "is_default")]
+        #[serde(skip_serializing_if = "is_default")]
         action: Press,
     },
     /// Move the mouse continuously in a direction while active (pixels per second).
     MouseMove {
         mouse_move: Dir,
-        #[serde(default = "default_mouse_speed")]
         speed: f32,
         /// The speed grows by this much of itself per second held (up to 20 ×).
-        #[serde(default, skip_serializing_if = "is_default")]
+        #[serde(skip_serializing_if = "is_default")]
         acceleration: f32,
     },
     /// Wait inside a sequence.
     Pause { pause: u32 },
     /// Vibrate the physical controller.
-    Rumble {
-        rumble: u32,
-        #[serde(default = "default_rumble")]
-        low: f32,
-        #[serde(default = "default_rumble")]
-        high: f32,
-    },
+    Rumble { rumble: u32, low: f32, high: f32 },
     /// Shake the virtual controller's accelerometer along one axis (`[virtual.motion]`
     /// sets how hard and how long).
     Shake { shake: ShakeAxis },
@@ -214,7 +210,7 @@ pub enum Action {
     /// (default 250, taps 60).
     Touch {
         touch: TouchGesture,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[serde(skip_serializing_if = "Option::is_none")]
         ms: Option<u32>,
     },
     /// Built-in command.
@@ -269,6 +265,272 @@ impl Action {
 
     pub fn is_break(&self) -> bool {
         matches!(self, Action::Break { .. })
+    }
+}
+
+/// The field that says what an action is, with the other fields that action takes.
+const ACTION_KINDS: &[(&str, &[&str])] = &[
+    ("key", &["action"]),
+    ("pad", &["action"]),
+    ("mouse", &["action"]),
+    ("wheel", &["clicks"]),
+    ("stick", &["x", "y", "absolute", "action"]),
+    ("trigger", &["value", "action"]),
+    ("mouse_move", &["speed", "acceleration"]),
+    ("pause", &[]),
+    ("rumble", &["low", "high"]),
+    ("shake", &[]),
+    ("turn", &[]),
+    ("mouse_to", &[]),
+    ("mouse_clip", &[]),
+    ("touch", &["ms"]),
+    ("command", &[]),
+    ("break", &[]),
+];
+
+/// `names` as inline code, separated by commas.
+fn code_list(names: &[&str]) -> String {
+    let names: Vec<String> = names.iter().map(|n| format!("`{n}`")).collect();
+    names.join(", ")
+}
+
+/// Declares [`ActionFields`]: every field an action can have, by its name in profiles.
+macro_rules! action_fields {
+    ($( $field:ident: $ty:ty = $name:literal ),+ $(,)?) => {
+        /// The fields of one action as read, before they are checked to make one.
+        #[derive(Default)]
+        struct ActionFields {
+            $( $field: Option<$ty> ),+
+        }
+
+        impl ActionFields {
+            /// Read the value of the field `name`; false if no action has such a field.
+            fn read<'de, A: serde::de::MapAccess<'de>>(
+                &mut self,
+                name: &str,
+                map: &mut A,
+            ) -> Result<bool, A::Error> {
+                match name {
+                    $( $name => self.$field = Some(map.next_value()?), )+
+                    _ => return Ok(false),
+                }
+                Ok(true)
+            }
+
+            /// The names of the fields read.
+            fn present(&self) -> Vec<&'static str> {
+                let mut names = Vec::new();
+                $( if self.$field.is_some() { names.push($name); } )+
+                names
+            }
+        }
+    };
+}
+
+action_fields! {
+    key: Key = "key",
+    pad: PadName = "pad",
+    mouse: MouseButton = "mouse",
+    wheel: WheelDir = "wheel",
+    clicks: f32 = "clicks",
+    stick: Stick = "stick",
+    x: f32 = "x",
+    y: f32 = "y",
+    absolute: bool = "absolute",
+    trigger: Trigger = "trigger",
+    value: f32 = "value",
+    mouse_move: Dir = "mouse_move",
+    speed: f32 = "speed",
+    acceleration: f32 = "acceleration",
+    pause: u32 = "pause",
+    rumble: u32 = "rumble",
+    low: f32 = "low",
+    high: f32 = "high",
+    shake: ShakeAxis = "shake",
+    turn: f32 = "turn",
+    mouse_to: [f32; 2] = "mouse_to",
+    mouse_clip: [f32; 4] = "mouse_clip",
+    touch: TouchGesture = "touch",
+    ms: Option<u32> = "ms",
+    command: Command = "command",
+    r#break: bool = "break",
+    action: Press = "action",
+}
+
+impl ActionFields {
+    /// The action these fields make: exactly one field of [`ACTION_KINDS`] and only the
+    /// fields that kind takes.
+    fn build(self) -> Result<Action, String> {
+        let present = self.present();
+        let kinds: Vec<&str> = present
+            .iter()
+            .copied()
+            .filter(|n| ACTION_KINDS.iter().any(|(k, _)| k == n))
+            .collect();
+        let all_kinds = || code_list(&ACTION_KINDS.iter().map(|&(k, _)| k).collect::<Vec<_>>());
+        let kind = match kinds[..] {
+            [kind] => kind,
+            [] if present.is_empty() => {
+                return Err(format!("an empty action; it needs one of {}", all_kinds()));
+            }
+            [] => {
+                return Err(format!(
+                    "an action needs one of {}; this one has only {}",
+                    all_kinds(),
+                    code_list(&present)
+                ));
+            }
+            [a, b, ..] => {
+                return Err(format!(
+                    "`{a}` and `{b}` are two actions; put each in its own {{ }}"
+                ));
+            }
+        };
+        let takes = ACTION_KINDS
+            .iter()
+            .find(|(k, _)| *k == kind)
+            .map_or(&[][..], |&(_, t)| t);
+        if let Some(extra) = present.iter().find(|&&n| n != kind && !takes.contains(&n)) {
+            return Err(if takes.is_empty() {
+                format!("`{extra}` does not go with `{kind}`, which takes nothing else")
+            } else {
+                format!(
+                    "`{extra}` does not go with `{kind}`, which takes {}",
+                    code_list(takes)
+                )
+            });
+        }
+        let action = self.action.unwrap_or_default();
+        Ok(if let Some(key) = self.key {
+            Action::Key { key, action }
+        } else if let Some(PadName(pad)) = self.pad {
+            Action::Pad { pad, action }
+        } else if let Some(mouse) = self.mouse {
+            Action::Mouse { mouse, action }
+        } else if let Some(wheel) = self.wheel {
+            Action::Wheel {
+                wheel,
+                clicks: self.clicks.unwrap_or_else(one),
+            }
+        } else if let Some(stick) = self.stick {
+            let (Some(x), Some(y)) = (self.x, self.y) else {
+                return Err(
+                    "a stick action needs `x` and `y` (up is +y), such as { stick = \"left\", x = 0.0, y = 1.0 }"
+                        .into(),
+                );
+            };
+            Action::Stick {
+                stick,
+                x,
+                y,
+                absolute: self.absolute.unwrap_or_default(),
+                action,
+            }
+        } else if let Some(trigger) = self.trigger {
+            Action::Trigger {
+                trigger,
+                value: self.value.unwrap_or_else(one),
+                action,
+            }
+        } else if let Some(mouse_move) = self.mouse_move {
+            Action::MouseMove {
+                mouse_move,
+                speed: self.speed.unwrap_or_else(default_mouse_speed),
+                acceleration: self.acceleration.unwrap_or_default(),
+            }
+        } else if let Some(pause) = self.pause {
+            Action::Pause { pause }
+        } else if let Some(rumble) = self.rumble {
+            Action::Rumble {
+                rumble,
+                low: self.low.unwrap_or_else(default_rumble),
+                high: self.high.unwrap_or_else(default_rumble),
+            }
+        } else if let Some(shake) = self.shake {
+            Action::Shake { shake }
+        } else if let Some(turn) = self.turn {
+            Action::Turn { turn }
+        } else if let Some(mouse_to) = self.mouse_to {
+            Action::MouseTo { mouse_to }
+        } else if let Some(mouse_clip) = self.mouse_clip {
+            Action::MouseClip { mouse_clip }
+        } else if let Some(touch) = self.touch {
+            Action::Touch {
+                touch,
+                ms: self.ms.flatten(),
+            }
+        } else if let Some(command) = self.command {
+            Action::Command { command }
+        } else {
+            // `break`, the one kind left.
+            Action::Break {
+                r#break: self.r#break.unwrap_or_default(),
+            }
+        })
+    }
+}
+
+impl<'de> Deserialize<'de> for Action {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        struct ActionVisitor;
+
+        impl<'de> serde::de::Visitor<'de> for ActionVisitor {
+            type Value = Action;
+
+            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                f.write_str("an action such as { key = \"Space\" } or { pad = \"A\" }")
+            }
+
+            fn visit_map<A: serde::de::MapAccess<'de>>(
+                self,
+                mut map: A,
+            ) -> Result<Action, A::Error> {
+                let mut fields = ActionFields::default();
+                while let Some(name) = map.next_key::<String>()? {
+                    if !fields.read(&name, &mut map)? {
+                        return Err(serde::de::Error::custom(format!(
+                            "unknown field `{name}` in an action; an action starts with one of {}, \
+                             and settings such as `mode` belong to the mapping, beside `actions`",
+                            code_list(&ACTION_KINDS.iter().map(|&(k, _)| k).collect::<Vec<_>>())
+                        )));
+                    }
+                }
+                fields.build().map_err(serde::de::Error::custom)
+            }
+        }
+
+        d.deserialize_map(ActionVisitor)
+    }
+}
+
+/// The button of a `pad` action, which takes the button names exactly as written.
+struct PadName(PadButton);
+
+impl<'de> Deserialize<'de> for PadName {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let s = String::deserialize(d)?;
+        if let Some(b) = PadButton::ALL.into_iter().find(|b| b.name() == s) {
+            return Ok(PadName(b));
+        }
+        let message = match s.parse::<Control>() {
+            Ok(Control::Button(b)) => {
+                format!(
+                    "`pad` takes the button's own name: write `{}` for `{s}`",
+                    b.name()
+                )
+            }
+            Ok(Control::TriggerPress(t) | Control::TriggerFull(t) | Control::TriggerZone(t, _)) => {
+                format!(
+                    "`{s}` is a trigger, not a button: use {{ trigger = \"{}\" }}",
+                    t.name().to_ascii_lowercase()
+                )
+            }
+            _ => format!(
+                "unknown button `{s}`; `pad` takes {}",
+                code_list(&PadButton::ALL.map(PadButton::name))
+            ),
+        };
+        Err(serde::de::Error::custom(message))
     }
 }
 
@@ -451,8 +713,8 @@ fn default_rumble() -> f32 {
 mod tests {
     use crate::profile::Profile;
 
-    /// Every `Action` variant in its written form. `untagged` makes the variant order part of
-    /// the format, so the text must survive a round trip unchanged.
+    /// Every `Action` variant in its written form. Actions are written untagged and read by
+    /// hand, so the text must survive a round trip unchanged.
     #[test]
     fn action_variants_roundtrip() {
         let src = r#"[[mappings]]
@@ -610,6 +872,94 @@ break = true
         let text = toml::to_string(&parsed).unwrap();
         assert_eq!(text, written);
         assert_eq!(toml::from_str::<Profile>(&text).unwrap(), parsed);
+    }
+
+    /// A mistake in an action is reported by what it is, so that whoever wrote it, a person or
+    /// an assistant, can fix it from the message alone.
+    #[test]
+    fn action_mistakes_are_named() {
+        let err = |action: &str| {
+            let src = format!("[[mappings]]\ntrigger = \"A\"\nactions = [{action}]\n");
+            toml::from_str::<Profile>(&src).unwrap_err().to_string()
+        };
+        for (action, says) in [
+            (
+                r#"{ key = "W", mode = "down" }"#,
+                "unknown field `mode` in an action",
+            ),
+            (r#"{ pad = "Cross" }"#, "write `A` for `Cross`"),
+            (r#"{ pad = "dpadup" }"#, "write `DpadUp` for `dpadup`"),
+            (
+                r#"{ pad = "RT" }"#,
+                r#"`RT` is a trigger, not a button: use { trigger = "right" }"#,
+            ),
+            (
+                r#"{ pad = "Bogus" }"#,
+                "unknown button `Bogus`; `pad` takes `A`",
+            ),
+            (
+                r#"{ mouse = "Left" }"#,
+                "unknown variant `Left`, expected one of `left`",
+            ),
+            (
+                r#"{ trigger = "RT" }"#,
+                "unknown variant `RT`, expected `left` or `right`",
+            ),
+            (
+                r#"{ key = "Ctrl+C" }"#,
+                "unknown key `Ctrl+C` (a key name names one key",
+            ),
+            (
+                r#"{ stick = "right", y = -0.15 }"#,
+                "a stick action needs `x` and `y`",
+            ),
+            (
+                r#"{ key = "A", pad = "B" }"#,
+                "`key` and `pad` are two actions",
+            ),
+            (
+                r#"{ key = "A", clicks = 2 }"#,
+                "`clicks` does not go with `key`, which takes `action`",
+            ),
+            (
+                r#"{ command = "remap_off", action = "tap" }"#,
+                "`action` does not go with `command`, which takes nothing else",
+            ),
+            (r#"{ x = 1.0 }"#, "this one has only `x`"),
+            ("{}", "an empty action"),
+            (
+                r#""Space""#,
+                r#"expected an action such as { key = "Space" }"#,
+            ),
+        ] {
+            let message = err(action);
+            assert!(message.contains(says), "{action}:\n{message}");
+        }
+    }
+
+    #[test]
+    fn actions_read_from_json_too() {
+        let json = r#"{ "mappings": [{ "trigger": "A", "actions": [
+            { "touch": "tap", "ms": null },
+            { "stick": "left", "x": 0, "y": 1 }
+        ] }] }"#;
+        let p: Profile = serde_json::from_str(json).unwrap();
+        assert_eq!(
+            p.mappings[0].actions,
+            [
+                super::Action::Touch {
+                    touch: crate::control::TouchGesture::Tap,
+                    ms: None
+                },
+                super::Action::Stick {
+                    stick: crate::pad::Stick::Left,
+                    x: 0.0,
+                    y: 1.0,
+                    absolute: false,
+                    action: super::Press::Auto
+                },
+            ]
+        );
     }
 
     #[test]

@@ -208,6 +208,9 @@ fn check_mappings(d: &mut Diagnostics, p: &Profile, declared: &[u8]) {
             && j.layer != 0
             && !declared.contains(&j.layer)
             && !p.mappings.iter().any(|o| o.layer == j.layer)
+            && !p.analog.iter().any(|r| r.layer == j.layer)
+            && !p.radial_menus.iter().any(|r| r.layer == j.layer)
+            && !p.crosshairs.iter().any(|c| c.layers.contains(&j.layer))
         {
             d.warn(
                 &path,
@@ -914,6 +917,41 @@ actions = [{ key = "A" }]
             w.iter().any(|x| x
                 == "radial_menus[0]: nothing activates layer 2, so the menu never opens"),
             "{w:?}"
+        );
+    }
+
+    #[test]
+    fn a_layer_with_only_a_menu_route_or_crosshair_needs_no_declaration() {
+        let w = warnings(
+            r#"
+[[mappings]]
+trigger = "LB"
+jump = { layer = 1, mode = "hold" }
+[[mappings]]
+trigger = "RB"
+jump = { layer = 2, mode = "hold" }
+[[mappings]]
+trigger = "LT"
+jump = { layer = 3, mode = "hold" }
+[[mappings]]
+trigger = "RT"
+jump = { layer = 4, mode = "hold" }
+[[radial_menus]]
+layer = 1
+select = "right_stick"
+[[radial_menus.sectors]]
+actions = [{ key = "F1" }]
+[[analog]]
+layer = 2
+source = "gyro"
+target = "right_stick"
+[[crosshairs]]
+layers = [3]
+"#,
+        );
+        assert_eq!(
+            w,
+            ["mappings[3] (RT): jumps to layer 4 which has no mappings"]
         );
     }
 

@@ -100,26 +100,36 @@ const DIGITS: [Key; 10] = [
     Key::Digit9,
 ];
 
+/// Other names of keys, matched ignoring case (besides the digits `0`-`9`).
+pub const KEY_ALIASES: &[(&str, Key)] = &[
+    ("Ctrl", Key::LeftCtrl),
+    ("Control", Key::LeftCtrl),
+    ("Shift", Key::LeftShift),
+    ("Alt", Key::LeftAlt),
+    ("Win", Key::LeftMeta),
+    ("Meta", Key::LeftMeta),
+    ("Super", Key::LeftMeta),
+    ("Cmd", Key::LeftMeta),
+    ("Esc", Key::Escape),
+    ("Return", Key::Enter),
+    ("Del", Key::Delete),
+    ("Ins", Key::Insert),
+    ("PgUp", Key::PageUp),
+    ("PgDn", Key::PageDown),
+    ("Menu", Key::ContextMenu),
+    ("Apps", Key::ContextMenu),
+];
+
 impl Key {
-    /// Look up a key by its canonical name, case-insensitively. A few common
-    /// aliases (`Ctrl`, `Shift`, `Alt`, `Win`, `Esc`, `Return`, digits `0`-`9`) are accepted.
+    /// Look up a key by its canonical name, case-insensitively. The [`KEY_ALIASES`] and the
+    /// digits `0`-`9` are accepted too.
     pub fn from_name(s: &str) -> Option<Key> {
-        let alias = match s.to_ascii_lowercase().as_str() {
-            "ctrl" | "control" => Some(Key::LeftCtrl),
-            "shift" => Some(Key::LeftShift),
-            "alt" => Some(Key::LeftAlt),
-            "win" | "meta" | "super" | "cmd" => Some(Key::LeftMeta),
-            "esc" => Some(Key::Escape),
-            "return" => Some(Key::Enter),
-            "del" => Some(Key::Delete),
-            "ins" => Some(Key::Insert),
-            "pgup" => Some(Key::PageUp),
-            "pgdn" => Some(Key::PageDown),
-            "menu" | "apps" => Some(Key::ContextMenu),
-            d if d.len() == 1 && d.as_bytes()[0].is_ascii_digit() => {
-                Some(DIGITS[usize::from(d.as_bytes()[0] - b'0')])
-            }
-            _ => None,
+        let alias = match s.as_bytes() {
+            &[d] if d.is_ascii_digit() => Some(DIGITS[usize::from(d - b'0')]),
+            _ => KEY_ALIASES
+                .iter()
+                .find(|(name, _)| name.eq_ignore_ascii_case(s))
+                .map(|&(_, k)| k),
         };
         alias.or_else(|| {
             Key::ALL
@@ -183,7 +193,13 @@ impl std::fmt::Display for Key {
 impl std::str::FromStr for Key {
     type Err = String;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Key::from_name(s).ok_or_else(|| format!("unknown key `{s}`"))
+        Key::from_name(s).ok_or_else(|| {
+            if s.len() > 1 && s.contains('+') {
+                format!("unknown key `{s}` (a key name names one key; a shortcut is several keys)")
+            } else {
+                format!("unknown key `{s}`")
+            }
+        })
     }
 }
 

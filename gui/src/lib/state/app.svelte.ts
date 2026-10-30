@@ -326,6 +326,39 @@ export class AppState {
   }
 
   /**
+   * The window is in front again: configs may have changed on disk meanwhile (an assistant
+   * saves them through `doppelpad mcp`, or an editor). The library is listed again, and the open
+   * config follows its file, unless the editor holds changes of its own: it reloads when the
+   * file changed and closes when the file is gone.
+   */
+  async followDisk() {
+    if (!(await this.attempt(this.refreshLibrary()))) return;
+    const path = this.configPath;
+    if (!path || this.dirty) return;
+    const request = this.openRequest;
+    const saved = this.savedJson;
+    const loaded = await api.configLoad(path).catch(() => null);
+    // Another config opened meanwhile, or the editor changed or saved this one.
+    if (request !== this.openRequest || this.dirty || this.savedJson !== saved) return;
+    if (!loaded) {
+      // Gone (deleted, moved away) it closes; listed but unreadable, it stays as it was.
+      const listed = [...this.library.games.flatMap((g) => g.configs), ...this.library.unsorted].some((c) => c.path === path);
+      if (!listed) {
+        this.closeConfig();
+        if (!this.game) this.gameDir = null;
+      }
+      return;
+    }
+    const json = JSON.stringify(loaded.profile);
+    if (json === saved) return;
+    this.profile = loaded.profile;
+    this.savedJson = this.draftJson = json;
+    this.readOnly = loaded.read_only;
+    this.diagnostics = loaded.diagnostics;
+    this.clearHistory();
+  }
+
+  /**
    * The library moved from `from` (`null`: another library is used and nothing moved) to `to`:
    * the open game and config, unsaved changes included, follow their files.
    */

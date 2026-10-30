@@ -7,8 +7,10 @@ Unknown keys are rejected, so typos are caught by `doppelpad check`.
 format = 1                   # version of the file format (see Format versions); optional
 name = "My game"
 description = "..."
-processes = ["MyGame.exe"]   # auto-apply while one of these is in the foreground (daemon); any case,
-                             # with or without .exe, so "MyGame" on macOS and Linux matches too
+processes = ["MyGame.exe"]   # auto-apply while one of these is in the foreground; any case, with
+                             # or without .exe, so "MyGame" on macOS and Linux matches too. Only
+                             # for a profile directly in the library folder: in a game's folder,
+                             # the game's programs (set in the app) switch to its default config
 kbm_source = "all"            # all | physical | scripts: which keyboard/mouse input the mappings see
 
 [output]
@@ -95,6 +97,11 @@ shake_g = 2.0                # strength of a shake action, in g
 shake_ms = 150               # its length
 ```
 
+Apart from `name`, `description`, `processes`, the left stick's `curve` and the left trigger's
+`effect`, every value above is the default, so a profile only needs what it changes. With
+`virtual_pad = "none"` the profile only drives the keyboard and mouse, and games keep seeing the
+real controller.
+
 `[gyro]` decides how the motion sensors become `Gyro*` controls. In `motion` mode they fire
 while the controller turns, by its rotation rate. In `tilt` mode the controller is a stick:
 they follow how far it is tilted from the centre pose (taken when the profile starts and by
@@ -129,15 +136,16 @@ every 25 ms; only a virtual DualShock 4 has motion sensors.
 |---|---|
 | `A` `B` `X` `Y` | Face buttons by Xbox position: on a Nintendo controller `A` is the button printed B, `X` the one printed Y (the app shows the printed names). Aliases: `Cross`, `Circle`, `Square`, `Triangle` |
 | `LB` `RB` `LS` `RS` | Shoulders, stick clicks. Aliases: `L1`, `R1`, `L3`, `R3` |
-| `Back` `Start` `Guide` | Aliases: `View`, `Share`, `Create`, `Menu`, `Options`, `Home`, `PS` |
+| `Back` `Start` `Guide` | Aliases: `View`, `Select`, `Share`, `Create`, `Minus`, `Menu`, `Options`, `Plus`, `Home`, `PS`, `Xbox` |
 | `DpadUp` … `DpadRight` | D-pad |
 | `Touchpad` `Misc` | Touchpad click, Share/Mute/Capture (Steam Deck: either trackpad click, quick access button) |
-| `PaddleUL` `PaddleUR` `PaddleLL` `PaddleLR` | Back paddles (Elite, DualSense Edge; Steam Controller grips = `PaddleUL` `PaddleUR`; Steam Deck L4 R4 = `PaddleUL` `PaddleUR`, L5 R5 = `PaddleLL` `PaddleLR`) |
+| `Misc2` | The C button of Switch 2 controllers. Aliases: `C`, `Chat` |
+| `PaddleUL` `PaddleUR` `PaddleLL` `PaddleLR` | Back paddles (Elite, DualSense Edge; Steam Controller grips = `PaddleUL` `PaddleUR`; Steam Deck L4 R4 = `PaddleUL` `PaddleUR`, L5 R5 = `PaddleLL` `PaddleLR`; Switch 2 controllers GL GR = `PaddleUL` `PaddleUR`, aliases `GL` `GR`; Joy-Con: left SL `PaddleUL`, left SR `PaddleLL`, right SR `PaddleUR`, right SL `PaddleLR`) |
 | `LeftStickUp` … `RightStickRight` | Stick pushed past its low zone threshold (a diagonal presses two, unless the stick has `diagonals = true`) |
 | `LeftStickUpLeft` `LeftStickUpRight` `LeftStickDownLeft` `LeftStickDownRight` (same for `RightStick…`) | Diagonals of a stick with `diagonals = true` |
 | `LeftStickUpLow` … `RightStickDownRightHigh` | Stick pushed in a direction (diagonals too) and within a zone (see Zones) |
 | `LeftStickLow` `LeftStickMed` `LeftStickHigh` (same for `RightStick…`) | Stick within a zone, in any direction |
-| `LT` `RT` / `LTFull` `RTFull` | Trigger past its low zone threshold / past `full_pull` |
+| `LT` `RT` / `LTFull` `RTFull` | Trigger past its low zone threshold / past `full_pull`. Aliases: `L2` `R2`, `ZL` `ZR` |
 | `LTLow` `LTMed` `LTHigh` (same for `RT…`) | Trigger pulled within a zone |
 | `TouchUp` `TouchDown` `TouchLeft` `TouchRight` `TouchCenter` | Finger resting in a touchpad region (four 90° regions around the centre) |
 | `TouchUpLeft` `TouchUpRight` `TouchDownLeft` `TouchDownRight` | Corner regions; mapping any of them splits the touchpad into eight 45° regions |
@@ -154,9 +162,17 @@ every 25 ms; only a virtual DualShock 4 has motion sensors.
 | `MouseMove:Low` `MouseMove:Med` `MouseMove:High`, `MouseMove:UpHigh` … | Mouse moving at a zone's speed (`[mouse] zones`, counts/s), any direction or one |
 
 `trigger` is one control (`"A"`) or a combo (`["LB", "RB"]`, up to 4). A combo may mix devices,
-such as `["Key:LeftAlt", "Key:W"]`.
+such as `["Key:LeftAlt", "Key:W"]`. [All names](#all-names) lists every control name and alias.
 
-**Key names** are US-layout positions:
+A control in a combo still works alone: its press waits up to `combo_window_ms` (50 ms) for the
+rest of the combo, then counts as a press of its own, reaching the virtual controller or its own
+mapping. A combo pressed in time takes its controls: while it is held, they neither reach the
+virtual controller nor run their own mappings.
+
+**Key names** are positions on a US keyboard (the key's scan code), not the characters printed
+on the keys. On a German keyboard, for example, `Y` is the key printed Z, `Z` the one printed Y,
+`Semicolon` is Ö, `Apostrophe` Ä, `LeftBracket` Ü, `Minus` ß, `Backslash` # and
+`IntlBackslash` <.
 
 - Letters `A`–`Z` and digits `Digit0`–`Digit9` (or simply `"0"`–`"9"`).
 - `F1`–`F24`, `Escape`, `Tab`, `CapsLock`, `LeftShift`, `LeftCtrl`, `LeftAlt`, `LeftMeta`,
@@ -168,8 +184,9 @@ such as `["Key:LeftAlt", "Key:W"]`.
   `NumpadSubtract`, `NumpadMultiply`, `NumpadDivide`, `NumpadDecimal`, `NumpadEnter`.
 - Media keys: `VolumeUp`, `VolumeDown`, `VolumeMute`, `MediaPlayPause`, `MediaNext`,
   `MediaPrevious`, `MediaStop`.
+- More keys (browser and launch keys, Japanese keys, …) are in [All names](#all-names).
 
-Aliases: `Ctrl`, `Shift`, `Alt`, `Win`, `Esc`, `Return`.
+Aliases: `Ctrl`, `Shift`, `Alt`, `Win`, `Esc`, `Return`, and a few more in [All names](#all-names).
 
 ### Zones
 
@@ -213,6 +230,9 @@ actions = [{ mouse = "left" }]
   for both of its directions) and is in that zone. `LeftStickHigh` ignores the direction.
 - Zone controls behave like any other control. They work with all activators and modes, in
   combos (`["LB", "RTHigh"]`) and in layers.
+- The plain control, the zones and the full pull are separate controls that are active at the
+  same time: a trigger pulled all the way is `RT`, `RTHigh` and `RTFull` at once, and the
+  mappings of all three run. So `RT` → aim and `RTFull` → fire aims and fires on a full pull.
 - Mapping a stick's direction or zone replaces that stick's output on the virtual pad, like a
   button mapping does. The same holds for a trigger. Add a stick or trigger action to keep it.
 
@@ -237,9 +257,28 @@ key_delay_ms = 20
 description = "free text"
 ```
 
+Only `trigger` is needed (with `actions`, a `jump`, or neither to unmap it): `layer = 0`,
+`activator = "single"` and `mode = "hold"` are the defaults, and the timing overrides default to
+`[timing]`.
+
 ### Activators
 
 Several mappings can share a trigger with different activators.
+
+A control with a mapping of its own on the active layer (one in a combo does not count) no
+longer reaches the virtual controller by itself, whatever the activator. To keep the short press of a button that also has a `long` or
+`double` mapping, give it a `single` mapping that sends the button:
+
+```toml
+[[mappings]]                 # tap: Start as usual
+trigger = "Start"
+actions = [{ pad = "Start" }]
+
+[[mappings]]                 # hold: screenshot
+trigger = "Start"
+activator = "long"
+actions = [{ command = "screenshot" }]
+```
 
 | Activator | Fires |
 |---|---|
@@ -286,6 +325,30 @@ replaying the runs it missed.
 | Command | `{ command = "remap_off" }`, `{ command = "toggle_gyro" }`, `{ command = { launch = { path = "osk.exe", args = "" } } }` (all commands below) |
 | Break | `{ break = true }` (splits the sequence into segments, see below) |
 
+[All names](#all-names) lists the values each action takes; `pad` takes only the button names,
+not their aliases.
+
+**Shortcuts.** To send a shortcut once per press, use `mode = "once"` and hold the modifiers with
+`down` and `up`, since in the sequence modes (`once`, `repeat`, `while_held`) each plain key is a
+tap of its own:
+
+```toml
+[[mappings]]                 # Ctrl+Shift+M
+trigger = "Back"
+mode = "once"
+actions = [
+  { key = "LeftCtrl", action = "down" },
+  { key = "LeftShift", action = "down" },
+  { key = "M" },
+  { key = "LeftShift", action = "up" },
+  { key = "LeftCtrl", action = "up" },
+]
+```
+
+In `hold` mode the keys are pressed in order and held together while the button is, so
+`actions = [{ key = "LeftCtrl" }, { key = "C" }]` works too, but a held key repeats like on a
+real keyboard (see `[virtual.keyboard] repeat`), which toggles a mute shortcut on and off.
+
 Commands:
 
 | Command | Effect |
@@ -306,7 +369,7 @@ Commands:
 | `mappings_overlay` | Show or hide the list of the active layer's mappings over the game |
 | `power_off` | Turn this controller off (wireless DualShock 4, DualSense, Switch controllers and Xbox controllers; wired ones stay on) |
 | `shutdown`, `restart`, `sleep`, `hibernate`, `log_off` | Power commands; applications may still ask to save their work (Linux: `systemctl`, `loginctl`) |
-| `{ launch = { path, args } }` | Start a program. Importing a game or a JSON profile (in the app or with `doppelpad import`) lists these commands first and leaves them out unless you keep them, since a shared config could start anything |
+| `{ launch = { path, args } }` | Start a program; `args` is optional. Write Windows paths in single quotes (`path = 'C:\Program Files\OBS\obs64.exe'`), since TOML reads backslashes in double quotes as escapes. Importing a game or a JSON profile (in the app or with `doppelpad import`) lists these commands first and leaves them out unless you keep them, since a shared config could start anything |
 
 **Break** cuts a sequence into segments. Each activation plays the next segment, and after
 the last one it starts over with the first (for example "1, break, 2, break, 3" cycles
@@ -342,6 +405,10 @@ jump = { layer = 1, mode = "hold" }      # hold | toggle | switch
 - `hold`: layer 1 is active while Back is held.
 - `toggle`: each press switches between the layers.
 - `switch`: a permanent jump. Add another mapping to come back.
+
+A layer needs a `[[layers]]` entry only for what is set there: a name, `inherit = false`,
+`not_inherited`, its own stick or trigger settings, a light bar or `unlock`. Mappings, routes and
+radial menus can use a layer that has no entry; it inherits the base layer.
 
 A jump can wait: `jump = { layer = 1, mode = "hold", delay_ms = 300 }` changes the layer only
 once the trigger has been held for 300 ms. The mapping's own actions still start at the press;
@@ -421,8 +488,8 @@ Bluetooth.
 
 ```toml
 [vibration]
-left = 1.0          # left (heavy) motor strength, 0–1; 0 turns it off
-right = 0.6         # right (light) motor
+left = 1.0          # left (heavy) motor strength, 0–1; 0 turns it off; default 1.0
+right = 0.6         # right (light) motor; default 1.0
 swap = false        # each motor plays the other one's rumble
 min_delay_ms = 20   # shortest gap between rumble commands, 10–200 (the latest value wins)
 ```
@@ -545,6 +612,22 @@ What `sensitivity = 1.0` means for each route:
 | touchpad → stick | finger position relative to the pad centre |
 | stick → flick | 1 = exact: the turn follows the stick's angle one to one |
 
+Gyro aiming that only works while a control is held takes `while_held = ["LT"]`. One that a
+button turns on and off is a gyro route with a command beside it:
+
+```toml
+[gyro]
+initially_on = false         # starts off
+
+[[analog]]
+source = "gyro"
+target = "mouse"
+
+[[mappings]]                 # L1+R1 turns it on, and again off
+trigger = ["LB", "RB"]
+actions = [{ command = "toggle_gyro" }]
+```
+
 With `target = "flick"` (flick stick, stick sources only), pushing the stick past `deadzone`
 turns the view to face where the stick points, spread over `turn_ms`; while it stays out,
 turning the stick turns the view by the same angle (smoothed by `smoothing_ms`). Letting the
@@ -597,3 +680,104 @@ it keeps the original key from reaching the system.
 
 In that format a button that pushes a stick ramps up gradually by default, so imported
 profiles get `[virtual.sticks.*]` settings with that ramp for every stick that buttons push.
+
+<!-- names:start -->
+## All names
+
+These lists are written from the code, so they are complete. Control names and key
+names may be written in any case.
+
+### Controls
+
+| Controls | Names |
+|---|---|
+| Gamepad buttons | `A` `B` `X` `Y` `LB` `RB` `Back` `Start` `LS` `RS` `DpadUp` `DpadDown` `DpadLeft` `DpadRight` `Guide` `Touchpad` `Misc` `PaddleUL` `PaddleUR` `PaddleLL` `PaddleLR` `Misc2` |
+| Left stick | `LeftStick` + a direction (`LeftStickUp`), a zone (`LeftStickHigh`), or both (`LeftStickUpLeftMed`) |
+| Right stick | `RightStick` + a direction (`RightStickUp`), a zone (`RightStickHigh`), or both (`RightStickUpLeftMed`) |
+| Triggers | `LT` `RT`, `LTFull` `RTFull`, or a trigger + a zone (`RTLow`) |
+| Touchpad regions | `TouchUp` `TouchDown` `TouchLeft` `TouchRight` `TouchCenter` `TouchUpLeft` `TouchUpRight` `TouchDownLeft` `TouchDownRight` |
+| Touchpad gestures | `TouchTap` `TouchTapLeft` `TouchTapCenter` `TouchTapRight` `TouchMultiTap` `TouchSwipeUp` `TouchSwipeDown` `TouchSwipeLeft` `TouchSwipeRight` `TouchSwipe2Up` `TouchSwipe2Down` `TouchSwipe2Left` `TouchSwipe2Right` `TouchZoomIn` `TouchZoomOut` |
+| Trackpads (`[touchpad] split`) | `Trackpad` + `Left` `Right` + a touchpad region, `Tap` or `Click` (`TrackpadLeftUp`, `TrackpadRightClick`) |
+| Gyro | `Gyro` + a gyro direction (`GyroUp`), a zone (`GyroLow`), or both (`GyroLeanLeftHigh`) |
+| Keyboard | `Key:` + a key name (`Key:Space`) |
+| Mouse buttons | `Mouse:Left` `Mouse:Right` `Mouse:Middle` `Mouse:X1` `Mouse:X2` |
+| Mouse wheel | `Wheel:Up` `Wheel:Down` `Wheel:Left` `Wheel:Right` |
+| Mouse movement | `MouseMove:` + a direction (`MouseMove:Up`), a zone (`MouseMove:Low`), or both (`MouseMove:UpHigh`) |
+
+- Directions: `Up` `Down` `Left` `Right` `UpLeft` `UpRight` `DownLeft` `DownRight`
+- Gyro directions: `Up` `Down` `Left` `Right` `LeanLeft` `LeanRight`
+- Zones: `Low` `Med` `High`
+
+Other names that control names accept:
+
+| Name | Also written |
+|---|---|
+| `A` | `Cross` |
+| `B` | `Circle` |
+| `X` | `Square` |
+| `Y` | `Triangle` |
+| `LB` | `L1` |
+| `RB` | `R1` |
+| `Back` | `View` `Select` `Share` `Create` `Minus` |
+| `Start` | `Menu` `Options` `Plus` |
+| `LS` | `L3` |
+| `RS` | `R3` |
+| `DpadUp` | `Up` |
+| `DpadDown` | `Down` |
+| `DpadLeft` | `Left` |
+| `DpadRight` | `Right` |
+| `Guide` | `Home` `PS` `Xbox` |
+| `Misc` | `Mute` `Capture` |
+| `PaddleUL` | `GL` |
+| `PaddleUR` | `GR` |
+| `Misc2` | `C` `Chat` |
+| `LT` | `L2` `ZL` `LeftTrigger` |
+| `RT` | `R2` `ZR` `RightTrigger` |
+| `Mouse:Left` | `Mouse:1` |
+| `Mouse:Right` | `Mouse:2` |
+| `Mouse:Middle` | `Mouse:3` |
+| `Mouse:X1` | `Mouse:Back` `Mouse:4` |
+| `Mouse:X2` | `Mouse:Forward` `Mouse:5` |
+
+A trigger's other names work in its zone controls too (`R2Full`, `ZRHigh`).
+
+### Keys
+
+Key names are positions on a US keyboard, not the characters printed on the keys.
+
+- Letters: `A` `B` `C` `D` `E` `F` `G` `H` `I` `J` `K` `L` `M` `N` `O` `P` `Q` `R` `S` `T` `U` `V` `W` `X` `Y` `Z`
+- Digits: `Digit0` `Digit1` `Digit2` `Digit3` `Digit4` `Digit5` `Digit6` `Digit7` `Digit8` `Digit9` (or simply `0`–`9`)
+- Function keys: `F1` `F2` `F3` `F4` `F5` `F6` `F7` `F8` `F9` `F10` `F11` `F12` `F13` `F14` `F15` `F16` `F17` `F18` `F19` `F20` `F21` `F22` `F23` `F24`
+- Other keys: `Apostrophe` `Backslash` `Backspace` `BrowserBack` `BrowserFavorites` `BrowserForward` `BrowserHome` `BrowserRefresh` `BrowserSearch` `BrowserStop` `CapsLock` `Comma` `ContextMenu` `Convert` `Delete` `Down` `End` `Enter` `Equal` `Escape` `Grave` `Home` `Insert` `IntlBackslash` `IntlRo` `IntlYen` `Kana` `LaunchCalculator` `LaunchMail` `LaunchMediaSelect` `LaunchMyComputer` `Left` `LeftAlt` `LeftBracket` `LeftCtrl` `LeftMeta` `LeftShift` `MediaNext` `MediaPlayPause` `MediaPrevious` `MediaStop` `Minus` `NonConvert` `NumLock` `Numpad0` `Numpad1` `Numpad2` `Numpad3` `Numpad4` `Numpad5` `Numpad6` `Numpad7` `Numpad8` `Numpad9` `NumpadAdd` `NumpadComma` `NumpadDecimal` `NumpadDivide` `NumpadEnter` `NumpadEqual` `NumpadMultiply` `NumpadSubtract` `PageDown` `PageUp` `Pause` `Period` `Power` `PrintScreen` `Right` `RightAlt` `RightBracket` `RightCtrl` `RightMeta` `RightShift` `ScrollLock` `Semicolon` `Slash` `Sleep` `Space` `Tab` `Up` `VolumeDown` `VolumeMute` `VolumeUp` `Wake`
+
+| Key | Also written |
+|---|---|
+| `Escape` | `Esc` |
+| `Enter` | `Return` |
+| `LeftCtrl` | `Ctrl` `Control` |
+| `LeftShift` | `Shift` |
+| `LeftAlt` | `Alt` |
+| `PageUp` | `PgUp` |
+| `PageDown` | `PgDn` |
+| `Insert` | `Ins` |
+| `Delete` | `Del` |
+| `LeftMeta` | `Win` `Meta` `Super` `Cmd` |
+| `ContextMenu` | `Menu` `Apps` |
+
+### Action values
+
+Actions take these values exactly as written here.
+
+| Action | Values |
+|---|---|
+| `pad` | `A` `B` `X` `Y` `LB` `RB` `Back` `Start` `LS` `RS` `DpadUp` `DpadDown` `DpadLeft` `DpadRight` `Guide` `Touchpad` `Misc` `PaddleUL` `PaddleUR` `PaddleLL` `PaddleLR` `Misc2` (no other names) |
+| `key` | a key name or another name of a key, as above |
+| `mouse` | `left` `right` `middle` `x1` `x2` |
+| `wheel` | `up` `down` `left` `right` |
+| `stick` | `left` `right` |
+| `trigger` | `left` `right` |
+| `mouse_move` | `up` `down` `left` `right` `up_left` `up_right` `down_left` `down_right` |
+| `touch` | `tap` `tap_left` `tap_center` `tap_right` `multi_tap` `swipe_up` `swipe_down` `swipe_left` `swipe_right` `swipe2_up` `swipe2_down` `swipe2_left` `swipe2_right` `zoom_in` `zoom_out` |
+| `shake` | `+x` `-x` `+y` `-y` `+z` `-z` |
+
+<!-- names:end -->

@@ -26,11 +26,11 @@ const GAME_FORMAT: FileFormat = FileFormat::new(&[]);
 #[derive(Debug, thiserror::Error)]
 pub enum LibraryError {
     #[error("{0}: {1}")]
-    Io(PathBuf, #[source] std::io::Error),
+    Io(PathBuf, std::io::Error),
     #[error("{0}: {1}")]
-    Meta(PathBuf, #[source] toml::de::Error),
+    Meta(PathBuf, toml::de::Error),
     #[error("{0}: {1}")]
-    Serialize(PathBuf, #[source] toml::ser::Error),
+    Serialize(PathBuf, toml::ser::Error),
     #[error(transparent)]
     Load(#[from] LoadError),
     #[error("{0}: JSON profiles are read-only; import them first")]
@@ -39,9 +39,9 @@ pub enum LibraryError {
     #[error("{0}: {1}")]
     Bundle(PathBuf, String),
     #[error("{0}: {1}")]
-    Preset(PathBuf, #[source] toml::de::Error),
+    Preset(PathBuf, toml::de::Error),
     #[error("cannot move {0} to the recycle bin: {1}")]
-    Trash(PathBuf, #[source] trash::Error),
+    Trash(PathBuf, trash::Error),
     #[error("{0} is not a game folder")]
     NotAGame(PathBuf),
     #[error("{0} is not a picture (PNG, JPEG, GIF, WebP, SVG or ICO)")]

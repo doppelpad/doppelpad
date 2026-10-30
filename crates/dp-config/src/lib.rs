@@ -31,14 +31,16 @@ pub use store::{
 };
 pub use validate::validate;
 
+/// The messages of these errors (and of the library's) carry their cause, so the cause is not
+/// also their `source`: `{:#}` would print it twice.
 #[derive(Debug, thiserror::Error)]
 pub enum LoadError {
     #[error("cannot read {0}: {1}")]
-    Io(PathBuf, #[source] std::io::Error),
+    Io(PathBuf, std::io::Error),
     #[error("{0}: {1}")]
-    Toml(PathBuf, #[source] toml::de::Error),
+    Toml(PathBuf, toml::de::Error),
     #[error("{0}: {1}")]
-    Import(PathBuf, #[source] ImportError),
+    Import(PathBuf, ImportError),
 }
 
 /// How a profile file is written: native TOML, or a JSON profile to import (not to be
@@ -225,6 +227,22 @@ while_held = ["LT", "Mouse:Right"]
             !to_toml(&Profile::default()).unwrap().contains("virtual"),
             "native is the default"
         );
+    }
+
+    #[test]
+    fn load_errors_say_their_cause_once() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("broken.toml");
+        std::fs::write(&path, "[[mappings]]\ntrigger = \"Bogus\"\n").unwrap();
+        let err = load(&path).unwrap_err();
+        // What `{:#}` prints: the message, then each source after it.
+        let mut text = err.to_string();
+        let mut source = std::error::Error::source(&err);
+        while let Some(e) = source {
+            text = format!("{text}: {e}");
+            source = e.source();
+        }
+        assert_eq!(text.matches("unknown control `Bogus`").count(), 1, "{text}");
     }
 
     #[test]

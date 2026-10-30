@@ -197,6 +197,28 @@ calibration (`calibration.toml`) with the desktop app. `doppelpad devices` lists
 reconnects (on Linux the Bluetooth address or USB port; XInput pads on Windows are only
 known by their XInput slot).
 
+### AI assistants
+
+`doppelpad mcp` is a Model Context Protocol server, so an AI assistant (Claude Desktop, Claude
+Code and others that speak MCP) can write a profile from what you ask for: "a profile for Elden
+Ring: touchpad click opens the map, L1+R1 turns gyro aiming on and off". The assistant reads the
+profile reference, checks its profile and saves it into your library, where the app lists it, and
+can apply it for you to try. It reaches only the configs in your library, a config it changes
+keeps its earlier version in the app's history, and it cannot add launch commands: those you add
+in the app.
+
+Add it to the assistant as a local server that runs `doppelpad mcp`. On Windows the installer puts
+`doppelpad.exe` next to the app, so in Claude Code:
+
+```bash
+claude mcp add doppelpad -- "C:\Program Files\Doppelpad\doppelpad.exe" mcp
+```
+
+In Claude Desktop, under `mcpServers` in `claude_desktop_config.json`:
+`"doppelpad": { "command": "C:\\Program Files\\Doppelpad\\doppelpad.exe", "args": ["mcp"] }`.
+On Linux and macOS, `doppelpad` comes as its own archive with each release. An update replaces
+`doppelpad.exe` and ends a server that runs, so the assistant connects again afterwards.
+
 ## Profiles
 
 Profiles are TOML. A minimal one:
